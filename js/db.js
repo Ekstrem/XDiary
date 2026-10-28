@@ -3,7 +3,7 @@
   "use strict";
 
   var DB_NAME = "xdiary";
-  var DB_VERSION = 2;
+  var DB_VERSION = 3;
   var _db = null;
 
   function openDB() {
@@ -21,6 +21,10 @@
         }
         if (!db.objectStoreNames.contains("partners")) {
           db.createObjectStore("partners", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("catalog")) {
+          var cs = db.createObjectStore("catalog", { keyPath: "id" });
+          cs.createIndex("kind", "kind");
         }
       };
       req.onsuccess = function () { _db = req.result; resolve(_db); };
@@ -91,6 +95,11 @@
     getAllPartners: function () { return getAll("partners"); },
     getPartner: function (id) { return getOne("partners", id); },
     putPartner: function (p) { return putOne("partners", p); },
-    deletePartner: function (id) { return deleteOne("partners", id); }
+    deletePartner: function (id) { return deleteOne("partners", id); },
+    // каталог (костюмы / игрушки / фантазии)
+    getAllCatalog: function () { return getAll("catalog"); },
+    getCatalogItem: function (id) { return getOne("catalog", id); },
+    putCatalogItem: function (item) { return putOne("catalog", item); },
+    deleteCatalogItem: function (id) { return deleteOne("catalog", id); }
   };
 })();

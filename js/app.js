@@ -1,10 +1,10 @@
-/* XDiary — логика приложения (визард-запись, журнал, партнёры, настройки) */
+/* XDiary — логика приложения (визард-запись, журнал, партнёры, каталог, настройки) */
 (function () {
   "use strict";
 
   function $(id) { return document.getElementById(id); }
 
-  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "orgasms_me", "orgasms_partner"];
+  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner"];
   var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Отметки", "Длительность", "Оргазмы", "Итог"];
   var POSITIONS = [
     "Миссионерская", "Догги (сзади)", "Наездница (сверху)", "Обратная наездница",
@@ -13,13 +13,26 @@
   ];
   var DURATION_PRESETS = [10, 15, 20, 30, 45, 60, 90];
 
+  var KIND_ORDER = ["costume", "toy", "fantasy"];
+  var KIND_META = {
+    costume: { title: "Костюмчики", single: "Костюм", icon: "🧥" },
+    toy: { title: "Игрушки", single: "Игрушка", icon: "🧸" },
+    fantasy: { title: "Фантазии", single: "Фантазия", icon: "✨" }
+  };
+  var KIND_FIELD = { costume: "costumes", toy: "toys", fantasy: "fantasies" };
+
   // состояние
-  var draft = null;          // текущий черновик записи
+  var draft = null;
   var wizardStep = 0;
-  var editingId = null;      // id редактируемой записи (null — новая)
+  var editingId = null;
   var editingPartnerId = null;
-  var partnerEditReturn = "partners"; // "partners" | "wizard"
+  var partnerEditReturn = "partners";
   var partnerEditPhotoData = "";
+  var catalogKind = "costume";
+  var editingCatalogId = null;
+  var catalogEditKind = "costume";
+  var catalogEditReturn = "catalog";
+  var catalogEditPhotoData = "";
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -51,9 +64,9 @@
     t._timer = setTimeout(function () { t.classList.add("hidden"); }, ms || 2200);
   }
 
-  var TAB_VIEWS = ["journal", "partners", "settings"];
+  var TAB_VIEWS = ["journal", "partners", "catalog", "settings"];
   function showView(name) {
-    ["lock", "journal", "partners", "settings", "wizard", "partner-edit"].forEach(function (v) {
+    ["lock", "journal", "partners", "catalog", "settings", "wizard", "partner-edit", "catalog-edit"].forEach(function (v) {
       $("view-" + v).classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
@@ -63,9 +76,9 @@
     });
   }
 
-  function avatarHtml(p) {
-    if (p.photo) return '<img class="avatar" src="' + p.photo + '" alt="">';
-    var initial = (p.name || "?").trim().charAt(0).toUpperCase() || "?";
+  function avatarHtml(o) {
+    if (o.photo) return '<img class="avatar" src="' + o.photo + '" alt="">';
+    var initial = (o.name || "?").trim().charAt(0).toUpperCase() || "?";
     return '<span class="avatar avatar-initial">' + esc(initial) + "</span>";
   }
 
@@ -151,12 +164,12 @@
             return '<span class="chip-mini">' + esc(p) + "</span>";
           }).join("") + "</div>";
         }
-        var tagsHtml = "";
-        if (r.tags && r.tags.length) {
-          tagsHtml = '<div class="record-chips record-chips-tags">' + r.tags.map(function (t) {
-            return '<span class="chip-mini tag">#' + esc(t) + "</span>";
-          }).join("") + "</div>";
-        }
+        var marks = [];
+        (r.costumes || []).forEach(function (x) { marks.push('<span class="chip-mini">🧥 ' + esc(x) + "</span>"); });
+        (r.toys || []).forEach(function (x) { marks.push('<span class="chip-mini">🧸 ' + esc(x) + "</span>"); });
+        (r.fantasies || []).forEach(function (x) { marks.push('<span class="chip-mini">✨ ' + esc(x) + "</span>"); });
+        (r.tags || []).forEach(function (x) { marks.push('<span class="chip-mini tag">#' + esc(x) + "</span>"); });
+        var marksHtml = marks.length ? '<div class="record-chips">' + marks.join("") + "</div>" : "";
 
         card.innerHTML =
           '<div class="record-card-top">' +
@@ -164,13 +177,12 @@
             '<span class="record-org">' + (org ? "💗 " + org : "") + "</span>" +
           "</div>" +
           '<div class="record-meta">' + meta.join(" · ") + "</div>" +
-          posHtml + tagsHtml;
+          posHtml + marksHtml;
 
         card.addEventListener("click", function () { openWizard(r.id); });
         list.appendChild(card);
       });
 
-      // подсказки мест
       var places = new Set();
       records.forEach(function (r) { if (r.place) places.add(r.place); });
       fillDatalist("place-suggest", places);
@@ -186,6 +198,14 @@
   }
 
   // ---- визард ----
+  function newDraft() {
+    return {
+      startedAt: toInputValue(new Date()), partner: "", place: "",
+      positions: [], tags: [], costumes: [], toys: [], fantasies: [],
+      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0, partnerTouched: false
+    };
+  }
+
   function openWizard(id) {
     editingId = id || null;
     wizardStep = id ? STEPS.length - 1 : 0;
@@ -194,31 +214,20 @@
         if (!r) return;
         draft = {
           startedAt: r.startedAt || toInputValue(new Date()),
-          partner: r.partner || "",
-          place: r.place || "",
-          positions: (r.positions || []).slice(),
-          tags: (r.tags || []).slice(),
-          durationMin: r.durationMin || 0,
-          orgasmsMe: r.orgasmsMe || 0,
-          orgasmsPartner: r.orgasmsPartner || 0,
-          partnerTouched: true
+          partner: r.partner || "", place: r.place || "",
+          positions: (r.positions || []).slice(), tags: (r.tags || []).slice(),
+          costumes: (r.costumes || []).slice(), toys: (r.toys || []).slice(),
+          fantasies: (r.fantasies || []).slice(),
+          durationMin: r.durationMin || 0, orgasmsMe: r.orgasmsMe || 0,
+          orgasmsPartner: r.orgasmsPartner || 0, partnerTouched: true
         };
         showView("wizard");
         renderWizard();
       });
     } else {
       DB.getAllRecords().then(function (records) {
-        draft = {
-          startedAt: toInputValue(new Date()),
-          partner: lastPartnerName(records),
-          place: "",
-          positions: [],
-          tags: [],
-          durationMin: 0,
-          orgasmsMe: 0,
-          orgasmsPartner: 0,
-          partnerTouched: false
-        };
+        draft = newDraft();
+        draft.partner = lastPartnerName(records);
         showView("wizard");
         renderWizard();
       });
@@ -258,7 +267,7 @@
       case 1: stepPartner(body); break;
       case 2: stepPlace(body); break;
       case 3: stepPositions(body); break;
-      case 4: stepTags(body); break;
+      case 4: stepMarks(body); break;
       case 5: stepDuration(body); break;
       case 6: stepOrgasms(body); break;
       case 7: stepSummary(body); break;
@@ -316,7 +325,6 @@
           stepPartner(body);
         });
 
-        // подсказки имён
         var names = new Set();
         partners.forEach(function (p) { names.add(p.name); });
         records.forEach(function (r) { if (r.partner) names.add(r.partner); });
@@ -378,42 +386,90 @@
     });
   }
 
-  function stepTags(body) {
-    DB.getAllRecords().then(function (records) {
-      var set = [];
-      records.forEach(function (r) {
-        (r.tags || []).forEach(function (t) { if (set.indexOf(t) === -1) set.push(t); });
-      });
-      body.innerHTML =
-        '<div class="step-label">Особые отметки</div>' +
-        '<div class="chips-grid" id="w-tag-grid"></div>' +
-        '<div class="field" style="margin-top:16px">' +
-          '<input type="text" id="w-tag-custom" placeholder="Своя отметка" autocomplete="off">' +
-        "</div>";
+  // ---- отметки (костюмы / игрушки / фантазии / другие) ----
+  function stepMarks(body) {
+    DB.getAllCatalog().then(function (items) {
+      body.innerHTML = '<div class="step-label">Отметки</div>';
 
-      var grid = $("w-tag-grid");
-      set.forEach(function (t) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "chip-toggle" + (draft.tags.indexOf(t) !== -1 ? " on" : "");
-        b.textContent = "#" + t;
-        b.addEventListener("click", function () {
-          var i = draft.tags.indexOf(t);
-          if (i !== -1) draft.tags.splice(i, 1); else draft.tags.push(t);
-          stepTags(body);
+      var kinds = [
+        { key: "costume", label: "Костюмчики" },
+        { key: "toy", label: "Игрушки" },
+        { key: "fantasy", label: "Реализованные фантазии" }
+      ];
+      kinds.forEach(function (k) {
+        var field = KIND_FIELD[k.key];
+        var grp = document.createElement("div");
+        grp.className = "marks-group";
+        grp.innerHTML =
+          '<div class="marks-group-title">' + k.label +
+            ' <button type="button" class="chip-add" data-kind="' + k.key + '">＋</button></div>' +
+          '<div class="chips-grid"></div>';
+        body.appendChild(grp);
+
+        var grid = grp.querySelector(".chips-grid");
+        var list = items.filter(function (it) { return it.kind === k.key; });
+        list.forEach(function (it) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "chip-toggle" + (draft[field].indexOf(it.name) !== -1 ? " on" : "");
+          b.textContent = it.name;
+          b.addEventListener("click", function () {
+            var arr = draft[field];
+            var i = arr.indexOf(it.name);
+            if (i !== -1) arr.splice(i, 1); else arr.push(it.name);
+            stepMarks(body);
+          });
+          grid.appendChild(b);
         });
-        grid.appendChild(b);
+        if (!list.length) {
+          var hint = document.createElement("span");
+          hint.className = "muted";
+          hint.textContent = "Пока пусто";
+          grid.appendChild(hint);
+        }
+        grp.querySelector(".chip-add").addEventListener("click", function () {
+          catalogEditReturn = "wizard";
+          openCatalogEdit(null, k.key);
+        });
       });
 
-      var custom = $("w-tag-custom");
-      custom.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          var v = custom.value.trim();
-          if (v && draft.tags.indexOf(v) === -1) draft.tags.push(v);
-          custom.value = "";
-          stepTags(body);
-        }
+      // другие отметки (свободные тэги)
+      var tags = document.createElement("div");
+      tags.className = "marks-group";
+      tags.innerHTML =
+        '<div class="marks-group-title">Другие отметки</div>' +
+        '<div class="chips-grid" id="w-tag-grid"></div>' +
+        '<input type="text" id="w-tag-custom" placeholder="Своя отметка" autocomplete="off">';
+      body.appendChild(tags);
+
+      DB.getAllRecords().then(function (records) {
+        var set = [];
+        records.forEach(function (r) {
+          (r.tags || []).forEach(function (t) { if (set.indexOf(t) === -1) set.push(t); });
+        });
+        var grid = $("w-tag-grid");
+        set.forEach(function (t) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "chip-toggle" + (draft.tags.indexOf(t) !== -1 ? " on" : "");
+          b.textContent = "#" + t;
+          b.addEventListener("click", function () {
+            var i = draft.tags.indexOf(t);
+            if (i !== -1) draft.tags.splice(i, 1); else draft.tags.push(t);
+            stepMarks(body);
+          });
+          grid.appendChild(b);
+        });
+        var custom = $("w-tag-custom");
+        custom.addEventListener("keydown", function (e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            var v = custom.value.trim();
+            if (v && draft.tags.indexOf(v) === -1) draft.tags.push(v);
+            custom.value = "";
+            stepMarks(body);
+          }
+        });
       });
     });
   }
@@ -477,6 +533,9 @@
       ["Партнёр", draft.partner || "—"],
       ["Место", draft.place || "—"],
       ["Позы", draft.positions.join(", ") || "—"],
+      ["Костюмы", draft.costumes.join(", ") || "—"],
+      ["Игрушки", draft.toys.join(", ") || "—"],
+      ["Фантазии", draft.fantasies.join(", ") || "—"],
       ["Отметки", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "—"],
       ["Длительность", (draft.durationMin || 0) + " мин"],
       ["Оргазмы", "Я: " + draft.orgasmsMe + ", партнёр: " + draft.orgasmsPartner]
@@ -494,36 +553,31 @@
     if (!draft.startedAt) { toast("Укажите дату и время"); wizardStep = 0; renderWizard(); return; }
     if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 5; renderWizard(); return; }
     var nowIso = new Date().toISOString();
+    function apply(rec) {
+      rec.startedAt = draft.startedAt;
+      rec.durationMin = draft.durationMin;
+      rec.partner = draft.partner;
+      rec.place = draft.place;
+      rec.positions = draft.positions.slice();
+      rec.tags = draft.tags.slice();
+      rec.costumes = draft.costumes.slice();
+      rec.toys = draft.toys.slice();
+      rec.fantasies = draft.fantasies.slice();
+      rec.orgasmsMe = draft.orgasmsMe;
+      rec.orgasmsPartner = draft.orgasmsPartner;
+      rec.updatedAt = nowIso;
+      return rec;
+    }
     var promise;
     if (editingId) {
       promise = DB.getRecord(editingId).then(function (ex) {
-        var rec = ex || {};
+        var rec = apply(ex || {});
         rec.id = editingId;
-        rec.startedAt = draft.startedAt;
-        rec.durationMin = draft.durationMin;
-        rec.partner = draft.partner;
-        rec.place = draft.place;
-        rec.positions = draft.positions.slice();
-        rec.tags = draft.tags.slice();
-        rec.orgasmsMe = draft.orgasmsMe;
-        rec.orgasmsPartner = draft.orgasmsPartner;
-        rec.updatedAt = nowIso;
         return DB.putRecord(rec);
       });
     } else {
-      promise = DB.putRecord({
-        id: uuid(),
-        startedAt: draft.startedAt,
-        durationMin: draft.durationMin,
-        partner: draft.partner,
-        place: draft.place,
-        positions: draft.positions.slice(),
-        tags: draft.tags.slice(),
-        orgasmsMe: draft.orgasmsMe,
-        orgasmsPartner: draft.orgasmsPartner,
-        createdAt: nowIso,
-        updatedAt: nowIso
-      });
+      var rec = apply({ id: uuid(), createdAt: nowIso });
+      promise = DB.putRecord(rec);
     }
     promise.then(function () {
       toast("Сохранено");
@@ -632,6 +686,111 @@
     });
   }
 
+  // ---- каталог (костюмы / игрушки / фантазии) ----
+  function renderCatalog() {
+    DB.getAllCatalog().then(function (items) {
+      var filtered = items.filter(function (it) { return it.kind === catalogKind; });
+      var recPromise = catalogKind === "fantasy" ? DB.getAllRecords() : Promise.resolve([]);
+      recPromise.then(function (records) {
+        var realized = new Set();
+        records.forEach(function (r) { (r.fantasies || []).forEach(function (f) { realized.add(f); }); });
+        var list = $("catalog-list");
+        list.innerHTML = "";
+        $("catalog-empty").classList.toggle("hidden", filtered.length > 0);
+        filtered.forEach(function (it) {
+          var c = document.createElement("button");
+          c.type = "button";
+          c.className = "partner-row";
+          var badge = (catalogKind === "fantasy" && realized.has(it.name)) ? '<span class="badge-realized">✓</span>' : "";
+          c.innerHTML =
+            avatarHtml(it) +
+            '<span class="partner-row-text">' +
+              '<span class="partner-row-name">' + esc(it.name) + " " + badge + "</span>" +
+              (it.notes ? '<span class="partner-row-notes">' + esc(it.notes) + "</span>" : "") +
+            "</span>";
+          c.addEventListener("click", function () { catalogEditReturn = "catalog"; openCatalogEdit(it.id, it.kind); });
+          list.appendChild(c);
+        });
+      });
+    });
+  }
+
+  function openCatalogEdit(id, kind) {
+    editingCatalogId = id || null;
+    catalogEditKind = kind || (id ? catalogEditKind : catalogKind);
+    $("catalog-edit-title").textContent = KIND_META[catalogEditKind].single;
+    $("ce-name").value = "";
+    $("ce-notes").value = "";
+    $("ce-photo").value = "";
+    $("ce-photo-preview").innerHTML = "";
+    catalogEditPhotoData = "";
+    $("btn-catalog-delete").classList.toggle("hidden", !id);
+    if (id) {
+      DB.getCatalogItem(id).then(function (it) {
+        if (!it) return;
+        catalogEditKind = it.kind || catalogEditKind;
+        $("catalog-edit-title").textContent = KIND_META[catalogEditKind].single;
+        $("ce-name").value = it.name || "";
+        $("ce-notes").value = it.notes || "";
+        catalogEditPhotoData = it.photo || "";
+        if (catalogEditPhotoData) {
+          $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + catalogEditPhotoData + '" alt="">';
+        }
+      });
+    }
+    showView("catalog-edit");
+  }
+
+  function saveCatalogEdit() {
+    var name = $("ce-name").value.trim();
+    if (!name) { toast("Укажите название"); return; }
+    var wasNew = !editingCatalogId;
+    var nowIso = new Date().toISOString();
+    var promise;
+    if (editingCatalogId) {
+      promise = DB.getCatalogItem(editingCatalogId).then(function (ex) {
+        var it = ex || {};
+        it.id = editingCatalogId;
+        it.kind = it.kind || catalogEditKind;
+        it.name = name;
+        it.notes = $("ce-notes").value.trim();
+        it.photo = catalogEditPhotoData;
+        it.updatedAt = nowIso;
+        return DB.putCatalogItem(it);
+      });
+    } else {
+      promise = DB.putCatalogItem({
+        id: uuid(), kind: catalogEditKind, name: name,
+        notes: $("ce-notes").value.trim(), photo: catalogEditPhotoData,
+        createdAt: nowIso, updatedAt: nowIso
+      });
+    }
+    promise.then(function () {
+      toast("Сохранено");
+      if (catalogEditReturn === "wizard") {
+        if (wasNew) {
+          var field = KIND_FIELD[catalogEditKind];
+          if (field && draft && draft[field].indexOf(name) === -1) draft[field].push(name);
+        }
+        showView("wizard");
+        renderWizard();
+      } else {
+        showView("catalog");
+        renderCatalog();
+      }
+    });
+  }
+
+  function deleteCatalogEdit() {
+    if (!editingCatalogId) return;
+    if (!window.confirm("Удалить?")) return;
+    DB.deleteCatalogItem(editingCatalogId).then(function () {
+      toast("Удалено");
+      if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+      else { showView("catalog"); renderCatalog(); }
+    });
+  }
+
   // ---- CSV ----
   function recordsToCsv(records) {
     var rows = [CSV_HEADERS];
@@ -639,6 +798,7 @@
       rows.push([
         r.id || "", r.startedAt || "", r.durationMin || 0, r.partner || "", r.place || "",
         (r.positions || []).join(";"), (r.tags || []).join(";"),
+        (r.costumes || []).join(";"), (r.toys || []).join(";"), (r.fantasies || []).join(";"),
         r.orgasmsMe || 0, r.orgasmsPartner || 0
       ]);
     });
@@ -675,6 +835,9 @@
         place: String(get(row, "place") || ""),
         positions: splitList(get(row, "positions")),
         tags: splitList(get(row, "tags")),
+        costumes: splitList(get(row, "costumes")),
+        toys: splitList(get(row, "toys")),
+        fantasies: splitList(get(row, "fantasies")),
         orgasmsMe: parseInt(get(row, "orgasms_me", "orgasmsme") || "0", 10) || 0,
         orgasmsPartner: parseInt(get(row, "orgasms_partner", "orgasmspartner") || "0", 10) || 0,
         createdAt: new Date().toISOString(),
@@ -776,6 +939,7 @@
 
     $("tab-journal").addEventListener("click", function () { showView("journal"); });
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });
+    $("tab-catalog").addEventListener("click", function () { renderCatalog(); showView("catalog"); });
     $("tab-settings").addEventListener("click", function () { refreshPinStatus(); showView("settings"); });
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
@@ -791,6 +955,30 @@
       fileToResizedDataUrl(f, 512).then(function (dataUrl) {
         partnerEditPhotoData = dataUrl;
         $("pe-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + dataUrl + '" alt="">';
+      }).catch(function () { toast("Не удалось загрузить фото"); });
+    });
+
+    // каталог
+    $("btn-catalog-add").addEventListener("click", function () { catalogEditReturn = "catalog"; openCatalogEdit(null, catalogKind); });
+    $("catalog-tabs").querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        catalogKind = b.getAttribute("data-kind");
+        $("catalog-tabs").querySelectorAll("button").forEach(function (x) { x.classList.toggle("active", x === b); });
+        renderCatalog();
+      });
+    });
+    $("btn-catalog-edit-back").addEventListener("click", function () {
+      if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+      else { showView("catalog"); renderCatalog(); }
+    });
+    $("btn-catalog-save").addEventListener("click", saveCatalogEdit);
+    $("btn-catalog-delete").addEventListener("click", deleteCatalogEdit);
+    $("ce-photo").addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (!f) return;
+      fileToResizedDataUrl(f, 512).then(function (dataUrl) {
+        catalogEditPhotoData = dataUrl;
+        $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + dataUrl + '" alt="">';
       }).catch(function () { toast("Не удалось загрузить фото"); });
     });
 

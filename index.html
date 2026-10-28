@@ -58,6 +58,26 @@
     </main>
   </section>
 
+  <!-- Каталог (костюмы / игрушки / фантазии) -->
+  <section id="view-catalog" class="view hidden">
+    <header class="appbar">
+      <h1>Каталог</h1>
+      <button id="btn-catalog-add" class="btn primary">+ Добавить</button>
+    </header>
+    <main class="content">
+      <div class="segmented" id="catalog-tabs">
+        <button class="active" data-kind="costume">Костюмчики</button>
+        <button data-kind="toy">Игрушки</button>
+        <button data-kind="fantasy">Фантазии</button>
+      </div>
+      <div id="catalog-list" class="partners-list"></div>
+      <div id="catalog-empty" class="empty-state hidden">
+        <p>Пока пусто.</p>
+        <p>Добавьте первый элемент.</p>
+      </div>
+    </main>
+  </section>
+
   <!-- Настройки -->
   <section id="view-settings" class="view hidden">
     <header class="appbar">
@@ -146,9 +166,37 @@
     </main>
   </section>
 
+  <!-- Каталог: редактирование элемента -->
+  <section id="view-catalog-edit" class="view hidden">
+    <header class="appbar">
+      <button id="btn-catalog-edit-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1 id="catalog-edit-title">Элемент</h1>
+      <button id="btn-catalog-save" class="btn primary">Сохранить</button>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <div class="photo-picker">
+          <div id="ce-photo-preview"></div>
+          <label class="btn" for="ce-photo">Фото</label>
+          <input type="file" id="ce-photo" accept="image/*" class="hidden">
+        </div>
+        <div class="field">
+          <label for="ce-name">Название</label>
+          <input type="text" id="ce-name" placeholder="Название" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="ce-notes">Подробности</label>
+          <textarea id="ce-notes" rows="4" placeholder="Заметки…"></textarea>
+        </div>
+        <button type="button" class="btn danger full hidden" id="btn-catalog-delete">Удалить</button>
+      </div>
+    </main>
+  </section>
+
   <nav class="tabbar hidden" id="tabbar">
     <button class="tab active" id="tab-journal"><span class="tab-ico">📓</span><span>Журнал</span></button>
     <button class="tab" id="tab-partners"><span class="tab-ico">👤</span><span>Партнёры</span></button>
+    <button class="tab" id="tab-catalog"><span class="tab-ico">🧺</span><span>Каталог</span></button>
     <button class="tab" id="tab-settings"><span class="tab-ico">⚙️</span><span>Настройки</span></button>
   </nav>
 
