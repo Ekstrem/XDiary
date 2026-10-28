@@ -30,7 +30,9 @@ icons/                — иконки
 samples/              — тестовые CSV (соматика, сон)
 tools/gen_icons.py    — генерация иконок (Pillow)
 tools/gen_sample.py   — генерация тестовых CSV
+tools/garmin_sync.py  — синхронизация через Garmin Personal API -> CSV
 tools/smoke_csv.js    — smoke-тест CSV
+tools/smoke_garmin.js — тест парсинга Garmin-отчётов
 01-user-stories/      — бэклог и этапы
 02-cjm/               — CJM инкрементов
 ```
@@ -68,6 +70,33 @@ python -m http.server 8000
 Недельные данные видны на вкладке **«Тренды»** (стресс / пульс покоя / сон). Поминутная соматика отображается на записи в окне «±N минут вокруг акта».
 
 Для теста без Garmin: `python tools/gen_sample.py` и импортируйте `samples/sample_somatic.csv` / `samples/sample_sleep.csv`.
+
+## Garmin Connect Personal API (синхронизация)
+
+Альтернатива ручному экспорту — официальный «Личный API-ключ» Garmin Connect.
+
+1. Garmin Connect Web → **Personal API Key** → создать ключ (30/90/180/365 дней). Ключ показывается один раз.
+2. Скопировать ключ в `.env` (файл в `.gitignore`):
+   ```
+   GARMIN_API_KEY=GCDC_...
+   ```
+3. Запустить (Python 3, без зависимостей):
+   ```bash
+   python tools/garmin_sync.py --from 2026-10-21 --to 2026-10-28
+   ```
+4. Скрипт сам получает OAuth2-токен
+   (`POST /personalapitoken-service/personal-api/personal-api-key/token`, заголовок `Authorization: ApiKey <ключ>`)
+   и кладёт в `garmin_export/`:
+   - `somatic.csv` — пульс (поминутно) + Body Battery → импорт «Соматика (минуты)»;
+   - `sleep.csv` — сон по дням → импорт «Сон (дни)»;
+   - `stress.csv` — стресс по дням → импорт как Garmin-отчёт;
+   - `resting_hr.csv` — пульс покоя по дням → импорт как Garmin-отчёт.
+5. В приложении: Настройки → «Соматика (Garmin)» → «Импорт данных Garmin…» (по одному файлу).
+
+Используемые endpoint'ы: `dailyHeartRate`, `bodyBattery/reports/daily` (`chunks=288`), `dailySleep`,
+`stats/stress/daily`, `usersummary/daily`. Токен живёт 24 ч; когда ключ истечёт — сгенерировать новый.
+
+**Безопасность:** `.env` не коммитится. Ключ, попавший в переписку, стоит пересоздать.
 
 ## Приватность
 
