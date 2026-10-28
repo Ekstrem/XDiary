@@ -103,6 +103,40 @@ def build_activities(token, dfrom, dto, favorite):
     return out
 
 
+HEARTS = "❤♥🖤💔❣"
+
+
+def _is_heart(name):
+    return any(ch in (name or "") for ch in HEARTS)
+
+
+def sessions_csv(acts, fmt):
+    import csv
+    import io
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    if fmt == "records":
+        w.writerow(["id", "started_at", "duration_min", "partner", "place", "positions",
+                    "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner", "garmin"])
+        for a in acts:
+            if not _is_heart(a.get("name")):
+                continue
+            st = (a.get("startLocal") or "").replace(" ", "T")[:16]
+            w.writerow(["garmin-%s" % a.get("id"), st, round((a.get("durationSec") or 0) / 60),
+                        "", "", "", "", "", "", "", 0, 0, 1])
+    else:
+        w.writerow(["date", "time", "duration_min", "name", "type", "favorite"])
+        for a in acts:
+            if not _is_heart(a.get("name")):
+                continue
+            parts = (a.get("startLocal") or "").split(" ")
+            w.writerow([parts[0] if parts else "", parts[1] if len(parts) > 1 else "",
+                        round((a.get("durationSec") or 0) / 60), a.get("name") or "",
+                        a.get("type") or "", "1" if a.get("isFavorite") else "0"])
+    return buf.getvalue()
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
@@ -151,6 +185,19 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/activities":
                 favorite = (qs.get("favorite") or ["1"])[0] in ("1", "true", "yes")
                 self._json(build_activities(token, dfrom, dto, favorite))
+                return
+            if u.path == "/sessions.csv":
+                fmt = (qs.get("format") or ["human"])[0]
+                acts = build_activities(token, dfrom, dto, False)
+                text = "\ufeff" + sessions_csv(acts, fmt)
+                data = text.encode("utf-8")
+                self.send_response(200)
+                self._cors()
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="sessions.csv"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
                 return
             self._json({"error": "not found"}, 404)
         except Exception as e:  # noqa: BLE001
