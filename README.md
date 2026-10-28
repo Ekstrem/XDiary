@@ -18,39 +18,43 @@
 ## Структура
 
 ```
-index.html            — каркас приложения
-manifest.webmanifest  — манифест PWA
-sw.js                 — service worker (офлайн)
-css/styles.css        — стили (тёмная тема, mobile-first)
-js/db.js              — IndexedDB
-js/pin.js             — PIN (PBKDF2)
-js/csv.js             — CSV (RFC 4180)
-js/app.js             — логика и UI
-icons/                — иконки
-samples/              — тестовые CSV (соматика, сон)
-tools/gen_icons.py    — генерация иконок (Pillow)
-tools/gen_sample.py   — генерация тестовых CSV
-tools/garmin_sync.py  — синхронизация через Garmin Personal API -> CSV
-tools/smoke_csv.js    — smoke-тест CSV
-tools/smoke_garmin.js — тест парсинга Garmin-отчётов
-01-user-stories/      — бэклог и этапы
-02-cjm/               — CJM инкрементов
+app/index.html            — каркас приложения
+app/manifest.webmanifest  — манифест PWA
+app/sw.js                 — service worker (офлайн)
+app/css/styles.css        — стили (тёмная тема, mobile-first)
+app/js/db.js              — IndexedDB
+app/js/pin.js             — PIN (PBKDF2)
+app/js/csv.js             — CSV (RFC 4180)
+app/js/app.js             — логика и UI
+app/icons/                — иконки
+samples/                  — тестовые CSV (соматика, сон)
+tools/gen_icons.py        — генерация иконок (Pillow)
+tools/gen_sample.py       — генерация тестовых CSV
+tools/garmin_sync.py      — синхронизация через Garmin Personal API -> CSV
+tools/garmin_proxy.py     — локальный прокси к Garmin API (для PWA, обход CORS)
+tools/smoke_csv.js        — smoke-тест CSV
+tools/smoke_garmin.js     — тест парсинга Garmin-отчётов
+01-user-stories/          — бэклог и этапы
+02-cjm/                   — CJM инкрементов
+.github/workflows/        — деплой PWA на Pages
 ```
 
 ## Запуск локально
 
-Приложение — статические файлы, нужен любой HTTP-сервер (PWA требует HTTPS/localhost):
+Приложение — статические файлы в `app/`, нужен любой HTTP-сервер (PWA требует HTTPS/localhost):
 
 ```bash
 # из корня репозитория
-python -m http.server 8000
+python -m http.server --directory app 8000
 # открыть http://localhost:8000
 ```
 
 ## Деплой на GitHub Pages
 
-1. Заложить файлы в ветку `main` (уже готово).
-2. В репозитории: Settings → Pages → Source: `Deploy from a branch`, ветка `main`, папка `/ (root)`.
+Автоматически: `.github/workflows/pages.yml` публикует папку `app/` на GitHub Pages.
+
+1. Settings → Pages → Source: **GitHub Actions**.
+2. Пуш в `main` → workflow собирает и выкладывает `app/`.
 3. Открыть `https://<user>.github.io/XDiary/`.
 
 ## Установка на Android
