@@ -48,6 +48,7 @@
       </div>
     </main>
     <button id="btn-new" class="fab" title="Записать" aria-label="Новая запись">+</button>
+    <button id="btn-garmin-add" class="fab fab-garmin" title="Из Garmin" aria-label="Добавить из Garmin">⌚</button>
   </section>
 
   <!-- Партнёры -->
@@ -247,16 +248,40 @@
     </main>
   </section>
 
-  <!-- Тренды -->
+  <!-- Тренды / Корреляции -->
   <section id="view-trends" class="view hidden">
     <header class="appbar">
       <h1>Тренды</h1>
     </header>
     <main class="content">
-      <div class="chips-grid" id="trend-chips"></div>
-      <div class="chart-wrap" style="margin-top:12px"><canvas id="trend-canvas"></canvas></div>
-      <div class="somatic-stats" id="trend-stats"></div>
-      <div id="trend-list"></div>
+      <div class="segmented" id="trend-tabs">
+        <button class="active" data-tab="trends">Тренды</button>
+        <button data-tab="corr">Корреляции</button>
+      </div>
+      <div id="trend-trends">
+        <div class="chips-grid" id="trend-chips"></div>
+        <div class="chart-wrap" style="margin-top:12px"><canvas id="trend-canvas"></canvas></div>
+        <div class="somatic-stats" id="trend-stats"></div>
+        <div id="trend-list"></div>
+      </div>
+      <div id="trend-corr" class="hidden">
+        <div id="corr-summary"></div>
+        <div id="corr-table"></div>
+      </div>
+    </main>
+  </section>
+
+  <!-- Из Garmin -->
+  <section id="view-garmin" class="view hidden">
+    <header class="appbar">
+      <button id="btn-garmin-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1>Из Garmin</h1>
+    </header>
+    <main class="content">
+      <div id="garmin-list" class="journal-list"></div>
+      <div id="garmin-empty" class="empty-state hidden">
+        <p>Нет «сердечных» занятий за последние 30 дней.</p>
+      </div>
     </main>
   </section>
 

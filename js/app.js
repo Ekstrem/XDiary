@@ -4,7 +4,7 @@
 
   function $(id) { return document.getElementById(id); }
 
-  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner"];
+  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner", "garmin"];
   var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Отметки", "Длительность", "Оргазмы", "Итог"];
   var POSITIONS = [
     "Миссионерская", "Догги (сзади)", "Наездница (сверху)", "Обратная наездница",
@@ -46,6 +46,7 @@
   };
 
   var trendMetric = "stress";
+  var trendTab = "trends";
   var TREND_META = {
     stress: { label: "Стресс", color: "#f0a04b", field: "stress" },
     resting_hr: { label: "Пульс покоя", color: "#e0567a", field: "resting_hr" },
@@ -109,7 +110,7 @@
 
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
-    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import"].forEach(function (v) {
+    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "garmin"].forEach(function (v) {
       $("view-" + v).classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
@@ -217,7 +218,10 @@
 
         card.innerHTML =
           '<div class="record-card-top">' +
-            '<span class="record-date">' + esc(fmtDateTime(r.startedAt)) + "</span>" +
+            '<span class="record-date">' +
+              (r.garmin ? '<span class="garmin-badge">⌚</span>' : "") +
+              esc(fmtDateTime(r.startedAt)) +
+            "</span>" +
             '<span class="record-org">' + (org ? "💗 " + org : "") + "</span>" +
           "</div>" +
           '<div class="record-meta">' + meta.join(" · ") + "</div>" +
@@ -246,7 +250,7 @@
     return {
       startedAt: toInputValue(new Date()), partner: "", place: "",
       positions: [], tags: [], costumes: [], toys: [], fantasies: [],
-      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0, partnerTouched: false
+      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0, partnerTouched: false, garmin: false
     };
   }
 
@@ -263,7 +267,7 @@
           costumes: (r.costumes || []).slice(), toys: (r.toys || []).slice(),
           fantasies: (r.fantasies || []).slice(),
           durationMin: r.durationMin || 0, orgasmsMe: r.orgasmsMe || 0,
-          orgasmsPartner: r.orgasmsPartner || 0, partnerTouched: true
+          orgasmsPartner: r.orgasmsPartner || 0, partnerTouched: true, garmin: !!r.garmin
         };
         showView("wizard");
         renderWizard();
@@ -277,6 +281,7 @@
           if (s) draft.startedAt = s;
           var dm = Math.round((pendingActivity.durationSec || 0) / 60);
           if (dm > 0) draft.durationMin = dm;
+          draft.garmin = true;
           wizardStep = 1;
           pendingActivity = null;
         }
@@ -617,6 +622,7 @@
       rec.fantasies = draft.fantasies.slice();
       rec.orgasmsMe = draft.orgasmsMe;
       rec.orgasmsPartner = draft.orgasmsPartner;
+      rec.garmin = !!draft.garmin;
       rec.updatedAt = nowIso;
       return rec;
     }
@@ -872,7 +878,9 @@
 
       body.innerHTML =
         '<div class="detail-head">' +
-          '<div class="detail-date">' + esc(fmtDateTime(r.startedAt)) +
+          '<div class="detail-date">' +
+            (r.garmin ? '<span class="garmin-badge">⌚</span>' : "") +
+            esc(fmtDateTime(r.startedAt)) +
             (org ? ' <span class="record-org">💗 ' + org + "</span>" : "") +
           "</div>" +
           '<div class="record-meta">' + meta.join(" · ") + "</div>" +
@@ -899,6 +907,7 @@
       '<div class="chips-grid" id="window-chips" style="margin-top:8px"></div>' +
       '<div class="chart-wrap"><canvas id="somatic-canvas"></canvas></div>' +
       '<div class="somatic-stats" id="somatic-stats"></div>' +
+      '<div class="somatic-stats" id="act-stats"></div>' +
       '<div class="sleep-card" id="sleep-card"></div>';
 
     var mc = el.querySelector("#metric-chips");
@@ -931,6 +940,22 @@
           " · макс " + Math.round(stats.max) + (m.unit ? " " + m.unit : "") + " · точек " + stats.count;
       } else {
         s.textContent = "";
+      }
+
+      var hrPts = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
+      var bbPts = points.filter(function (p) { return p.body_battery != null; })
+        .sort(function (a, b) { return a.t < b.t ? -1 : 1; });
+      var act = $("act-stats");
+      if (act) {
+        var parts = [];
+        if (hrPts.length) {
+          var sum = hrPts.reduce(function (a, b) { return a + b; }, 0);
+          parts.push("пульс ср " + Math.round(sum / hrPts.length) + ", макс " + Math.max.apply(null, hrPts));
+        }
+        if (bbPts.length >= 2) {
+          parts.push("BB " + bbPts[0].body_battery + "→" + bbPts[bbPts.length - 1].body_battery);
+        }
+        act.textContent = parts.length ? "За акт: " + parts.join(" · ") : "";
       }
     });
 
@@ -1270,6 +1295,13 @@
   function openTrends() { showView("trends"); renderTrends(); }
 
   function renderTrends() {
+    var isCorr = trendTab === "corr";
+    $("trend-trends").classList.toggle("hidden", isCorr);
+    $("trend-corr").classList.toggle("hidden", !isCorr);
+    $("trend-tabs").querySelectorAll("button").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-tab") === trendTab);
+    });
+    if (isCorr) { renderCorrelations(); return; }
     Promise.all([DB.getAllWeekly(), DB.getAllSleepWeekly()]).then(function (res) {
       var weekly = res[0].slice().sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
       var sleep = res[1].slice().sort(function (a, b) { return a.end < b.end ? -1 : (a.end > b.end ? 1 : 0); });
@@ -1487,6 +1519,141 @@
     openWizard(null);
   }
 
+  // ---- Garmin: выбор занятия ----
+  function openGarminPicker() {
+    showView("garmin");
+    renderGarminPicker();
+  }
+
+  function renderGarminPicker() {
+    var list = $("garmin-list");
+    var empty = $("garmin-empty");
+    list.innerHTML = "";
+    empty.classList.add("hidden");
+    loadGarminSettings().then(function () {
+      if (!garminProxy) {
+        empty.classList.remove("hidden");
+        empty.querySelector("p").textContent = "Настройте прокси в Настройках.";
+        return;
+      }
+      garminFetch("/activities?from=" + isoDay(-30) + "&to=" + isoDay(0)).then(function (items) {
+        var hearts = (items || []).filter(isHeartActivity);
+        if (!hearts.length) {
+          empty.classList.remove("hidden");
+          empty.querySelector("p").textContent = "Нет «сердечных» занятий за последние 30 дней.";
+          return;
+        }
+        hearts.forEach(function (a) {
+          var row = document.createElement("div");
+          row.className = "garmin-item";
+          var dur = Math.round((a.durationSec || 0) / 60);
+          row.innerHTML =
+            '<div class="garmin-item-main">' +
+              '<span class="garmin-item-date">' + esc(String(a.startLocal || "").slice(0, 16)) + "</span>" +
+              '<span class="garmin-item-meta">' + esc(a.type || "other") + " · " + dur + " мин</span>" +
+            "</div>" +
+            '<button class="btn primary" type="button">Внести</button>';
+          row.querySelector("button").addEventListener("click", function () {
+            openWizardWithActivity(a);
+          });
+          list.appendChild(row);
+        });
+      }).catch(function () {
+        empty.classList.remove("hidden");
+        empty.querySelector("p").textContent = "Не удалось связаться с прокси.";
+      });
+    });
+  }
+
+  // ---- корреляции ----
+  function pearson(xs, ys) {
+    var n = xs.length;
+    if (n < 3) return null;
+    var sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+    for (var i = 0; i < n; i++) {
+      sx += xs[i]; sy += ys[i];
+      sxx += xs[i] * xs[i]; syy += ys[i] * ys[i]; sxy += xs[i] * ys[i];
+    }
+    var num = n * sxy - sx * sy;
+    var den = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
+    if (!den) return null;
+    return num / den;
+  }
+
+  function renderCorrelations() {
+    Promise.all([DB.getAllRecords(), DB.getAllWeekly(), DB.getAllSleep()]).then(function (res) {
+      var records = res[0].slice().sort(function (a, b) { return (a.startedAt || "") < (b.startedAt || "") ? -1 : 1; });
+      var weekly = {};
+      res[1].forEach(function (w) { weekly[w.date] = w; });
+      var sleepByDate = {};
+      res[2].forEach(function (s) { sleepByDate[s.date] = s; });
+      var summary = $("corr-summary");
+      var table = $("corr-table");
+      if (records.length < 3) {
+        summary.textContent = "Нужно хотя бы 3 записи.";
+        table.innerHTML = "";
+        return;
+      }
+      var tasks = records.map(function (r) {
+        var startMs = new Date(r.startedAt).getTime();
+        var rs = minuteKeyFromDate(new Date(startMs - 10 * 60000));
+        var re = minuteKeyFromDate(new Date(startMs + ((r.durationMin || 0) + 10) * 60000));
+        return DB.getSomaticRange(rs, re).then(function (points) {
+          var hr = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
+          var bb = points.filter(function (p) { return p.body_battery != null; })
+            .sort(function (a, b) { return a.t < b.t ? -1 : 1; });
+          var day = String(r.startedAt || "").slice(0, 10);
+          var w = weekly[day] || {};
+          var sl = sleepByDate[day] || {};
+          return {
+            r: r,
+            avgHr: hr.length ? hr.reduce(function (a, b) { return a + b; }, 0) / hr.length : null,
+            maxHr: hr.length ? Math.max.apply(null, hr) : null,
+            bbDrop: bb.length >= 2 ? bb[bb.length - 1].body_battery - bb[0].body_battery : null,
+            stress: w.stress != null ? w.stress : null,
+            sleepScore: sl.score != null ? sl.score : null
+          };
+        });
+      });
+      Promise.all(tasks).then(function (rows) {
+        var html = '<table class="corr-table"><thead><tr><th>Дата</th><th>Мин</th><th>Орг</th><th>Пульс</th><th>Макс</th><th>BB Δ</th><th>Сон</th><th>Стресс</th></tr></thead><tbody>';
+        rows.forEach(function (x) {
+          var org = (x.r.orgasmsMe || 0) + (x.r.orgasmsPartner || 0);
+          html += "<tr><td>" + esc(String(x.r.startedAt || "").slice(0, 10)) + "</td>" +
+            "<td>" + (x.r.durationMin || 0) + "</td>" +
+            "<td>" + org + "</td>" +
+            "<td>" + (x.avgHr != null ? Math.round(x.avgHr) : "—") + "</td>" +
+            "<td>" + (x.maxHr != null ? x.maxHr : "—") + "</td>" +
+            "<td>" + (x.bbDrop != null ? x.bbDrop : "—") + "</td>" +
+            "<td>" + (x.sleepScore != null ? x.sleepScore : "—") + "</td>" +
+            "<td>" + (x.stress != null ? x.stress : "—") + "</td></tr>";
+        });
+        html += "</tbody></table>";
+        table.innerHTML = html;
+
+        var coefs = [];
+        function addCoef(field, label) {
+          var arr = rows.filter(function (x) { return x[field] != null; });
+          if (arr.length < 3) return;
+          var c = pearson(arr.map(function (x) { return x.r.durationMin || 0; }), arr.map(function (x) { return x[field]; }));
+          if (c != null) coefs.push({ label: label, c: c, n: arr.length });
+        }
+        addCoef("avgHr", "Длительность ↔ пульс ср");
+        addCoef("maxHr", "Длительность ↔ пульс макс");
+        addCoef("stress", "Длительность ↔ стресс за день");
+        addCoef("sleepScore", "Длительность ↔ оценка сна");
+
+        if (!coefs.length) {
+          summary.textContent = "Недостаточно данных для коэффициентов.";
+          return;
+        }
+        summary.innerHTML = coefs.map(function (x) {
+          return '<div class="corr-coef"><span>' + x.label + "</span><b>" + x.c.toFixed(2) + '</b><span class="muted">n=' + x.n + "</span></div>";
+        }).join("");
+      });
+    });
+  }
+
   // ---- CSV ----
   function recordsToCsv(records) {
     var rows = [CSV_HEADERS];
@@ -1495,7 +1662,7 @@
         r.id || "", r.startedAt || "", r.durationMin || 0, r.partner || "", r.place || "",
         (r.positions || []).join(";"), (r.tags || []).join(";"),
         (r.costumes || []).join(";"), (r.toys || []).join(";"), (r.fantasies || []).join(";"),
-        r.orgasmsMe || 0, r.orgasmsPartner || 0
+        r.orgasmsMe || 0, r.orgasmsPartner || 0, r.garmin ? 1 : 0
       ]);
     });
     return CSV.stringify(rows);
@@ -1536,6 +1703,7 @@
         fantasies: splitList(get(row, "fantasies")),
         orgasmsMe: parseInt(get(row, "orgasms_me", "orgasmsme") || "0", 10) || 0,
         orgasmsPartner: parseInt(get(row, "orgasms_partner", "orgasmspartner") || "0", 10) || 0,
+        garmin: String(get(row, "garmin")) === "1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
@@ -1714,6 +1882,11 @@
     $("gem-proxy").addEventListener("change", saveGarminProxy);
     $("gem-key").addEventListener("change", saveGarminKey);
     $("btn-garmin-sync").addEventListener("click", garminSync);
+    $("btn-garmin-add").addEventListener("click", openGarminPicker);
+    $("btn-garmin-back").addEventListener("click", function () { showView("journal"); });
+    $("trend-tabs").querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () { trendTab = b.getAttribute("data-tab"); renderTrends(); });
+    });
     $("suggest-add").addEventListener("click", function () {
       if (currentSuggestion) openWizardWithActivity(currentSuggestion);
     });

@@ -136,6 +136,7 @@
     // сон (ключ — дата "YYYY-MM-DD")
     putSleepBatch: function (list) { return putBatch("sleep", list); },
     getSleep: function (date) { return getOne("sleep", date); },
+    getAllSleep: function () { return getAll("sleep"); },
     clearSleep: function () { return clearStore("sleep"); },
     // недельные тренды (стресс / пульс покоя, ключ — "YYYY-MM-DD")
     putWeeklyBatch: function (list) { return putBatch("weekly", list); },
