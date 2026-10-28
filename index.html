@@ -31,7 +31,6 @@
       <h1>Журнал</h1>
       <div class="appbar-actions">
         <button id="btn-lock" class="icon-btn" title="Заблокировать" aria-label="Заблокировать">🔒</button>
-        <button id="btn-settings" class="icon-btn" title="Настройки" aria-label="Настройки">⚙️</button>
       </div>
     </header>
     <main class="content">
@@ -44,65 +43,24 @@
     <button id="btn-new" class="fab" title="Записать" aria-label="Новая запись">+</button>
   </section>
 
-  <!-- Форма записи -->
-  <section id="view-form" class="view hidden">
+  <!-- Партнёры -->
+  <section id="view-partners" class="view hidden">
     <header class="appbar">
-      <button id="btn-form-back" class="icon-btn" aria-label="Назад">←</button>
-      <h1 id="form-title">Новая запись</h1>
-      <button id="btn-form-save" class="btn primary">Сохранить</button>
+      <h1>Партнёры</h1>
+      <button id="btn-partner-add" class="btn primary">+ Добавить</button>
     </header>
     <main class="content">
-      <form id="record-form" class="form">
-        <div class="field">
-          <label for="f-startedAt">Дата и время</label>
-          <input type="datetime-local" id="f-startedAt" required>
-        </div>
-        <div class="field">
-          <label for="f-duration">Длительность, мин</label>
-          <input type="number" id="f-duration" min="1" inputmode="numeric" placeholder="Например, 25" required>
-        </div>
-        <div class="field">
-          <label for="f-partner">Партнёр</label>
-          <input type="text" id="f-partner" list="partner-suggest" placeholder="Необязательно" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="f-place">Место</label>
-          <input type="text" id="f-place" list="place-suggest" placeholder="Необязательно" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="positions-input">Позы</label>
-          <div class="chip-box" id="positions-list"></div>
-          <input type="text" id="positions-input" list="positions-suggest" placeholder="Введите и нажмите Enter" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="tags-input">Особые отметки / тэги</label>
-          <div class="chip-box" id="tags-list"></div>
-          <input type="text" id="tags-input" list="tags-suggest" placeholder="Например: необычное" autocomplete="off">
-        </div>
-        <div class="field">
-          <label>Оргазмы</label>
-          <div class="stepper-row">
-            <span class="stepper-label">Я</span>
-            <button type="button" class="stepper-btn" id="f-orgasms-me-minus">−</button>
-            <span class="stepper-val" id="f-orgasms-me-value">0</span>
-            <button type="button" class="stepper-btn" id="f-orgasms-me-plus">+</button>
-          </div>
-          <div class="stepper-row">
-            <span class="stepper-label">Партнёр</span>
-            <button type="button" class="stepper-btn" id="f-orgasms-partner-minus">−</button>
-            <span class="stepper-val" id="f-orgasms-partner-value">0</span>
-            <button type="button" class="stepper-btn" id="f-orgasms-partner-plus">+</button>
-          </div>
-        </div>
-        <button type="button" class="btn danger full" id="btn-delete">Удалить запись</button>
-      </form>
+      <div id="partners-list" class="partners-list"></div>
+      <div id="partners-empty" class="empty-state hidden">
+        <p>Партнёров пока нет.</p>
+        <p>Добавьте партнёра с фото и подробностями.</p>
+      </div>
     </main>
   </section>
 
   <!-- Настройки -->
   <section id="view-settings" class="view hidden">
     <header class="appbar">
-      <button id="btn-settings-back" class="icon-btn" aria-label="Назад">←</button>
       <h1>Настройки</h1>
     </header>
     <main class="content">
@@ -143,13 +101,62 @@
     </main>
   </section>
 
+  <!-- Мастер записи -->
+  <section id="view-wizard" class="view hidden">
+    <header class="appbar">
+      <button id="btn-wizard-close" class="icon-btn" aria-label="Закрыть">✕</button>
+      <h1 id="wizard-title">Новая запись</h1>
+    </header>
+    <div class="progress" id="wizard-progress"></div>
+    <main class="content">
+      <div id="wizard-body"></div>
+    </main>
+    <footer class="wizard-footer">
+      <button id="btn-wizard-prev" class="btn">Назад</button>
+      <button id="btn-wizard-next" class="btn primary">Далее</button>
+      <button id="btn-wizard-save" class="btn primary hidden">Сохранить</button>
+      <button id="btn-wizard-delete" class="btn danger hidden">Удалить</button>
+    </footer>
+  </section>
+
+  <!-- Партнёр: редактирование -->
+  <section id="view-partner-edit" class="view hidden">
+    <header class="appbar">
+      <button id="btn-partner-edit-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1 id="partner-edit-title">Партнёр</h1>
+      <button id="btn-partner-save" class="btn primary">Сохранить</button>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <div class="photo-picker">
+          <div id="pe-photo-preview"></div>
+          <label class="btn" for="pe-photo">Фото</label>
+          <input type="file" id="pe-photo" accept="image/*" class="hidden">
+        </div>
+        <div class="field">
+          <label for="pe-name">Имя</label>
+          <input type="text" id="pe-name" placeholder="Имя партнёра" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="pe-notes">Подробности</label>
+          <textarea id="pe-notes" rows="4" placeholder="Заметки, предпочтения…"></textarea>
+        </div>
+        <button type="button" class="btn danger full hidden" id="btn-partner-delete">Удалить партнёра</button>
+      </div>
+    </main>
+  </section>
+
+  <nav class="tabbar hidden" id="tabbar">
+    <button class="tab active" id="tab-journal"><span class="tab-ico">📓</span><span>Журнал</span></button>
+    <button class="tab" id="tab-partners"><span class="tab-ico">👤</span><span>Партнёры</span></button>
+    <button class="tab" id="tab-settings"><span class="tab-ico">⚙️</span><span>Настройки</span></button>
+  </nav>
+
   <div id="toast" class="toast hidden"></div>
   <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">
 
   <datalist id="partner-suggest"></datalist>
   <datalist id="place-suggest"></datalist>
-  <datalist id="positions-suggest"></datalist>
-  <datalist id="tags-suggest"></datalist>
 
   <script src="js/db.js"></script>
   <script src="js/pin.js"></script>
