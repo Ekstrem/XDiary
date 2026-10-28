@@ -34,6 +34,13 @@
       </div>
     </header>
     <main class="content">
+      <div id="garmin-suggest" class="suggest-banner hidden">
+        <div class="suggest-text" id="suggest-text"></div>
+        <div class="suggest-actions">
+          <button class="btn primary" id="suggest-add">Внести</button>
+          <button class="btn" id="suggest-hide">Скрыть</button>
+        </div>
+      </div>
       <div id="journal-list" class="journal-list"></div>
       <div id="journal-empty" class="empty-state hidden">
         <p>Пока пусто.</p>
@@ -114,6 +121,18 @@
         <h2>Соматика (Garmin)</h2>
         <button class="btn full" id="btn-import-open">Импорт данных Garmin…</button>
         <p class="muted">Распознаёт отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип определяется автоматически.</p>
+
+        <h2>Автосинхронизация (прокси на ПК)</h2>
+        <div class="field">
+          <label for="gem-proxy">Адрес прокси</label>
+          <input type="text" id="gem-proxy" placeholder="http://192.168.1.10:8765" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="gem-key">Личный API-ключ (необязательно)</label>
+          <input type="password" id="gem-key" autocomplete="off">
+        </div>
+        <button class="btn full" id="btn-garmin-sync">Обновить статистику</button>
+        <p class="muted" id="gem-status"></p>
 
         <h2>Опасная зона</h2>
         <p class="muted">Введите «УДАЛИТЬ», чтобы стереть все данные (записи, соматику, сон, тренды) и PIN-код.</p>

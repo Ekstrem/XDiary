@@ -291,6 +291,15 @@ code {
 }
 #trend-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 
+/* ---- Garmin suggestion ---- */
+.suggest-banner {
+  background: var(--accent-soft); border: 1px solid var(--accent);
+  border-radius: 14px; padding: 14px; margin-bottom: 14px;
+}
+.suggest-text { margin-bottom: 10px; font-size: 15px; }
+.suggest-actions { display: flex; gap: 8px; }
+.suggest-actions .btn { flex: 1; }
+
 /* ---- Desktop nicety ---- */
 @media (min-width: 640px) {
   .tabbar { max-width: 560px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }

@@ -54,6 +54,13 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
+  var garminProxy = "";
+  var garminKey = "";
+  var garminLastSync = 0;
+  var pendingActivity = null;
+  var currentSuggestion = null;
+  var HEART_CHARS = "❤♥🖤💔❣";
+
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
   function uuid() {
@@ -153,7 +160,7 @@
   // ---- блокировка ----
   function lock() {
     Pin.hasPin().then(function (hasPin) {
-      if (!hasPin) { showView("journal"); return; }
+      if (!hasPin) { showView("journal"); garminCheckSuggestions(); return; }
       $("pin-input").value = "";
       $("pin-error").classList.add("hidden");
       showView("lock");
@@ -167,6 +174,7 @@
         $("pin-error").classList.add("hidden");
         $("pin-input").value = "";
         showView("journal");
+        garminCheckSuggestions();
       } else {
         $("pin-error").classList.remove("hidden");
         $("pin-input").value = "";
@@ -264,6 +272,14 @@
       DB.getAllRecords().then(function (records) {
         draft = newDraft();
         draft.partner = lastPartnerName(records);
+        if (pendingActivity) {
+          var s = String(pendingActivity.startLocal || "").replace(" ", "T").slice(0, 16);
+          if (s) draft.startedAt = s;
+          var dm = Math.round((pendingActivity.durationSec || 0) / 60);
+          if (dm > 0) draft.durationMin = dm;
+          wizardStep = 1;
+          pendingActivity = null;
+        }
         showView("wizard");
         renderWizard();
       });
@@ -619,6 +635,7 @@
       toast("Сохранено");
       showView("journal");
       renderJournal();
+      garminCheckSuggestions();
     }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
@@ -1343,6 +1360,133 @@
     ctx.textAlign = "right"; ctx.fillText(pts[pts.length - 1].t.slice(2), cssW - 4, cssH - 4);
   }
 
+  // ---- Garmin: прокси + синхронизация ----
+  var garminSettingsLoaded = null;
+
+  function loadGarminSettings() {
+    if (garminSettingsLoaded) return garminSettingsLoaded;
+    garminSettingsLoaded = Promise.all([DB.getMeta("garminProxy"), DB.getMeta("garminKey")]).then(function (res) {
+      garminProxy = (res[0] && res[0].value) || "";
+      garminKey = (res[1] && res[1].value) || "";
+      if ($("gem-proxy")) $("gem-proxy").value = garminProxy;
+      if ($("gem-key")) $("gem-key").value = garminKey;
+    });
+    return garminSettingsLoaded;
+  }
+
+  function saveGarminProxy() {
+    garminProxy = $("gem-proxy").value.trim();
+    DB.setMeta("garminProxy", garminProxy);
+  }
+  function saveGarminKey() {
+    garminKey = $("gem-key").value.trim();
+    DB.setMeta("garminKey", garminKey);
+  }
+
+  function garminFetch(path) {
+    var base = String(garminProxy || "").replace(/\/+$/, "");
+    if (!base) return Promise.reject(new Error("не задан адрес прокси"));
+    var headers = { Accept: "application/json" };
+    if (garminKey) headers["Authorization"] = "ApiKey " + garminKey;
+    return fetch(base + path, { headers: headers }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+
+  function isoDay(offsetDays) {
+    var d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+
+  function garminSync() {
+    var st = $("gem-status");
+    if (!garminProxy) { toast("Укажите адрес прокси (ПК)"); return; }
+    if (st) st.textContent = "Обновление…";
+    garminFetch("/sync?from=" + isoDay(-7) + "&to=" + isoDay(0)).then(function (data) {
+      var somatic = (data.somatic || []).map(function (row) {
+        return { t: row[0], hr: row[1], body_battery: row[2] };
+      });
+      var sleeps = (data.sleep || []).map(function (s) {
+        return {
+          date: s.date, score: s.score, durationMin: s.durationMin,
+          deepMin: s.deepMin, lightMin: s.lightMin, remMin: s.remMin, awakeMin: s.awakeMin
+        };
+      });
+      var stressItems = [];
+      Object.keys(data.stress || {}).forEach(function (d) {
+        if (data.stress[d] != null) stressItems.push({ date: d, stress: data.stress[d] });
+      });
+      var restItems = [];
+      Object.keys(data.resting_hr || {}).forEach(function (d) {
+        restItems.push({ date: d, resting_hr: data.resting_hr[d] });
+      });
+      return Promise.all([
+        DB.putSomaticBatch(somatic),
+        DB.putSleepBatch(sleeps),
+        importWeekly(stressItems, "stress"),
+        importWeekly(restItems, "resting_hr")
+      ]).then(function () {
+        garminLastSync = Date.now();
+        if (st) st.textContent = "Обновлено: " + somatic.length + " точек пульса, " + sleeps.length + " ночей";
+        toast("Статистика обновлена");
+      });
+    }).catch(function (e) {
+      if (st) st.textContent = "Ошибка: " + e.message;
+      toast("Ошибка синхронизации: " + e.message);
+    });
+  }
+
+  function isHeartActivity(a) {
+    var n = String((a && a.name) || "");
+    for (var i = 0; i < HEART_CHARS.length; i++) {
+      if (n.indexOf(HEART_CHARS[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function garminCheckSuggestions() {
+    loadGarminSettings().then(function () {
+      if (!garminProxy) return;
+      garminFetch("/activities?from=" + isoDay(-10) + "&to=" + isoDay(0)).then(function (list) {
+        var hearts = (list || []).filter(isHeartActivity);
+        if (!hearts.length) { hideSuggestion(); return; }
+        DB.getAllRecords().then(function (records) {
+          var logged = records.map(function (r) { return new Date(r.startedAt).getTime(); });
+          var candidates = hearts.filter(function (a) {
+            var t = new Date(String(a.startLocal).replace(" ", "T")).getTime();
+            if (isNaN(t)) return false;
+            for (var i = 0; i < logged.length; i++) {
+              if (Math.abs(logged[i] - t) < 15 * 60000) return false;
+            }
+            return true;
+          });
+          candidates.sort(function (a, b) {
+            return new Date(String(b.startLocal).replace(" ", "T")) - new Date(String(a.startLocal).replace(" ", "T"));
+          });
+          if (candidates.length) showSuggestion(candidates[0]);
+          else hideSuggestion();
+        });
+      }).catch(function () { /* тихо: прокси недоступен */ });
+    });
+  }
+
+  function showSuggestion(a) {
+    currentSuggestion = a;
+    var when = fmtDateTime(String(a.startLocal).replace(" ", "T"));
+    $("suggest-text").textContent = "Возможно, было занятие " + when + " (" + (a.type || "other") + "). Внести в журнал?";
+    $("garmin-suggest").classList.remove("hidden");
+  }
+  function hideSuggestion() {
+    currentSuggestion = null;
+    $("garmin-suggest").classList.add("hidden");
+  }
+  function openWizardWithActivity(a) {
+    pendingActivity = a;
+    openWizard(null);
+  }
+
   // ---- CSV ----
   function recordsToCsv(records) {
     var rows = [CSV_HEADERS];
@@ -1566,6 +1710,15 @@
       e.target.value = "";
     });
     $("btn-wipe").addEventListener("click", wipeAll);
+
+    $("gem-proxy").addEventListener("change", saveGarminProxy);
+    $("gem-key").addEventListener("change", saveGarminKey);
+    $("btn-garmin-sync").addEventListener("click", garminSync);
+    $("suggest-add").addEventListener("click", function () {
+      if (currentSuggestion) openWizardWithActivity(currentSuggestion);
+    });
+    $("suggest-hide").addEventListener("click", hideSuggestion);
+    loadGarminSettings();
 
     // автоблокировка после долгого скрытия приложения
     var hiddenAt = 0;
