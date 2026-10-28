@@ -112,14 +112,11 @@
         <p class="muted">Экспорт сохраняет все записи в CSV-файл (открывается в Excel/Sheets). Импорт объединяет записи по id.</p>
 
         <h2>Соматика (Garmin)</h2>
-        <div class="btn-row">
-          <button class="btn" id="btn-import-somatic">Импорт соматики CSV</button>
-          <button class="btn" id="btn-import-sleep">Импорт сна CSV</button>
-        </div>
-        <p class="muted">Соматика: <code>timestamp,hr,stress,body_battery,hrv</code>. Сон: <code>date,sleep_score,duration_min,deep_min,light_min,rem_min,awake_min</code>.</p>
+        <button class="btn full" id="btn-import-open">Импорт данных Garmin…</button>
+        <p class="muted">Распознаёт отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип определяется автоматически.</p>
 
         <h2>Опасная зона</h2>
-        <p class="muted">Введите «УДАЛИТЬ», чтобы стереть все записи, соматику, сон и PIN-код.</p>
+        <p class="muted">Введите «УДАЛИТЬ», чтобы стереть все данные (записи, соматику, сон, тренды) и PIN-код.</p>
         <div class="field">
           <input type="text" id="wipe-input" placeholder="УДАЛИТЬ" autocomplete="off">
         </div>
@@ -212,17 +209,49 @@
     </main>
   </section>
 
+  <!-- Импорт данных Garmin -->
+  <section id="view-import" class="view hidden">
+    <header class="appbar">
+      <button id="btn-import-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1>Импорт Garmin</h1>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <button class="btn full" id="btn-import-pick">Выбрать CSV-файл</button>
+        <div id="import-result" class="hidden">
+          <div class="import-type" id="import-type"></div>
+          <pre class="import-preview" id="import-preview"></pre>
+          <button class="btn primary full" id="btn-import-apply">Импортировать</button>
+        </div>
+        <p class="muted">Поддерживаются отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип распознаётся автоматически.</p>
+      </div>
+    </main>
+  </section>
+
+  <!-- Тренды -->
+  <section id="view-trends" class="view hidden">
+    <header class="appbar">
+      <h1>Тренды</h1>
+    </header>
+    <main class="content">
+      <div class="chips-grid" id="trend-chips"></div>
+      <div class="chart-wrap" style="margin-top:12px"><canvas id="trend-canvas"></canvas></div>
+      <div class="somatic-stats" id="trend-stats"></div>
+      <div id="trend-list"></div>
+    </main>
+  </section>
+
   <nav class="tabbar hidden" id="tabbar">
     <button class="tab active" id="tab-journal"><span class="tab-ico">📓</span><span>Журнал</span></button>
     <button class="tab" id="tab-partners"><span class="tab-ico">👤</span><span>Партнёры</span></button>
     <button class="tab" id="tab-catalog"><span class="tab-ico">🧺</span><span>Каталог</span></button>
+    <button class="tab" id="tab-trends"><span class="tab-ico">📈</span><span>Тренды</span></button>
     <button class="tab" id="tab-settings"><span class="tab-ico">⚙️</span><span>Настройки</span></button>
   </nav>
 
   <div id="toast" class="toast hidden"></div>
   <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">
-  <input type="file" id="somatic-file" accept=".csv,text/csv" class="hidden">
-  <input type="file" id="sleep-file" accept=".csv,text/csv" class="hidden">
+  <input type="file" id="import-any-file" accept=".csv,text/csv" class="hidden">
 
   <datalist id="partner-suggest"></datalist>
   <datalist id="place-suggest"></datalist>

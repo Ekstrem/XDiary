@@ -3,7 +3,7 @@
   "use strict";
 
   var DB_NAME = "xdiary";
-  var DB_VERSION = 4;
+  var DB_VERSION = 5;
   var _db = null;
 
   function openDB() {
@@ -31,6 +31,12 @@
         }
         if (!db.objectStoreNames.contains("sleep")) {
           db.createObjectStore("sleep", { keyPath: "date" });
+        }
+        if (!db.objectStoreNames.contains("weekly")) {
+          db.createObjectStore("weekly", { keyPath: "date" });
+        }
+        if (!db.objectStoreNames.contains("sleep_weekly")) {
+          db.createObjectStore("sleep_weekly", { keyPath: "end" });
         }
       };
       req.onsuccess = function () { _db = req.result; resolve(_db); };
@@ -130,6 +136,14 @@
     // сон (ключ — дата "YYYY-MM-DD")
     putSleepBatch: function (list) { return putBatch("sleep", list); },
     getSleep: function (date) { return getOne("sleep", date); },
-    clearSleep: function () { return clearStore("sleep"); }
+    clearSleep: function () { return clearStore("sleep"); },
+    // недельные тренды (стресс / пульс покоя, ключ — "YYYY-MM-DD")
+    putWeeklyBatch: function (list) { return putBatch("weekly", list); },
+    getAllWeekly: function () { return getAll("weekly"); },
+    clearWeekly: function () { return clearStore("weekly"); },
+    // недельный сон (ключ — дата конца недели "YYYY-MM-DD")
+    putSleepWeeklyBatch: function (list) { return putBatch("sleep_weekly", list); },
+    getAllSleepWeekly: function () { return getAll("sleep_weekly"); },
+    clearSleepWeekly: function () { return clearStore("sleep_weekly"); }
   };
 })();

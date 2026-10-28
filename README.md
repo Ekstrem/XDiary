@@ -59,21 +59,15 @@ python -m http.server 8000
 
 ## Соматика (Garmin)
 
-Данные берутся ручным импортом CSV (в настройках → «Соматика (Garmin)»).
+Импорт — в настройках → «Соматика (Garmin)» → «Импорт данных Garmin…». Диалог сам определяет тип файла:
 
-**Соматика** (минутный ряд): колонки `timestamp,hr,stress,body_battery,hrv`.
-```
-timestamp,hr,stress,body_battery,hrv
-2024-01-01T22:30,80,25,62,44
-```
+- **Отчёты Garmin Connect** (Reports → Export): недельный стресс, пульс покоя, сон.
+- **Соматика по минутам** (наш формат): `timestamp,hr,stress,body_battery,hrv`.
+- **Сон по дням** (наш формат): `date,sleep_score,duration_min,deep_min,light_min,rem_min,awake_min`.
 
-**Сон** (одна строка на ночь): `date,sleep_score,duration_min,deep_min,light_min,rem_min,awake_min`.
-```
-date,sleep_score,duration_min,deep_min,light_min,rem_min,awake_min
-2024-01-01,82,440,95,210,75,60
-```
+Недельные данные видны на вкладке **«Тренды»** (стресс / пульс покоя / сон). Поминутная соматика отображается на записи в окне «±N минут вокруг акта».
 
-На записи график строится в окне «±N минут вокруг акта», сон — за дату записи. Для теста: сгенерируйте примеры (`python tools/gen_sample.py`) и импортируйте `samples/sample_somatic.csv` / `samples/sample_sleep.csv`.
+Для теста без Garmin: `python tools/gen_sample.py` и импортируйте `samples/sample_somatic.csv` / `samples/sample_sleep.csv`.
 
 ## Приватность
 

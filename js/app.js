@@ -45,6 +45,15 @@
     hrv: { label: "HRV", color: "#60a5fa", unit: "мс" }
   };
 
+  var trendMetric = "stress";
+  var TREND_META = {
+    stress: { label: "Стресс", color: "#f0a04b", field: "stress" },
+    resting_hr: { label: "Пульс покоя", color: "#e0567a", field: "resting_hr" },
+    sleep: { label: "Сон (оценка)", color: "#4ade80", field: "score" }
+  };
+  var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
+  var pendingImport = null;
+
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
   function uuid() {
@@ -91,9 +100,9 @@
     t._timer = setTimeout(function () { t.classList.add("hidden"); }, ms || 2200);
   }
 
-  var TAB_VIEWS = ["journal", "partners", "catalog", "settings"];
+  var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
-    ["lock", "journal", "partners", "catalog", "settings", "wizard", "partner-edit", "catalog-edit"].forEach(function (v) {
+    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import"].forEach(function (v) {
       $("view-" + v).classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
@@ -1081,6 +1090,259 @@
     }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
+  // ---- импорт Garmin (диалог с автоопределением) ----
+  function parseUSDate(s) {
+    var parts = String(s || "").trim().split("/");
+    if (parts.length !== 3) return null;
+    var a = parseInt(parts[0], 10), b = parseInt(parts[1], 10), y = parseInt(parts[2], 10);
+    var m, d;
+    if (a > 12 && b <= 12) { m = b; d = a; } else { m = a; d = b; }
+    if (!m || !d || isNaN(y)) return null;
+    return y + "-" + pad(m) + "-" + pad(d);
+  }
+
+  function monthOf(label) {
+    var s = String(label).toLowerCase().trim();
+    for (var key in RU_MONTHS) { if (s.indexOf(key) === 0) return RU_MONTHS[key]; }
+    return null;
+  }
+  function parsePart(part, defaultMonth) {
+    var s = String(part).trim().toLowerCase();
+    var m = null;
+    for (var key in RU_MONTHS) {
+      if (s.indexOf(key) === 0) { m = RU_MONTHS[key]; s = s.slice(key.length); break; }
+    }
+    var day = parseInt(s, 10);
+    return { month: (m || defaultMonth), day: day };
+  }
+  function parseDurationRu(s) {
+    var str = String(s || "").toLowerCase();
+    var hm = /(\d+)\s*ч/.exec(str);
+    var mm = /(\d+)\s*мин/.exec(str);
+    var h = hm ? parseInt(hm[1], 10) : 0;
+    var m = mm ? parseInt(mm[1], 10) : 0;
+    return h * 60 + m;
+  }
+
+  function parseGarminTwoCol(text, field) {
+    text = String(text || "").replace(/^\uFEFF/, "");
+    var rows = CSV.parse(text);
+    var out = [];
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      if (!row || row.length < 2) continue;
+      var date = parseUSDate(row[0]);
+      var val = parseInt(row[1], 10);
+      if (!date || isNaN(val)) continue;
+      var obj = { date: date };
+      obj[field] = val;
+      out.push(obj);
+    }
+    return out;
+  }
+
+  function parseSleepWeekly(text) {
+    text = String(text || "").replace(/^\uFEFF/, "");
+    var rows = CSV.parse(text);
+    var out = [];
+    var currentYear = new Date().getFullYear();
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      if (!row || row.length < 4) continue;
+      var label = String(row[0]).trim();
+      var norm = label.replace(/\s+-\s+/g, "|").replace(/-/g, "|");
+      var parts = norm.split("|");
+      if (parts.length < 2) continue;
+      var first = parsePart(parts[0], null);
+      var second = parsePart(parts[1], first.month);
+      if (!first.month || isNaN(first.day) || isNaN(second.day)) continue;
+      // у строк прошлого года Garmin добавляет колонку с годом: "Дек 25-31, 2025,76,..."
+      var hasYear = /^\s*\d{4}\s*$/.test(String(row[1]));
+      var year = hasYear ? parseInt(row[1], 10) : currentYear;
+      var score = hasYear ? row[2] : row[1];
+      var quality = hasYear ? row[3] : row[2];
+      var durationStr = hasYear ? row[4] : row[3];
+      currentYear = year;
+      out.push({
+        end: year + "-" + pad(second.month) + "-" + pad(second.day),
+        start: year + "-" + pad(first.month) + "-" + pad(first.day),
+        label: label,
+        score: parseInt(score, 10) || null,
+        quality: String(quality || ""),
+        durationMin: parseDurationRu(durationStr)
+      });
+    }
+    return out;
+  }
+
+  function detectImportType(rows) {
+    if (!rows || !rows.length) return null;
+    var header = rows[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var joined = header.join(" ").toLowerCase();
+    if (header.indexOf("timestamp") !== -1 || header.indexOf("time") !== -1 || header.indexOf("t") !== -1 || header.indexOf("datetime") !== -1) return "somatic_minute";
+    if (header.indexOf("date") !== -1 && (joined.indexOf("sleep") !== -1 || header.indexOf("sleep_score") !== -1 || header.indexOf("duration_min") !== -1 || header.indexOf("deep_min") !== -1)) return "sleep_daily";
+    if (header[0] === "дата" && (joined.indexOf("сред") !== -1 || joined.indexOf("качеств") !== -1 || joined.indexOf("рез") !== -1)) return "sleep_weekly";
+    if (joined.indexOf("стресс") !== -1) return "stress_weekly";
+    if (joined.indexOf("покой") !== -1 || joined.indexOf("пульса") !== -1) return "resting_weekly";
+    return null;
+  }
+
+  function importWeekly(items, field) {
+    return DB.getAllWeekly().then(function (existing) {
+      var map = {};
+      existing.forEach(function (e) { map[e.date] = e; });
+      items.forEach(function (it) {
+        var e = map[it.date] || { date: it.date };
+        e[field] = it[field];
+        map[it.date] = e;
+      });
+      var all = [];
+      for (var k in map) all.push(map[k]);
+      return DB.putWeeklyBatch(all);
+    });
+  }
+
+  function openImport() {
+    pendingImport = null;
+    $("import-result").classList.add("hidden");
+    showView("import");
+  }
+
+  function handleImportAnyFile(file) {
+    file.text().then(function (text) {
+      var rows = CSV.parse(String(text || "").replace(/^\uFEFF/, ""));
+      var type = detectImportType(rows);
+      if (!type) { toast("Формат не распознан"); return; }
+      var items, label;
+      if (type === "stress_weekly") { items = parseGarminTwoCol(text, "stress"); label = "Недельный стресс"; }
+      else if (type === "resting_weekly") { items = parseGarminTwoCol(text, "resting_hr"); label = "Пульс покоя (недели)"; }
+      else if (type === "sleep_weekly") { items = parseSleepWeekly(text); label = "Сон (недели)"; }
+      else if (type === "somatic_minute") { items = parseSomaticCsv(text); label = "Соматика (минуты)"; }
+      else if (type === "sleep_daily") { items = parseSleepCsv(text); label = "Сон (дни)"; }
+      if (!items.length) { toast("Нет данных в файле"); return; }
+      pendingImport = { type: type, items: items };
+      $("import-type").textContent = label + " · " + items.length + " записей";
+      $("import-preview").textContent = JSON.stringify(items.slice(0, 3));
+      $("import-result").classList.remove("hidden");
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
+  }
+
+  function applyImport() {
+    if (!pendingImport) return;
+    var t = pendingImport.type, items = pendingImport.items;
+    var p;
+    if (t === "stress_weekly") p = importWeekly(items, "stress");
+    else if (t === "resting_weekly") p = importWeekly(items, "resting_hr");
+    else if (t === "sleep_weekly") p = DB.putSleepWeeklyBatch(items);
+    else if (t === "somatic_minute") p = DB.putSomaticBatch(items);
+    else if (t === "sleep_daily") p = DB.putSleepBatch(items);
+    p.then(function () {
+      toast("Импортировано: " + items.length);
+      pendingImport = null;
+      $("import-result").classList.add("hidden");
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
+  }
+
+  // ---- тренды ----
+  function fmtDur(min) {
+    if (min == null) return "";
+    var m = min % 60, h = Math.floor(min / 60);
+    return (h ? h + "ч " : "") + (m ? m + "мин" : (h ? "" : "0мин"));
+  }
+
+  function openTrends() { showView("trends"); renderTrends(); }
+
+  function renderTrends() {
+    Promise.all([DB.getAllWeekly(), DB.getAllSleepWeekly()]).then(function (res) {
+      var weekly = res[0].slice().sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+      var sleep = res[1].slice().sort(function (a, b) { return a.end < b.end ? -1 : (a.end > b.end ? 1 : 0); });
+
+      var cc = $("trend-chips");
+      cc.innerHTML = "";
+      ["stress", "resting_hr", "sleep"].forEach(function (k) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip-toggle" + (trendMetric === k ? " on" : "");
+        b.textContent = TREND_META[k].label;
+        b.addEventListener("click", function () { trendMetric = k; renderTrends(); });
+        cc.appendChild(b);
+      });
+
+      var canvas = $("trend-canvas");
+      var list = $("trend-list");
+      list.innerHTML = "";
+
+      if (trendMetric === "sleep") {
+        var pts = sleep.filter(function (s) { return s.score != null; }).map(function (s) { return { t: s.end, val: s.score }; });
+        drawWeeklyChart(canvas, pts, TREND_META.sleep.color);
+        $("trend-stats").textContent = sleep.length ? "Недель: " + sleep.length : "";
+        sleep.forEach(function (s) {
+          var row = document.createElement("div");
+          row.className = "sleep-card";
+          row.innerHTML =
+            '<div class="sleep-title">' + esc(s.label) + "</div>" +
+            '<div class="sleep-line">Оценка: <b>' + (s.score != null ? s.score : "—") + "</b> · " + esc(s.quality || "") + " · " + fmtDur(s.durationMin) + "</div>";
+          list.appendChild(row);
+        });
+      } else {
+        var field = TREND_META[trendMetric].field;
+        var pts2 = weekly.filter(function (w) { return w[field] != null; }).map(function (w) { return { t: w.date, val: w[field] }; });
+        drawWeeklyChart(canvas, pts2, TREND_META[trendMetric].color);
+        $("trend-stats").textContent = pts2.length ? "Недель: " + pts2.length : "";
+      }
+    });
+  }
+
+  function drawWeeklyChart(canvas, pts, color) {
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.parentElement.clientWidth || 320;
+    var cssH = 200;
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    if (pts.length < 2) {
+      ctx.fillStyle = "#a49db4";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Нет данных", cssW / 2, cssH / 2);
+      return;
+    }
+
+    var vals = pts.map(function (p) { return p.val; });
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    if (max - min < 1) max = min + 1;
+    var yMin = Math.max(0, min - (max - min) * 0.15), yMax = max + (max - min) * 0.15;
+    function x(i) { return pts.length === 1 ? cssW / 2 : i / (pts.length - 1) * cssW; }
+    function y(v) { return cssH - (v - yMin) / (yMax - yMin) * cssH; }
+
+    ctx.strokeStyle = "#333040"; ctx.fillStyle = "#a49db4"; ctx.font = "11px sans-serif"; ctx.lineWidth = 1;
+    for (var g = 0; g <= 3; g++) {
+      var gy = cssH * g / 3;
+      var gv = yMax - (yMax - yMin) * g / 3;
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(cssW, gy); ctx.stroke();
+      ctx.fillText(String(Math.round(gv)), 4, gy - 3);
+    }
+
+    ctx.beginPath();
+    pts.forEach(function (p, i) {
+      var px = x(i), py = y(p.val);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.stroke();
+    ctx.lineTo(x(pts.length - 1), cssH); ctx.lineTo(x(0), cssH); ctx.closePath();
+    ctx.fillStyle = color + "22"; ctx.fill();
+
+    ctx.fillStyle = "#a49db4";
+    ctx.textAlign = "left"; ctx.fillText(pts[0].t.slice(2), 4, cssH - 4);
+    ctx.textAlign = "center"; ctx.fillText(pts[Math.floor(pts.length / 2)].t.slice(2), cssW / 2, cssH - 4);
+    ctx.textAlign = "right"; ctx.fillText(pts[pts.length - 1].t.slice(2), cssW - 4, cssH - 4);
+  }
+
   // ---- CSV ----
   function recordsToCsv(records) {
     var rows = [CSV_HEADERS];
@@ -1207,7 +1469,7 @@
   function wipeAll() {
     var word = $("wipe-input").value.trim();
     if (word !== "УДАЛИТЬ") { toast('Введите «УДАЛИТЬ» для подтверждения'); return; }
-    Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), Pin.removePin()]).then(function () {
+    Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), DB.clearWeekly(), DB.clearSleepWeekly(), Pin.removePin()]).then(function () {
       $("wipe-input").value = "";
       toast("Все данные удалены");
       renderJournal();
@@ -1230,6 +1492,7 @@
     $("tab-journal").addEventListener("click", function () { showView("journal"); });
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });
     $("tab-catalog").addEventListener("click", function () { renderCatalog(); showView("catalog"); });
+    $("tab-trends").addEventListener("click", function () { openTrends(); });
     $("tab-settings").addEventListener("click", function () { refreshPinStatus(); showView("settings"); });
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
@@ -1274,18 +1537,15 @@
 
     $("btn-detail-back").addEventListener("click", function () { showView("journal"); });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
-    $("btn-import-somatic").addEventListener("click", function () { $("somatic-file").click(); });
-    $("btn-import-sleep").addEventListener("click", function () { $("sleep-file").click(); });
-    $("somatic-file").addEventListener("change", function (e) {
+    $("btn-import-open").addEventListener("click", openImport);
+    $("btn-import-back").addEventListener("click", function () { showView("settings"); });
+    $("btn-import-pick").addEventListener("click", function () { $("import-any-file").click(); });
+    $("import-any-file").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0];
-      if (f) importSomaticFile(f);
+      if (f) handleImportAnyFile(f);
       e.target.value = "";
     });
-    $("sleep-file").addEventListener("change", function (e) {
-      var f = e.target.files && e.target.files[0];
-      if (f) importSleepFile(f);
-      e.target.value = "";
-    });
+    $("btn-import-apply").addEventListener("click", applyImport);
 
     $("btn-wizard-close").addEventListener("click", function () { showView("journal"); });
     $("btn-wizard-prev").addEventListener("click", function () { if (wizardStep > 0) { wizardStep--; renderWizard(); } });
