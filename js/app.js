@@ -34,6 +34,17 @@
   var catalogEditReturn = "catalog";
   var catalogEditPhotoData = "";
 
+  var detailRecordId = null;
+  var detailMetric = "hr";
+  var detailWindow = 30;
+  var METRIC_ORDER = ["hr", "stress", "body_battery", "hrv"];
+  var METRIC_META = {
+    hr: { label: "Пульс", color: "#e0567a", unit: "уд/мин" },
+    stress: { label: "Стресс", color: "#f0a04b", unit: "" },
+    body_battery: { label: "Body Battery", color: "#4ade80", unit: "" },
+    hrv: { label: "HRV", color: "#60a5fa", unit: "мс" }
+  };
+
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
   function uuid() {
@@ -50,6 +61,22 @@
     if (isNaN(d.getTime())) return iso;
     return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() +
       " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function minuteKeyFromDate(d) {
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function toMinuteKey(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return minuteKeyFromDate(d);
+  }
+  function toDateKey(iso) {
+    var s = String(iso || "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
   }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -179,7 +206,7 @@
           '<div class="record-meta">' + meta.join(" · ") + "</div>" +
           posHtml + marksHtml;
 
-        card.addEventListener("click", function () { openWizard(r.id); });
+        card.addEventListener("click", function () { openDetail(r.id); });
         list.appendChild(card);
       });
 
@@ -791,6 +818,269 @@
     });
   }
 
+  // ---- просмотр записи + соматика ----
+  function openDetail(id) {
+    detailRecordId = id;
+    detailMetric = "hr";
+    detailWindow = 30;
+    showView("detail");
+    renderDetail();
+  }
+
+  function renderDetail() {
+    DB.getRecord(detailRecordId).then(function (r) {
+      if (!r) { showView("journal"); return; }
+      var body = $("detail-body");
+      var org = (r.orgasmsMe || 0) + (r.orgasmsPartner || 0);
+      var meta = [];
+      if (r.partner) meta.push("👤 " + esc(r.partner));
+      if (r.place) meta.push("📍 " + esc(r.place));
+      meta.push("⏱ " + (r.durationMin || 0) + " мин");
+
+      var chips = [];
+      (r.positions || []).forEach(function (p) { chips.push('<span class="chip-mini">' + esc(p) + "</span>"); });
+      (r.costumes || []).forEach(function (x) { chips.push('<span class="chip-mini">🧥 ' + esc(x) + "</span>"); });
+      (r.toys || []).forEach(function (x) { chips.push('<span class="chip-mini">🧸 ' + esc(x) + "</span>"); });
+      (r.fantasies || []).forEach(function (x) { chips.push('<span class="chip-mini">✨ ' + esc(x) + "</span>"); });
+      (r.tags || []).forEach(function (x) { chips.push('<span class="chip-mini tag">#' + esc(x) + "</span>"); });
+
+      body.innerHTML =
+        '<div class="detail-head">' +
+          '<div class="detail-date">' + esc(fmtDateTime(r.startedAt)) +
+            (org ? ' <span class="record-org">💗 ' + org + "</span>" : "") +
+          "</div>" +
+          '<div class="record-meta">' + meta.join(" · ") + "</div>" +
+          (chips.length ? '<div class="record-chips">' + chips.join("") + "</div>" : "") +
+        "</div>";
+
+      var somatic = document.createElement("div");
+      somatic.className = "detail-somatic";
+      body.appendChild(somatic);
+      renderSomatic(somatic, r);
+    });
+  }
+
+  function renderSomatic(el, r) {
+    var startMs = new Date(r.startedAt).getTime();
+    var rangeStartMs = startMs - detailWindow * 60000;
+    var rangeEndMs = startMs + ((r.durationMin || 0) + detailWindow) * 60000;
+    var rangeStart = minuteKeyFromDate(new Date(rangeStartMs));
+    var rangeEnd = minuteKeyFromDate(new Date(rangeEndMs));
+
+    el.innerHTML =
+      "<h2>Соматика</h2>" +
+      '<div class="chips-grid" id="metric-chips"></div>' +
+      '<div class="chips-grid" id="window-chips" style="margin-top:8px"></div>' +
+      '<div class="chart-wrap"><canvas id="somatic-canvas"></canvas></div>' +
+      '<div class="somatic-stats" id="somatic-stats"></div>' +
+      '<div class="sleep-card" id="sleep-card"></div>';
+
+    var mc = el.querySelector("#metric-chips");
+    METRIC_ORDER.forEach(function (k) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip-toggle" + (detailMetric === k ? " on" : "");
+      b.textContent = METRIC_META[k].label;
+      b.addEventListener("click", function () { detailMetric = k; renderDetail(); });
+      mc.appendChild(b);
+    });
+
+    var wc = el.querySelector("#window-chips");
+    [15, 30, 60].forEach(function (w) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip-toggle" + (detailWindow === w ? " on" : "");
+      b.textContent = "±" + w + " мин";
+      b.addEventListener("click", function () { detailWindow = w; renderDetail(); });
+      wc.appendChild(b);
+    });
+
+    DB.getSomaticRange(rangeStart, rangeEnd).then(function (points) {
+      points.sort(function (a, b) { return a.t < b.t ? -1 : (a.t > b.t ? 1 : 0); });
+      var stats = drawChart($("somatic-canvas"), points, detailMetric, rangeStartMs, rangeEndMs, startMs);
+      var s = $("somatic-stats");
+      if (stats.count) {
+        var m = METRIC_META[detailMetric];
+        s.textContent = "мин " + Math.round(stats.min) + " · ср " + Math.round(stats.avg) +
+          " · макс " + Math.round(stats.max) + (m.unit ? " " + m.unit : "") + " · точек " + stats.count;
+      } else {
+        s.textContent = "";
+      }
+    });
+
+    DB.getSleep(toDateKey(r.startedAt)).then(function (sl) {
+      var c = $("sleep-card");
+      if (!sl) { c.innerHTML = ""; return; }
+      var h = ((sl.durationMin || 0) / 60).toFixed(1);
+      c.innerHTML =
+        '<div class="sleep-title">😴 Сон</div>' +
+        '<div class="sleep-line">Оценка: <b>' + (sl.score != null ? sl.score : "—") + "</b> · " + h + " ч</div>" +
+        (sl.deepMin != null
+          ? '<div class="sleep-line muted">Глубокий ' + sl.deepMin + " · Лёгкий " + sl.lightMin +
+            " · REM " + sl.remMin + " · Бодрствование " + sl.awakeMin + " мин</div>"
+          : "");
+    });
+  }
+
+  function drawChart(canvas, points, metricKey, startMs, endMs, markerMs) {
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.parentElement.clientWidth || 320;
+    var cssH = 200;
+    canvas.style.width = cssW + "px";
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    var meta = METRIC_META[metricKey];
+    var valid = points.filter(function (p) {
+      var v = p[metricKey];
+      return v !== null && v !== undefined && !isNaN(v);
+    });
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    if (valid.length < 2) {
+      ctx.fillStyle = "#a49db4";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Нет данных в этом окне", cssW / 2, cssH / 2);
+      return { min: null, avg: null, max: null, count: 0 };
+    }
+
+    var vals = valid.map(function (p) { return p[metricKey]; });
+    var min = Math.min.apply(null, vals);
+    var max = Math.max.apply(null, vals);
+    if (max - min < 1) max = min + 1;
+    var padY = (max - min) * 0.15;
+    var yMin = Math.max(0, min - padY);
+    var yMax = max + padY;
+    var span = endMs - startMs || 1;
+
+    function x(t) { return (t - startMs) / span * cssW; }
+    function y(v) { return cssH - (v - yMin) / (yMax - yMin) * cssH; }
+
+    ctx.strokeStyle = "#333040";
+    ctx.fillStyle = "#a49db4";
+    ctx.font = "11px sans-serif";
+    ctx.lineWidth = 1;
+    for (var g = 0; g <= 3; g++) {
+      var gy = cssH * g / 3;
+      var gv = yMax - (yMax - yMin) * g / 3;
+      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(cssW, gy); ctx.stroke();
+      ctx.fillText(String(Math.round(gv)), 4, gy - 3);
+    }
+
+    ctx.beginPath();
+    valid.forEach(function (p, i) {
+      var px = x(new Date(p.t).getTime());
+      var py = y(p[metricKey]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = meta.color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    ctx.lineTo(x(new Date(valid[valid.length - 1].t).getTime()), cssH);
+    ctx.lineTo(x(new Date(valid[0].t).getTime()), cssH);
+    ctx.closePath();
+    ctx.fillStyle = meta.color + "22";
+    ctx.fill();
+
+    if (markerMs >= startMs && markerMs <= endMs) {
+      var mx = x(markerMs);
+      ctx.strokeStyle = "#f2eef7";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(mx, 0); ctx.lineTo(mx, cssH); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    var avg = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
+    return { min: min, avg: avg, max: max, count: vals.length };
+  }
+
+  // ---- импорт соматики/сна ----
+  function parseSomaticCsv(text) {
+    text = String(text || "").replace(/^\uFEFF/, "");
+    var rows = CSV.parse(text);
+    if (!rows.length) return [];
+    var header = rows[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var idx = {};
+    header.forEach(function (h, i) { idx[h] = i; });
+    function get(row) {
+      for (var a = 1; a < arguments.length; a++) {
+        var i = idx[arguments[a]];
+        if (i !== undefined && row[i] !== undefined) return row[i];
+      }
+      return "";
+    }
+    function num(v) { if (v === "" || v == null) return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+    var out = [];
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      var t = toMinuteKey(get(row, "timestamp", "time", "t", "datetime"));
+      if (!t) continue;
+      out.push({
+        t: t,
+        hr: num(get(row, "hr", "heart_rate")),
+        stress: num(get(row, "stress")),
+        body_battery: num(get(row, "body_battery", "bodybattery", "battery")),
+        hrv: num(get(row, "hrv", "rmssd"))
+      });
+    }
+    return out;
+  }
+
+  function parseSleepCsv(text) {
+    text = String(text || "").replace(/^\uFEFF/, "");
+    var rows = CSV.parse(text);
+    if (!rows.length) return [];
+    var header = rows[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var idx = {};
+    header.forEach(function (h, i) { idx[h] = i; });
+    function get(row) {
+      for (var a = 1; a < arguments.length; a++) {
+        var i = idx[arguments[a]];
+        if (i !== undefined && row[i] !== undefined) return row[i];
+      }
+      return "";
+    }
+    function num(v) { if (v === "" || v == null) return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+    var out = [];
+    for (var r = 1; r < rows.length; r++) {
+      var row = rows[r];
+      var d = toDateKey(get(row, "date", "day"));
+      if (!d) continue;
+      out.push({
+        date: d,
+        score: num(get(row, "sleep_score", "score")),
+        durationMin: num(get(row, "duration_min", "duration")),
+        deepMin: num(get(row, "deep_min", "deep")),
+        lightMin: num(get(row, "light_min", "light")),
+        remMin: num(get(row, "rem_min", "rem")),
+        awakeMin: num(get(row, "awake_min", "awake"))
+      });
+    }
+    return out;
+  }
+
+  function importSomaticFile(file) {
+    file.text().then(function (text) {
+      var pts = parseSomaticCsv(text);
+      if (!pts.length) { toast("Нет данных в файле"); return; }
+      DB.putSomaticBatch(pts).then(function () { toast("Соматика: " + pts.length + " точек"); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
+  }
+
+  function importSleepFile(file) {
+    file.text().then(function (text) {
+      var rows = parseSleepCsv(text);
+      if (!rows.length) { toast("Нет данных в файле"); return; }
+      DB.putSleepBatch(rows).then(function () { toast("Сон: " + rows.length + " записей"); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
+  }
+
   // ---- CSV ----
   function recordsToCsv(records) {
     var rows = [CSV_HEADERS];
@@ -917,7 +1207,7 @@
   function wipeAll() {
     var word = $("wipe-input").value.trim();
     if (word !== "УДАЛИТЬ") { toast('Введите «УДАЛИТЬ» для подтверждения'); return; }
-    Promise.all([DB.clearRecords(), Pin.removePin()]).then(function () {
+    Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), Pin.removePin()]).then(function () {
       $("wipe-input").value = "";
       toast("Все данные удалены");
       renderJournal();
@@ -980,6 +1270,21 @@
         catalogEditPhotoData = dataUrl;
         $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + dataUrl + '" alt="">';
       }).catch(function () { toast("Не удалось загрузить фото"); });
+    });
+
+    $("btn-detail-back").addEventListener("click", function () { showView("journal"); });
+    $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
+    $("btn-import-somatic").addEventListener("click", function () { $("somatic-file").click(); });
+    $("btn-import-sleep").addEventListener("click", function () { $("sleep-file").click(); });
+    $("somatic-file").addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (f) importSomaticFile(f);
+      e.target.value = "";
+    });
+    $("sleep-file").addEventListener("change", function (e) {
+      var f = e.target.files && e.target.files[0];
+      if (f) importSleepFile(f);
+      e.target.value = "";
     });
 
     $("btn-wizard-close").addEventListener("click", function () { showView("journal"); });

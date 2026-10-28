@@ -3,7 +3,7 @@
   "use strict";
 
   var DB_NAME = "xdiary";
-  var DB_VERSION = 3;
+  var DB_VERSION = 4;
   var _db = null;
 
   function openDB() {
@@ -25,6 +25,12 @@
         if (!db.objectStoreNames.contains("catalog")) {
           var cs = db.createObjectStore("catalog", { keyPath: "id" });
           cs.createIndex("kind", "kind");
+        }
+        if (!db.objectStoreNames.contains("somatic")) {
+          db.createObjectStore("somatic", { keyPath: "t" });
+        }
+        if (!db.objectStoreNames.contains("sleep")) {
+          db.createObjectStore("sleep", { keyPath: "date" });
         }
       };
       req.onsuccess = function () { _db = req.result; resolve(_db); };
@@ -73,6 +79,28 @@
       return txDone(t);
     });
   }
+  function putBatch(storeName, list) {
+    return openDB().then(function (db) {
+      var t = db.transaction(storeName, "readwrite");
+      var s = t.objectStore(storeName);
+      list.forEach(function (obj) { s.put(obj); });
+      return txDone(t);
+    });
+  }
+  function getRange(storeName, start, end) {
+    return openDB().then(function (db) {
+      var t = db.transaction(storeName, "readonly");
+      var req = t.objectStore(storeName).getAll(IDBKeyRange.bound(start, end));
+      return request(req).then(function (all) { return all || []; });
+    });
+  }
+  function clearStore(storeName) {
+    return openDB().then(function (db) {
+      var t = db.transaction(storeName, "readwrite");
+      t.objectStore(storeName).clear();
+      return txDone(t);
+    });
+  }
 
   window.DB = {
     // записи
@@ -80,13 +108,7 @@
     getRecord: function (id) { return getOne("records", id); },
     putRecord: function (rec) { return putOne("records", rec); },
     deleteRecord: function (id) { return deleteOne("records", id); },
-    clearRecords: function () {
-      return openDB().then(function (db) {
-        var t = db.transaction("records", "readwrite");
-        t.objectStore("records").clear();
-        return txDone(t);
-      });
-    },
+    clearRecords: function () { return clearStore("records"); },
     // мета (PIN и пр.)
     getMeta: function (key) { return getOne("meta", key); },
     setMeta: function (key, value) { return putOne("meta", { key: key, value: value }); },
@@ -100,6 +122,14 @@
     getAllCatalog: function () { return getAll("catalog"); },
     getCatalogItem: function (id) { return getOne("catalog", id); },
     putCatalogItem: function (item) { return putOne("catalog", item); },
-    deleteCatalogItem: function (id) { return deleteOne("catalog", id); }
+    deleteCatalogItem: function (id) { return deleteOne("catalog", id); },
+    // соматика (time-series, ключ — минута "YYYY-MM-DDTHH:mm")
+    putSomaticBatch: function (list) { return putBatch("somatic", list); },
+    getSomaticRange: function (start, end) { return getRange("somatic", start, end); },
+    clearSomatic: function () { return clearStore("somatic"); },
+    // сон (ключ — дата "YYYY-MM-DD")
+    putSleepBatch: function (list) { return putBatch("sleep", list); },
+    getSleep: function (date) { return getOne("sleep", date); },
+    clearSleep: function () { return clearStore("sleep"); }
   };
 })();

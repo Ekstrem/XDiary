@@ -111,8 +111,15 @@
         </div>
         <p class="muted">Экспорт сохраняет все записи в CSV-файл (открывается в Excel/Sheets). Импорт объединяет записи по id.</p>
 
+        <h2>Соматика (Garmin)</h2>
+        <div class="btn-row">
+          <button class="btn" id="btn-import-somatic">Импорт соматики CSV</button>
+          <button class="btn" id="btn-import-sleep">Импорт сна CSV</button>
+        </div>
+        <p class="muted">Соматика: <code>timestamp,hr,stress,body_battery,hrv</code>. Сон: <code>date,sleep_score,duration_min,deep_min,light_min,rem_min,awake_min</code>.</p>
+
         <h2>Опасная зона</h2>
-        <p class="muted">Введите «УДАЛИТЬ», чтобы стереть все записи и PIN-код.</p>
+        <p class="muted">Введите «УДАЛИТЬ», чтобы стереть все записи, соматику, сон и PIN-код.</p>
         <div class="field">
           <input type="text" id="wipe-input" placeholder="УДАЛИТЬ" autocomplete="off">
         </div>
@@ -193,6 +200,18 @@
     </main>
   </section>
 
+  <!-- Просмотр записи (с соматикой) -->
+  <section id="view-detail" class="view hidden">
+    <header class="appbar">
+      <button id="btn-detail-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1>Запись</h1>
+      <button id="btn-detail-edit" class="btn primary">Изменить</button>
+    </header>
+    <main class="content">
+      <div id="detail-body"></div>
+    </main>
+  </section>
+
   <nav class="tabbar hidden" id="tabbar">
     <button class="tab active" id="tab-journal"><span class="tab-ico">📓</span><span>Журнал</span></button>
     <button class="tab" id="tab-partners"><span class="tab-ico">👤</span><span>Партнёры</span></button>
@@ -202,6 +221,8 @@
 
   <div id="toast" class="toast hidden"></div>
   <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">
+  <input type="file" id="somatic-file" accept=".csv,text/csv" class="hidden">
+  <input type="file" id="sleep-file" accept=".csv,text/csv" class="hidden">
 
   <datalist id="partner-suggest"></datalist>
   <datalist id="place-suggest"></datalist>

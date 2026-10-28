@@ -256,6 +256,31 @@ input::placeholder, textarea::placeholder { color: #6d657e; }
 .chip-add:active { background: var(--card); }
 .badge-realized { color: #4ade80; font-weight: 600; }
 
+/* ---- Detail / соматика ---- */
+.detail-head {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px; margin-bottom: 18px;
+}
+.detail-date { font-weight: 600; font-size: 18px; }
+.detail-somatic h2 { font-size: 16px; margin: 0 0 10px; }
+.chart-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 10px; margin: 12px 0 8px;
+}
+.chart-wrap canvas { display: block; width: 100%; }
+.somatic-stats { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.sleep-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px; margin-top: 8px;
+}
+.sleep-title { font-weight: 600; margin-bottom: 4px; }
+.sleep-line { font-size: 14px; }
+.sleep-line b { color: var(--text); }
+code {
+  background: var(--bg-soft); border: 1px solid var(--border);
+  border-radius: 6px; padding: 1px 5px; font-size: 12px; color: var(--text);
+}
+
 /* ---- Desktop nicety ---- */
 @media (min-width: 640px) {
   .tabbar { max-width: 560px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }

@@ -1,5 +1,5 @@
 /* XDiary — service worker: офлайн и установка */
-var CACHE = "xdiary-v3";
+var CACHE = "xdiary-v4";
 var ASSETS = [
   "./",
   "./index.html",
