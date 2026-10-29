@@ -12,6 +12,7 @@
 - `ADL/` — реестр ADR (14 принятых решений).
 - `c4-containers.md` — C4-диаграмма контейнеров (10 микросервисов, профиль Single).
 - `vm-sizing.md` — расчёт ресурсов ВМ для MVP (podman + PostgreSQL).
+- `vps-setup.md` — памятка DevOps: настройка VPS (Ubuntu 22.04) и безопасность.
 
 ## Методология
 EDM (Event-Driven Microservices) на .NET: DDD, Event Sourcing, CEQRS, фреймворк `DigiTFactory.Libraries`.
