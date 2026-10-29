@@ -8,7 +8,7 @@
 | 2 | Партнёры (Partners) | Supporting | Execution |
 | 3 | Каталог и инвентарь (Catalog & Inventory) | Supporting | Execution |
 | 4 | Соматика (Somatics) | Supporting | Gateway |
-| 5 | Аналитика и статистика (Analytics) | Supporting | Analysis |
+| 5 | Аналитика (Analytics) | Supporting | Analysis |
 | 6 | Приватность и доступ (Privacy & Access) | Generic | Execution |
 | 7 | Переносимость данных (Data Portability) | Generic | Execution |
 
@@ -20,7 +20,7 @@ flowchart TD
     P["Партнёры"] -->|Customer/Supplier| J
     C["Каталог и инвентарь"] -->|Customer/Supplier| J
     J -->|Customer/Supplier| S["Соматика"]
-    J -->|событие «акт записан»| A["Аналитика и статистика"]
+    J -->|событие «акт записан»| A["Аналитика"]
     S -->|Customer/Supplier| A
     S -->|ACL| G["Garmin / локальный CSV<br/>(внешний)"]
     DP["Переносимость данных"] -->|CSV| J
