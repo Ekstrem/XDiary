@@ -178,6 +178,11 @@
   },
   "active": "14ea80d639afa9b1",
   "lastOpenFiles": [
+    "3-ddd-canvases/BC-DailyMetrics/05-materialized-views.md",
+    "3-ddd-canvases/BC-DailyMetrics/04-query-api.md",
+    "3-ddd-canvases/BC-DailyMetrics/03-command-api.md",
+    "3-ddd-canvases/BC-DailyMetrics/02-aggregate-canvas.md",
+    "3-ddd-canvases/BC-DailyMetrics/01-context-canvas.md",
     "3-ddd-canvases/BC-DailyMetrics",
     "3-ddd-canvases/BC-SomaticSeries/05-materialized-views.md",
     "3-ddd-canvases/BC-SomaticSeries/04-query-api.md",
