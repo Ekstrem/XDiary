@@ -100,6 +100,12 @@
         <p id="pin-status" class="muted">…</p>
         <button class="btn full" id="btn-pin-open">Установить PIN</button>
 
+        <h2>Пол</h2>
+        <div class="btn-row" id="my-gender-row">
+          <button type="button" class="btn gender-btn" id="my-gender-male">Мужской</button>
+          <button type="button" class="btn gender-btn" id="my-gender-female">Женский</button>
+        </div>
+
         <h2>Данные</h2>
         <div class="btn-row">
           <button class="btn" id="btn-export">Экспорт CSV</button>
@@ -164,6 +170,13 @@
         <div class="field">
           <label for="pe-name">Имя</label>
           <input type="text" id="pe-name" placeholder="Имя партнёра" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Пол</label>
+          <div class="btn-row">
+            <button type="button" class="btn gender-btn" id="pe-gender-male">Мужской</button>
+            <button type="button" class="btn gender-btn" id="pe-gender-female">Женский</button>
+          </div>
         </div>
         <div class="field">
           <label for="pe-notes">Подробности</label>

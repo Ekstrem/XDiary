@@ -28,6 +28,8 @@
   var editingPartnerId = null;
   var partnerEditReturn = "partners";
   var partnerEditPhotoData = "";
+  var partnerEditGender = "female";
+  var myGender = "male";
   var catalogKind = "costume";
   var editingCatalogId = null;
   var catalogEditKind = "costume";
@@ -63,7 +65,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.21"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.22"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -629,11 +631,15 @@
     "</div>";
   }
 
-  var ORGASM_TYPES = ["клиторальный", "вагинальный", "анальный", "оральный", "смешанный", "руками"];
+  var ORGASM_TYPES = {
+    male: ["вагинальный", "оральный", "анальный", "смешанный"],
+    female: ["клиторальный", "вагинальный", "анальный", "оральный", "смешанный"]
+  };
 
-  function orgasmTypeChips(key) {
+  function orgasmTypeChips(key, gender) {
     var type = key === "me" ? draft.orgasmMeType : draft.orgasmPartnerType;
-    var html = ORGASM_TYPES.map(function (t) {
+    var types = ORGASM_TYPES[gender] || ORGASM_TYPES.female;
+    var html = types.map(function (t) {
       return '<button type="button" class="chip-toggle' + (type === t ? " on" : "") +
         '" data-okey="' + key + '" data-otype="' + esc(t) + '">' + esc(t) + "</button>";
     }).join("");
@@ -657,19 +663,20 @@
       var partnerLabel = p
         ? avatarHtml(p) + "<span>" + esc(p.name) + "</span>"
         : (draft.partner ? esc(draft.partner) : "Партнёр");
+      var pGender = p ? (p.gender || "female") : "female";
 
       body.innerHTML =
         '<div class="step-label">Оргазмы</div>' +
         '<div class="orgasm-block">' +
           '<div class="orgasm-head">Я</div>' +
           stepperHtml("me", "", draft.orgasmsMe) +
-          orgasmTypeChips("me") +
+          orgasmTypeChips("me", myGender) +
           orgasmStars("me") +
         "</div>" +
         '<div class="orgasm-block">' +
           '<div class="orgasm-head orgasm-partner">' + partnerLabel + "</div>" +
           stepperHtml("partner", "", draft.orgasmsPartner) +
-          orgasmTypeChips("partner") +
+          orgasmTypeChips("partner", pGender) +
           orgasmStars("partner") +
         "</div>";
 
@@ -811,6 +818,20 @@
     });
   }
 
+  function renderMyGender() {
+    if ($("my-gender-male")) $("my-gender-male").classList.toggle("active", myGender === "male");
+    if ($("my-gender-female")) $("my-gender-female").classList.toggle("active", myGender === "female");
+  }
+  function setMyGender(g) {
+    myGender = g;
+    DB.setMeta("myGender", g);
+    renderMyGender();
+  }
+  function renderPartnerGender() {
+    if ($("pe-gender-male")) $("pe-gender-male").classList.toggle("active", partnerEditGender === "male");
+    if ($("pe-gender-female")) $("pe-gender-female").classList.toggle("active", partnerEditGender === "female");
+  }
+
   function openPartnerEdit(id) {
     editingPartnerId = id || null;
     $("partner-edit-title").textContent = id ? "Партнёр" : "Новый партнёр";
@@ -819,6 +840,8 @@
     $("pe-photo").value = "";
     $("pe-photo-preview").innerHTML = "";
     partnerEditPhotoData = "";
+    partnerEditGender = "female";
+    renderPartnerGender();
     $("btn-partner-delete").classList.toggle("hidden", !id);
     if (id) {
       DB.getPartner(id).then(function (p) {
@@ -826,6 +849,8 @@
         $("pe-name").value = p.name || "";
         $("pe-notes").value = p.notes || "";
         partnerEditPhotoData = p.photo || "";
+        partnerEditGender = p.gender || "female";
+        renderPartnerGender();
         if (partnerEditPhotoData) {
           $("pe-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + partnerEditPhotoData + '" alt="">';
         }
@@ -847,13 +872,14 @@
         p.name = name;
         p.notes = $("pe-notes").value.trim();
         p.photo = partnerEditPhotoData;
+        p.gender = partnerEditGender;
         p.updatedAt = nowIso;
         return DB.putPartner(p);
       });
     } else {
       promise = DB.putPartner({
         id: uuid(), name: name, notes: $("pe-notes").value.trim(),
-        photo: partnerEditPhotoData, createdAt: nowIso, updatedAt: nowIso
+        photo: partnerEditPhotoData, gender: partnerEditGender, createdAt: nowIso, updatedAt: nowIso
       });
     }
     promise.then(function () {
@@ -2198,6 +2224,11 @@
     $("btn-pin-set").addEventListener("click", applyPin);
     $("btn-pin-remove").addEventListener("click", removePinNow);
     $("pin-cancel").addEventListener("click", function () { $("pin-modal").classList.add("hidden"); });
+    $("my-gender-male").addEventListener("click", function () { setMyGender("male"); });
+    $("my-gender-female").addEventListener("click", function () { setMyGender("female"); });
+    $("pe-gender-male").addEventListener("click", function () { partnerEditGender = "male"; renderPartnerGender(); });
+    $("pe-gender-female").addEventListener("click", function () { partnerEditGender = "female"; renderPartnerGender(); });
+    DB.getMeta("myGender").then(function (r) { myGender = (r && r.value) || "male"; renderMyGender(); });
     $("btn-export").addEventListener("click", downloadCsv);
     $("btn-import").addEventListener("click", function () { $("import-file").click(); });
     $("import-file").addEventListener("change", function (e) {
