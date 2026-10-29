@@ -37,7 +37,7 @@
   var detailRecordId = null;
   var detailMetric = "hr";
   var detailWindow = 30;
-  var METRIC_ORDER = ["hr", "stress", "body_battery", "hrv"];
+  var METRIC_ORDER = ["hr", "stress", "body_battery"];
   var METRIC_META = {
     hr: { label: "Пульс", color: "#e0567a", unit: "уд/мин" },
     stress: { label: "Стресс", color: "#f0a04b", unit: "" },
@@ -50,7 +50,8 @@
   var TREND_META = {
     stress: { label: "Стресс", color: "#f0a04b", field: "stress" },
     resting_hr: { label: "Пульс покоя", color: "#e0567a", field: "resting_hr" },
-    sleep: { label: "Сон (оценка)", color: "#4ade80", field: "score" }
+    sleep: { label: "Сон (оценка)", color: "#4ade80", field: "score" },
+    hrv: { label: "HRV", color: "#60a5fa", field: "hrv" }
   };
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
@@ -943,6 +944,7 @@
       var bbFirst = bbPts.length ? bbPts[0].body_battery : null;
       var bbLast = bbPts.length ? bbPts[bbPts.length - 1].body_battery : null;
       var stress = (wk && wk.stress != null) ? wk.stress : null;
+      var hrv = (wk && wk.hrv != null) ? wk.hrv : null;
 
       function row(label, value) {
         return '<div class="act-row"><span>' + label + "</span><b>" + value + "</b></div>";
@@ -954,6 +956,7 @@
           row("Body Battery", (bbFirst != null && bbLast != null) ? bbFirst + " → " + bbLast + " (" + (bbLast - bbFirst) + ")" : "—") +
           row("Стресс за день", stress != null ? stress : "—") +
           row("Сон", (sl && sl.score != null) ? sl.score + " (" + ((sl.durationMin || 0) / 60).toFixed(1) + " ч)" : "—") +
+          row("HRV (ночь)", hrv != null ? hrv : "—") +
         "</div>";
 
       el.innerHTML =
@@ -1330,7 +1333,7 @@
 
       var cc = $("trend-chips");
       cc.innerHTML = "";
-      ["stress", "resting_hr", "sleep"].forEach(function (k) {
+      ["stress", "resting_hr", "sleep", "hrv"].forEach(function (k) {
         var b = document.createElement("button");
         b.type = "button";
         b.className = "chip-toggle" + (trendMetric === k ? " on" : "");
@@ -1468,14 +1471,24 @@
       Object.keys(data.resting_hr || {}).forEach(function (d) {
         restItems.push({ date: d, resting_hr: data.resting_hr[d] });
       });
+      var hrvItems = [];
+      Object.keys(data.hrv || {}).forEach(function (d) {
+        hrvItems.push({ date: d, hrv: data.hrv[d] });
+      });
       return Promise.all([
         DB.putSomaticBatch(somatic),
         DB.putSleepBatch(sleeps),
         importWeekly(stressItems, "stress"),
-        importWeekly(restItems, "resting_hr")
+        importWeekly(restItems, "resting_hr"),
+        importWeekly(hrvItems, "hrv")
       ]).then(function () {
         garminLastSync = Date.now();
-        if (st) st.textContent = "Обновлено: " + somatic.length + " точек пульса, " + sleeps.length + " ночей";
+        var dbg = data.debug || {};
+        if (st) st.textContent = "Обновлено: пульс " + (dbg.hr != null ? dbg.hr : somatic.length) +
+          ", BB " + (dbg.bb != null ? dbg.bb : "?") +
+          ", сон " + (dbg.sleep != null ? dbg.sleep : sleeps.length) +
+          ", стресс " + (dbg.stress != null ? dbg.stress : stressItems.length) +
+          ", HRV " + (dbg.hrv != null ? dbg.hrv : hrvItems.length);
         toast("Статистика обновлена");
       });
     }).catch(function (e) {

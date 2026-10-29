@@ -58,35 +58,81 @@ def build_sync(token, dfrom, dto):
             if len(it) >= 2 and it[1] is not None:
                 bb[gs.minute_of(it[0])] = it[1]
 
+    # стресс: кусками по 7 дней (эндпоинт не принимает длинный диапазон)
     stress = {}
-    obj = gs.get_json(token, "/usersummary-service/stats/stress/daily/%s/%s" % (start, end))
-    for row in obj or []:
-        cd = row.get("calendarDate")
-        if cd:
-            stress[cd] = (row.get("values") or {}).get("overallStressLevel")
+    d0 = start
+    while d0 <= end:
+        d1 = min(d0 + datetime.timedelta(days=6), end)
+        obj = gs.get_json(token, "/usersummary-service/stats/stress/daily/%s/%s" % (d0.isoformat(), d1.isoformat()))
+        for row in obj or []:
+            cd = row.get("calendarDate")
+            if cd:
+                stress[cd] = (row.get("values") or {}).get("overallStressLevel")
+        d0 = d1 + datetime.timedelta(days=1)
 
+    # сон: range-эндпоинт, при неудаче — по дням
     sleeps = []
-    for d in gs.day_iter(start, end):
-        obj = gs.get_json(token, "/sleep-service/sleep/dailySleep?date=%s" % d.isoformat())
-        if not obj:
-            continue
-        sc = ((obj.get("sleepScores") or {}).get("overall") or {})
-        sleeps.append({
-            "date": d.isoformat(),
-            "score": sc.get("value"),
-            "durationMin": round((obj.get("sleepTimeSeconds") or 0) / 60),
-            "deepMin": round((obj.get("deepSleepSeconds") or 0) / 60),
-            "lightMin": round((obj.get("lightSleepSeconds") or 0) / 60),
-            "remMin": round((obj.get("remSleepSeconds") or 0) / 60),
-            "awakeMin": round((obj.get("awakeSleepSeconds") or 0) / 60),
-        })
+    obj = gs.get_json(token, "/sleep-service/sleep/dailySleepSummariesByDate?startDate=%s&endDate=%s" % (start, end))
+    if isinstance(obj, list) and obj:
+        for s in obj:
+            day = s.get("calendarDate")
+            if not day:
+                continue
+            sc = ((s.get("sleepScores") or {}).get("overall") or {})
+            sleeps.append({
+                "date": day,
+                "score": sc.get("value"),
+                "durationMin": round((s.get("sleepTimeSeconds") or 0) / 60),
+                "deepMin": round((s.get("deepSleepSeconds") or 0) / 60),
+                "lightMin": round((s.get("lightSleepSeconds") or 0) / 60),
+                "remMin": round((s.get("remSleepSeconds") or 0) / 60),
+                "awakeMin": round((s.get("awakeSleepSeconds") or 0) / 60),
+            })
+    else:
+        for d in gs.day_iter(start, end):
+            obj = gs.get_json(token, "/sleep-service/sleep/dailySleep?date=%s" % d.isoformat())
+            if not obj:
+                continue
+            sc = ((obj.get("sleepScores") or {}).get("overall") or {})
+            sleeps.append({
+                "date": d.isoformat(),
+                "score": sc.get("value"),
+                "durationMin": round((obj.get("sleepTimeSeconds") or 0) / 60),
+                "deepMin": round((obj.get("deepSleepSeconds") or 0) / 60),
+                "lightMin": round((obj.get("lightSleepSeconds") or 0) / 60),
+                "remMin": round((obj.get("remSleepSeconds") or 0) / 60),
+                "awakeMin": round((obj.get("awakeSleepSeconds") or 0) / 60),
+            })
+
+    # HRV: дневные средние
+    hrv = {}
+    obj = gs.get_json(token, "/hrv-service/hrv/daily/%s/%s" % (start, end))
+    summaries = obj.get("hrvSummaries") if isinstance(obj, dict) else None
+    for s in summaries or []:
+        day = s.get("calendarDate")
+        if day and s.get("lastNightAvg") is not None:
+            hrv[day] = s.get("lastNightAvg")
 
     somatic = [[t, hr.get(t), bb.get(t)] for t in sorted(set(hr) | set(bb))]
-    return {"somatic": somatic, "sleep": sleeps, "stress": stress, "resting_hr": resting}
+    return {
+        "somatic": somatic,
+        "sleep": sleeps,
+        "stress": stress,
+        "resting_hr": resting,
+        "hrv": hrv,
+        "debug": {
+            "hr": len(hr),
+            "bb": len(bb),
+            "sleep": len(sleeps),
+            "stress": len([d for d in stress if stress[d] is not None]),
+            "hrv": len(hrv),
+            "resting": len(resting),
+        },
+    }
 
 
 def build_activities(token, dfrom, dto, favorite):
-    q = "?limit=50&startDate=%s&endDate=%s" % (dfrom, dto)
+    q = "?limit=200&startDate=%s&endDate=%s" % (dfrom, dto)
     if favorite:
         q += "&favorite=1"
     obj = gs.get_json(token, "/activitylist-service/activities/search/activities" + q)
@@ -200,7 +246,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(build_sync(token, dfrom, dto))
                 return
             if u.path == "/activities":
-                favorite = (qs.get("favorite") or ["1"])[0] in ("1", "true", "yes")
+                favorite = (qs.get("favorite") or ["0"])[0] in ("1", "true", "yes")
                 self._json(build_activities(token, dfrom, dto, favorite))
                 return
             if u.path == "/sessions.csv":
