@@ -22,12 +22,14 @@ import datetime
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
 BASE = "https://personal.connectapi.garmin.com"
 TOKEN_PATH = "/personalapitoken-service/personal-api/personal-api-key/token"
 DEFAULT_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "garmin_export")
+DELAY = float(os.environ.get("GARMIN_DELAY", "0.4"))
 
 
 def load_key():
@@ -73,6 +75,7 @@ def get_token(key):
 
 
 def get_json(token, path):
+    time.sleep(DELAY)
     status, body = request("GET", BASE + path, {
         "Authorization": "Bearer " + token,
         "Accept": "application/json",
@@ -139,28 +142,49 @@ def main():
 
     print("Стресс...")
     stress = {}
-    obj = get_json(token, "/usersummary-service/stats/stress/daily/%s/%s" % (start, end))
-    for row in obj or []:
-        cd = row.get("calendarDate")
-        if cd:
-            stress[cd] = (row.get("values") or {}).get("overallStressLevel")
+    d0 = start
+    while d0 <= end:
+        d1 = min(d0 + datetime.timedelta(days=6), end)
+        obj = get_json(token, "/usersummary-service/stats/stress/daily/%s/%s" % (d0.isoformat(), d1.isoformat()))
+        for row in obj or []:
+            cd = row.get("calendarDate")
+            if cd:
+                stress[cd] = (row.get("values") or {}).get("overallStressLevel")
+        d0 = d1 + datetime.timedelta(days=1)
 
     print("Сон...")
     sleeps = []
-    for d in day_iter(start, end):
-        obj = get_json(token, "/sleep-service/sleep/dailySleep?date=%s" % d.isoformat())
-        if not obj:
-            continue
-        sc = ((obj.get("sleepScores") or {}).get("overall") or {})
-        sleeps.append({
-            "date": d.isoformat(),
-            "score": sc.get("value"),
-            "duration_min": round((obj.get("sleepTimeSeconds") or 0) / 60),
-            "deep_min": round((obj.get("deepSleepSeconds") or 0) / 60),
-            "light_min": round((obj.get("lightSleepSeconds") or 0) / 60),
-            "rem_min": round((obj.get("remSleepSeconds") or 0) / 60),
-            "awake_min": round((obj.get("awakeSleepSeconds") or 0) / 60),
-        })
+    obj = get_json(token, "/sleep-service/sleep/dailySleepSummariesByDate?startDate=%s&endDate=%s" % (start, end))
+    if isinstance(obj, list) and obj:
+        for s in obj:
+            day = s.get("calendarDate")
+            if not day:
+                continue
+            sc = ((s.get("sleepScores") or {}).get("overall") or {})
+            sleeps.append({
+                "date": day,
+                "score": sc.get("value"),
+                "duration_min": round((s.get("sleepTimeSeconds") or 0) / 60),
+                "deep_min": round((s.get("deepSleepSeconds") or 0) / 60),
+                "light_min": round((s.get("lightSleepSeconds") or 0) / 60),
+                "rem_min": round((s.get("remSleepSeconds") or 0) / 60),
+                "awake_min": round((s.get("awakeSleepSeconds") or 0) / 60),
+            })
+    else:
+        for d in day_iter(start, end):
+            obj = get_json(token, "/sleep-service/sleep/dailySleep?date=%s" % d.isoformat())
+            if not obj:
+                continue
+            sc = ((obj.get("sleepScores") or {}).get("overall") or {})
+            sleeps.append({
+                "date": d.isoformat(),
+                "score": sc.get("value"),
+                "duration_min": round((obj.get("sleepTimeSeconds") or 0) / 60),
+                "deep_min": round((obj.get("deepSleepSeconds") or 0) / 60),
+                "light_min": round((obj.get("lightSleepSeconds") or 0) / 60),
+                "rem_min": round((obj.get("remSleepSeconds") or 0) / 60),
+                "awake_min": round((obj.get("awakeSleepSeconds") or 0) / 60),
+            })
 
     def write_csv(name, header, rows):
         path = os.path.join(args.out, name)

@@ -180,7 +180,7 @@
   // ---- блокировка ----
   function lock() {
     Pin.hasPin().then(function (hasPin) {
-      if (!hasPin) { showView("journal"); garminCheckSuggestions(); return; }
+      if (!hasPin) { showView("journal"); return; }
       $("pin-input").value = "";
       $("pin-error").classList.add("hidden");
       showView("lock");
@@ -194,7 +194,6 @@
         $("pin-error").classList.add("hidden");
         $("pin-input").value = "";
         showView("journal");
-        garminCheckSuggestions();
       } else {
         $("pin-error").classList.remove("hidden");
         $("pin-input").value = "";
@@ -660,7 +659,6 @@
       toast("Сохранено");
       showView("journal");
       renderJournal();
-      garminCheckSuggestions();
     }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
