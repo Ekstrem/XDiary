@@ -63,7 +63,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.19"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.20"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1526,7 +1526,7 @@
 
     syncSetStep("stress", "active");
     chain = chain.then(function () {
-      return garminFetch("/sync/stress?from=" + from + "&to=" + to).then(function (data) {
+      return garminFetch("/local/stress").then(function (data) {
         var items = [];
         Object.keys(data.stress || {}).forEach(function (d) {
           if (data.stress[d] != null) items.push({ date: d, stress: data.stress[d] });
@@ -1538,7 +1538,7 @@
 
     syncSetStep("somatic", "active");
     chain = chain.then(function () {
-      return garminFetch("/sync/somatic?from=" + from + "&to=" + to).then(function (data) {
+      return garminFetch("/local/somatic").then(function (data) {
         var somatic = (data.somatic || []).map(function (row) {
           return { t: row[0], hr: row[1], body_battery: row[2] };
         });
@@ -1557,7 +1557,7 @@
 
     syncSetStep("sleep", "active");
     chain = chain.then(function () {
-      return garminFetch("/sync/sleep?from=" + from + "&to=" + to).then(function (data) {
+      return garminFetch("/local/sleep").then(function (data) {
         var sleeps = (data.sleep || []).map(function (s) {
           return {
             date: s.date, score: s.score, durationMin: s.durationMin,
@@ -1571,7 +1571,7 @@
 
     syncSetStep("hrv", "active");
     chain = chain.then(function () {
-      return garminFetch("/sync/hrv?from=" + from + "&to=" + to).then(function (data) {
+      return garminFetch("/local/hrv").then(function (data) {
         var items = [];
         Object.keys(data.hrv || {}).forEach(function (d) {
           items.push({ date: d, hrv: data.hrv[d] });
@@ -1583,7 +1583,7 @@
 
     syncSetStep("activities", "active");
     chain = chain.then(function () {
-      return garminFetch("/activities?from=" + isoDay(-30) + "&to=" + to).then(function (list) {
+      return garminFetch("/local/activities").then(function (list) {
         var hearts = (list || []).filter(isHeartActivity);
         syncSetStep("activities", "done", "· " + hearts.length);
         return hearts.length;
@@ -1729,7 +1729,7 @@
         return;
       }
       if (st) st.classList.remove("hidden");
-      garminFetch("/activities?from=" + isoDay(-30) + "&to=" + isoDay(0)).then(function (items) {
+      garminFetch("/local/activities").then(function (items) {
         var hearts = (items || []).filter(isHeartActivity);
         return DB.getAllRecords().then(function (records) {
           var imported = {};

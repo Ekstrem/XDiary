@@ -35,6 +35,148 @@ def _range(qs):
     return dfrom, dto
 
 
+# ---- локальные CSV (без обращения к Garmin) ----
+def _local_dir():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "garmin_export")
+
+
+def _csv_rows(name):
+    path = os.path.join(_local_dir(), name)
+    if not os.path.isfile(path):
+        return []
+    rows = []
+    with open(path, "r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.rstrip("\n").rstrip("\r")
+            if not line.strip():
+                continue
+            rows.append(line.split(","))
+    return rows
+
+
+def _num(s):
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        f = float(s)
+        return int(f) if f == int(f) else f
+    except ValueError:
+        return None
+
+
+def _date_key(s):
+    s = (s or "").strip()
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    parts = s.split("/")
+    if len(parts) == 3 and len(parts[2]) == 4 and parts[2].isdigit():
+        try:
+            return "%s-%02d-%02d" % (parts[2], int(parts[0]), int(parts[1]))
+        except ValueError:
+            return None
+    return None
+
+
+def _local_resting():
+    out = {}
+    for r in _csv_rows("resting_hr.csv")[1:]:
+        if len(r) >= 2:
+            d = _date_key(r[0])
+            v = _num(r[1])
+            if d and v is not None:
+                out[d] = v
+    return out
+
+
+def _local_stress():
+    out = {}
+    for r in _csv_rows("stress.csv")[1:]:
+        if len(r) >= 2:
+            d = _date_key(r[0])
+            v = _num(r[1])
+            if d and v is not None:
+                out[d] = v
+    return out
+
+
+def _local_sleep():
+    rows = _csv_rows("sleep.csv")
+    if not rows:
+        return []
+    header = [h.strip() for h in rows[0]]
+    idx = {h: i for i, h in enumerate(header)}
+
+    def g(r, k):
+        return r[idx[k]] if k in idx and idx[k] < len(r) else None
+
+    out = []
+    for r in rows[1:]:
+        if len(r) < 2:
+            continue
+        out.append({
+            "date": (g(r, "date") or "").strip(),
+            "score": _num(g(r, "sleep_score")),
+            "durationMin": _num(g(r, "duration_min")),
+            "deepMin": _num(g(r, "deep_min")),
+            "lightMin": _num(g(r, "light_min")),
+            "remMin": _num(g(r, "rem_min")),
+            "awakeMin": _num(g(r, "awake_min")),
+        })
+    return out
+
+
+def _local_somatic():
+    rows = _csv_rows("somatic.csv")
+    if not rows:
+        return {"somatic": [], "resting_hr": {}, "counts": {"hr": 0, "bb": 0}}
+    header = [h.strip() for h in rows[0]]
+    ti = header.index("timestamp") if "timestamp" in header else 0
+    hi = header.index("hr") if "hr" in header else 1
+    bi = header.index("body_battery") if "body_battery" in header else 3
+    somatic = []
+    bb_n = 0
+    for r in rows[1:]:
+        if len(r) <= max(ti, hi, bi):
+            continue
+        t = r[ti].strip()
+        hr = _num(r[hi]) if hi < len(r) else None
+        bb = _num(r[bi]) if bi < len(r) else None
+        if not t:
+            continue
+        if bb is not None:
+            bb_n += 1
+        somatic.append([t, hr, bb])
+    return {"somatic": somatic, "resting_hr": _local_resting(), "counts": {"hr": len(somatic), "bb": bb_n}}
+
+
+def _local_activities():
+    rows = _csv_rows("sessions_month.csv")
+    if not rows:
+        return []
+    header = [h.strip() for h in rows[0]]
+    idx = {h: i for i, h in enumerate(header)}
+
+    def g(r, k):
+        return r[idx[k]] if k in idx and idx[k] < len(r) else None
+
+    out = []
+    for r in rows[1:]:
+        if len(r) < 2:
+            continue
+        date = (g(r, "date") or "").strip()
+        tm = (g(r, "time") or "").strip()
+        dm = _num(g(r, "duration_min"))
+        out.append({
+            "id": "local-" + date + "-" + tm.replace(":", ""),
+            "name": (g(r, "name") or "").strip(),
+            "type": (g(r, "type") or "other").strip(),
+            "startLocal": (date + " " + tm).strip(),
+            "durationSec": int((dm or 0) * 60),
+        })
+    return out
+
+
 def _dates(dfrom, dto):
     return datetime.date.fromisoformat(dfrom), datetime.date.fromisoformat(dto)
 
@@ -254,6 +396,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+                return
+            # локальные CSV (без Garmin)
+            if u.path == "/local/somatic":
+                self._json(_local_somatic())
+                return
+            if u.path == "/local/stress":
+                self._json({"stress": _local_stress()})
+                return
+            if u.path == "/local/sleep":
+                self._json({"sleep": _local_sleep()})
+                return
+            if u.path == "/local/hrv":
+                self._json({"hrv": {}})
+                return
+            if u.path == "/local/activities":
+                self._json(_local_activities())
                 return
             key = self._key()
             if not key:
