@@ -110,7 +110,7 @@
 
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
-    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "garmin"].forEach(function (v) {
+    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "garmin", "detail"].forEach(function (v) {
       $("view-" + v).classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
