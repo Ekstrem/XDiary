@@ -63,7 +63,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.16"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.17"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -270,7 +270,7 @@
     return {
       startedAt: toInputValue(new Date()), partner: "", place: "",
       positions: [], tags: [], costumes: [], toys: [], fantasies: [],
-      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0, partnerTouched: false, garmin: false
+      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0, partnerTouched: false, garmin: false, garminId: ""
     };
   }
 
@@ -287,7 +287,7 @@
           costumes: (r.costumes || []).slice(), toys: (r.toys || []).slice(),
           fantasies: (r.fantasies || []).slice(),
           durationMin: r.durationMin || 0, orgasmsMe: r.orgasmsMe || 0,
-          orgasmsPartner: r.orgasmsPartner || 0, partnerTouched: true, garmin: !!r.garmin
+          orgasmsPartner: r.orgasmsPartner || 0, partnerTouched: true, garmin: !!r.garmin, garminId: r.garminId || ""
         };
         showView("wizard");
         renderWizard();
@@ -299,9 +299,10 @@
         if (pendingActivity) {
           var s = String(pendingActivity.startLocal || "").replace(" ", "T").slice(0, 16);
           if (s) draft.startedAt = s;
-          var dm = Math.round((pendingActivity.durationSec || 0) / 60);
+          var dm = Math.round((parseFloat(pendingActivity.durationSec) || 0) / 60);
           if (dm > 0) draft.durationMin = dm;
           draft.garmin = true;
+          draft.garminId = pendingActivity.id ? String(pendingActivity.id) : "";
           wizardStep = 1;
           pendingActivity = null;
         }
@@ -410,11 +411,47 @@
     });
   }
 
+  function historyPlaces(records) {
+    var out = [];
+    var sorted = records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
+    sorted.forEach(function (r) { if (r.place && out.indexOf(r.place) === -1) out.push(r.place); });
+    return out;
+  }
+
   function stepPlace(body) {
-    body.innerHTML =
-      '<div class="step-label">Где?</div>' +
-      '<input type="text" id="w-place" list="place-suggest" placeholder="Например: дома" value="' + esc(draft.place) + '">';
-    $("w-place").addEventListener("input", function (e) { draft.place = e.target.value.trim(); });
+    DB.getAllRecords().then(function (records) {
+      var places = historyPlaces(records);
+      body.innerHTML =
+        '<div class="step-label">Где?</div>' +
+        '<div class="chips-grid" id="w-place-grid"></div>' +
+        '<div class="field" style="margin-top:16px">' +
+          '<input type="text" id="w-place" list="place-suggest" placeholder="Своё место" autocomplete="off">' +
+        "</div>";
+
+      var grid = $("w-place-grid");
+      places.forEach(function (p) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip-toggle" + (draft.place === p ? " on" : "");
+        b.textContent = p;
+        b.addEventListener("click", function () {
+          draft.place = (draft.place === p) ? "" : p;
+          stepPlace(body);
+        });
+        grid.appendChild(b);
+      });
+
+      var input = $("w-place");
+      input.value = draft.place;
+      input.addEventListener("input", function (e) { draft.place = e.target.value.trim(); });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          var v = input.value.trim();
+          if (v) { draft.place = v; stepPlace(body); }
+        }
+      });
+    });
   }
 
   function historyPositions(records) {
@@ -643,6 +680,7 @@
       rec.orgasmsMe = draft.orgasmsMe;
       rec.orgasmsPartner = draft.orgasmsPartner;
       rec.garmin = !!draft.garmin;
+      rec.garminId = draft.garminId || "";
       rec.updatedAt = nowIso;
       return rec;
     }
@@ -1694,7 +1732,13 @@
       }
       if (st) st.classList.remove("hidden");
       garminFetch("/activities?from=" + isoDay(-30) + "&to=" + isoDay(0)).then(function (items) {
-        garminHearts = (items || []).filter(isHeartActivity);
+        var hearts = (items || []).filter(isHeartActivity);
+        return DB.getAllRecords().then(function (records) {
+          var imported = {};
+          records.forEach(function (r) { if (r.garminId) imported[String(r.garminId)] = true; });
+          garminHearts = hearts.filter(function (a) { return !imported[String(a.id)]; });
+        });
+      }).then(function () {
         if (st) st.classList.add("hidden");
         if (!garminHearts.length) {
           empty.classList.remove("hidden");
