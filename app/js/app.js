@@ -5,7 +5,7 @@
   function $(id) { return document.getElementById(id); }
 
   var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "contraceptives", "contraceptive_count", "orgasms_me", "orgasms_partner", "orgasm_me_type", "orgasm_me_rating", "orgasm_partner_type", "orgasm_partner_rating", "garmin"];
-  var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Отметки", "Контрацепция", "Длительность", "Оргазмы", "Итог"];
+  var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Аксессуары", "Контрацепция", "Длительность", "Оргазмы", "Итог"];
   var POSITIONS = [
     "Миссионерская", "Догги (сзади)", "Наездница (сверху)", "Обратная наездница",
     "Ложки", "69", "Стоя", "Сидя (на коленях)", "Оральный", "Коленно-локтевая",
@@ -69,7 +69,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.26"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.27"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -516,10 +516,10 @@
     });
   }
 
-  // ---- отметки (костюмы / игрушки / фантазии / другие) ----
+  // ---- аксессуары (костюмы / игрушки / фантазии / теги) ----
   function stepMarks(body) {
     DB.getAllCatalog().then(function (items) {
-      body.innerHTML = '<div class="step-label">Отметки</div>';
+      body.innerHTML = '<div class="step-label">Аксессуары</div>';
 
       var kinds = [
         { key: "costume", label: "Костюмчики" },
@@ -563,13 +563,13 @@
         });
       });
 
-      // другие отметки (свободные тэги)
+      // теги (свободные)
       var tags = document.createElement("div");
       tags.className = "marks-group";
       tags.innerHTML =
-        '<div class="marks-group-title">Другие отметки</div>' +
+        '<div class="marks-group-title">Теги</div>' +
         '<div class="chips-grid" id="w-tag-grid"></div>' +
-        '<input type="text" id="w-tag-custom" placeholder="Своя отметка" autocomplete="off">';
+        '<input type="text" id="w-tag-custom" placeholder="Свой тег" autocomplete="off">';
       body.appendChild(tags);
 
       DB.getAllRecords().then(function (records) {
@@ -803,7 +803,7 @@
       ["Игрушки", draft.toys.join(", ") || "—"],
       ["Фантазии", draft.fantasies.join(", ") || "—"],
       ["Контрацепция", (draft.contraceptiveCount > 0) ? (draft.contraceptives || []).join(", ") + " ×" + draft.contraceptiveCount : "—"],
-      ["Отметки", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "—"],
+      ["Теги", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "—"],
       ["Длительность", (draft.durationMin || 0) + " мин"],
       ["Оргазмы", "Я: " + draft.orgasmsMe + fmtOrg(draft.orgasmMeType, draft.orgasmMeRating) +
         ", партнёр: " + draft.orgasmsPartner + fmtOrg(draft.orgasmPartnerType, draft.orgasmPartnerRating)]
