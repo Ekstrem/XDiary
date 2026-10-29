@@ -56,12 +56,12 @@
   var pendingImport = null;
 
   var garminProxy = "";
-  var garminKey = "";
   var garminLastSync = 0;
   var pendingActivity = null;
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
+  var APP_VERSION = "0.12";
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1419,12 +1419,10 @@
 
   function loadGarminSettings() {
     if (garminSettingsLoaded) return garminSettingsLoaded;
-    garminSettingsLoaded = Promise.all([DB.getMeta("garminProxy"), DB.getMeta("garminKey")]).then(function (res) {
+    garminSettingsLoaded = Promise.all([DB.getMeta("garminProxy")]).then(function (res) {
       garminProxy = (res[0] && res[0].value) || DEFAULT_GARMIN_PROXY;
-      garminKey = (res[1] && res[1].value) || "";
       if (!res[0] || !res[0].value) DB.setMeta("garminProxy", DEFAULT_GARMIN_PROXY);
       if ($("gem-proxy")) $("gem-proxy").value = garminProxy;
-      if ($("gem-key")) $("gem-key").value = garminKey;
     });
     return garminSettingsLoaded;
   }
@@ -1433,17 +1431,10 @@
     garminProxy = $("gem-proxy").value.trim();
     DB.setMeta("garminProxy", garminProxy);
   }
-  function saveGarminKey() {
-    garminKey = $("gem-key").value.trim();
-    DB.setMeta("garminKey", garminKey);
-  }
-
   function garminFetch(path) {
     var base = String(garminProxy || "").replace(/\/+$/, "");
     if (!base) return Promise.reject(new Error("не задан адрес прокси"));
-    var headers = { Accept: "application/json" };
-    if (garminKey) headers["Authorization"] = "ApiKey " + garminKey;
-    return fetch(base + path, { headers: headers }).then(function (r) {
+    return fetch(base + path, { headers: { Accept: "application/json" } }).then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
     });
@@ -1833,6 +1824,7 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(function () {});
     }
+    if ($("app-version")) $("app-version").textContent = "XDiary v" + APP_VERSION;
 
     $("pin-submit").addEventListener("click", unlock);
     $("pin-input").addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
@@ -1919,7 +1911,7 @@
     $("btn-wipe").addEventListener("click", wipeAll);
 
     $("gem-proxy").addEventListener("change", saveGarminProxy);
-    $("gem-key").addEventListener("change", saveGarminKey);
+
     $("btn-garmin-sync").addEventListener("click", garminSync);
     $("btn-garmin-test").addEventListener("click", garminTest);
     $("btn-garmin-add").addEventListener("click", openGarminPicker);

@@ -93,6 +93,7 @@
     </header>
     <main class="content">
       <div class="settings">
+        <div class="app-version" id="app-version">XDiary</div>
         <h2>PIN-код</h2>
         <p id="pin-status" class="muted">…</p>
         <div class="field hidden" id="pin-current-wrap">
@@ -126,11 +127,7 @@
         <h2>Автосинхронизация (прокси на ПК)</h2>
         <div class="field">
           <label for="gem-proxy">Адрес прокси</label>
-          <input type="text" id="gem-proxy" placeholder="http://192.168.1.10:8765" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="gem-key">Личный API-ключ (необязательно)</label>
-          <input type="password" id="gem-key" autocomplete="off">
+          <input type="text" id="gem-proxy" placeholder="http://192.168.1.224:8765" autocomplete="off">
         </div>
         <div class="btn-row">
           <button class="btn primary" id="btn-garmin-sync">Обновить статистику</button>

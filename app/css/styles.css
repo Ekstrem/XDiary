@@ -361,6 +361,9 @@ code {
 .act-row > span { color: var(--muted); }
 .act-row > b { font-weight: 600; text-align: right; }
 
+/* ---- Версия приложения ---- */
+.app-version { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+
 /* ---- Desktop nicety ---- */
 @media (min-width: 640px) {
   .tabbar { max-width: 560px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }
