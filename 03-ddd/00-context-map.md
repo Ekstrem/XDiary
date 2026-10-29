@@ -23,7 +23,7 @@ flowchart TD
     J -->|Customer/Supplier| SS["Соматика (минутные точки)"]
     J -->|событие «акт записан»| A["Аналитика"]
     DM["Дневные метрики"] -->|Customer/Supplier| A
-    SS -->|ACL| G["Garmin / локальный CSV<br/>(внешний)"]
+    SS -->|ACL| G["Носимые устройства<br/>Garmin / Apple Health (внешние)"]
     DM -->|ACL| G
     DP["Переносимость данных"] -->|CSV| J
     DP -->|CSV| SS
@@ -40,8 +40,8 @@ flowchart TD
 | Журнал | Соматика (минутные точки) | Customer/Supplier | срез соматики вокруг `startedAt` |
 | Аналитика | Журнал | Customer/Supplier | событие «акт записан» (записи) |
 | Аналитика | Дневные метрики | Customer/Supplier | дневные тренды (стресс/пульс/сон/HRV) |
-| Соматика (минутные точки) | Garmin (внешний) | Anti-Corruption Layer | прокси на ПК, локальные CSV |
-| Дневные метрики | Garmin (внешний) | Anti-Corruption Layer | прокси на ПК, локальные CSV |
+| Соматика (минутные точки) | Garmin / Apple Health (внешние) | Anti-Corruption Layer | Garmin API / экспорт Apple Health |
+| Дневные метрики | Garmin / Apple Health (внешние) | Anti-Corruption Layer | Garmin API / экспорт Apple Health |
 | Перенос данных | Журнал / Соматика (минутные точки) / Дневные метрики / Каталог | Published Language | CSV (общий формат) |
 | Все контексты | Приватность и доступ | Gatekeeper | PIN (сквозной) |
 
@@ -53,7 +53,7 @@ flowchart TD
 ## Легенда
 
 - **Customer/Supplier** — поставщик задаёт формат, потребитель подстраивается.
-- **Anti-Corruption Layer** — изоляция внешней модели Garmin (нет CORS, формат Garmin).
+- **Anti-Corruption Layer** — изоляция внешних моделей производителей (Garmin без CORS; Apple Health через ручной экспорт).
 - **Published Language** — публикуемый формат обмена (CSV).
 - **Gatekeeper** — сквозной контроль доступа перед входом в приложение.
 
