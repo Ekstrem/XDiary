@@ -173,6 +173,23 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/health":
                 self._json({"ok": True})
                 return
+            # локальные CSV (без обращения к Garmin)
+            if u.path.startswith("/export/"):
+                fname = os.path.basename(u.path[len("/export/"):])
+                fpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "garmin_export", fname)
+                if not os.path.isfile(fpath):
+                    self._json({"error": "not found"}, 404)
+                    return
+                with open(fpath, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self._cors()
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
+                self.send_header("Content-Disposition", 'attachment; filename="%s"' % fname)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             key = self._key()
             if not key:
                 self._json({"error": "no api key"}, 400)
