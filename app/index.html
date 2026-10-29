@@ -302,6 +302,22 @@
     </div>
   </div>
 
+  <div id="sync-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 class="sync-title">Синхронизация</h2>
+      <ul class="sync-steps" id="sync-steps">
+        <li data-step="stress"><span class="sync-ico">⏳</span><span class="sync-label">Стресс</span><span class="sync-count"></span></li>
+        <li data-step="somatic"><span class="sync-ico">⏳</span><span class="sync-label">Пульс + Body Battery</span><span class="sync-count"></span></li>
+        <li data-step="sleep"><span class="sync-ico">⏳</span><span class="sync-label">Сон</span><span class="sync-count"></span></li>
+        <li data-step="hrv"><span class="sync-ico">⏳</span><span class="sync-label">HRV</span><span class="sync-count"></span></li>
+        <li data-step="activities"><span class="sync-ico">⏳</span><span class="sync-label">Занятия</span><span class="sync-count"></span></li>
+      </ul>
+      <div class="modal-actions">
+        <button class="btn primary hidden" id="sync-close">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
   <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">
   <input type="file" id="import-any-file" accept=".csv,text/csv" class="hidden">

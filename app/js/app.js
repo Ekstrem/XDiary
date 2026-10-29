@@ -63,7 +63,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.15"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.16"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1451,27 +1451,56 @@
     return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
   }
 
+  var currentSyncStep = "";
+
+  function syncSetStep(name, state, countText) {
+    var li = document.querySelector('#sync-steps li[data-step="' + name + '"]');
+    if (!li) return;
+    var ico = li.querySelector(".sync-ico");
+    var cnt = li.querySelector(".sync-count");
+    if (state === "active") {
+      currentSyncStep = name;
+      ico.textContent = "⏳";
+    } else if (state === "done") {
+      ico.textContent = "✅";
+      li.classList.add("done");
+    } else if (state === "err") {
+      ico.textContent = "❌";
+      li.classList.add("err");
+    }
+    if (cnt) cnt.textContent = countText || "";
+  }
+
   function garminSync() {
-    var st = $("gem-status");
     if (!garminProxy) { toast("Укажите адрес прокси (ПК)"); return; }
     var to = isoDay(0);
     var from = garminLastSyncDate || isoDay(-7);
-    var set = function (s) { if (st) st.textContent = s; };
+    var modal = $("sync-modal");
+    var close = $("sync-close");
+
+    document.querySelectorAll("#sync-steps li").forEach(function (li) {
+      li.classList.remove("done", "err");
+      li.querySelector(".sync-ico").textContent = "⏳";
+      li.querySelector(".sync-count").textContent = "";
+    });
+    if (modal) modal.classList.remove("hidden");
+    if (close) close.classList.add("hidden");
+
     var chain = Promise.resolve();
 
-    set("⏳ Стресс…");
+    syncSetStep("stress", "active");
     chain = chain.then(function () {
       return garminFetch("/sync/stress?from=" + from + "&to=" + to).then(function (data) {
         var items = [];
         Object.keys(data.stress || {}).forEach(function (d) {
           if (data.stress[d] != null) items.push({ date: d, stress: data.stress[d] });
         });
-        set("✅ Стресс: " + items.length + " дн.");
+        syncSetStep("stress", "done", "· " + items.length + " дн.");
         return importWeekly(items, "stress");
       });
     });
 
-    set("⏳ Пульс + Body Battery…");
+    syncSetStep("somatic", "active");
     chain = chain.then(function () {
       return garminFetch("/sync/somatic?from=" + from + "&to=" + to).then(function (data) {
         var somatic = (data.somatic || []).map(function (row) {
@@ -1482,7 +1511,7 @@
           restItems.push({ date: d, resting_hr: data.resting_hr[d] });
         });
         var c = data.counts || {};
-        set("✅ Пульс: " + (c.hr != null ? c.hr : somatic.length) + ", BB: " + (c.bb != null ? c.bb : "?"));
+        syncSetStep("somatic", "done", "· пульс " + (c.hr != null ? c.hr : somatic.length) + ", BB " + (c.bb != null ? c.bb : "?"));
         return Promise.all([
           DB.putSomaticBatch(somatic),
           importWeekly(restItems, "resting_hr")
@@ -1490,7 +1519,7 @@
       });
     });
 
-    set("⏳ Сон…");
+    syncSetStep("sleep", "active");
     chain = chain.then(function () {
       return garminFetch("/sync/sleep?from=" + from + "&to=" + to).then(function (data) {
         var sleeps = (data.sleep || []).map(function (s) {
@@ -1499,31 +1528,31 @@
             deepMin: s.deepMin, lightMin: s.lightMin, remMin: s.remMin, awakeMin: s.awakeMin
           };
         });
-        set("✅ Сон: " + sleeps.length + " ночей");
+        syncSetStep("sleep", "done", "· " + sleeps.length + " ночей");
         return DB.putSleepBatch(sleeps);
       });
     });
 
-    set("⏳ HRV…");
+    syncSetStep("hrv", "active");
     chain = chain.then(function () {
       return garminFetch("/sync/hrv?from=" + from + "&to=" + to).then(function (data) {
         var items = [];
         Object.keys(data.hrv || {}).forEach(function (d) {
           items.push({ date: d, hrv: data.hrv[d] });
         });
-        set("✅ HRV: " + items.length + " дн.");
+        syncSetStep("hrv", "done", "· " + items.length + " дн.");
         return importWeekly(items, "hrv");
       });
     });
 
-    set("⏳ Занятия…");
+    syncSetStep("activities", "active");
     chain = chain.then(function () {
       return garminFetch("/activities?from=" + isoDay(-30) + "&to=" + to).then(function (list) {
         var hearts = (list || []).filter(isHeartActivity);
-        set("✅ Занятия: " + hearts.length);
+        syncSetStep("activities", "done", "· " + hearts.length);
         return hearts.length;
       }).catch(function () {
-        set("✅ Занятия: —");
+        syncSetStep("activities", "done", "· —");
         return null;
       });
     });
@@ -1532,10 +1561,11 @@
       garminLastSync = Date.now();
       garminLastSyncDate = to;
       DB.setMeta("garminLastSyncDate", to);
-      set("✅ Готово (" + from + " → " + to + ")");
+      if (close) close.classList.remove("hidden");
       toast("Статистика обновлена");
     }).catch(function (e) {
-      set("⚠️ Ошибка: " + e.message);
+      syncSetStep(currentSyncStep, "err");
+      if (close) close.classList.remove("hidden");
       toast("Ошибка синхронизации: " + e.message);
     });
   }
@@ -2005,6 +2035,7 @@
     $("btn-garmin-add").addEventListener("click", openGarminPicker);
     $("btn-garmin-back").addEventListener("click", function () { showView("journal"); });
     $("garmin-more").addEventListener("click", garminMore);
+    $("sync-close").addEventListener("click", function () { $("sync-modal").classList.add("hidden"); });
     $("trend-tabs").querySelectorAll("button").forEach(function (b) {
       b.addEventListener("click", function () { trendTab = b.getAttribute("data-tab"); renderTrends(); });
     });
