@@ -9,11 +9,12 @@
 
 | ВМ | Роль | Публичный доступ | Внутренний доступ |
 |---|---|---|---|
-| VPS-1 | podman: 10 сервисов + шлюз YARP | 443 (HTTPS) + 22 (SSH) | → VPS-2:5432 |
+| VPS-1 | podman: 10 сервисов + шлюз YARP | 22 (SSH) + Tailscale (VPN) | → VPS-2:5432 |
 | VPS-2 | PostgreSQL: 1 кластер, 10 БД | **нет** (только 22 SSH) | ← VPS-1:5432 |
 
+- Доступ к приложению — **только через Tailscale** (частная VPN + валидный TLS, ADR-015); публичный 443 не открывается.
 - Между ВМ — **приватная сеть** (VPC/private network хостера). PostgreSQL **не публикуется наружу**.
-- Всё управление — по SSH с твоего ПК (белые IP или VPN).
+- Всё управление — по SSH (белый IP или через Tailscale SSH).
 
 ---
 
@@ -36,14 +37,24 @@ sudo apt install -y dotnet-sdk-8.0
 - `/etc/letsencrypt/` — TLS-сертификаты (certbot).
 - Логи контейнеров → `journald` (`podman logs`).
 
-### 2.3 TLS (шлюз)
-- Шлюз YARP (Kestrel) терминирует HTTPS, либо перед ним `nginx`/`caddy` с авто-HTTPS.
-- **Проще всего — caddy** (авто-Let's Encrypt): `caddy reverse-proxy --from xdiary.example.com --to 127.0.0.1:8080`.
-- Альтернатива — certbot + nginx:
+### 2.3 Доступ и TLS (Tailscale, без домена)
+У заказчика **нет доменных имён** → Let's Encrypt по HTTP-01 невозможен. Решение — **Tailscale** (ADR-015): частная VPN + MagicDNS + валидный Let's Encrypt-сертификат.
+
+1. Установить Tailscale на VPS-1 и на телефоны пары:
 ```bash
-sudo apt install -y nginx certbot python3-certbot-nginx
-sudo certbot --nginx -d xdiary.example.com
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
 ```
+2. В админке Tailscale включить **MagicDNS** и **HTTPS Certificates**.
+3. Выпустить сертификат (DNS-01, автопродление):
+```bash
+sudo tailscale cert xdiary.vps1.ts.net
+```
+4. Отдать сертификат шлюзу (caddy или YARP/Kestrel):
+```bash
+caddy reverse-proxy --from https://xdiary.vps1.ts.net --to 127.0.0.1:8080
+```
+5. **Публичный 443 не открывать** — доступ только через Tailscale (интерфейс `tailscale0`).
 
 ### 2.4 Развёртывание (черновик)
 ```bash
@@ -128,9 +139,8 @@ VPS-1:
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow 22/tcp     # SSH (или 2222)
-sudo ufw allow 443/tcp    # HTTPS
-sudo ufw allow 80/tcp     # для certbot/caddy
 sudo ufw enable
+# HTTPS (443/80) НЕ открывать публично — доступ через Tailscale (tailscale0)
 ```
 
 VPS-2:
@@ -189,7 +199,7 @@ sudo dpkg-reconfigure -plow unattended-upgrades   # включить security-о
 
 - [ ] `ssh root@VPS` — **отказано**; вход только `deploy` по ключу.
 - [ ] `nc -zv VPS2 5432` снаружи — **закрыто**; с VPS-1 — открыто.
-- [ ] `https://xdiary.example.com` — валидный сертификат, PWA грузится.
+- [ ] `https://xdiary.vps1.ts.net` (через Tailscale) — валидный сертификат, PWA грузится.
 - [ ] Контейнеры подняты: `podman ps` = 11 строк (10 сервисов + шлюз).
 - [ ] БД доступна с сервисов, миграция CSV прошла.
 - [ ] Бэкап создаётся и восстанавливается (`pg_restore` в тестовую БД).

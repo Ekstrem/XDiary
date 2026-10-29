@@ -23,6 +23,7 @@
 | 012 | Интеграция носимых устройств (Garmin / Apple Watch) | 2 шлюза-ACL: Garmin + Apple Health | Принято |
 | 013 | Версионирование API и контракты | `/api/v1` + OpenAPI | Принято |
 | 014 | Наблюдаемость | Serilog + OpenTelemetry | Принято |
+| 015 | TLS и доступ без домена | Tailscale + MagicDNS + `tailscale cert` | Принято |
 
 ## Статусы
 - **Предложено** (Proposed) — решение обсуждается, варианты собраны.
