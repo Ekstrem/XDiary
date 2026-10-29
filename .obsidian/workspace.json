@@ -178,6 +178,13 @@
   },
   "active": "14ea80d639afa9b1",
   "lastOpenFiles": [
+    "3-ddd-canvases/BC-DailyMetrics",
+    "3-ddd-canvases/BC-SomaticSeries/05-materialized-views.md",
+    "3-ddd-canvases/BC-SomaticSeries/04-query-api.md",
+    "3-ddd-canvases/BC-SomaticSeries/03-command-api.md",
+    "3-ddd-canvases/BC-SomaticSeries/02-aggregate-canvas.md",
+    "3-ddd-canvases/BC-SomaticSeries/01-context-canvas.md",
+    "3-ddd-canvases/BC-SomaticSeries",
     "01-user-stories/backlog.md",
     "3-ddd-canvases/BC-Somatika/01-context-canvas.md",
     "3-ddd-canvases/00-context-map.md",
