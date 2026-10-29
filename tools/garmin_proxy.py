@@ -35,10 +35,11 @@ def _range(qs):
     return dfrom, dto
 
 
-def build_sync(token, dfrom, dto):
-    start = datetime.date.fromisoformat(dfrom)
-    end = datetime.date.fromisoformat(dto)
+def _dates(dfrom, dto):
+    return datetime.date.fromisoformat(dfrom), datetime.date.fromisoformat(dto)
 
+
+def _fetch_hr(token, start, end):
     hr, resting = {}, {}
     for d in gs.day_iter(start, end):
         obj = gs.get_json(token, "/wellness-service/wellness/dailyHeartRate?date=%s" % d.isoformat())
@@ -50,15 +51,20 @@ def build_sync(token, dfrom, dto):
         for it in obj.get("heartRateValues") or []:
             if len(it) >= 2 and it[1] is not None:
                 hr[gs.minute_of(it[0])] = it[1]
+    return hr, resting
 
+
+def _fetch_bb(token, start, end):
     bb = {}
     obj = gs.get_json(token, "/wellness-service/wellness/bodyBattery/reports/daily?startDate=%s&endDate=%s&chunks=288" % (start, end))
     for dayv in obj or []:
         for it in dayv.get("bodyBatteryValuesArray") or []:
             if len(it) >= 2 and it[1] is not None:
                 bb[gs.minute_of(it[0])] = it[1]
+    return bb
 
-    # стресс: кусками по 7 дней (эндпоинт не принимает длинный диапазон)
+
+def _fetch_stress(token, start, end):
     stress = {}
     d0 = start
     while d0 <= end:
@@ -69,8 +75,10 @@ def build_sync(token, dfrom, dto):
             if cd:
                 stress[cd] = (row.get("values") or {}).get("overallStressLevel")
         d0 = d1 + datetime.timedelta(days=1)
+    return stress
 
-    # сон: range-эндпоинт, при неудаче — по дням
+
+def _fetch_sleep(token, start, end):
     sleeps = []
     obj = gs.get_json(token, "/sleep-service/sleep/dailySleepSummariesByDate?startDate=%s&endDate=%s" % (start, end))
     if isinstance(obj, list) and obj:
@@ -103,8 +111,10 @@ def build_sync(token, dfrom, dto):
                 "remMin": round((obj.get("remSleepSeconds") or 0) / 60),
                 "awakeMin": round((obj.get("awakeSleepSeconds") or 0) / 60),
             })
+    return sleeps
 
-    # HRV: дневные средние
+
+def _fetch_hrv(token, start, end):
     hrv = {}
     obj = gs.get_json(token, "/hrv-service/hrv/daily/%s/%s" % (start, end))
     summaries = obj.get("hrvSummaries") if isinstance(obj, dict) else None
@@ -112,7 +122,16 @@ def build_sync(token, dfrom, dto):
         day = s.get("calendarDate")
         if day and s.get("lastNightAvg") is not None:
             hrv[day] = s.get("lastNightAvg")
+    return hrv
 
+
+def build_sync(token, dfrom, dto):
+    start, end = _dates(dfrom, dto)
+    hr, resting = _fetch_hr(token, start, end)
+    bb = _fetch_bb(token, start, end)
+    stress = _fetch_stress(token, start, end)
+    sleeps = _fetch_sleep(token, start, end)
+    hrv = _fetch_hrv(token, start, end)
     somatic = [[t, hr.get(t), bb.get(t)] for t in sorted(set(hr) | set(bb))]
     return {
         "somatic": somatic,
@@ -244,6 +263,21 @@ class Handler(BaseHTTPRequestHandler):
             dfrom, dto = _range(qs)
             if u.path == "/sync":
                 self._json(build_sync(token, dfrom, dto))
+                return
+            if u.path == "/sync/stress":
+                self._json({"stress": _fetch_stress(token, *_dates(dfrom, dto))})
+                return
+            if u.path == "/sync/somatic":
+                hr, resting = _fetch_hr(token, *_dates(dfrom, dto))
+                bb = _fetch_bb(token, *_dates(dfrom, dto))
+                somatic = [[t, hr.get(t), bb.get(t)] for t in sorted(set(hr) | set(bb))]
+                self._json({"somatic": somatic, "resting_hr": resting, "counts": {"hr": len(hr), "bb": len(bb)}})
+                return
+            if u.path == "/sync/sleep":
+                self._json({"sleep": _fetch_sleep(token, *_dates(dfrom, dto))})
+                return
+            if u.path == "/sync/hrv":
+                self._json({"hrv": _fetch_hrv(token, *_dates(dfrom, dto))})
                 return
             if u.path == "/activities":
                 favorite = (qs.get("favorite") or ["0"])[0] in ("1", "true", "yes")
