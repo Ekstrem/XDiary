@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="DigiTFactory.Libraries.EventBus.InMemory" Version="0.1.0" />
+    <PackageReference Include="DigiTFactory.Libraries.ReadRepository.Postgres" Version="0.1.0" />
+    <PackageReference Include="DigiTFactory.Libraries.AbstractAggregate" Version="0.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DailyMetrics.Application\DailyMetrics.Application.csproj" />
+    <ProjectReference Include="..\DailyMetrics.Storage\DailyMetrics.Storage.csproj" />
+  </ItemGroup>
+
+</Project>

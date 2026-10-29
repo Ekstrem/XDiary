@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: daily_metrics
+    ports:
+      - "5432:5432"
+    volumes:
+      - daily-metrics-pgdata:/var/lib/postgresql/data
+
+  daily-metrics:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Single
+      ConnectionStrings__DailyMetricsDb: "Host=postgres;Port=5432;Database=daily_metrics;Username=postgres;Password=postgres"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  daily-metrics-pgdata:
