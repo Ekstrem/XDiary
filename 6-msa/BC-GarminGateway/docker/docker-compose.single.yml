@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: garmin_gateway
+    ports:
+      - "5432:5432"
+    volumes:
+      - garmin-gateway-pgdata:/var/lib/postgresql/data
+
+  garmin-gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Single
+      ConnectionStrings__GarminGatewayDb: "Host=postgres;Port=5432;Database=garmin_gateway;Username=postgres;Password=postgres"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  garmin-gateway-pgdata:
