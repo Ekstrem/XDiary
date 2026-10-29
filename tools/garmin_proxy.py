@@ -223,6 +223,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "garmin_export", "proxy.log")
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        log = open(log_path, "a", encoding="utf-8", buffering=1)
+        sys.stdout = log
+        sys.stderr = log
+    except OSError:
+        pass
     print("XDiary Garmin proxy on http://0.0.0.0:%d" % PORT)
     print("  /health | /sync?from=YYYY-MM-DD&to=YYYY-MM-DD | /activities?favorite=1&from=..&to=..")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
