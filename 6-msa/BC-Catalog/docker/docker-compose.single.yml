@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: catalog
+    ports:
+      - "5432:5432"
+    volumes:
+      - catalog-pgdata:/var/lib/postgresql/data
+
+  catalog:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Single
+      ConnectionStrings__CatalogDb: "Host=postgres;Port=5432;Database=catalog;Username=postgres;Password=postgres"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  catalog-pgdata:
