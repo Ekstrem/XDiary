@@ -8,7 +8,10 @@
 - `03-ddd` — DDD-артефакты (этот агент).
 - `04-architecture` — архитектура (этот агент).
 
-## Планируемое содержимое
-- C4: System Context / Containers / Components.
-- ADR (Architecture Decision Records).
-- Схема развёртывания: PWA, GitHub Pages, локальный прокси (Python), IndexedDB.
+## Содержимое
+- `ADL/` — реестр ADR (14 принятых решений).
+- `c4-containers.md` — C4-диаграмма контейнеров (10 микросервисов, профиль Single).
+- `vm-sizing.md` — расчёт ресурсов ВМ для MVP (podman + PostgreSQL).
+
+## Методология
+EDM (Event-Driven Microservices) на .NET: DDD, Event Sourcing, CEQRS, фреймворк `DigiTFactory.Libraries`.
