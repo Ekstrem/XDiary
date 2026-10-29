@@ -9,11 +9,11 @@
 
 | № | Тема | Решение (кратко) | Статус |
 |---|---|---|---|
-| 001 | Разбиение на микросервисы | 3 сервиса: journal / somatics / analytics | Принято |
-| 002 | Профиль деплоймента CEQRS | BudgetCqrs (эволюция → Cqrs → Ceqrs) | Принято |
+| 001 | Разбиение на микросервисы | 10 сервисов (1 BC = 1 сервис) | Принято |
+| 002 | Профиль деплоймента CEQRS | Single (эволюция → BudgetCqrs → Cqrs → Ceqrs) | Принято |
 | 003 | Command Store (Event Store) | PostgreSQL (Event Sourcing) | Принято |
-| 004 | Read Store | PostgreSQL (схема ReadModel) | Принято |
-| 005 | Event Bus | Postgres Outbox (dev: InMemory) | Принято |
+| 004 | Read Store | та же БД (без отдельной схемы) | Принято |
+| 005 | Event Bus | InMemory | Принято |
 | 006 | Связь фронта (PWA) с бэком | REST + JSON (`/api/v1`) | Принято |
 | 007 | API Gateway / BFF | YARP + BFF-агрегация | Принято |
 | 008 | Аутентификация и авторизация | JWT (+ локальный PIN) | Принято |
@@ -31,8 +31,9 @@
 - **Заменено** (Superseded) — заменено более новым ADR.
 
 ## Сводная картина (после принятия ADR-001..014)
-- **3 микросервиса** (journal / somatics / analytics) по профилю **BudgetCqrs** на .NET 8.
-- Хранилище: **единая PostgreSQL** (event store + ReadModel + outbox) на отдельной ВМ.
+- **10 микросервисов** (1 ограниченный контекст = 1 микросервис) по профилю **Single** на .NET 8.
+- Хранилище: **PostgreSQL** — по одной БД на сервис (event store + read вместе, без отдельной схемы).
+- Шина: **InMemory** (внутри процесса); межсервисная связь — HTTP через шлюз.
 - Фронт (PWA) → **API Gateway (YARP)** по REST `/api/v1`, аутентификация **JWT**.
 - Развёртывание: **Docker Compose** (ВМ-1) + **Postgres** (ВМ-2).
 - Миграция существующих данных — через **CSV** (идемпотентно по id).
