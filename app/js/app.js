@@ -63,7 +63,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.17"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.18"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1735,8 +1735,15 @@
         var hearts = (items || []).filter(isHeartActivity);
         return DB.getAllRecords().then(function (records) {
           var imported = {};
-          records.forEach(function (r) { if (r.garminId) imported[String(r.garminId)] = true; });
-          garminHearts = hearts.filter(function (a) { return !imported[String(a.id)]; });
+          var importedStart = {};
+          records.forEach(function (r) {
+            if (r.garminId) imported[String(r.garminId)] = true;
+            if (r.garmin && r.startedAt) importedStart[r.startedAt] = true;
+          });
+          garminHearts = hearts.filter(function (a) {
+            var startKey = String(a.startLocal || "").replace(" ", "T").slice(0, 16);
+            return !imported[String(a.id)] && !importedStart[startKey];
+          });
         });
       }).then(function () {
         if (st) st.classList.add("hidden");
