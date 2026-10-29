@@ -36,6 +36,7 @@
   var catalogEditKind = "costume";
   var catalogEditBrand = "";
   var catalogEditArchived = false;
+  var catalogEditPartner = "";
   var catalogEditReturn = "catalog";
   var catalogEditPhotoData = "";
 
@@ -68,7 +69,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.25"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.26"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -604,8 +605,20 @@
   }
 
   function stepContraception(body) {
-    DB.getAllCatalog().then(function (items) {
+    Promise.all([DB.getAllCatalog(), DB.getAllRecords()]).then(function (res) {
+      var items = res[0], records = res[1];
+      var used = [];
+      records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); }).forEach(function (r) {
+        (r.contraceptives || []).forEach(function (c) { if (used.indexOf(c) === -1) used.push(c); });
+      });
       var contra = items.filter(function (it) { return it.kind === "contraception" && !it.archived; });
+      contra.sort(function (a, b) {
+        var ia = used.indexOf(a.name), ib = used.indexOf(b.name);
+        if (ia === -1 && ib === -1) return 0;
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      });
       var chips = contra.map(function (it) {
         return '<button type="button" class="chip-toggle contraception-tally" data-cname="' + esc(it.name) + '">' + esc(it.name) + "</button>";
       }).join("");
@@ -991,6 +1004,7 @@
           var badge = (catalogKind === "fantasy" && realized.has(it.name)) ? '<span class="badge-realized">✓</span>' : "";
           var sub = [];
           if (it.brand) sub.push(esc(it.brand));
+          if (it.partner) sub.push("👤 " + esc(it.partner));
           if (it.notes) sub.push(esc(it.notes));
           c.innerHTML =
             avatarHtml(it) +
@@ -1007,9 +1021,26 @@
 
   function updateCatalogEditKindUI() {
     var isToy = catalogEditKind === "toy";
+    var isFantasy = catalogEditKind === "fantasy";
     $("ce-brand-wrap").classList.toggle("hidden", !isToy);
     $("ce-archive").classList.toggle("hidden", !isToy);
     if (isToy) $("ce-archive").textContent = catalogEditArchived ? "Вернуть из архива" : "В архив";
+    $("ce-partner-wrap").classList.toggle("hidden", !isFantasy);
+  }
+
+  function populateCatalogPartnerSelect(selected) {
+    DB.getAllPartners().then(function (partners) {
+      var sel = $("ce-partner");
+      if (!sel) return;
+      sel.innerHTML = '<option value="">—</option>';
+      partners.forEach(function (p) {
+        var o = document.createElement("option");
+        o.value = p.name;
+        o.textContent = p.name;
+        if (p.name === selected) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
   }
 
   function openCatalogEdit(id, kind) {
@@ -1024,7 +1055,9 @@
     catalogEditPhotoData = "";
     catalogEditBrand = "";
     catalogEditArchived = false;
+    catalogEditPartner = "";
     updateCatalogEditKindUI();
+    if (catalogEditKind === "fantasy") populateCatalogPartnerSelect("");
     $("btn-catalog-delete").classList.toggle("hidden", !id);
     if (id) {
       DB.getCatalogItem(id).then(function (it) {
@@ -1037,7 +1070,9 @@
         catalogEditPhotoData = it.photo || "";
         catalogEditBrand = it.brand || "";
         catalogEditArchived = !!it.archived;
+        catalogEditPartner = it.partner || "";
         updateCatalogEditKindUI();
+        if (catalogEditKind === "fantasy") populateCatalogPartnerSelect(catalogEditPartner);
         if (catalogEditPhotoData) {
           $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + catalogEditPhotoData + '" alt="">';
         }
@@ -1061,6 +1096,7 @@
         it.notes = $("ce-notes").value.trim();
         it.brand = catalogEditBrand;
         it.archived = !!catalogEditArchived;
+        it.partner = catalogEditPartner;
         it.photo = catalogEditPhotoData;
         it.updatedAt = nowIso;
         return DB.putCatalogItem(it);
@@ -1069,6 +1105,7 @@
       promise = DB.putCatalogItem({
         id: uuid(), kind: catalogEditKind, name: name,
         notes: $("ce-notes").value.trim(), brand: catalogEditBrand, archived: !!catalogEditArchived,
+        partner: catalogEditPartner,
         photo: catalogEditPhotoData,
         createdAt: nowIso, updatedAt: nowIso
       });
@@ -2294,6 +2331,7 @@
       }).catch(function () { toast("Не удалось загрузить фото"); });
     });
     $("ce-brand").addEventListener("input", function (e) { catalogEditBrand = e.target.value.trim(); });
+    $("ce-partner").addEventListener("change", function (e) { catalogEditPartner = e.target.value; });
     $("ce-archive").addEventListener("click", function () {
       catalogEditArchived = !catalogEditArchived;
       $("ce-archive").textContent = catalogEditArchived ? "Вернуть из архива" : "В архив";
