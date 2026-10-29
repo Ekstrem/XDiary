@@ -1,0 +1,36 @@
+services:
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Single
+      Jwt__SigningKey: "eGRpYXJ5LWRldi1zaWduaW5nLWtleS0zMmJ5dGVzLW1pbiE="
+      Services__Journal: "http://journal:8080"
+      Services__DailyMetrics: "http://daily-metrics:8080"
+    ports:
+      - "8080:8080"
+    # В полном compose стеке маршруты ведут на сервисы ниже (имена в сети)
+    depends_on:
+      - journal
+      - partners
+      - catalog
+      - somatic-series
+      - daily-metrics
+      - garmin-gateway
+      - apple-health-gateway
+      - analytics
+      - privacy
+      - portability
+
+  # Внешние зависимости объявлены как внешние сервисы (описаны в своих compose)
+  journal: { image: ghcr.io/ekstrem/xdiary-journal:single }
+  partners: { image: ghcr.io/ekstrem/xdiary-partners:single }
+  catalog: { image: ghcr.io/ekstrem/xdiary-catalog:single }
+  somatic-series: { image: ghcr.io/ekstrem/xdiary-somatic-series:single }
+  daily-metrics: { image: ghcr.io/ekstrem/xdiary-daily-metrics:single }
+  garmin-gateway: { image: ghcr.io/ekstrem/xdiary-garmin-gateway:single }
+  apple-health-gateway: { image: ghcr.io/ekstrem/xdiary-apple-health-gateway:single }
+  analytics: { image: ghcr.io/ekstrem/xdiary-analytics:single }
+  privacy: { image: ghcr.io/ekstrem/xdiary-privacy:single }
+  portability: { image: ghcr.io/ekstrem/xdiary-portability:single }
