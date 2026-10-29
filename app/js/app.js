@@ -65,7 +65,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.22"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.23"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -273,7 +273,7 @@
       startedAt: toInputValue(new Date()), partner: "", place: "",
       positions: [], tags: [], costumes: [], toys: [], fantasies: [],
       durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0,
-      orgasmMeType: "", orgasmPartnerType: "", orgasmMeRating: 0, orgasmPartnerRating: 0,
+      orgasmMeType: [], orgasmPartnerType: [], orgasmMeRating: 0, orgasmPartnerRating: 0,
       partnerTouched: false, garmin: false, garminId: ""
     };
   }
@@ -292,7 +292,8 @@
           fantasies: (r.fantasies || []).slice(),
           durationMin: r.durationMin || 0, orgasmsMe: r.orgasmsMe || 0,
           orgasmsPartner: r.orgasmsPartner || 0,
-          orgasmMeType: r.orgasmMeType || "", orgasmPartnerType: r.orgasmPartnerType || "",
+          orgasmMeType: (Array.isArray(r.orgasmMeType) ? r.orgasmMeType.slice() : (r.orgasmMeType ? [String(r.orgasmMeType)] : [])),
+          orgasmPartnerType: (Array.isArray(r.orgasmPartnerType) ? r.orgasmPartnerType.slice() : (r.orgasmPartnerType ? [String(r.orgasmPartnerType)] : [])),
           orgasmMeRating: r.orgasmMeRating || 0, orgasmPartnerRating: r.orgasmPartnerRating || 0,
           partnerTouched: true, garmin: !!r.garmin, garminId: r.garminId || ""
         };
@@ -632,15 +633,15 @@
   }
 
   var ORGASM_TYPES = {
-    male: ["вагинальный", "оральный", "анальный", "смешанный"],
-    female: ["клиторальный", "вагинальный", "анальный", "оральный", "смешанный"]
+    male: ["обычный", "простатический"],
+    female: ["клиторальный", "вагинальный"]
   };
 
   function orgasmTypeChips(key, gender) {
-    var type = key === "me" ? draft.orgasmMeType : draft.orgasmPartnerType;
+    var arr = key === "me" ? (draft.orgasmMeType || []) : (draft.orgasmPartnerType || []);
     var types = ORGASM_TYPES[gender] || ORGASM_TYPES.female;
     var html = types.map(function (t) {
-      return '<button type="button" class="chip-toggle' + (type === t ? " on" : "") +
+      return '<button type="button" class="chip-toggle' + (arr.indexOf(t) !== -1 ? " on" : "") +
         '" data-okey="' + key + '" data-otype="' + esc(t) + '">' + esc(t) + "</button>";
     }).join("");
     return '<div class="chips-grid orgasm-types">' + html + "</div>";
@@ -694,7 +695,10 @@
           var key = b.getAttribute("data-okey");
           var t = b.getAttribute("data-otype");
           var prop = key === "me" ? "orgasmMeType" : "orgasmPartnerType";
-          draft[prop] = (draft[prop] === t) ? "" : t;
+          var arr = draft[prop] || [];
+          var i = arr.indexOf(t);
+          if (i !== -1) arr.splice(i, 1); else arr.push(t);
+          draft[prop] = arr;
           stepOrgasms(body);
         });
       });
@@ -711,10 +715,10 @@
   }
 
   function fmtOrg(type, rating) {
-    if (!type && !rating) return "";
-    var s = " (";
-    if (type) s += type;
-    if (rating) s += (type ? ", " : "") + rating + "/5";
+    var t = Array.isArray(type) ? type.join(", ") : (type || "");
+    if (!t && !rating) return "";
+    var s = " (" + t;
+    if (rating) s += (t ? ", " : "") + rating + "/5";
     return s + ")";
   }
 
@@ -757,8 +761,8 @@
       rec.fantasies = draft.fantasies.slice();
       rec.orgasmsMe = draft.orgasmsMe;
       rec.orgasmsPartner = draft.orgasmsPartner;
-      rec.orgasmMeType = draft.orgasmMeType || "";
-      rec.orgasmPartnerType = draft.orgasmPartnerType || "";
+      rec.orgasmMeType = (draft.orgasmMeType || []).slice();
+      rec.orgasmPartnerType = (draft.orgasmPartnerType || []).slice();
       rec.orgasmMeRating = draft.orgasmMeRating || 0;
       rec.orgasmPartnerRating = draft.orgasmPartnerRating || 0;
       rec.garmin = !!draft.garmin;
@@ -1991,8 +1995,8 @@
         (r.positions || []).join(";"), (r.tags || []).join(";"),
         (r.costumes || []).join(";"), (r.toys || []).join(";"), (r.fantasies || []).join(";"),
         r.orgasmsMe || 0, r.orgasmsPartner || 0,
-        r.orgasmMeType || "", r.orgasmMeRating || 0,
-        r.orgasmPartnerType || "", r.orgasmPartnerRating || 0,
+        (r.orgasmMeType || []).join(";"), r.orgasmMeRating || 0,
+        (r.orgasmPartnerType || []).join(";"), r.orgasmPartnerRating || 0,
         r.garmin ? 1 : 0
       ]);
     });
@@ -2034,9 +2038,9 @@
         fantasies: splitList(get(row, "fantasies")),
         orgasmsMe: parseInt(get(row, "orgasms_me", "orgasmsme") || "0", 10) || 0,
         orgasmsPartner: parseInt(get(row, "orgasms_partner", "orgasmspartner") || "0", 10) || 0,
-        orgasmMeType: String(get(row, "orgasm_me_type") || ""),
+        orgasmMeType: splitList(get(row, "orgasm_me_type")),
         orgasmMeRating: parseInt(get(row, "orgasm_me_rating") || "0", 10) || 0,
-        orgasmPartnerType: String(get(row, "orgasm_partner_type") || ""),
+        orgasmPartnerType: splitList(get(row, "orgasm_partner_type")),
         orgasmPartnerRating: parseInt(get(row, "orgasm_partner_rating") || "0", 10) || 0,
         garmin: String(get(row, "garmin")) === "1",
         createdAt: new Date().toISOString(),
