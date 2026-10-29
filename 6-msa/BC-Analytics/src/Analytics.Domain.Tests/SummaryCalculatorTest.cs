@@ -24,7 +24,7 @@ public class SummaryCalculatorTest
         Assert.Equal(3, summary.Sessions);
         Assert.Equal(135, summary.TotalMinutes);
         Assert.Equal(45, summary.AvgDuration);
-        Assert.Equal(4, summary.Orgasms); // 2 + 1 + 2
+        Assert.Equal(5, summary.Orgasms); // (1+1) + (0+1) + (2+0)
         Assert.Equal(4.5, summary.AvgRating); // (4+5+4+5)/4
     }
 
