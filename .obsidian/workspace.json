@@ -11,10 +11,14 @@
             "id": "14ea80d639afa9b1",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "04-architecture/c4-containers.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "Новая вкладка"
+              "title": "c4-containers"
             }
           }
         ]
@@ -90,6 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "04-architecture/c4-containers.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -99,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Обратные ссылки"
+              "title": "Обратные ссылки для c4-containers"
             }
           },
           {
@@ -108,11 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
+                "file": "04-architecture/c4-containers.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Исходящие ссылки"
+              "title": "Исходящие ссылки из c4-containers"
             }
           },
           {
@@ -150,12 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
+                "file": "04-architecture/c4-containers.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Структура"
+              "title": "Структура c4-containers"
             }
           }
         ]
@@ -178,24 +185,41 @@
   },
   "active": "14ea80d639afa9b1",
   "lastOpenFiles": [
-    "3-ddd-canvases/BC-DailyMetrics/05-materialized-views.md",
-    "3-ddd-canvases/BC-DailyMetrics/04-query-api.md",
-    "3-ddd-canvases/BC-DailyMetrics/03-command-api.md",
-    "3-ddd-canvases/BC-DailyMetrics/02-aggregate-canvas.md",
-    "3-ddd-canvases/BC-DailyMetrics/01-context-canvas.md",
-    "3-ddd-canvases/BC-DailyMetrics",
-    "3-ddd-canvases/BC-SomaticSeries/05-materialized-views.md",
-    "3-ddd-canvases/BC-SomaticSeries/04-query-api.md",
-    "3-ddd-canvases/BC-SomaticSeries/03-command-api.md",
-    "3-ddd-canvases/BC-SomaticSeries/02-aggregate-canvas.md",
-    "3-ddd-canvases/BC-SomaticSeries/01-context-canvas.md",
-    "3-ddd-canvases/BC-SomaticSeries",
-    "01-user-stories/backlog.md",
-    "3-ddd-canvases/BC-Somatika/01-context-canvas.md",
-    "3-ddd-canvases/00-context-map.md",
-    "3-ddd-canvases/BC-Katalog/01-context-canvas.md",
-    "3-ddd-canvases/BC-Analitika/02-aggregate-canvas.md",
-    "3-ddd-canvases/BC-Analitika/01-context-canvas.md",
-    "CHANGELOG.md"
+    "03-ddd/BC-Portability/04-query-api.md",
+    "03-ddd/BC-Portability/02-aggregate-canvas.md",
+    "03-ddd/BC-Portability/05-materialized-views.md",
+    "03-ddd/BC-Portability/03-command-api.md",
+    "03-ddd/BC-Portability/01-context-canvas.md",
+    "03-ddd/BC-Portability",
+    "03-ddd/BC-Privacy/05-materialized-views.md",
+    "03-ddd/BC-Privacy/04-query-api.md",
+    "03-ddd/BC-Privacy/03-command-api.md",
+    "03-ddd/BC-Privacy/02-aggregate-canvas.md",
+    "03-ddd/BC-Privacy/01-context-canvas.md",
+    "03-ddd/BC-Privacy",
+    "03-ddd/BC-Analytics/05-materialized-views.md",
+    "03-ddd/BC-Analytics/04-query-api.md",
+    "03-ddd/BC-Analytics/03-command-api.md",
+    "03-ddd/BC-Analytics/02-aggregate-canvas.md",
+    "03-ddd/BC-Analytics/01-context-canvas.md",
+    "03-ddd/BC-Analytics",
+    "03-ddd/BC-Catalog/05-materialized-views.md",
+    "03-ddd/BC-Catalog/04-query-api.md",
+    "03-ddd/BC-Catalog/03-command-api.md",
+    "03-ddd/BC-Catalog/02-aggregate-canvas.md",
+    "03-ddd/BC-Catalog/01-context-canvas.md",
+    "03-ddd/BC-Catalog",
+    "03-ddd/BC-Partners/04-query-api.md",
+    "03-ddd/BC-Partners/05-materialized-views.md",
+    "03-ddd/BC-Partners/03-command-api.md",
+    "03-ddd/BC-Partners/02-aggregate-canvas.md",
+    "03-ddd/BC-Partners/01-context-canvas.md",
+    "03-ddd/BC-Partners",
+    "03-ddd/BC-Journal/05-materialized-views.md",
+    "03-ddd/BC-Journal",
+    "03-ddd/BC-AppleHealthGateway",
+    "03-ddd/BC-GarminGateway",
+    "04-architecture/ADL",
+    "04-architecture"
   ]
 }

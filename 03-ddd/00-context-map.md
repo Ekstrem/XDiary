@@ -4,16 +4,16 @@
 
 | # | Контекст | Классификация | Роль |
 |---|---|---|---|
-| 1 | Журнал интимной активности (Activity Journal) | Core Domain | Execution |
+| 1 | Журнал интимной активности (Journal) | Core Domain | Execution |
 | 2 | Партнёры (Partners) | Supporting | Execution |
-| 3 | Каталог и инвентарь (Catalog & Inventory) | Supporting | Execution |
+| 3 | Каталог и инвентарь (Catalog) | Supporting | Execution |
 | 4 | Соматика — минутные точки (SomaticSeries) | Supporting | Execution |
 | 5 | Дневные метрики (DailyMetrics) | Supporting | Execution |
 | 6 | Шлюз Garmin (GarminGateway) | Supporting | Gateway |
 | 7 | Шлюз Apple Health (AppleHealthGateway) | Supporting | Gateway |
 | 8 | Аналитика (Analytics) | Supporting | Analysis |
-| 9 | Приватность и доступ (Privacy & Access) | Generic | Execution |
-| 10 | Переносимость данных (Data Portability) | Generic | Execution |
+| 9 | Приватность и доступ (Privacy) | Generic | Execution |
+| 10 | Переносимость данных (Portability) | Generic | Execution |
 
 ## Диаграмма
 
