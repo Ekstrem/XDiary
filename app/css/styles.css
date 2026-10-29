@@ -359,6 +359,21 @@ code {
 .sync-steps li.done .sync-ico { color: #4ade80; }
 .sync-steps li.err .sync-ico { color: #e0567a; }
 
+/* ---- Оргазмы ---- */
+.orgasm-block { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+.orgasm-head { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.orgasm-partner .avatar { width: 26px; height: 26px; }
+.orgasm-types { margin-top: 10px; }
+.orgasm-stars { display: flex; gap: 4px; margin-top: 6px; }
+.star { background: none; border: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--muted); padding: 0 3px; }
+.star.on { color: #f5b50a; }
+
+/* ---- Статус-бар синхронизации ---- */
+.sync-bar { position: sticky; top: 0; z-index: 110; padding: 6px 14px; font-size: 13px; text-align: center; background: var(--bg-soft); border-bottom: 1px solid var(--border); color: var(--muted); }
+.sync-bar.busy { color: #f0a04b; }
+.sync-bar.ok { color: #4ade80; }
+.sync-bar.err { color: #e0567a; }
+
 /* ---- Сводка за акт ---- */
 .act-summary {
   background: var(--card); border: 1px solid var(--border);

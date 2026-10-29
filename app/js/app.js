@@ -4,7 +4,7 @@
 
   function $(id) { return document.getElementById(id); }
 
-  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner", "garmin"];
+  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner", "orgasm_me_type", "orgasm_me_rating", "orgasm_partner_type", "orgasm_partner_rating", "garmin"];
   var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Отметки", "Длительность", "Оргазмы", "Итог"];
   var POSITIONS = [
     "Миссионерская", "Догги (сзади)", "Наездница (сверху)", "Обратная наездница",
@@ -63,7 +63,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.20"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.21"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -270,7 +270,9 @@
     return {
       startedAt: toInputValue(new Date()), partner: "", place: "",
       positions: [], tags: [], costumes: [], toys: [], fantasies: [],
-      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0, partnerTouched: false, garmin: false, garminId: ""
+      durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0,
+      orgasmMeType: "", orgasmPartnerType: "", orgasmMeRating: 0, orgasmPartnerRating: 0,
+      partnerTouched: false, garmin: false, garminId: ""
     };
   }
 
@@ -287,7 +289,10 @@
           costumes: (r.costumes || []).slice(), toys: (r.toys || []).slice(),
           fantasies: (r.fantasies || []).slice(),
           durationMin: r.durationMin || 0, orgasmsMe: r.orgasmsMe || 0,
-          orgasmsPartner: r.orgasmsPartner || 0, partnerTouched: true, garmin: !!r.garmin, garminId: r.garminId || ""
+          orgasmsPartner: r.orgasmsPartner || 0,
+          orgasmMeType: r.orgasmMeType || "", orgasmPartnerType: r.orgasmPartnerType || "",
+          orgasmMeRating: r.orgasmMeRating || 0, orgasmPartnerRating: r.orgasmPartnerRating || 0,
+          partnerTouched: true, garmin: !!r.garmin, garminId: r.garminId || ""
         };
         showView("wizard");
         renderWizard();
@@ -624,21 +629,86 @@
     "</div>";
   }
 
-  function stepOrgasms(body) {
-    body.innerHTML =
-      '<div class="step-label">Оргазмы</div>' +
-      stepperHtml("me", "Я", draft.orgasmsMe) +
-      stepperHtml("partner", "Партнёр", draft.orgasmsPartner);
+  var ORGASM_TYPES = ["клиторальный", "вагинальный", "анальный", "оральный", "смешанный", "руками"];
 
-    body.querySelectorAll(".stepper-btn").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var key = b.getAttribute("data-key");
-        var act = b.getAttribute("data-act");
-        var prop = key === "me" ? "orgasmsMe" : "orgasmsPartner";
-        draft[prop] = act === "plus" ? Math.min(99, draft[prop] + 1) : Math.max(0, draft[prop] - 1);
-        body.querySelector('[data-val="' + key + '"]').textContent = draft[prop];
+  function orgasmTypeChips(key) {
+    var type = key === "me" ? draft.orgasmMeType : draft.orgasmPartnerType;
+    var html = ORGASM_TYPES.map(function (t) {
+      return '<button type="button" class="chip-toggle' + (type === t ? " on" : "") +
+        '" data-okey="' + key + '" data-otype="' + esc(t) + '">' + esc(t) + "</button>";
+    }).join("");
+    return '<div class="chips-grid orgasm-types">' + html + "</div>";
+  }
+
+  function orgasmStars(key) {
+    var rating = key === "me" ? draft.orgasmMeRating : draft.orgasmPartnerRating;
+    var html = "";
+    for (var i = 1; i <= 5; i++) {
+      html += '<button type="button" class="star' + (rating >= i ? " on" : "") +
+        '" data-okey="' + key + '" data-orating="' + i + '">' + (rating >= i ? "★" : "☆") + "</button>";
+    }
+    return '<div class="orgasm-stars">' + html + "</div>";
+  }
+
+  function stepOrgasms(body) {
+    DB.getAllPartners().then(function (partners) {
+      var p = null;
+      partners.forEach(function (x) { if (!p && x.name === draft.partner) p = x; });
+      var partnerLabel = p
+        ? avatarHtml(p) + "<span>" + esc(p.name) + "</span>"
+        : (draft.partner ? esc(draft.partner) : "Партнёр");
+
+      body.innerHTML =
+        '<div class="step-label">Оргазмы</div>' +
+        '<div class="orgasm-block">' +
+          '<div class="orgasm-head">Я</div>' +
+          stepperHtml("me", "", draft.orgasmsMe) +
+          orgasmTypeChips("me") +
+          orgasmStars("me") +
+        "</div>" +
+        '<div class="orgasm-block">' +
+          '<div class="orgasm-head orgasm-partner">' + partnerLabel + "</div>" +
+          stepperHtml("partner", "", draft.orgasmsPartner) +
+          orgasmTypeChips("partner") +
+          orgasmStars("partner") +
+        "</div>";
+
+      body.querySelectorAll(".stepper-btn").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var key = b.getAttribute("data-key");
+          var act = b.getAttribute("data-act");
+          var prop = key === "me" ? "orgasmsMe" : "orgasmsPartner";
+          draft[prop] = act === "plus" ? Math.min(99, draft[prop] + 1) : Math.max(0, draft[prop] - 1);
+          body.querySelector('[data-val="' + key + '"]').textContent = draft[prop];
+        });
+      });
+      body.querySelectorAll("[data-otype]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var key = b.getAttribute("data-okey");
+          var t = b.getAttribute("data-otype");
+          var prop = key === "me" ? "orgasmMeType" : "orgasmPartnerType";
+          draft[prop] = (draft[prop] === t) ? "" : t;
+          stepOrgasms(body);
+        });
+      });
+      body.querySelectorAll("[data-orating]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var key = b.getAttribute("data-okey");
+          var r = parseInt(b.getAttribute("data-orating"), 10);
+          var prop = key === "me" ? "orgasmMeRating" : "orgasmPartnerRating";
+          draft[prop] = (draft[prop] === r) ? 0 : r;
+          stepOrgasms(body);
+        });
       });
     });
+  }
+
+  function fmtOrg(type, rating) {
+    if (!type && !rating) return "";
+    var s = " (";
+    if (type) s += type;
+    if (rating) s += (type ? ", " : "") + rating + "/5";
+    return s + ")";
   }
 
   function stepSummary(body) {
@@ -652,7 +722,8 @@
       ["Фантазии", draft.fantasies.join(", ") || "—"],
       ["Отметки", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "—"],
       ["Длительность", (draft.durationMin || 0) + " мин"],
-      ["Оргазмы", "Я: " + draft.orgasmsMe + ", партнёр: " + draft.orgasmsPartner]
+      ["Оргазмы", "Я: " + draft.orgasmsMe + fmtOrg(draft.orgasmMeType, draft.orgasmMeRating) +
+        ", партнёр: " + draft.orgasmsPartner + fmtOrg(draft.orgasmPartnerType, draft.orgasmPartnerRating)]
     ];
     body.innerHTML =
       '<div class="step-label">Всё верно?</div>' +
@@ -679,6 +750,10 @@
       rec.fantasies = draft.fantasies.slice();
       rec.orgasmsMe = draft.orgasmsMe;
       rec.orgasmsPartner = draft.orgasmsPartner;
+      rec.orgasmMeType = draft.orgasmMeType || "";
+      rec.orgasmPartnerType = draft.orgasmPartnerType || "";
+      rec.orgasmMeRating = draft.orgasmMeRating || 0;
+      rec.orgasmPartnerRating = draft.orgasmPartnerRating || 0;
       rec.garmin = !!draft.garmin;
       rec.garminId = draft.garminId || "";
       rec.updatedAt = nowIso;
@@ -1490,27 +1565,43 @@
   }
 
   var currentSyncStep = "";
+  var SYNC_LABELS = { stress: "Стресс", somatic: "Пульс + Body Battery", sleep: "Сон", hrv: "HRV", activities: "Занятия" };
+
+  function syncBar(text, state) {
+    var bar = $("sync-bar");
+    var bt = $("sync-bar-text");
+    if (!bar) return;
+    bar.classList.remove("hidden");
+    bar.classList.remove("ok", "err", "busy");
+    if (state) bar.classList.add(state);
+    if (bt) bt.textContent = text;
+  }
 
   function syncSetStep(name, state, countText) {
     var li = document.querySelector('#sync-steps li[data-step="' + name + '"]');
-    if (!li) return;
-    var ico = li.querySelector(".sync-ico");
-    var cnt = li.querySelector(".sync-count");
-    if (state === "active") {
-      currentSyncStep = name;
-      ico.textContent = "⏳";
-    } else if (state === "done") {
-      ico.textContent = "✅";
-      li.classList.add("done");
-    } else if (state === "err") {
-      ico.textContent = "❌";
-      li.classList.add("err");
+    if (li) {
+      var ico = li.querySelector(".sync-ico");
+      var cnt = li.querySelector(".sync-count");
+      if (state === "active") {
+        currentSyncStep = name;
+        ico.textContent = "⏳";
+      } else if (state === "done") {
+        ico.textContent = "✅";
+        li.classList.add("done");
+      } else if (state === "err") {
+        ico.textContent = "❌";
+        li.classList.add("err");
+      }
+      if (cnt) cnt.textContent = countText || "";
     }
-    if (cnt) cnt.textContent = countText || "";
+    var label = SYNC_LABELS[name] || name;
+    if (state === "active") syncBar("⏳ " + label + "…", "busy");
+    else if (state === "done") syncBar("✅ " + label + (countText || ""), "ok");
+    else if (state === "err") syncBar("⚠️ " + label, "err");
   }
 
-  function garminSync() {
-    if (!garminProxy) { toast("Укажите адрес прокси (ПК)"); return; }
+  function garminSync(silent) {
+    if (!garminProxy) { if (!silent) toast("Укажите адрес прокси (ПК)"); return; }
     var to = isoDay(0);
     var from = (garminLastSyncDate && garminLastSyncDate < isoDay(-30)) ? garminLastSyncDate : isoDay(-30);
     var modal = $("sync-modal");
@@ -1520,7 +1611,11 @@
       li.querySelector(".sync-ico").textContent = "⏳";
       li.querySelector(".sync-count").textContent = "";
     });
-    if (modal) modal.classList.remove("hidden");
+    if (silent) {
+      syncBar("⏳ Синхронизация…", "busy");
+    } else if (modal) {
+      modal.classList.remove("hidden");
+    }
 
     var chain = Promise.resolve();
 
@@ -1597,12 +1692,24 @@
       garminLastSync = Date.now();
       garminLastSyncDate = to;
       DB.setMeta("garminLastSyncDate", to);
-      toast("Статистика обновлена");
-      setTimeout(function () { if (modal) modal.classList.add("hidden"); }, 1000);
+      if (silent) {
+        var d = new Date();
+        var hhmm = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+        syncBar("✅ Синхронизировано " + hhmm, "ok");
+        setTimeout(function () { var bar = $("sync-bar"); if (bar) bar.classList.add("hidden"); }, 4000);
+      } else {
+        toast("Статистика обновлена");
+        setTimeout(function () { if (modal) modal.classList.add("hidden"); }, 1000);
+      }
     }).catch(function (e) {
       syncSetStep(currentSyncStep, "err");
-      toast("Ошибка синхронизации: " + e.message);
-      setTimeout(function () { if (modal) modal.classList.add("hidden"); }, 1600);
+      if (silent) {
+        syncBar("⚠️ Синхронизация: " + e.message, "err");
+        setTimeout(function () { var bar = $("sync-bar"); if (bar) bar.classList.add("hidden"); }, 6000);
+      } else {
+        toast("Ошибка синхронизации: " + e.message);
+        setTimeout(function () { if (modal) modal.classList.add("hidden"); }, 1600);
+      }
     });
   }
 
@@ -1857,7 +1964,10 @@
         r.id || "", r.startedAt || "", r.durationMin || 0, r.partner || "", r.place || "",
         (r.positions || []).join(";"), (r.tags || []).join(";"),
         (r.costumes || []).join(";"), (r.toys || []).join(";"), (r.fantasies || []).join(";"),
-        r.orgasmsMe || 0, r.orgasmsPartner || 0, r.garmin ? 1 : 0
+        r.orgasmsMe || 0, r.orgasmsPartner || 0,
+        r.orgasmMeType || "", r.orgasmMeRating || 0,
+        r.orgasmPartnerType || "", r.orgasmPartnerRating || 0,
+        r.garmin ? 1 : 0
       ]);
     });
     return CSV.stringify(rows);
@@ -1898,6 +2008,10 @@
         fantasies: splitList(get(row, "fantasies")),
         orgasmsMe: parseInt(get(row, "orgasms_me", "orgasmsme") || "0", 10) || 0,
         orgasmsPartner: parseInt(get(row, "orgasms_partner", "orgasmspartner") || "0", 10) || 0,
+        orgasmMeType: String(get(row, "orgasm_me_type") || ""),
+        orgasmMeRating: parseInt(get(row, "orgasm_me_rating") || "0", 10) || 0,
+        orgasmPartnerType: String(get(row, "orgasm_partner_type") || ""),
+        orgasmPartnerRating: parseInt(get(row, "orgasm_partner_rating") || "0", 10) || 0,
         garmin: String(get(row, "garmin")) === "1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -2095,7 +2209,7 @@
 
     $("gem-proxy").addEventListener("change", saveGarminProxy);
 
-    $("btn-garmin-sync").addEventListener("click", garminSync);
+    $("btn-garmin-sync").addEventListener("click", function () { garminSync(false); });
     $("btn-garmin-test").addEventListener("click", garminTest);
     $("btn-garmin-add").addEventListener("click", openGarminPicker);
     $("btn-garmin-back").addEventListener("click", function () { showView("journal"); });
@@ -2107,7 +2221,9 @@
       if (currentSuggestion) openWizardWithActivity(currentSuggestion);
     });
     $("suggest-hide").addEventListener("click", hideSuggestion);
-    loadGarminSettings();
+    loadGarminSettings().then(function () {
+      setTimeout(function () { garminSync(true); }, 500);
+    });
 
     // автоблокировка после долгого скрытия приложения
     var hiddenAt = 0;
