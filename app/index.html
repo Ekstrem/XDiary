@@ -132,15 +132,15 @@
           <label for="gem-key">Личный API-ключ (необязательно)</label>
           <input type="password" id="gem-key" autocomplete="off">
         </div>
-        <button class="btn full" id="btn-garmin-sync">Обновить статистику</button>
+        <div class="btn-row">
+          <button class="btn primary" id="btn-garmin-sync">Обновить статистику</button>
+          <button class="btn" id="btn-garmin-test">Проверить прокси</button>
+        </div>
         <p class="muted" id="gem-status"></p>
 
         <h2>Опасная зона</h2>
-        <p class="muted">Введите «УДАЛИТЬ», чтобы стереть все данные (записи, соматику, сон, тренды) и PIN-код.</p>
-        <div class="field">
-          <input type="text" id="wipe-input" placeholder="УДАЛИТЬ" autocomplete="off">
-        </div>
-        <button class="btn danger" id="btn-wipe">Стереть всё</button>
+        <p class="muted">Стирает все данные (записи, соматику, сон, тренды) и PIN-код. Необратимо.</p>
+        <button class="btn danger full" id="btn-wipe">Стереть всё</button>
       </div>
     </main>
   </section>
@@ -292,6 +292,16 @@
     <button class="tab" id="tab-trends"><span class="tab-ico">📈</span><span>Тренды</span></button>
     <button class="tab" id="tab-settings"><span class="tab-ico">⚙️</span><span>Настройки</span></button>
   </nav>
+
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-card">
+      <p class="modal-text" id="confirm-text"></p>
+      <div class="modal-actions">
+        <button class="btn" id="confirm-no">Нет</button>
+        <button class="btn danger" id="confirm-yes">Да</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast" class="toast hidden"></div>
   <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">

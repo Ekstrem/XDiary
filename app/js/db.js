@@ -141,6 +141,7 @@
     // недельные тренды (стресс / пульс покоя, ключ — "YYYY-MM-DD")
     putWeeklyBatch: function (list) { return putBatch("weekly", list); },
     getAllWeekly: function () { return getAll("weekly"); },
+    getWeekly: function (date) { return getOne("weekly", date); },
     clearWeekly: function () { return clearStore("weekly"); },
     // недельный сон (ключ — дата конца недели "YYYY-MM-DD")
     putSleepWeeklyBatch: function (list) { return putBatch("sleep_weekly", list); },

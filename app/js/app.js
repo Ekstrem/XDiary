@@ -109,6 +109,24 @@
     t._timer = setTimeout(function () { t.classList.add("hidden"); }, ms || 2200);
   }
 
+  function confirmDialog(message) {
+    return new Promise(function (resolve) {
+      var modal = $("confirm-modal");
+      $("confirm-text").textContent = message;
+      modal.classList.remove("hidden");
+      function close(v) {
+        modal.classList.add("hidden");
+        $("confirm-yes").removeEventListener("click", yes);
+        $("confirm-no").removeEventListener("click", no);
+        resolve(v);
+      }
+      function yes() { close(true); }
+      function no() { close(false); }
+      $("confirm-yes").addEventListener("click", yes);
+      $("confirm-no").addEventListener("click", no);
+    });
+  }
+
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
     ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "garmin", "detail"].forEach(function (v) {
@@ -648,11 +666,13 @@
 
   function deleteFromWizard() {
     if (!editingId) return;
-    if (!window.confirm("Удалить эту запись?")) return;
-    DB.deleteRecord(editingId).then(function () {
-      toast("Удалено");
-      showView("journal");
-      renderJournal();
+    confirmDialog("Удалить эту запись?").then(function (ok) {
+      if (!ok) return;
+      DB.deleteRecord(editingId).then(function () {
+        toast("Удалено");
+        showView("journal");
+        renderJournal();
+      });
     });
   }
 
@@ -738,11 +758,13 @@
 
   function deletePartnerEdit() {
     if (!editingPartnerId) return;
-    if (!window.confirm("Удалить партнёра?")) return;
-    DB.deletePartner(editingPartnerId).then(function () {
-      toast("Удалено");
-      if (partnerEditReturn === "wizard") { showView("wizard"); renderWizard(); }
-      else { showView("partners"); renderPartners(); }
+    confirmDialog("Удалить партнёра?").then(function (ok) {
+      if (!ok) return;
+      DB.deletePartner(editingPartnerId).then(function () {
+        toast("Удалено");
+        if (partnerEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+        else { showView("partners"); renderPartners(); }
+      });
     });
   }
 
@@ -843,11 +865,13 @@
 
   function deleteCatalogEdit() {
     if (!editingCatalogId) return;
-    if (!window.confirm("Удалить?")) return;
-    DB.deleteCatalogItem(editingCatalogId).then(function () {
-      toast("Удалено");
-      if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
-      else { showView("catalog"); renderCatalog(); }
+    confirmDialog("Удалить?").then(function (ok) {
+      if (!ok) return;
+      DB.deleteCatalogItem(editingCatalogId).then(function () {
+        toast("Удалено");
+        if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+        else { showView("catalog"); renderCatalog(); }
+      });
     });
   }
 
@@ -901,38 +925,66 @@
     var rangeEndMs = startMs + ((r.durationMin || 0) + detailWindow) * 60000;
     var rangeStart = minuteKeyFromDate(new Date(rangeStartMs));
     var rangeEnd = minuteKeyFromDate(new Date(rangeEndMs));
+    var day = toDateKey(r.startedAt);
 
-    el.innerHTML =
-      "<h2>Соматика</h2>" +
-      '<div class="chips-grid" id="metric-chips"></div>' +
-      '<div class="chips-grid" id="window-chips" style="margin-top:8px"></div>' +
-      '<div class="chart-wrap"><canvas id="somatic-canvas"></canvas></div>' +
-      '<div class="somatic-stats" id="somatic-stats"></div>' +
-      '<div class="somatic-stats" id="act-stats"></div>' +
-      '<div class="sleep-card" id="sleep-card"></div>';
-
-    var mc = el.querySelector("#metric-chips");
-    METRIC_ORDER.forEach(function (k) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip-toggle" + (detailMetric === k ? " on" : "");
-      b.textContent = METRIC_META[k].label;
-      b.addEventListener("click", function () { detailMetric = k; renderDetail(); });
-      mc.appendChild(b);
-    });
-
-    var wc = el.querySelector("#window-chips");
-    [15, 30, 60].forEach(function (w) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip-toggle" + (detailWindow === w ? " on" : "");
-      b.textContent = "±" + w + " мин";
-      b.addEventListener("click", function () { detailWindow = w; renderDetail(); });
-      wc.appendChild(b);
-    });
-
-    DB.getSomaticRange(rangeStart, rangeEnd).then(function (points) {
+    Promise.all([
+      DB.getSomaticRange(rangeStart, rangeEnd),
+      DB.getSleep(day),
+      DB.getWeekly(day)
+    ]).then(function (res) {
+      var points = res[0] || [];
+      var sl = res[1] || null;
+      var wk = res[2] || null;
       points.sort(function (a, b) { return a.t < b.t ? -1 : (a.t > b.t ? 1 : 0); });
+
+      var hrPts = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
+      var bbPts = points.filter(function (p) { return p.body_battery != null; })
+        .sort(function (a, b) { return a.t < b.t ? -1 : 1; });
+      var hrAvg = hrPts.length ? Math.round(hrPts.reduce(function (a, b) { return a + b; }, 0) / hrPts.length) : null;
+      var hrMax = hrPts.length ? Math.max.apply(null, hrPts) : null;
+      var bbFirst = bbPts.length ? bbPts[0].body_battery : null;
+      var bbLast = bbPts.length ? bbPts[bbPts.length - 1].body_battery : null;
+      var stress = (wk && wk.stress != null) ? wk.stress : null;
+
+      function row(label, value) {
+        return '<div class="act-row"><span>' + label + "</span><b>" + value + "</b></div>";
+      }
+      var summary =
+        '<div class="act-summary">' +
+          row("Длительность", (r.durationMin || 0) + " мин") +
+          row("Пульс (ср / макс)", hrAvg != null ? hrAvg + " / " + hrMax : "—") +
+          row("Body Battery", (bbFirst != null && bbLast != null) ? bbFirst + " → " + bbLast + " (" + (bbLast - bbFirst) + ")" : "—") +
+          row("Стресс за день", stress != null ? stress : "—") +
+          row("Сон", (sl && sl.score != null) ? sl.score + " (" + ((sl.durationMin || 0) / 60).toFixed(1) + " ч)" : "—") +
+        "</div>";
+
+      el.innerHTML =
+        "<h2>Соматика</h2>" + summary +
+        '<div class="chips-grid" id="metric-chips"></div>' +
+        '<div class="chips-grid" id="window-chips" style="margin-top:8px"></div>' +
+        '<div class="chart-wrap"><canvas id="somatic-canvas"></canvas></div>' +
+        '<div class="somatic-stats" id="somatic-stats"></div>';
+
+      var mc = el.querySelector("#metric-chips");
+      METRIC_ORDER.forEach(function (k) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip-toggle" + (detailMetric === k ? " on" : "");
+        b.textContent = METRIC_META[k].label;
+        b.addEventListener("click", function () { detailMetric = k; renderDetail(); });
+        mc.appendChild(b);
+      });
+
+      var wc = el.querySelector("#window-chips");
+      [15, 30, 60].forEach(function (w) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip-toggle" + (detailWindow === w ? " on" : "");
+        b.textContent = "±" + w + " мин";
+        b.addEventListener("click", function () { detailWindow = w; renderDetail(); });
+        wc.appendChild(b);
+      });
+
       var stats = drawChart($("somatic-canvas"), points, detailMetric, rangeStartMs, rangeEndMs, startMs);
       var s = $("somatic-stats");
       if (stats.count) {
@@ -942,35 +994,6 @@
       } else {
         s.textContent = "";
       }
-
-      var hrPts = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
-      var bbPts = points.filter(function (p) { return p.body_battery != null; })
-        .sort(function (a, b) { return a.t < b.t ? -1 : 1; });
-      var act = $("act-stats");
-      if (act) {
-        var parts = [];
-        if (hrPts.length) {
-          var sum = hrPts.reduce(function (a, b) { return a + b; }, 0);
-          parts.push("пульс ср " + Math.round(sum / hrPts.length) + ", макс " + Math.max.apply(null, hrPts));
-        }
-        if (bbPts.length >= 2) {
-          parts.push("BB " + bbPts[0].body_battery + "→" + bbPts[bbPts.length - 1].body_battery);
-        }
-        act.textContent = parts.length ? "За акт: " + parts.join(" · ") : "";
-      }
-    });
-
-    DB.getSleep(toDateKey(r.startedAt)).then(function (sl) {
-      var c = $("sleep-card");
-      if (!sl) { c.innerHTML = ""; return; }
-      var h = ((sl.durationMin || 0) / 60).toFixed(1);
-      c.innerHTML =
-        '<div class="sleep-title">😴 Сон</div>' +
-        '<div class="sleep-line">Оценка: <b>' + (sl.score != null ? sl.score : "—") + "</b> · " + h + " ч</div>" +
-        (sl.deepMin != null
-          ? '<div class="sleep-line muted">Глубокий ' + sl.deepMin + " · Лёгкий " + sl.lightMin +
-            " · REM " + sl.remMin + " · Бодрствование " + sl.awakeMin + " мин</div>"
-          : "");
     });
   }
 
@@ -1521,6 +1544,20 @@
     openWizard(null);
   }
 
+  function garminTest() {
+    var st = $("gem-status");
+    if (!garminProxy) { toast("Укажите адрес прокси"); return; }
+    if (st) st.textContent = "Проверка…";
+    garminFetch("/health").then(function () {
+      if (st) st.textContent = "Прокси доступен ✓";
+      toast("Прокси доступен");
+    }).catch(function (e) {
+      var msg = (e && e.message) ? e.message : String(e);
+      if (st) st.textContent = "Недоступен: " + msg + " (VPN? прокси запущен?)";
+      toast("Прокси недоступен: " + msg);
+    });
+  }
+
   // ---- Garmin: выбор занятия ----
   function openGarminPicker() {
     showView("garmin");
@@ -1775,19 +1812,21 @@
     });
   }
   function removePinNow() {
-    if (!window.confirm("Удалить PIN-код?")) return;
-    Pin.removePin().then(function () { toast("PIN удалён"); refreshPinStatus(); });
+    confirmDialog("Удалить PIN-код?").then(function (ok) {
+      if (!ok) return;
+      Pin.removePin().then(function () { toast("PIN удалён"); refreshPinStatus(); });
+    });
   }
 
   // ---- полная очистка ----
   function wipeAll() {
-    var word = $("wipe-input").value.trim();
-    if (word !== "УДАЛИТЬ") { toast('Введите «УДАЛИТЬ» для подтверждения'); return; }
-    Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), DB.clearWeekly(), DB.clearSleepWeekly(), Pin.removePin()]).then(function () {
-      $("wipe-input").value = "";
-      toast("Все данные удалены");
-      renderJournal();
-      refreshPinStatus();
+    confirmDialog("Стереть все данные (записи, соматику, сон, тренды) и PIN-код? Это необратимо.").then(function (ok) {
+      if (!ok) return;
+      Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), DB.clearWeekly(), DB.clearSleepWeekly(), Pin.removePin()]).then(function () {
+        toast("Все данные удалены");
+        renderJournal();
+        refreshPinStatus();
+      });
     });
   }
 
@@ -1884,6 +1923,7 @@
     $("gem-proxy").addEventListener("change", saveGarminProxy);
     $("gem-key").addEventListener("change", saveGarminKey);
     $("btn-garmin-sync").addEventListener("click", garminSync);
+    $("btn-garmin-test").addEventListener("click", garminTest);
     $("btn-garmin-add").addEventListener("click", openGarminPicker);
     $("btn-garmin-back").addEventListener("click", function () { showView("journal"); });
     $("trend-tabs").querySelectorAll("button").forEach(function (b) {

@@ -334,6 +334,33 @@ code {
 .suggest-actions { display: flex; gap: 8px; }
 .suggest-actions .btn { flex: 1; }
 
+/* ---- Модальное подтверждение ---- */
+.modal {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-card {
+  background: var(--bg-soft); border: 1px solid var(--border);
+  border-radius: 16px; padding: 18px; width: 100%; max-width: 340px;
+}
+.modal-text { margin: 0 0 16px; font-size: 16px; }
+.modal-actions { display: flex; gap: 10px; }
+.modal-actions .btn { flex: 1; }
+
+/* ---- Сводка за акт ---- */
+.act-summary {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 4px 14px; margin-bottom: 14px;
+}
+.act-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.act-row:last-child { border-bottom: none; }
+.act-row > span { color: var(--muted); }
+.act-row > b { font-weight: 600; text-align: right; }
+
 /* ---- Desktop nicety ---- */
 @media (min-width: 640px) {
   .tabbar { max-width: 560px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }

@@ -139,7 +139,7 @@ def sessions_csv(acts, fmt):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
-        pass
+        sys.stderr.write("[proxy] %s %s\n" % (getattr(self, "command", "-"), getattr(self, "path", "-")))
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -201,6 +201,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json({"error": "not found"}, 404)
         except Exception as e:  # noqa: BLE001
+            sys.stderr.write("[proxy] ERROR %s\n" % e)
             self._json({"error": str(e)}, 500)
 
 
