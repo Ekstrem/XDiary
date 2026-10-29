@@ -151,7 +151,7 @@ def build_sync(token, dfrom, dto):
 
 
 def build_activities(token, dfrom, dto, favorite):
-    q = "?limit=200&startDate=%s&endDate=%s" % (dfrom, dto)
+    q = "?limit=100&startDate=%s&endDate=%s" % (dfrom, dto)
     if favorite:
         q += "&favorite=1"
     obj = gs.get_json(token, "/activitylist-service/activities/search/activities" + q)

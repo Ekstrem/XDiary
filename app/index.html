@@ -96,22 +96,7 @@
         <div class="app-version" id="app-version">XDiary</div>
         <h2>PIN-код</h2>
         <p id="pin-status" class="muted">…</p>
-        <div class="field hidden" id="pin-current-wrap">
-          <label for="pin-current">Текущий PIN</label>
-          <input type="password" id="pin-current" inputmode="numeric" maxlength="8" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="pin-new">Новый PIN (4–8 цифр)</label>
-          <input type="password" id="pin-new" inputmode="numeric" maxlength="8" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="pin-confirm">Повторите новый PIN</label>
-          <input type="password" id="pin-confirm" inputmode="numeric" maxlength="8" autocomplete="off">
-        </div>
-        <div class="btn-row">
-          <button class="btn primary" id="btn-pin-set">Установить PIN</button>
-          <button class="btn danger hidden" id="btn-pin-remove">Удалить PIN</button>
-        </div>
+        <button class="btn full" id="btn-pin-open">Установить PIN</button>
 
         <h2>Данные</h2>
         <div class="btn-row">
@@ -312,9 +297,29 @@
         <li data-step="hrv"><span class="sync-ico">⏳</span><span class="sync-label">HRV</span><span class="sync-count"></span></li>
         <li data-step="activities"><span class="sync-ico">⏳</span><span class="sync-label">Занятия</span><span class="sync-count"></span></li>
       </ul>
-      <div class="modal-actions">
-        <button class="btn primary hidden" id="sync-close">Закрыть</button>
+    </div>
+  </div>
+
+  <div id="pin-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 class="sync-title">PIN-код</h2>
+      <div class="field hidden" id="pin-current-wrap">
+        <label for="pin-current">Текущий PIN</label>
+        <input type="password" id="pin-current" inputmode="numeric" maxlength="8" autocomplete="off">
       </div>
+      <div class="field">
+        <label for="pin-new">Новый PIN (4–8 цифр)</label>
+        <input type="password" id="pin-new" inputmode="numeric" maxlength="8" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="pin-confirm">Повторите новый PIN</label>
+        <input type="password" id="pin-confirm" inputmode="numeric" maxlength="8" autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="pin-cancel">Отмена</button>
+        <button class="btn primary" id="btn-pin-set">Сохранить</button>
+      </div>
+      <button class="btn danger full hidden" id="btn-pin-remove" style="margin-top:10px">Удалить PIN</button>
     </div>
   </div>
 

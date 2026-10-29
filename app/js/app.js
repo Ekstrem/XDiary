@@ -63,7 +63,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.18"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.19"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1512,9 +1512,8 @@
   function garminSync() {
     if (!garminProxy) { toast("Укажите адрес прокси (ПК)"); return; }
     var to = isoDay(0);
-    var from = garminLastSyncDate || isoDay(-7);
+    var from = (garminLastSyncDate && garminLastSyncDate < isoDay(-30)) ? garminLastSyncDate : isoDay(-30);
     var modal = $("sync-modal");
-    var close = $("sync-close");
 
     document.querySelectorAll("#sync-steps li").forEach(function (li) {
       li.classList.remove("done", "err");
@@ -1522,7 +1521,6 @@
       li.querySelector(".sync-count").textContent = "";
     });
     if (modal) modal.classList.remove("hidden");
-    if (close) close.classList.add("hidden");
 
     var chain = Promise.resolve();
 
@@ -1599,12 +1597,12 @@
       garminLastSync = Date.now();
       garminLastSyncDate = to;
       DB.setMeta("garminLastSyncDate", to);
-      if (close) close.classList.remove("hidden");
       toast("Статистика обновлена");
+      setTimeout(function () { if (modal) modal.classList.add("hidden"); }, 1000);
     }).catch(function (e) {
       syncSetStep(currentSyncStep, "err");
-      if (close) close.classList.remove("hidden");
       toast("Ошибка синхронизации: " + e.message);
+      setTimeout(function () { if (modal) modal.classList.add("hidden"); }, 1600);
     });
   }
 
@@ -1937,16 +1935,22 @@
     }).catch(function (e) { toast("Ошибка импорта: " + e.message); });
   }
 
-  // ---- PIN (настройки) ----
+  // ---- PIN (диалог) ----
   function refreshPinStatus() {
     Pin.hasPin().then(function (has) {
       $("pin-status").textContent = has ? "PIN-код установлен" : "PIN-код не установлен";
+      $("btn-pin-open").textContent = has ? "Сменить PIN" : "Установить PIN";
+    });
+  }
+  function openPinDialog() {
+    Pin.hasPin().then(function (has) {
       $("pin-current-wrap").classList.toggle("hidden", !has);
       $("btn-pin-remove").classList.toggle("hidden", !has);
-      $("btn-pin-set").textContent = has ? "Изменить PIN" : "Установить PIN";
       $("pin-current").value = "";
       $("pin-new").value = "";
       $("pin-confirm").value = "";
+      $("pin-modal").classList.remove("hidden");
+      $("pin-new").focus();
     });
   }
   function applyPin() {
@@ -1965,14 +1969,22 @@
         if (!ok) return;
         if (!Pin.isValidPin(nw)) { toast("Новый PIN: 4–8 цифр"); return; }
         if (nw !== cf) { toast("PIN не совпадают"); return; }
-        Pin.setPin(nw).then(function () { toast("PIN сохранён"); refreshPinStatus(); });
+        Pin.setPin(nw).then(function () {
+          toast("PIN сохранён");
+          $("pin-modal").classList.add("hidden");
+          refreshPinStatus();
+        });
       });
     });
   }
   function removePinNow() {
     confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
-      Pin.removePin().then(function () { toast("PIN удалён"); refreshPinStatus(); });
+      Pin.removePin().then(function () {
+        toast("PIN удалён");
+        $("pin-modal").classList.add("hidden");
+        refreshPinStatus();
+      });
     });
   }
 
@@ -2068,8 +2080,10 @@
     $("btn-wizard-save").addEventListener("click", saveWizard);
     $("btn-wizard-delete").addEventListener("click", deleteFromWizard);
 
+    $("btn-pin-open").addEventListener("click", openPinDialog);
     $("btn-pin-set").addEventListener("click", applyPin);
     $("btn-pin-remove").addEventListener("click", removePinNow);
+    $("pin-cancel").addEventListener("click", function () { $("pin-modal").classList.add("hidden"); });
     $("btn-export").addEventListener("click", downloadCsv);
     $("btn-import").addEventListener("click", function () { $("import-file").click(); });
     $("import-file").addEventListener("change", function (e) {
@@ -2086,7 +2100,6 @@
     $("btn-garmin-add").addEventListener("click", openGarminPicker);
     $("btn-garmin-back").addEventListener("click", function () { showView("journal"); });
     $("garmin-more").addEventListener("click", garminMore);
-    $("sync-close").addEventListener("click", function () { $("sync-modal").classList.add("hidden"); });
     $("trend-tabs").querySelectorAll("button").forEach(function (b) {
       b.addEventListener("click", function () { trendTab = b.getAttribute("data-tab"); renderTrends(); });
     });

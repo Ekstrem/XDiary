@@ -56,11 +56,19 @@ def request(method, url, headers, data=None):
         return e.code, e.read()
 
 
+_TOKEN_CACHE = {}
+
+
 def get_token(key):
+    now = time.time()
+    hit = _TOKEN_CACHE.get(key)
+    if hit and hit[1] > now:
+        return hit[0]
     status, body = request("POST", BASE + TOKEN_PATH, {"Authorization": "ApiKey " + key})
     text = body.decode("utf-8", "replace")
     if status != 200:
         raise SystemExit("Не удалось получить токен (HTTP %s): %s" % (status, text[:400]))
+    token = None
     try:
         obj = json.loads(text)
     except ValueError:
@@ -68,10 +76,14 @@ def get_token(key):
     if isinstance(obj, dict):
         for k in ("access_token", "accessToken", "token", "jwt"):
             if isinstance(obj.get(k), str) and obj[k]:
-                return obj[k]
-    if text.strip() and not text.lstrip().startswith("{"):
-        return text.strip()
-    raise SystemExit("Не удалось разобрать ответ токена: %s" % text[:400])
+                token = obj[k]
+                break
+    if token is None and text.strip() and not text.lstrip().startswith("{"):
+        token = text.strip()
+    if not token:
+        raise SystemExit("Не удалось разобрать ответ токена: %s" % text[:400])
+    _TOKEN_CACHE[key] = (token, now + 23 * 3600)
+    return token
 
 
 def get_json(token, path):
