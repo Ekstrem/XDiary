@@ -65,7 +65,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.23"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.24"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -304,6 +304,7 @@
       DB.getAllRecords().then(function (records) {
         draft = newDraft();
         draft.partner = lastPartnerName(records);
+        draft.place = historyPlaces(records)[0] || "";
         if (pendingActivity) {
           var s = String(pendingActivity.startLocal || "").replace(" ", "T").slice(0, 16);
           if (s) draft.startedAt = s;
@@ -637,14 +638,11 @@
     female: ["клиторальный", "вагинальный"]
   };
 
-  function orgasmTypeChips(key, gender) {
-    var arr = key === "me" ? (draft.orgasmMeType || []) : (draft.orgasmPartnerType || []);
+  function orgasmTallyChips(key, gender) {
     var types = ORGASM_TYPES[gender] || ORGASM_TYPES.female;
-    var html = types.map(function (t) {
-      return '<button type="button" class="chip-toggle' + (arr.indexOf(t) !== -1 ? " on" : "") +
-        '" data-okey="' + key + '" data-otype="' + esc(t) + '">' + esc(t) + "</button>";
+    return types.map(function (t) {
+      return '<button type="button" class="chip-toggle orgasm-tally" data-okey="' + key + '" data-otype="' + esc(t) + '">' + esc(t) + "</button>";
     }).join("");
-    return '<div class="chips-grid orgasm-types">' + html + "</div>";
   }
 
   function orgasmStars(key) {
@@ -669,37 +667,49 @@
       body.innerHTML =
         '<div class="step-label">Оргазмы</div>' +
         '<div class="orgasm-block">' +
-          '<div class="orgasm-head">Я</div>' +
-          stepperHtml("me", "", draft.orgasmsMe) +
-          orgasmTypeChips("me", myGender) +
+          '<div class="orgasm-head"><span>Я</span>' +
+            '<span class="orgasm-count" data-count="me">' + draft.orgasmsMe + "</span>" +
+            '<button type="button" class="orgasm-reset" data-rkey="me" title="Сбросить">↺</button>' +
+          "</div>" +
+          '<div class="chips-grid orgasm-types">' + orgasmTallyChips("me", myGender) + "</div>" +
           orgasmStars("me") +
         "</div>" +
         '<div class="orgasm-block">' +
-          '<div class="orgasm-head orgasm-partner">' + partnerLabel + "</div>" +
-          stepperHtml("partner", "", draft.orgasmsPartner) +
-          orgasmTypeChips("partner", pGender) +
+          '<div class="orgasm-head orgasm-partner">' + partnerLabel +
+            '<span class="orgasm-count" data-count="partner">' + draft.orgasmsPartner + "</span>" +
+            '<button type="button" class="orgasm-reset" data-rkey="partner" title="Сбросить">↺</button>' +
+          "</div>" +
+          '<div class="chips-grid orgasm-types">' + orgasmTallyChips("partner", pGender) + "</div>" +
           orgasmStars("partner") +
         "</div>";
 
-      body.querySelectorAll(".stepper-btn").forEach(function (b) {
-        b.addEventListener("click", function () {
-          var key = b.getAttribute("data-key");
-          var act = b.getAttribute("data-act");
-          var prop = key === "me" ? "orgasmsMe" : "orgasmsPartner";
-          draft[prop] = act === "plus" ? Math.min(99, draft[prop] + 1) : Math.max(0, draft[prop] - 1);
-          body.querySelector('[data-val="' + key + '"]').textContent = draft[prop];
-        });
-      });
-      body.querySelectorAll("[data-otype]").forEach(function (b) {
+      body.querySelectorAll(".orgasm-tally").forEach(function (b) {
         b.addEventListener("click", function () {
           var key = b.getAttribute("data-okey");
           var t = b.getAttribute("data-otype");
-          var prop = key === "me" ? "orgasmMeType" : "orgasmPartnerType";
-          var arr = draft[prop] || [];
-          var i = arr.indexOf(t);
-          if (i !== -1) arr.splice(i, 1); else arr.push(t);
-          draft[prop] = arr;
-          stepOrgasms(body);
+          var countProp = key === "me" ? "orgasmsMe" : "orgasmsPartner";
+          var typeProp = key === "me" ? "orgasmMeType" : "orgasmPartnerType";
+          b.classList.add("firing");
+          setTimeout(function () {
+            b.classList.remove("firing");
+            draft[countProp] = Math.min(99, (draft[countProp] || 0) + 1);
+            var arr = draft[typeProp] || [];
+            if (arr.indexOf(t) === -1) arr.push(t);
+            draft[typeProp] = arr;
+            var el = body.querySelector('[data-count="' + key + '"]');
+            if (el) el.textContent = draft[countProp];
+          }, 1000);
+        });
+      });
+      body.querySelectorAll(".orgasm-reset").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var key = b.getAttribute("data-rkey");
+          var countProp = key === "me" ? "orgasmsMe" : "orgasmsPartner";
+          var typeProp = key === "me" ? "orgasmMeType" : "orgasmPartnerType";
+          draft[countProp] = 0;
+          draft[typeProp] = [];
+          var el = body.querySelector('[data-count="' + key + '"]');
+          if (el) el.textContent = "0";
         });
       });
       body.querySelectorAll("[data-orating]").forEach(function (b) {

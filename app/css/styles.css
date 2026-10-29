@@ -363,6 +363,10 @@ code {
 .orgasm-block { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
 .orgasm-head { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
 .orgasm-partner .avatar { width: 26px; height: 26px; }
+.orgasm-count { margin-left: auto; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0 9px; font-size: 14px; font-weight: 700; }
+.orgasm-reset { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; line-height: 1; padding: 2px 6px; }
+.chip-toggle { transition: background 0.15s, transform 0.15s; }
+.chip-toggle.firing { background: var(--accent); border-color: var(--accent); color: #fff; transform: scale(1.06); }
 .orgasm-types { margin-top: 10px; }
 .orgasm-stars { display: flex; gap: 4px; margin-top: 6px; }
 .star { background: none; border: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--muted); padding: 0 3px; }
