@@ -61,6 +61,7 @@
   var pendingActivity = null;
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
+  var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1398,8 +1399,9 @@
   function loadGarminSettings() {
     if (garminSettingsLoaded) return garminSettingsLoaded;
     garminSettingsLoaded = Promise.all([DB.getMeta("garminProxy"), DB.getMeta("garminKey")]).then(function (res) {
-      garminProxy = (res[0] && res[0].value) || "";
+      garminProxy = (res[0] && res[0].value) || DEFAULT_GARMIN_PROXY;
       garminKey = (res[1] && res[1].value) || "";
+      if (!res[0] || !res[0].value) DB.setMeta("garminProxy", DEFAULT_GARMIN_PROXY);
       if ($("gem-proxy")) $("gem-proxy").value = garminProxy;
       if ($("gem-key")) $("gem-key").value = garminKey;
     });
