@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: privacy
+    ports:
+      - "5432:5432"
+    volumes:
+      - privacy-pgdata:/var/lib/postgresql/data
+
+  privacy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Single
+      ConnectionStrings__PrivacyDb: "Host=postgres;Port=5432;Database=privacy;Username=postgres;Password=postgres"
+      Jwt__SigningKey: "eGRpYXJ5LWRldi1zaWduaW5nLWtleS0zMmJ5dGVzLW1pbiE="
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  privacy-pgdata:
