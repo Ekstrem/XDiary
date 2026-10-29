@@ -79,6 +79,7 @@
         <button class="active" data-kind="costume">Костюмчики</button>
         <button data-kind="toy">Игрушки</button>
         <button data-kind="fantasy">Фантазии</button>
+        <button data-kind="contraception">Контрацепция</button>
       </div>
       <div id="catalog-list" class="partners-list"></div>
       <div id="catalog-empty" class="empty-state hidden">
@@ -205,10 +206,15 @@
           <label for="ce-name">Название</label>
           <input type="text" id="ce-name" placeholder="Название" autocomplete="off">
         </div>
+        <div class="field hidden" id="ce-brand-wrap">
+          <label for="ce-brand">Бренд</label>
+          <input type="text" id="ce-brand" placeholder="Бренд" autocomplete="off">
+        </div>
         <div class="field">
           <label for="ce-notes">Подробности</label>
           <textarea id="ce-notes" rows="4" placeholder="Заметки…"></textarea>
         </div>
+        <button type="button" class="btn full hidden" id="ce-archive">В архив</button>
         <button type="button" class="btn danger full hidden" id="btn-catalog-delete">Удалить</button>
       </div>
     </main>

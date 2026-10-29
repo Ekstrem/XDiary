@@ -4,8 +4,8 @@
 
   function $(id) { return document.getElementById(id); }
 
-  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "orgasms_me", "orgasms_partner", "orgasm_me_type", "orgasm_me_rating", "orgasm_partner_type", "orgasm_partner_rating", "garmin"];
-  var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Отметки", "Длительность", "Оргазмы", "Итог"];
+  var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "contraceptives", "contraceptive_count", "orgasms_me", "orgasms_partner", "orgasm_me_type", "orgasm_me_rating", "orgasm_partner_type", "orgasm_partner_rating", "garmin"];
+  var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Отметки", "Контрацепция", "Длительность", "Оргазмы", "Итог"];
   var POSITIONS = [
     "Миссионерская", "Догги (сзади)", "Наездница (сверху)", "Обратная наездница",
     "Ложки", "69", "Стоя", "Сидя (на коленях)", "Оральный", "Коленно-локтевая",
@@ -13,13 +13,14 @@
   ];
   var DURATION_PRESETS = [10, 15, 20, 30, 45, 60, 90];
 
-  var KIND_ORDER = ["costume", "toy", "fantasy"];
+  var KIND_ORDER = ["costume", "toy", "fantasy", "contraception"];
   var KIND_META = {
     costume: { title: "Костюмчики", single: "Костюм", icon: "🧥" },
     toy: { title: "Игрушки", single: "Игрушка", icon: "🧸" },
-    fantasy: { title: "Фантазии", single: "Фантазия", icon: "✨" }
+    fantasy: { title: "Фантазии", single: "Фантазия", icon: "✨" },
+    contraception: { title: "Контрацепция", single: "Средство", icon: "🍥" }
   };
-  var KIND_FIELD = { costume: "costumes", toy: "toys", fantasy: "fantasies" };
+  var KIND_FIELD = { costume: "costumes", toy: "toys", fantasy: "fantasies", contraception: "contraceptives" };
 
   // состояние
   var draft = null;
@@ -33,6 +34,8 @@
   var catalogKind = "costume";
   var editingCatalogId = null;
   var catalogEditKind = "costume";
+  var catalogEditBrand = "";
+  var catalogEditArchived = false;
   var catalogEditReturn = "catalog";
   var catalogEditPhotoData = "";
 
@@ -65,7 +68,7 @@
   var currentSuggestion = null;
   var HEART_CHARS = "❤♥🖤💔❣";
   var DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765";
-  var APP_VERSION = "0.24"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.25"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -274,6 +277,7 @@
       positions: [], tags: [], costumes: [], toys: [], fantasies: [],
       durationMin: 0, orgasmsMe: 0, orgasmsPartner: 0,
       orgasmMeType: [], orgasmPartnerType: [], orgasmMeRating: 0, orgasmPartnerRating: 0,
+      contraceptives: [], contraceptiveCount: 0,
       partnerTouched: false, garmin: false, garminId: ""
     };
   }
@@ -295,6 +299,7 @@
           orgasmMeType: (Array.isArray(r.orgasmMeType) ? r.orgasmMeType.slice() : (r.orgasmMeType ? [String(r.orgasmMeType)] : [])),
           orgasmPartnerType: (Array.isArray(r.orgasmPartnerType) ? r.orgasmPartnerType.slice() : (r.orgasmPartnerType ? [String(r.orgasmPartnerType)] : [])),
           orgasmMeRating: r.orgasmMeRating || 0, orgasmPartnerRating: r.orgasmPartnerRating || 0,
+          contraceptives: (r.contraceptives || []).slice(), contraceptiveCount: r.contraceptiveCount || 0,
           partnerTouched: true, garmin: !!r.garmin, garminId: r.garminId || ""
         };
         showView("wizard");
@@ -355,9 +360,10 @@
       case 2: stepPlace(body); break;
       case 3: stepPositions(body); break;
       case 4: stepMarks(body); break;
-      case 5: stepDuration(body); break;
-      case 6: stepOrgasms(body); break;
-      case 7: stepSummary(body); break;
+      case 5: stepContraception(body); break;
+      case 6: stepDuration(body); break;
+      case 7: stepOrgasms(body); break;
+      case 8: stepSummary(body); break;
     }
   }
 
@@ -597,6 +603,48 @@
     });
   }
 
+  function stepContraception(body) {
+    DB.getAllCatalog().then(function (items) {
+      var contra = items.filter(function (it) { return it.kind === "contraception" && !it.archived; });
+      var chips = contra.map(function (it) {
+        return '<button type="button" class="chip-toggle contraception-tally" data-cname="' + esc(it.name) + '">' + esc(it.name) + "</button>";
+      }).join("");
+      body.innerHTML =
+        '<div class="step-label">Контрацепция</div>' +
+        '<div class="orgasm-block">' +
+          '<div class="orgasm-head"><span>Использовано</span>' +
+            '<span class="orgasm-count" data-cnt="contra">' + draft.contraceptiveCount + "</span>" +
+            '<button type="button" class="orgasm-reset" data-rcnt="contra" title="Сбросить">↺</button>' +
+          "</div>" +
+          (chips ? '<div class="chips-grid orgasm-types">' + chips + "</div>" : '<p class="muted">Нет средств — добавьте в Каталоге (вкладка «Контрацепция»).</p>') +
+        "</div>";
+
+      body.querySelectorAll(".contraception-tally").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var nm = b.getAttribute("data-cname");
+          b.classList.add("firing");
+          setTimeout(function () {
+            b.classList.remove("firing");
+            draft.contraceptiveCount = (draft.contraceptiveCount || 0) + 1;
+            var arr = draft.contraceptives || [];
+            if (arr.indexOf(nm) === -1) arr.push(nm);
+            draft.contraceptives = arr;
+            var el = body.querySelector('[data-cnt="contra"]');
+            if (el) el.textContent = draft.contraceptiveCount;
+          }, 600);
+        });
+      });
+      body.querySelectorAll(".orgasm-reset").forEach(function (b) {
+        b.addEventListener("click", function () {
+          draft.contraceptiveCount = 0;
+          draft.contraceptives = [];
+          var el = body.querySelector('[data-cnt="contra"]');
+          if (el) el.textContent = "0";
+        });
+      });
+    });
+  }
+
   function stepDuration(body) {
     body.innerHTML =
       '<div class="step-label">Сколько длилось?</div>' +
@@ -698,7 +746,7 @@
             draft[typeProp] = arr;
             var el = body.querySelector('[data-count="' + key + '"]');
             if (el) el.textContent = draft[countProp];
-          }, 1000);
+          }, 600);
         });
       });
       body.querySelectorAll(".orgasm-reset").forEach(function (b) {
@@ -741,6 +789,7 @@
       ["Костюмы", draft.costumes.join(", ") || "—"],
       ["Игрушки", draft.toys.join(", ") || "—"],
       ["Фантазии", draft.fantasies.join(", ") || "—"],
+      ["Контрацепция", (draft.contraceptiveCount > 0) ? (draft.contraceptives || []).join(", ") + " ×" + draft.contraceptiveCount : "—"],
       ["Отметки", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "—"],
       ["Длительность", (draft.durationMin || 0) + " мин"],
       ["Оргазмы", "Я: " + draft.orgasmsMe + fmtOrg(draft.orgasmMeType, draft.orgasmMeRating) +
@@ -757,7 +806,7 @@
 
   function saveWizard() {
     if (!draft.startedAt) { toast("Укажите дату и время"); wizardStep = 0; renderWizard(); return; }
-    if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 5; renderWizard(); return; }
+    if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 6; renderWizard(); return; }
     var nowIso = new Date().toISOString();
     function apply(rec) {
       rec.startedAt = draft.startedAt;
@@ -775,6 +824,8 @@
       rec.orgasmPartnerType = (draft.orgasmPartnerType || []).slice();
       rec.orgasmMeRating = draft.orgasmMeRating || 0;
       rec.orgasmPartnerRating = draft.orgasmPartnerRating || 0;
+      rec.contraceptives = (draft.contraceptives || []).slice();
+      rec.contraceptiveCount = draft.contraceptiveCount || 0;
       rec.garmin = !!draft.garmin;
       rec.garminId = draft.garminId || "";
       rec.updatedAt = nowIso;
@@ -925,6 +976,7 @@
   function renderCatalog() {
     DB.getAllCatalog().then(function (items) {
       var filtered = items.filter(function (it) { return it.kind === catalogKind; });
+      filtered.sort(function (a, b) { return (a.archived ? 1 : 0) - (b.archived ? 1 : 0); });
       var recPromise = catalogKind === "fantasy" ? DB.getAllRecords() : Promise.resolve([]);
       recPromise.then(function (records) {
         var realized = new Set();
@@ -935,13 +987,16 @@
         filtered.forEach(function (it) {
           var c = document.createElement("button");
           c.type = "button";
-          c.className = "partner-row";
+          c.className = "partner-row" + (it.archived ? " archived" : "");
           var badge = (catalogKind === "fantasy" && realized.has(it.name)) ? '<span class="badge-realized">✓</span>' : "";
+          var sub = [];
+          if (it.brand) sub.push(esc(it.brand));
+          if (it.notes) sub.push(esc(it.notes));
           c.innerHTML =
             avatarHtml(it) +
             '<span class="partner-row-text">' +
-              '<span class="partner-row-name">' + esc(it.name) + " " + badge + "</span>" +
-              (it.notes ? '<span class="partner-row-notes">' + esc(it.notes) + "</span>" : "") +
+              '<span class="partner-row-name">' + esc(it.name) + " " + badge + (it.archived ? ' <span class="muted">(архив)</span>' : "") + "</span>" +
+              (sub.length ? '<span class="partner-row-notes">' + sub.join(" · ") + "</span>" : "") +
             "</span>";
           c.addEventListener("click", function () { catalogEditReturn = "catalog"; openCatalogEdit(it.id, it.kind); });
           list.appendChild(c);
@@ -950,15 +1005,26 @@
     });
   }
 
+  function updateCatalogEditKindUI() {
+    var isToy = catalogEditKind === "toy";
+    $("ce-brand-wrap").classList.toggle("hidden", !isToy);
+    $("ce-archive").classList.toggle("hidden", !isToy);
+    if (isToy) $("ce-archive").textContent = catalogEditArchived ? "Вернуть из архива" : "В архив";
+  }
+
   function openCatalogEdit(id, kind) {
     editingCatalogId = id || null;
     catalogEditKind = kind || (id ? catalogEditKind : catalogKind);
     $("catalog-edit-title").textContent = KIND_META[catalogEditKind].single;
     $("ce-name").value = "";
     $("ce-notes").value = "";
+    $("ce-brand").value = "";
     $("ce-photo").value = "";
     $("ce-photo-preview").innerHTML = "";
     catalogEditPhotoData = "";
+    catalogEditBrand = "";
+    catalogEditArchived = false;
+    updateCatalogEditKindUI();
     $("btn-catalog-delete").classList.toggle("hidden", !id);
     if (id) {
       DB.getCatalogItem(id).then(function (it) {
@@ -967,7 +1033,11 @@
         $("catalog-edit-title").textContent = KIND_META[catalogEditKind].single;
         $("ce-name").value = it.name || "";
         $("ce-notes").value = it.notes || "";
+        $("ce-brand").value = it.brand || "";
         catalogEditPhotoData = it.photo || "";
+        catalogEditBrand = it.brand || "";
+        catalogEditArchived = !!it.archived;
+        updateCatalogEditKindUI();
         if (catalogEditPhotoData) {
           $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + catalogEditPhotoData + '" alt="">';
         }
@@ -989,6 +1059,8 @@
         it.kind = it.kind || catalogEditKind;
         it.name = name;
         it.notes = $("ce-notes").value.trim();
+        it.brand = catalogEditBrand;
+        it.archived = !!catalogEditArchived;
         it.photo = catalogEditPhotoData;
         it.updatedAt = nowIso;
         return DB.putCatalogItem(it);
@@ -996,7 +1068,8 @@
     } else {
       promise = DB.putCatalogItem({
         id: uuid(), kind: catalogEditKind, name: name,
-        notes: $("ce-notes").value.trim(), photo: catalogEditPhotoData,
+        notes: $("ce-notes").value.trim(), brand: catalogEditBrand, archived: !!catalogEditArchived,
+        photo: catalogEditPhotoData,
         createdAt: nowIso, updatedAt: nowIso
       });
     }
@@ -1052,6 +1125,11 @@
       (r.costumes || []).forEach(function (x) { chips.push('<span class="chip-mini">🧥 ' + esc(x) + "</span>"); });
       (r.toys || []).forEach(function (x) { chips.push('<span class="chip-mini">🧸 ' + esc(x) + "</span>"); });
       (r.fantasies || []).forEach(function (x) { chips.push('<span class="chip-mini">✨ ' + esc(x) + "</span>"); });
+      if ((r.contraceptives || []).length) {
+        var contraTxt = "🍥 " + (r.contraceptives || []).join(", ");
+        if ((r.contraceptiveCount || 0) > 1) contraTxt += " ×" + r.contraceptiveCount;
+        chips.push('<span class="chip-mini">' + esc(contraTxt) + "</span>");
+      }
       (r.tags || []).forEach(function (x) { chips.push('<span class="chip-mini tag">#' + esc(x) + "</span>"); });
 
       body.innerHTML =
@@ -2007,6 +2085,7 @@
         r.orgasmsMe || 0, r.orgasmsPartner || 0,
         (r.orgasmMeType || []).join(";"), r.orgasmMeRating || 0,
         (r.orgasmPartnerType || []).join(";"), r.orgasmPartnerRating || 0,
+        (r.contraceptives || []).join(";"), r.contraceptiveCount || 0,
         r.garmin ? 1 : 0
       ]);
     });
@@ -2052,6 +2131,8 @@
         orgasmMeRating: parseInt(get(row, "orgasm_me_rating") || "0", 10) || 0,
         orgasmPartnerType: splitList(get(row, "orgasm_partner_type")),
         orgasmPartnerRating: parseInt(get(row, "orgasm_partner_rating") || "0", 10) || 0,
+        contraceptives: splitList(get(row, "contraceptives")),
+        contraceptiveCount: parseInt(get(row, "contraceptive_count") || "0", 10) || 0,
         garmin: String(get(row, "garmin")) === "1",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -2211,6 +2292,11 @@
         catalogEditPhotoData = dataUrl;
         $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + dataUrl + '" alt="">';
       }).catch(function () { toast("Не удалось загрузить фото"); });
+    });
+    $("ce-brand").addEventListener("input", function (e) { catalogEditBrand = e.target.value.trim(); });
+    $("ce-archive").addEventListener("click", function () {
+      catalogEditArchived = !catalogEditArchived;
+      $("ce-archive").textContent = catalogEditArchived ? "Вернуть из архива" : "В архив";
     });
 
     $("btn-detail-back").addEventListener("click", function () { showView("journal"); });
