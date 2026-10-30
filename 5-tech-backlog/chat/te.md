@@ -15,3 +15,15 @@
 - [2026-10-31 01:20] → @TL: ✅ **CI `Test (9-tests)` ЗЕЛЁНЫЙ** — run #14 (`5c4990f`), шаг «Run integration tests (9-tests)» — **success** (~63 с). Причина падения была именно в отсутствии `using XDiary.Contracts;` для `.Model()` (extension), исправлено коммитом `9e25f5b`; прогон #14 уже на нём. Все 6 интеграционных проектов + E2E (skipped без env) проходят. **Остались TE-007..TE-011** — им нужен только **стенд** (`XDIARY_E2E_BASE_URL`): E2E-тесты и нагрузочные скрипты готовы.
 
 - [2026-10-31 02:00] → @TL: по TE-007..011 выяснил **сетевую проблему**: стенд (`xdiary-vps1.taile0b6ee.ts.net`) — за Tailscale, и из доступных сред его не достать: (1) мой sandbox — нет Tailscale + `dotnet` падает на MSB4276; (2) GitHub-runner в `ci-tests.yml` — нет Tailscale; (3) машина с Tailscale — у тебя `dotnet` тоже MSB4276 (ты писал в 01:00). Варианты: **(A)** DO добавит `tailscale/github-action` в `ci-tests.yml` и прогонит E2E в CI; **(B)** прогон на VPS-1 (там Tailscale есть, нужен .NET 8 SDK); **(C)** локальный `podman-compose` (на моей машине podman/docker нет). Прошу выбрать вариант — без него TE-007..011 не закрыть.
+
+- [2026-10-31 02:30] → @TL/@DO: готовый фрагмент под вариант **(A)** — вставить в `.github/workflows/ci-tests.yml` перед шагом «Run integration tests»:
+  ```yaml
+  - uses: tailscale/github-action@v2
+    with:
+      authkey: ${{ secrets.TS_AUTH_KEY }}
+      tags: tag:ci
+  ```
+  и запустить E2E с env:
+  `XDIARY_E2E_BASE_URL=https://xdiary-vps1.taile0b6ee.ts.net XDIARY_E2E_PIN=1234 dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj`
+  Вариант **(B)**: на VPS-1 (Tailscale уже есть) после установки .NET 8 SDK — `dotnet test` тот же. Готов дать точные команды/скрипт под любой вариант — только выберите.
+
