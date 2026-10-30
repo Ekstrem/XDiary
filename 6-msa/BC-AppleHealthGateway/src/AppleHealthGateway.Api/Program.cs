@@ -20,6 +20,12 @@ builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configurat
 builder.Services.AddScoped<IAppleHealthGatewayRepository, AppleHealthGatewayCommandRepository>();
 builder.Services.AddScoped<IAppleHealthGatewayQueryRepository, AppleHealthGatewayReadRepository>();
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.EnsureCreated();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.EnsureCreated();
+}
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseHttpsRedirection();
 app.UseAuthorization();

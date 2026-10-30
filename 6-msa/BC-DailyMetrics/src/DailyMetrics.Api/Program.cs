@@ -21,6 +21,12 @@ builder.Services.AddScoped<IRepository<IDailyMetrics, IDailyMetricsAnemicModel>,
 builder.Services.AddScoped<DailyMetricsCommandRepository>();
 builder.Services.AddScoped<IDailyMetricsQueryRepository, DailyMetricsReadRepository>();
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.EnsureCreated();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.EnsureCreated();
+}
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseHttpsRedirection();
 app.UseAuthorization();
