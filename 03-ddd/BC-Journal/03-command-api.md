@@ -9,7 +9,7 @@
 | StartManualEntry | `StartManualEntry()` | `ManualEntryStarted` | — |
 | StartFromGarmin | `StartFromGarmin(activity)` | `GarminEntryStarted` | GarminActivity |
 | SpecifyWhen | `SpecifyWhen(startedAt)` | `WhenSpecified` | When |
-| ChoosePartner | `ChoosePartner(partner)` | `PartnerChosen` | PartnerRef |
+| ChooseClient | `ChooseClient(clientId)` | `ClientChosen` | clientId |
 | SpecifyPlace | `SpecifyPlace(place)` | `PlaceSpecified` | Place |
 | AddPositions | `AddPositions(positions)` | `PositionsAdded` | Positions |
 | AddAccessories | `AddAccessories(costumes, toys, fantasies, tags)` | `AccessoriesAdded` | Accessories |
@@ -24,7 +24,7 @@
 {
   "startedAt": "YYYY-MM-DDTHH:mm",
   "durationMin": 0,
-  "partner": "string",
+  "clientId": "uuid",
   "place": "string",
   "positions": ["string"],
   "costumes": ["string"],

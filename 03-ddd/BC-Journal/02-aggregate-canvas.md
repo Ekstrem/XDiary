@@ -16,18 +16,20 @@
 - Составной ключ `<guid, long>` — `guid` идентифицирует агрегат, `long` — его версию. Технический, для **быстрого поиска**. **НЕ входит в сущность.**
 
 **Сущность (Entity — корень агрегата):**
-- **Record** — совокупность признаков, однозначно идентифицирующих запись:
-  - `startedAt` («YYYY-MM-DDTHH:mm») — когда произошёл акт
-  - `durationMin` (int) — длительность
+- **Record** — совокупность признаков, однозначно идентифицирующих запись (**кто и во сколько**):
+  - `clientId` (uuid) — «кто» (ссылка на Клиента)
+  - `startedAt` («YYYY-MM-DDTHH:mm») — «во сколько»
 
 **Объект-значения (Value Objects):**
-- **PartnerRef**: partner (string — имя)
+- **Duration**: durationMin (int) — длительность
 - **Place**: place (string)
 - **Positions**: positions[] (string)
 - **Accessories**: costumes[], toys[], fantasies[], tags[]
 - **Contraception**: contraceptives[] (string), contraceptiveCount (int)
 - **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
+
+> **Клиент** — участник акта («кто»). В текущей модели это «Партнёр» (BC-Partners). Если «клиент» ≠ «партнёр» — уточни.
 
 ## 3. State Transitions (Переходы состояний)
 ```
@@ -39,6 +41,7 @@ Recorded → [Delete] → Deleted
 ## 4. Enforced Invariants (Обязательные инварианты)
 | Инвариант | Описание |
 |---|---|
+| ClientRequired | clientId обязателен до `Complete` |
 | WhenRequired | startedAt обязателен до `Complete` |
 | DurationPositive | durationMin ≥ 1 |
 | RatingRange | rating ∈ 0..5 |
@@ -56,7 +59,7 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry()` | фабрика — ручная запись | — |
 | `StartFromGarmin(activity)` | фабрика — импорт занятия Garmin | GarminActivity |
 | `SpecifyWhen(startedAt)` | «Дата» | When |
-| `ChoosePartner(partner)` | «Партнёр» | PartnerRef |
+| `ChooseClient(clientId)` | «Партнёр» (кто = клиент) | clientId |
 | `SpecifyPlace(place)` | «Место» | Place |
 | `AddPositions(positions)` | «Позы» | Positions |
 | `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
@@ -74,7 +77,7 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry` | `ManualEntryStarted` |
 | `StartFromGarmin` | `GarminEntryStarted` |
 | `SpecifyWhen` | `WhenSpecified` |
-| `ChoosePartner` | `PartnerChosen` |
+| `ChooseClient` | `ClientChosen` |
 | `SpecifyPlace` | `PlaceSpecified` |
 | `AddPositions` | `PositionsAdded` |
 | `AddAccessories` | `AccessoriesAdded` |
