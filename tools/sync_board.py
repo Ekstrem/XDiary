@@ -207,7 +207,11 @@ def main():
     for name, color in {**ROLE_COLORS, **STATUS_LABELS}.items():
         ensure_label(name, color)
 
-    created = updated = 0
+    # диагностика: чей токен и может ли он читать
+    me = rest("GET", "/user")
+    print("token-user: %s" % (me.get("login") if me else "ОШИБКА/невалиден"))
+
+    created = updated = failed = 0
     project_items = []  # (issue_node_id, status_key)
     for role_dir, role_label in ROLES.items():
         base = os.path.join("5-tech-backlog", role_dir)
@@ -238,9 +242,14 @@ def main():
                     node_id = r.get("node_id")
                 else:
                     node_id = None
+                    failed += 1
             project_items.append((node_id, status_key))
 
-    print("sync-board: created=%d updated=%d" % (created, updated))
+    print("sync-board: created=%d updated=%d failed=%d" % (created, updated, failed))
+    if failed:
+        print("  ! не удалось создать %d Issue — см. строки '! HTTP' выше" % failed,
+              file=sys.stderr)
+        sys.exit(1)
 
     pat = os.environ.get("PROJECT_PAT", "").strip()
     owner = os.environ.get("PROJECT_OWNER", "").strip()
