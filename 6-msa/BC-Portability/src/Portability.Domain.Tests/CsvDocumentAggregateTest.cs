@@ -1,57 +1,17 @@
-using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using Portability.Domain;
+using Portability.Domain.Implementation;
 using Xunit;
 
-namespace Portability.Domain.Tests;
-
-/// <summary>
-/// Доменные тесты агрегата CsvDocument (metadata-driven, in-memory).
-/// </summary>
 public class CsvDocumentAggregateTest
 {
     [Fact]
-    public void UpsertDocument_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PortabilityMetadataHelper.CreateNewAggregate(id);
-        var model = CsvDocumentBuilder.NewDocumentModel(id);
-
-        var result = aggregate.UpsertDocument(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
+    public void ExportRecords_Valid_Succeeds()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "row1", "row2" }); Assert.Equal(DomainOperationResultEnum.Success, r.Result); Assert.Equal(2, r.Model().Rows.Count); }
     [Fact]
-    public void UpsertDocument_OverExisting_Succeeds()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PortabilityMetadataHelper.CreateAggregate(CsvDocumentBuilder.ExistingDocumentModel(id));
-        var model = CsvDocumentBuilder.NewDocumentModel(id);
-
-        // Upsert: повторное сохранение документа не должно падать (нет IsNewEntity)
-        var result = aggregate.UpsertDocument(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
+    public void ImportRecords_Valid_Succeeds()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(new[] { "row1" }); Assert.Equal(DomainOperationResultEnum.Success, r.Result); }
     [Fact]
-    public void UpsertDocument_MissingSourceId_Fails()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PortabilityMetadataHelper.CreateNewAggregate(id);
-
-        var vos = CsvDocumentBuilder.BuildValueObjects();
-        vos["Root"] = new DynamicValueObject("CsvDocumentRoot", new Dictionary<string, object?>
-        {
-            ["SourceId"] = null
-        });
-        var model = DynamicAnemicModel<IPortability>.Create(id, 0, Guid.NewGuid(), "UpsertDocument", "UpsertDocument", vos);
-
-        var result = aggregate.UpsertDocument(model, model.CommandName.CreateCommandMetadata());
-
-        // Инвариант PropertyNotNull:Root.SourceId должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
+    public void ImportSomatic_Valid_Succeeds()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).ImportSomatic(new[] { "row1" }); Assert.Equal(DomainOperationResultEnum.Success, r.Result); }
 }
