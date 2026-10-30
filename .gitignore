@@ -20,3 +20,6 @@ obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# авто-сводка чата (генерируется из outbox, не коммитим)
+5-tech-backlog/chat/_dialogue.md

@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: "chat-merge"
@@ -36,14 +36,8 @@ jobs:
       - name: Merge outbox -> _dialogue.md
         run: python tools/merge_chat.py
 
-      - name: Commit merged dialogue (if changed)
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add 5-tech-backlog/chat/_dialogue.md
-          if git diff --cached --quiet; then
-            echo "нет изменений"
-          else
-            git commit -m "chat: авто-сводка диалога"
-            git push
-          fi
+      - name: Upload dialogue artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-dialogue
+          path: 5-tech-backlog/chat/_dialogue.md
