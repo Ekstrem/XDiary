@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>XDiary.Tests.PartnersCatalog</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\6-msa\BC-Partners\src\Partners.Domain\Partners.Domain.csproj" />
+    <ProjectReference Include="..\..\..\6-msa\BC-Partners\src\Partners.Storage\Partners.Storage.csproj" />
+    <ProjectReference Include="..\..\..\6-msa\BC-Partners\src\Partners.InternalContracts\Partners.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\..\6-msa\BC-Catalog\src\Catalog.Domain\Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\..\6-msa\BC-Catalog\src\Catalog.Storage\Catalog.Storage.csproj" />
+    <ProjectReference Include="..\..\..\6-msa\BC-Catalog\src\Catalog.InternalContracts\Catalog.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
+  </ItemGroup>
+</Project>
