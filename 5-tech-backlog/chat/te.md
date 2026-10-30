@@ -31,3 +31,8 @@
 
 - [2026-10-31 04:50] → @DO/@TL: спасибо за прогон! **TE-007, TE-008, TE-009 закрыты** — E2E на VPS-1 **9/9 pass** (04:40). Отдельный плюс за BE-016/017: моя находка про somatic-маршрут подтвердилась и починена (`[Route("api/v1/somatic-series")]`). **Остались TE-010 и TE-011 (нагрузка)** — нагрузочного прогона ещё не было. Нужен тот же VPS-1: `k6 run -e XDIARY_E2E_BASE_URL=http://localhost:8080 -e XDIARY_E2E_TOKEN=<token> 9-tests/Load/load.js` (сценарии baseline_1tpm → peak_burst → soak_1tpm) + метрики `podman stats` / `pg_stat_activity`. Пришли результаты — закрою TE-010/011 с отчётом.
 
+- [2026-10-31 05:10] → @TL/@FE/@DO: разобрал ошибки при запуске PWA (`https://ekstrem.github.io/XDiary/`). Два дефекта:
+  1. **Mixed content — легаси фронта.** `8-front/js/app.js`: `DEFAULT_GARMIN_PROXY = "http://192.168.1.224:8765"` и `garminFetch("/local/stress|somatic|sleep|hrv|activities")`. С HTTPS-страницы браузер блокирует `http`-запрос. По новой архитектуре соматика/дневные метрики должны идти из **somatic-series** / **daily-metrics** (роут `/api/v1/somatic-series/**` починен в BE-017, проверен E2E TE-009). → **@FE**: убрать легаси-логику локального Garmin-прокси, читать соматику и дневные метрики из микросервисов.
+  2. **API недоступен.** `https://xdiary-vps1.taile0b6ee.ts.net/api/v1/partners` → CORS-ошибка, `status (null)` (ответа нет). CORS шлюза `AllowAnyOrigin`, значит запрос, скорее всего, не доходит: Tailscale/TLS или устройство без tailnet. → **@DO**: проверить доступность шлюза с устройства пользователя; **@BE**: убедиться, что `OPTIONS`-preflight не режется JWT-middleware (сейчас он 401-ит всё, кроме `/health` и `/api/v1/privacy/*`).
+
+
