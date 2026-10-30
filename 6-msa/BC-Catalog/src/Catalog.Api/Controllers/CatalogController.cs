@@ -1,62 +1,36 @@
-using Catalog.Application;
-using Catalog.Application.Commands;
-using Catalog.Application.Queries;
+namespace Catalog.Api.Controllers;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Catalog.Application.Commands;
+using Catalog.Application.Queries;
+using Catalog.Domain;
+using Catalog.Domain.Abstraction;
+using XDiary.Contracts;
 
-namespace Catalog.Api.Controllers;
-
-/// <summary>
-/// Command/Query API каталога: /api/v1/catalog.
-/// </summary>
 [ApiController]
 [Route("api/v1/catalog")]
-public class CatalogController : ControllerBase
+public sealed class CatalogController : ControllerBase
 {
     private readonly IMediator _mediator;
-
     public CatalogController(IMediator mediator) => _mediator = mediator;
+    private IActionResult Respond(AggregateResult<ICatalog, ICatalogAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
-    /// <summary>Создать элемент каталога.</summary>
     [HttpPost]
-    public async Task<ActionResult<CatalogOperationResult>> Create(
-        [FromBody] CreateItemCommand command, CancellationToken ct)
-    {
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Отредактировать элемент каталога (в т.ч. архив/возврат).</summary>
-    [HttpPut("{id:guid}")]
-    public async Task<ActionResult<CatalogOperationResult>> Update(
-        Guid id, [FromBody] UpdateItemCommand command, CancellationToken ct)
-    {
-        command.AggregateId = id;
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Удалить элемент каталога.</summary>
+    public async Task<IActionResult> Add([FromBody] AddCatalogItemCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPut("{id:guid}/name")]
+    public async Task<IActionResult> Rename(Guid id, [FromBody] RenameCatalogItemCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    [HttpPut("{id:guid}/details")]
+    public async Task<IActionResult> UpdateDetails(Guid id, [FromBody] UpdateCatalogItemDetailsCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    [HttpPost("{id:guid}/archive")]
+    public async Task<IActionResult> Archive(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new ArchiveCatalogItemCommand(id), ct));
+    [HttpPost("{id:guid}/restore")]
+    public async Task<IActionResult> Restore(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RestoreCatalogItemCommand(id), ct));
     [HttpDelete("{id:guid}")]
-    public async Task<ActionResult<CatalogOperationResult>> Delete(Guid id, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new DeleteItemCommand { AggregateId = id }, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Деталь элемента.</summary>
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new GetCatalogItemByIdQuery { AggregateId = id }, ct);
-        return result == null ? NotFound() : Ok(result);
-    }
-
-    /// <summary>Список элементов каталога.</summary>
+    public async Task<IActionResult> Remove(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RemoveCatalogItemCommand(id), ct));
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct)
-    {
-        var result = await _mediator.Send(new ListCatalogItemsQuery(), ct);
-        return Ok(result);
-    }
+    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListCatalogItemsQuery(), ct));
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> Get(Guid id, CancellationToken ct)
+    { var r = await _mediator.Send(new GetCatalogItemByIdQuery(id), ct); return r is null ? NotFound() : Ok(r); }
 }

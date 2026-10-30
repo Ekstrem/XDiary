@@ -1,0 +1,11 @@
+namespace Catalog.Application.Commands;
+using DigiTFactory.Libraries.SeedWorks.Result;
+using MediatR;
+using Catalog.Domain;
+using Catalog.Domain.Abstraction;
+public sealed record AddCatalogItemCommand(string Kind, string Name) : IRequest<AggregateResult<ICatalog, ICatalogAnemicModel>>;
+public sealed record RenameCatalogItemCommand(Guid AggregateId, string Name) : IRequest<AggregateResult<ICatalog, ICatalogAnemicModel>>;
+public sealed record UpdateCatalogItemDetailsCommand(Guid AggregateId, string Photo, string Notes, string Brand, string FantasyPartner) : IRequest<AggregateResult<ICatalog, ICatalogAnemicModel>>;
+public sealed record ArchiveCatalogItemCommand(Guid AggregateId) : IRequest<AggregateResult<ICatalog, ICatalogAnemicModel>>;
+public sealed record RestoreCatalogItemCommand(Guid AggregateId) : IRequest<AggregateResult<ICatalog, ICatalogAnemicModel>>;
+public sealed record RemoveCatalogItemCommand(Guid AggregateId) : IRequest<AggregateResult<ICatalog, ICatalogAnemicModel>>;
