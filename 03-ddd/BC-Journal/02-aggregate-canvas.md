@@ -1,69 +1,77 @@
-# Aggregate Design Canvas: Record (Запись)
+# Aggregate Design Canvas: Record (Запись / Акт)
 
-> Bounded Context: Журнал интимной активности
+> Bounded Context: Журнал интимной активности (Journal)
 > Агрегат: Record
-> Профиль: Single-writer (локальная PWA, одна вкладка)
+> Профиль: Single-writer (пара, локальная PWA)
 
 ## 1. Name (Имя)
-- **Имя:** Record (Запись / Акт)
-- **Создаётся когда:** пользователь проходит визард и жмёт «Сохранить» (saveWizard)
-- **Завершается когда:** удаление записи (deleteFromWizard) или полная очистка (wipeAll)
+- **Имя:** Record (Запись / Акт).
+- **Создаётся когда:** пользователь начинает фиксацию акта — **вручную** (визард) или **из импортированного занятия Garmin**.
+- **Завершается когда:** удаление записи или полная очистка данных.
 
 ## 2. Description (Описание)
-Агрегат Record защищает целостность одной фиксации акта. Единственный агрегат контекста; хранится в IndexedDB `records`.
+Агрегат защищает целостность одной фиксации акта. Хранится в IndexedDB `records`.
 
-**Value Objects:**
-- **Root** (RecordRoot): id (uuid), startedAt («YYYY-MM-DDTHH:mm»), durationMin (int)
+> **Id / Version — вне домена.** Их предоставляет фреймворк EDM через `IAggregateRoot<IJournal>` (root-интерфейс несёт Id и Version). В Value Objects домена Id/Version **не** описываем.
+
+**Value Objects (домен):**
+- **When**: startedAt («YYYY-MM-DDTHH:mm»)
 - **PartnerRef**: partner (string — имя)
 - **Place**: place (string)
 - **Positions**: positions[] (string)
 - **Accessories**: costumes[], toys[], fantasies[], tags[]
 - **Contraception**: contraceptives[] (string), contraceptiveCount (int)
+- **Duration**: durationMin (int)
 - **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
 
 ## 3. State Transitions (Переходы состояний)
 ```
-(нет) → [CreateRecord] → Created
-Created → [UpdateRecord] → Created
-Created → [DeleteRecord] → Deleted
-(нет) → [ImportRecord] → Created (upsert по id)
+(нет) → [StartManualEntry] → Draft ─┐
+(нет) → [StartFromGarmin] → Draft ─┤→ [шаги визарда] → Draft → [Complete] → Recorded
+Recorded → [Delete] → Deleted
 ```
 
 ## 4. Enforced Invariants (Обязательные инварианты)
-| Инвариант | Описание | Источник |
-|---|---|---|
-| StartedAtRequired | startedAt обязателен | saveWizard (wizardStep=0) |
-| DurationPositive | durationMin ≥ 1 | saveWizard (wizardStep=6) |
-| RatingRange | orgasm*Rating ∈ 0..5 | UI (звёзды) |
-| PartnerTouched | partnerTouched не даёт перезаписать партнёра авто-подстановкой | stepPartner |
+| Инвариант | Описание |
+|---|---|
+| WhenRequired | startedAt обязателен до `Complete` |
+| DurationPositive | durationMin ≥ 1 |
+| RatingRange | rating ∈ 0..5 |
+| GarminPrefilled | `StartFromGarmin` предзаполняет startedAt / durationMin / garminId |
 
 ## 5. Corrective Policies (Компенсирующие действия)
 | Политика | Триггер | Действие |
 |---|---|---|
-| JournalRefresh | RecordCreated/Updated/Deleted | renderJournal() перерисовывает журнал |
-| AnalyticsNotify | RecordCreated/Updated | событие «акт записан» → Аналитика (корреляции) |
+| JournalRefresh | RecordRecorded / RecordDeleted | перерисовать журнал |
+| AnalyticsNotify | RecordRecorded | событие «акт записан» → Аналитика |
 
-## 6. Handled Commands (Обрабатываемые команды)
-| Команда | Функция (код) | Входные VO | Инициатор |
-|---|---|---|---|
-| CreateRecord | saveWizard() | RecordDraft | UI |
-| UpdateRecord | saveWizard() (editingId) | RecordDraft + id | UI |
-| DeleteRecord | deleteFromWizard() | id | UI |
-| ImportRecord | csvToRecords() → DB.putRecord | CSV-строка | UI |
+## 6. Handled Commands (методы агрегата — по экранам визарда/CJM)
+| Метод (код) | Экран (CJM) | Входные VO |
+|---|---|---|
+| `StartManualEntry()` | фабрика — ручная запись | — |
+| `StartFromGarmin(activity)` | фабрика — импорт занятия Garmin | GarminActivity |
+| `SpecifyWhen(startedAt)` | «Дата» | When |
+| `ChoosePartner(partner)` | «Партнёр» | PartnerRef |
+| `SpecifyPlace(place)` | «Место» | Place |
+| `AddPositions(positions)` | «Позы» | Positions |
+| `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
+| `RecordContraception(contraceptives, count)` | «Контрацепция» | Contraception |
+| `SpecifyDuration(durationMin)` | «Длительность» | Duration |
+| `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | «Оргазмы» | Orgasms |
+| `Complete()` | «Итог» | — |
+| `Delete()` | — | — |
 
 ## 7. Created Events (Порождаемые события)
-| Событие | Изменённые VO | Когда |
-|---|---|---|
-| RecordCreated | все VO | CreateRecord |
-| RecordUpdated | все VO | UpdateRecord |
-| RecordDeleted | — | DeleteRecord |
-| RecordImported | все VO | ImportRecord |
+| Событие | Когда |
+|---|---|
+| `RecordDraftStarted` | StartManualEntry / StartFromGarmin |
+| `RecordRecorded` | Complete |
+| `RecordDeleted` | Delete |
 
 ## 8. Throughput (Пропускная способность)
-- Частота команд: единицы в день (одна пара).
-- Конкурентность: нет (одна вкладка, IndexedDB).
+- Частота: единицы в день (одна пара).
 
 ## 9. Size (Размер)
-- Событий за жизнь: 1..несколько (создание + редкие правки).
-- Снапшоты: не нужны — текущее состояние хранится в `records`.
+- Событий за жизнь: несколько (старт + финализация + редкие правки).
+- Снапшоты: не нужны — текущее состояние в `records`.
