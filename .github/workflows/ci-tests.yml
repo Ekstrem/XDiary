@@ -22,3 +22,20 @@ jobs:
             echo "=== $proj ==="
             dotnet test "$proj" --verbosity minimal
           done
+
+  front-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: 9-tests/RnD/front-e2e
+        run: npm ci || npm install
+      - name: Install Playwright browsers
+        working-directory: 9-tests/RnD/front-e2e
+        run: npx playwright install --with-deps chromium
+      - name: Front E2E
+        working-directory: 9-tests/RnD/front-e2e
+        run: npm test
