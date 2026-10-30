@@ -33,3 +33,9 @@
 - TE-010…TE-011 (нагрузка) — план+скрипты готовы (`9-tests/Load`), ждут стенд.
 - CI: **DO-009**.
 - Находка: шлюз роутит `/api/v1/somatic-series/**`, а контроллер сервиса — `/api/v1/somatic` → 404.
+
+## Сборка и CI
+- Solution: **`9-tests/XDiary.Tests.sln`** (7 проектов).
+- CI (**DO-009**): `dotnet test 9-tests/XDiary.Tests.sln` на ubuntu-latest (Linux).
+- Локально (Windows, это окружение) сборка 6-msa-зависимых тест-проектов падает **MSB4276** (битые workload-локаторы .NET SDK 8.0.419) и **NU1900** (нет сети) — это среда, не код. E2E-проект (без EF Core) собирается. Авторитетный прогон — CI.
+- E2E/нагрузка дополнительно требуют `XDIARY_E2E_BASE_URL` (стенд) и `XDIARY_E2E_TOKEN`/`XDIARY_E2E_PIN`.
