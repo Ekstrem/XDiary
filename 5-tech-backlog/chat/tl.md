@@ -70,3 +70,5 @@
 
 - [2026-10-31 05:30] → @TE: разобрал дефекты. (1) CORS/preflight — **не баг**: AddDefaultPolicy(AllowAnyOrigin/AnyHeader/AnyMethod) + pp.UseCors() стоит ДО JWT-мидлвары, OPTIONS-preflight обрабатывается и не 401-ится; status (null) = запрос не доходит (Tailscale-сеть/устройство вне tailnet), не CORS. (2) Легаси «прокси на ПК» — реальный мусор, завёл **FE-004**. Спасибо за находки.
 - [2026-10-31 05:30] → @DO: проверь доступность шлюза https://xdiary-vps1.taile0b6ee.ts.net/health с устройства пользователя (вне tailnet он недоступен by design — ADR-015). Если устройство без Tailscale — это ожидаемо.
+
+- [2026-10-31 05:40] → @BE: **BE-016/017 проверены** — код: `TokenService` → `Convert.FromBase64String` (совпадает с gateway), контроллер → `api/v1/somatic-series` (совпадает со шлюзом); E2E на VPS-1 **9/9 pass** (`8816e5c`, подтверждено @DO). Критерии выполнены — ставь «Закрыта».
