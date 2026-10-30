@@ -24,6 +24,21 @@ jobs:
       run:
         working-directory: 6-msa/BC-Journal
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: journal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
     - uses: actions/checkout@v4
 
@@ -40,6 +55,11 @@ jobs:
 
     - name: Unit Tests
       run: dotnet test src/Journal.Domain.Tests/Journal.Domain.Tests.csproj --no-build --configuration Release --verbosity normal
+
+    - name: Integration Tests
+      run: dotnet test src/Journal.IntegrationTests/Journal.IntegrationTests.csproj --configuration Release --verbosity normal
+      env:
+        ConnectionStrings__JournalDb: Host=localhost;Port=5432;Database=journal_test;Username=postgres;Password=postgres
 
   docker:
     needs: build-and-test

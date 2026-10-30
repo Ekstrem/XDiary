@@ -1,0 +1,95 @@
+# Aggregate Design Canvas: Record (Запись / Акт)
+
+> Bounded Context: Журнал интимной активности (Journal)
+> Агрегат: Record
+> Профиль: Single-writer (пара, локальная PWA)
+
+## 1. Name (Имя)
+- **Имя:** Record (Запись / Акт).
+- **Создаётся когда:** пользователь начинает фиксацию акта — **вручную** (визард) или **из импортированного занятия Garmin**.
+- **Завершается когда:** удаление записи или полная очистка данных.
+
+## 2. Description (Описание)
+Агрегат защищает целостность одной фиксации акта. Хранится в IndexedDB `records`.
+
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — `guid` идентифицирует агрегат, `long` — его версию. Технический, для **быстрого поиска**. **НЕ входит в сущность.**
+
+**Сущность (Entity — корень агрегата):**
+- **Record** — совокупность признаков, однозначно идентифицирующих запись (**кто и во сколько**):
+  - `partnerId` (uuid) — «кто» (ссылка на Партнёра)
+  - `startedAt` («YYYY-MM-DDTHH:mm») — «во сколько»
+
+**Объект-значения (Value Objects):**
+- **Duration**: durationMin (int) — длительность
+- **Place**: place (string)
+- **Positions**: positions[] (string)
+- **Accessories**: costumes[], toys[], fantasies[], tags[]
+- **Contraception**: contraceptives[] (string), contraceptiveCount (int)
+- **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
+- **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
+
+> «Клиент» = «Партнёр»; в домене используем **«партнёр»**. Отдельный BC «Клиент» (комплаенс/безопасность) — позже.
+
+## 3. State Transitions (Переходы состояний)
+```
+(нет) → [StartManualEntry] → Draft ─┐
+(нет) → [StartFromGarmin] → Draft ─┤→ [шаги визарда] → Draft → [Complete] → Recorded
+Recorded → [Delete] → Deleted
+```
+
+## 4. Enforced Invariants (Обязательные инварианты)
+| Инвариант | Описание |
+|---|---|
+| PartnerRequired | partnerId обязателен до `Complete` |
+| WhenRequired | startedAt обязателен до `Complete` |
+| DurationPositive | durationMin ≥ 1 |
+| RatingRange | rating ∈ 0..5 |
+| GarminPrefilled | `StartFromGarmin` предзаполняет startedAt / durationMin / garminId |
+
+## 5. Corrective Policies (Компенсирующие действия)
+| Политика | Триггер | Действие |
+|---|---|---|
+| JournalRefresh | любое событие записи | перерисовать журнал |
+| AnalyticsNotify | RecordCompleted | событие «акт записан» → Аналитика |
+
+## 6. Handled Commands (методы агрегата — по экранам визарда/CJM)
+| Метод (код) | Экран (CJM) | Входные VO |
+|---|---|---|
+| `StartManualEntry()` | фабрика — ручная запись | — |
+| `StartFromGarmin(activity)` | фабрика — импорт занятия Garmin | GarminActivity |
+| `SpecifyWhen(startedAt)` | «Дата» | When |
+| `ChoosePartner(partnerId)` | «Партнёр» | partnerId |
+| `SpecifyPlace(place)` | «Место» | Place |
+| `AddPositions(positions)` | «Позы» | Positions |
+| `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
+| `RecordContraception(contraceptives, count)` | «Контрацепция» | Contraception |
+| `SpecifyDuration(durationMin)` | «Длительность» | Duration |
+| `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | «Оргазмы» | Orgasms |
+| `Complete()` | «Итог» | — |
+| `Delete()` | — | — |
+
+## 7. Created Events (Порождаемые события)
+Каждый метод порождает доменное событие, **соразмерное названию метода** (через нотификатор доменных сообщений DF):
+
+| Метод | Событие |
+|---|---|
+| `StartManualEntry` | `ManualEntryStarted` |
+| `StartFromGarmin` | `GarminEntryStarted` |
+| `SpecifyWhen` | `WhenSpecified` |
+| `ChoosePartner` | `PartnerChosen` |
+| `SpecifyPlace` | `PlaceSpecified` |
+| `AddPositions` | `PositionsAdded` |
+| `AddAccessories` | `AccessoriesAdded` |
+| `RecordContraception` | `ContraceptionRecorded` |
+| `SpecifyDuration` | `DurationSpecified` |
+| `RecordOrgasms` | `OrgasmsRecorded` |
+| `Complete` | `RecordCompleted` |
+| `Delete` | `RecordDeleted` |
+
+## 8. Throughput (Пропускная способность)
+- Частота: единицы в день (одна пара).
+
+## 9. Size (Размер)
+- Событий за жизнь: 1..N (по одному на каждый вызванный метод).
+- Снапшоты: не нужны — текущее состояние в `records`.
