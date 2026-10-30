@@ -78,7 +78,7 @@ public class RecordAggregateTest
     {
         var id = Guid.NewGuid();
         var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos("", "2026-10-29T21:00"));
+        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(null!, "2026-10-29T21:00"));
 
         // Инвариант PropertyNotNull:Root.PartnerId должен провалиться
         var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
