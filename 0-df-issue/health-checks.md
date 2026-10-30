@@ -20,3 +20,6 @@
 1. Поверхностный: `builder.Services.AddHealthChecks()` + `app.MapHealthChecks("/health")` в каждом сервисе.
 2. Глубокий: `AddNpgSql(connectionString)` (или кастомный `IHealthCheck` с `CanConnectAsync()`) для проверки PostgreSQL.
 3. В шлюзе (YARP) пробросить `/health` или добавить свои пробы.
+## ✅ Реализовано (2026-10-31)
+- `AddHealthChecks()` + `MapHealthChecks("/health")` во всех 9 сервисах.
+- Кастомный `DbHealthCheck` (`CanConnectAsync()`) — глубокий, без нового NuGet-пакета.

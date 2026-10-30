@@ -21,3 +21,7 @@
 1. Добавить EF-миграции: `dotnet ef migrations add InitialCreate` для `CommandDbContext` каждого сервиса.
 2. Заменить `EnsureCreated()` на `CommandDbContext.Database.Migrate()`.
 3. Либо (вариант B) вернуться к пакетам `AddEventStorePostgres` / `AddReadStorePostgres`, которые сами управляют схемой.
+## ✅ Реализовано (2026-10-31)
+- `dotnet ef migrations add InitialCreate` для `CommandDbContext` всех 9 сервисов + `CommandDbContextFactory`.
+- `Program.cs`: `EnsureCreated()` → `Database.Migrate()`.
+- Portability: дополнительная миграция `AddKind` (поле `Kind`).
