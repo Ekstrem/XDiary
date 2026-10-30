@@ -2,7 +2,7 @@
 
 Артефакты для задач `5-tech-backlog/devops` (DO-001…DO-006). Целевая архитектура:
 10 микросервисов (.NET 8, профиль Single) + API Gateway (YARP) на ВМ-1 (podman rootless),
-PostgreSQL (1 кластер, 10 БД) на ВМ-2. Источник: `04-architecture/vps-setup.md`,
+PostgreSQL (1 кластер, 10 БД) co-located на ВМ-1 (контейнер `xdiary-pg`); ВМ-2 — бэкап-таргет. Источник: `04-architecture/vps-setup.md`,
 `04-architecture/vm-sizing.md`, ADR-001/003/004/009/010/015.
 
 ## Состав
@@ -13,20 +13,20 @@ PostgreSQL (1 кластер, 10 БД) на ВМ-2. Источник: `04-archit
 | `secrets/.env.example` | шаблон секретов (JWT, Garmin, пароли БД) | DO-005 |
 | `db/init-databases.sql` | 10 ролей + 10 БД (owner = своя роль) | DO-002 |
 | `provision-vps1.sh` | база + podman + .NET SDK + Tailscale + caddy + безопасность | DO-001/003/004 |
-| `provision-vps2.sh` | база + PostgreSQL 16 + 10 БД + файрвол + бэкап | DO-001/002/006 |
+| `provision-vps2.sh` | база + файрвол + бэкап-таргет (приём дампов с VPS-1) | DO-001/006 |
 | `setup-caddy.sh` | TLS через Tailscale (MagicDNS + `tailscale cert`, 443 → 8080) | DO-004 |
-| `backup-postgres.sh` | `pg_dumpall` + ротация + restore-тест | DO-006 |
+| `backup-postgres.sh` | `pg_dumpall` с VPS-1 → VPS-2 + ротация (бэкап-таргет) | DO-006 |
 
 ## Топология
 
 ```
-PWA (телефон) --HTTPS (Tailscale, xdiary.vps1.ts.net)--> VPS-1 (caddy -> api-gateway:8080 -> 10 сервисов)
+PWA (телефон) --HTTPS (Tailscale, xdiary.vps1.ts.net)--> VPS-1 (caddy -> api-gateway:8080 -> 10 сервисов -> PostgreSQL 10 БД, контейнер xdiary-pg)
                                                             \
-                                                             --5432 (приватная сеть)--> VPS-2 (PostgreSQL, 10 БД)
+                                                             --scp pg_dumpall (cron 02:30)--> VPS-2 (бэкап-таргет)
 ```
 
 - **VPS-1** `ru-vps-msahost` (31.192.111.168): podman rootless от `deploy`, шлюз на `127.0.0.1:8080`; публично открыт только 22, доступ к PWA — только через Tailscale (ADR-015).
-- **VPS-2**: PostgreSQL 16, `listen_addresses` = приватный IP, `pg_hba` разрешает только VPS-1.
+- **VPS-2**: бэкап-таргет — принимает ежедневные дампы `pg_dumpall` с VPS-1 (в `~/backups/` пользователя ubuntu).
 
 ## Порядок развёртывания
 
@@ -64,4 +64,4 @@ PWA (телефон) --HTTPS (Tailscale, xdiary.vps1.ts.net)--> VPS-1 (caddy -> 
 - `secrets/.env` — `chmod 600`, **не коммитить** (репозиторий публичный; `.gitignore` уже исключает).
 - SSH только по ключам (`PermitRootLogin no`, `PasswordAuthentication no`).
 - Скрипты НЕ отключают парольный вход, пока не установлен `authorized_keys` (`PUBLIC_KEY`).
-- PostgreSQL наружу не публикуется: только приватная сеть, только с VPS-1.
+- PostgreSQL локальный на VPS-1 (контейнер `xdiary-pg`, доступен только внутри сети xdiary), наружу не публикуется.
