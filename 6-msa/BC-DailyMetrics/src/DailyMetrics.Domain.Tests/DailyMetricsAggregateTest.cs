@@ -1,57 +1,20 @@
-using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using DailyMetrics.Domain;
+using DailyMetrics.Domain.Implementation;
 using Xunit;
 
-namespace DailyMetrics.Domain.Tests;
-
-/// <summary>
-/// Доменные тесты агрегата DailyMetrics (metadata-driven, in-memory).
-/// </summary>
 public class DailyMetricsAggregateTest
 {
     [Fact]
-    public void ImportDaily_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = DailyMetricsMetadataHelper.CreateNewAggregate(id);
-        var model = DailyMetricsBuilder.NewMetricsModel(id);
-
-        var result = aggregate.ImportDaily(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
+    public void RecordStress_Valid_Succeeds()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 50); Assert.Equal(DomainOperationResultEnum.Success, r.Result); }
     [Fact]
-    public void ImportDaily_OverExisting_Succeeds()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = DailyMetricsMetadataHelper.CreateAggregate(DailyMetricsBuilder.ExistingMetricsModel(id));
-        var model = DailyMetricsBuilder.NewMetricsModel(id);
-
-        // Upsert: повторный импорт той же даты не должен падать (нет IsNewEntity)
-        var result = aggregate.ImportDaily(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
+    public void RecordStress_BadDate_Fails()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).RecordStress("bad", 50); Assert.NotEqual(DomainOperationResultEnum.Success, r.Result); }
     [Fact]
-    public void ImportDaily_MissingDate_Fails()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = DailyMetricsMetadataHelper.CreateNewAggregate(id);
-
-        var vos = DailyMetricsBuilder.BuildValueObjects();
-        vos["Root"] = new DynamicValueObject("DailyMetricsRoot", new Dictionary<string, object?>
-        {
-            ["Date"] = null
-        });
-        var model = DynamicAnemicModel<IDailyMetrics>.Create(id, 0, Guid.NewGuid(), "ImportDaily", "ImportDaily", vos);
-
-        var result = aggregate.ImportDaily(model, model.CommandName.CreateCommandMetadata());
-
-        // Инвариант PropertyNotNull:Root.Date должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
+    public void RecordHrv_Negative_Fails()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).RecordHrv("2026-10-29", -1); Assert.NotEqual(DomainOperationResultEnum.Success, r.Result); }
+    [Fact]
+    public void RecordSleep_Valid_Succeeds()
+    { var s = Sleep.CreateInstance(80, 480, 120, 240, 90, 30); var r = Aggregate.CreateInstance(new AnemicModel()).RecordSleep("2026-10-29", s); Assert.Equal(DomainOperationResultEnum.Success, r.Result); }
 }

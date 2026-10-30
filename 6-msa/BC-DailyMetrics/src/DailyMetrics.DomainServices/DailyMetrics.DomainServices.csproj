@@ -9,12 +9,13 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.5.0" />
-    <PackageReference Include="DigiTFactory.Libraries.AbstractAggregate" Version="0.1.0" />
+    <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DailyMetrics.Domain\DailyMetrics.Domain.csproj" />
     <ProjectReference Include="..\DailyMetrics.InternalContracts\DailyMetrics.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

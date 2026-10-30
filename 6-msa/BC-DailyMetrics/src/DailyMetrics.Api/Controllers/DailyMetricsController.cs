@@ -1,37 +1,29 @@
-using DailyMetrics.Application;
-using DailyMetrics.Application.Commands;
-using DailyMetrics.Application.Queries;
+namespace DailyMetrics.Api.Controllers;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using DailyMetrics.Application.Commands;
+using DailyMetrics.Application.Queries;
+using DailyMetrics.Domain;
+using DailyMetrics.Domain.Abstraction;
+using XDiary.Contracts;
 
-namespace DailyMetrics.Api.Controllers;
-
-/// <summary>
-/// Command/Query API дневных метрик: /api/v1/daily-metrics.
-/// </summary>
 [ApiController]
 [Route("api/v1/daily-metrics")]
-public class DailyMetricsController : ControllerBase
+public sealed class DailyMetricsController : ControllerBase
 {
     private readonly IMediator _mediator;
-
     public DailyMetricsController(IMediator mediator) => _mediator = mediator;
+    private IActionResult Respond(AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
-    /// <summary>Импортировать дневную сводку (upsert по date).</summary>
-    [HttpPost]
-    public async Task<ActionResult<DailyMetricsOperationResult>> Import(
-        [FromBody] ImportDailyCommand command, CancellationToken ct)
-    {
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Дневные тренды в диапазоне дат.</summary>
+    [HttpPost("stress")]
+    public async Task<IActionResult> Stress([FromBody] RecordStressCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPost("resting-hr")]
+    public async Task<IActionResult> RestingHr([FromBody] RecordRestingHrCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPost("hrv")]
+    public async Task<IActionResult> Hrv([FromBody] RecordHrvCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPost("sleep")]
+    public async Task<IActionResult> Sleep([FromBody] RecordSleepCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpGet("series")]
-    public async Task<IActionResult> Series(
-        [FromQuery] string fromDate, [FromQuery] string toDate, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new GetDailySeriesQuery { FromDate = fromDate, ToDate = toDate }, ct);
-        return Ok(result);
-    }
+    public async Task<IActionResult> Series([FromQuery] string fromDate, [FromQuery] string toDate, CancellationToken ct) => Ok(await _mediator.Send(new GetDailySeriesQuery(fromDate, toDate), ct));
 }

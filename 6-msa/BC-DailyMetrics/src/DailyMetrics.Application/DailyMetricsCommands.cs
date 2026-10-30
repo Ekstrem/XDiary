@@ -1,0 +1,10 @@
+namespace DailyMetrics.Application.Commands;
+using DigiTFactory.Libraries.SeedWorks.Result;
+using MediatR;
+using DailyMetrics.Domain;
+using DailyMetrics.Domain.Abstraction;
+public sealed record SleepDto(int Score, int DurationMin, int DeepMin, int LightMin, int RemMin, int AwakeMin);
+public sealed record RecordStressCommand(string Date, int Stress) : IRequest<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>;
+public sealed record RecordRestingHrCommand(string Date, int RestingHr) : IRequest<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>;
+public sealed record RecordHrvCommand(string Date, int Hrv) : IRequest<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>;
+public sealed record RecordSleepCommand(string Date, SleepDto Sleep) : IRequest<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>;
