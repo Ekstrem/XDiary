@@ -18,15 +18,18 @@
   Gateways/Gateways.IntegrationTests/            — TE-004
   Analytics.Privacy/AnalyticsPrivacy.IntegrationTests/ — TE-005
   Portability.Gateway/PortabilityGateway.IntegrationTests/ — TE-006
+  E2E/E2E.Tests/                                 — TE-007..TE-009 (HTTP, env-gated по XDIARY_E2E_BASE_URL)
+  Load/                                          — TE-010..TE-011 (k6 load.js + load.ps1 + план)
 ```
 
 ## Статус по TE
-- TE-001 (journal) — ✅ закрыта (проверено TL).
+- TE-001 (journal) — ✅ закрыта (TL).
 - TE-002 (partners+catalog) — ✅ закрыта.
 - TE-003 (somatic+daily) — ✅ закрыта.
-- TE-004 (gateways) — на проверке.
-- TE-005 (analytics+privacy) — на проверке; **gap:** JWT-выдача в privacy не реализована (только verify на шлюзе).
+- TE-004 (gateways) — ✅ закрыта (TL, 21:40).
+- TE-005 (analytics+privacy) — на проверке; **gap:** JWT-выдача в privacy не реализована → **BE-014**.
 - TE-006 (portability+gateway) — на проверке; **gap:** идемпотентность импорта по `id` не реализована.
-- TE-007…TE-009 (E2E) — ждут FE-001 (сейчас «На проверке»).
-- TE-010…TE-011 (нагрузка) — нужна развёрнутая среда (VPS).
-- CI: **DO-009** — DevOps добавляет workflow для `9-tests`.
+- TE-007…TE-009 (E2E) — тесты готовы (`9-tests/E2E`), ждут **BE-014** (JWT) + стенд.
+- TE-010…TE-011 (нагрузка) — план+скрипты готовы (`9-tests/Load`), ждут стенд.
+- CI: **DO-009**.
+- Находка: шлюз роутит `/api/v1/somatic-series/**`, а контроллер сервиса — `/api/v1/somatic` → 404.
