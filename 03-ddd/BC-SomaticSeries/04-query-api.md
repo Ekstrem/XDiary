@@ -1,10 +1,11 @@
-# Query API: Соматика — минутные точки
+# Query API: Соматика — минутные точки (SomaticSeries)
+
+> Read-сторона (CEQRS): только из ReadModel.
 
 ## Запросы (чтение)
-| Запрос | Функция (код) | Response | Источник |
+| Запрос | Эндпоинт | Response | Источник |
 |---|---|---|---|
-| Срез вокруг акта | renderSomatic() / getSomaticRange | SomaticSlice | `somatic` (t в окне) |
-| График | drawChart() | Canvas | срез |
+| Срез вокруг акта | `GET /api/v1/somatic-series?from=…&to=…` | SomaticSlice | ReadModel `somatic` |
 
 ## Response DTO
 - SomaticSlice: точки (t, hr, body_battery) в окне ±15/30/60 мин.
@@ -13,3 +14,4 @@
 | Потребитель | Запросы | Назначение |
 |---|---|---|
 | Журнал | SomaticSlice | сводка соматики на детали записи |
+| Аналитика | SomaticSlice | физиопрофиль сессии |

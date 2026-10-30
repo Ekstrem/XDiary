@@ -1,18 +1,21 @@
-# Materialized Views: Соматика — минутные точки
+# Materialized Views: Соматика — минутные точки (SomaticSeries)
 
-## Проекции (IndexedDB)
+## Проекция (ReadModel)
 | Store | Тип | Обслуживает |
 |---|---|---|
-| `somatic` | минутные точки (keyPath `t`) | SomaticSlice |
+| `somatic` | ReadModel (keyPath `t`) | SomaticSlice |
 
 ## Store: somatic
 | Поле | Тип | Источник |
 |---|---|---|
-| t | string PK | minute_of(ms) |
-| hr | int | heartRateValues |
-| body_battery | int | bodyBatteryValuesArray |
+| t | string PK | сущность (минута) |
+| hr | int | VO |
+| body_battery | int | VO |
 
-## Проекционные правила
+## Проекционные правила (событие → действие)
 | Событие | Действие |
 |---|---|
-| SomaticImported | PUT (upsert по t) |
+| `SomaticPointRecorded` | PUT (upsert по t) |
+
+## Индексы
+- `t` — диапазон для среза.

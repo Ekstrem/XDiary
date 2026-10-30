@@ -1,9 +1,11 @@
-# Query API: Дневные метрики
+# Query API: Дневные метрики (DailyMetrics)
+
+> Read-сторона (CEQRS): только из ReadModel.
 
 ## Запросы (чтение)
-| Запрос | Функция (код) | Response | Источник |
+| Запрос | Эндпоинт | Response | Источник |
 |---|---|---|---|
-| Дневные тренды | renderTrends() / getWeekly | DailySeries | `weekly`, `sleep` |
+| Дневные тренды | `GET /api/v1/daily-metrics?from=…&to=…` | DailySeries | ReadModel `weekly`, `sleep` |
 
 ## Response DTO
 - DailySeries: стресс, пульс покоя, сон (оценка), HRV по датам.

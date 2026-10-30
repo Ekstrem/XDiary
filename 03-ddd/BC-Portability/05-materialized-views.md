@@ -1,16 +1,16 @@
-# Materialized Views: Переносимость данных
+# Materialized Views: Переносимость данных (Portability)
 
-## Проекции
-Постоянных хранилищ нет — контекст использует CSV как формат обмена (Published Language).
+## Проекция
+Постоянных хранилищ нет — контекст использует CSV как Published Language.
 
 | Артефакт | Тип | Источник |
 |---|---|---|
 | CSV записей | файл | `records` |
 | CSV соматики/сна | файл | `somatic`, `sleep`, `weekly` |
 
-## Правила
-| Операция | Правило |
+## Правила (событие → действие)
+| Событие | Действие |
 |---|---|
-| Экспорт | recordsToCsv() — списки через `;` |
-| Импорт записей | csvToRecords() — upsert по id |
-| Импорт соматики | распознавание по заголовку, запись в соответствующий store |
+| `RecordsExported` | сформировать CSV-файл |
+| `RecordsImported` | upsert в `records` (по id) |
+| `SomaticImported` | запись в `somatic`/`sleep`/`weekly` |

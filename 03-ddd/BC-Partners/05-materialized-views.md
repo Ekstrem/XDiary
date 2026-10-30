@@ -1,23 +1,27 @@
-# Materialized Views: Партнёры
+# Materialized Views: Партнёры (Partners)
 
-## Проекции (IndexedDB)
+## Проекция (ReadModel)
 | Store | Тип | Обслуживает |
 |---|---|---|
-| `partners` | Основная (keyPath `id`) | PartnersView, AvatarView |
+| `partners` | ReadModel (keyPath `id`) | PartnersView |
 
 ## Store: partners
 | Поле | Тип | Источник |
 |---|---|---|
-| id | string PK | uuid |
-| name | string | PartnerDraft.name |
-| photo | string (dataURL) | PartnerDraft.photo |
-| gender | string | PartnerDraft.gender |
-| notes | string | PartnerDraft.notes |
-| createdAt / updatedAt | string | системное время |
+| id | uuid PK | фреймворк DF (`<guid, long>`) |
+| name | string | сущность |
+| photo | string (dataURL) | VO |
+| gender | string | VO |
+| notes | string | VO |
+| createdAt / updatedAt | string | системное |
 
-## Проекционные правила
+## Проекционные правила (событие → действие)
 | Событие | Действие |
 |---|---|
-| PartnerCreated | INSERT |
-| PartnerUpdated | PUT (upsert по id) |
-| PartnerDeleted | DELETE |
+| `PartnerRegistered` | INSERT |
+| `PartnerRenamed` | PUT (name) |
+| `PartnerProfileUpdated` | PUT (photo/gender/notes) |
+| `PartnerRemoved` | DELETE |
+
+## Индексы
+- `name` — выбор по имени.

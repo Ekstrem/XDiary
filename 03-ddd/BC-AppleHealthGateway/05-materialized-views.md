@@ -1,13 +1,13 @@
-# Materialized Views: Шлюз Apple Health
+# Materialized Views: Шлюз Apple Health (AppleHealthGateway)
 
-## Проекции
-Шлюз не хранит постоянных данных соматики — отдаёт нормализованные DTO наружу.
+## Проекция
+Шлюз не хранит постоянных данных — отдаёт нормализованные DTO наружу.
 
-| Проекция | Тип | Назначение |
-|---|---|---|
-| Соматика (норм.) | поток DTO | → SomaticSeries / DailyMetrics |
+| Проекция | Назначение |
+|---|---|
+| Соматика (норм.) | → SomaticSeries / DailyMetrics |
 
-## Проекционные правила
+## Проекционные правила (событие → действие)
 | Событие | Действие |
 |---|---|
-| AppleSomaticsImported | отдать точки/сводки в соматику |
+| `AppleFileImported` | отдать соматику → SomaticSeries / DailyMetrics |

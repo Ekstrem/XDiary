@@ -1,18 +1,20 @@
-# Query API: Каталог и инвентарь
+# Query API: Каталог и инвентарь (Catalog)
+
+> Read-сторона (CEQRS): только из ReadModel.
 
 ## Запросы (чтение)
-| Запрос | Функция (код) | Response | Источник |
+| Запрос | Эндпоинт | Response | Источник |
 |---|---|---|---|
-| Список по виду | renderCatalog() | CatalogView (фильтр по kind) | `catalog` |
-| Форма редактирования | openCatalogEdit(id, kind) | ItemDraft | `catalog` |
-| Средства контрацепции | stepContraception() | список (неархивные) | `catalog` (kind=contraception) |
-| Фантазии (для отметки) | stepMarks() | список | `catalog` (kind=fantasy) |
+| Список по виду | `GET /api/v1/catalog?kind=toy` | CatalogView | ReadModel `catalog` |
+| Элемент | `GET /api/v1/catalog/{id}` | ItemView | ReadModel |
+| Средства контрацепции | `GET /api/v1/catalog?kind=contraception` | список | ReadModel |
 
 ## Response DTO
-- CatalogView: строки (аватар, имя, бренд/партнёр/заметки, пометка «(архив)», значок ✓ реализованной фантазии).
+- CatalogView: строки (имя, бренд/партнёр, «(архив)», ✓ реализованной фантазии).
+- ItemView: kind, name, photo, notes, brand, archived, partner.
 
 ## Потребители
 | Потребитель | Запросы | Назначение |
 |---|---|---|
-| UI пользователя | все | управление каталогом |
-| Журнал | stepMarks, stepContraception | выбор элементов в запись |
+| UI | все | управление каталогом |
+| Журнал | имена элементов | выбор в запись |

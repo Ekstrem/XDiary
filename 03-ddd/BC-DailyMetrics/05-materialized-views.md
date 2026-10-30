@@ -1,29 +1,33 @@
-# Materialized Views: Дневные метрики
+# Materialized Views: Дневные метрики (DailyMetrics)
 
-## Проекции (IndexedDB)
+## Проекция (ReadModel)
 | Store | Тип | Обслуживает |
 |---|---|---|
-| `weekly` | дневные метрики (keyPath `date`) | DailySeries |
-| `sleep` | сон (keyPath `date`) | DailySeries |
-| `sleep_weekly` | недельные агрегаты (keyPath `end`) | тренды (перспектива) |
+| `weekly` | ReadModel (keyPath `date`) | DailySeries |
+| `sleep` | ReadModel (keyPath `date`) | DailySeries |
 
 ## Store: weekly
 | Поле | Тип | Источник |
 |---|---|---|
-| date | string PK | calendarDate |
-| stress | int | overallStressLevel |
-| resting_hr | int | restingHeartRate |
-| hrv | int | lastNightAvg |
+| date | string PK | сущность (день) |
+| stress | int | VO |
+| resting_hr | int | VO |
+| hrv | int | VO |
 
 ## Store: sleep
 | Поле | Тип | Источник |
 |---|---|---|
-| date | string PK | calendarDate |
-| score | int | sleepScores.overall |
-| durationMin / deepMin / lightMin / remMin / awakeMin | int | sleepTimeSeconds и др. |
+| date | string PK | сущность (день) |
+| score | int | VO |
+| durationMin / deepMin / lightMin / remMin / awakeMin | int | VO |
 
-## Проекционные правила
+## Проекционные правила (событие → действие)
 | Событие | Действие |
 |---|---|
-| StressImported / RestingHrImported / HrvImported | PUT (merge по date) |
-| SleepImported | PUT (upsert по date) |
+| `StressRecorded` | PUT (merge по date) |
+| `RestingHrRecorded` | PUT (merge по date) |
+| `HrvRecorded` | PUT (merge по date) |
+| `SleepRecorded` | PUT (upsert по date) |
+
+## Индексы
+- `date` — диапазон трендов.

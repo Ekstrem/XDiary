@@ -1,16 +1,18 @@
-# Query API: Приватность и доступ
+# Query API: Приватность и доступ (Privacy)
+
+> Read-сторона (CEQRS).
 
 ## Запросы (чтение)
-| Запрос | Функция (код) | Response | Источник |
-|---|---|---|---|
-| Есть ли PIN | Pin.hasPin() | bool | `meta` (key «pin») |
-| Проверка PIN | Pin.verifyPin(pin) | bool | `meta` |
+| Запрос | Эндпоинт | Response |
+|---|---|---|
+| Есть ли PIN | `GET /api/v1/privacy/has-pin` | bool |
+| Проверка PIN | `POST /api/v1/privacy/verify` | bool |
 
 ## Response DTO
 - hasPin: `true | false`.
-- verifyPin: `true | false` (если PIN не установлен — всегда true).
+- verify: `true | false` (если PIN не установлен — true).
 
 ## Потребители
 | Потребитель | Запросы | Назначение |
 |---|---|---|
-| Все контексты | hasPin | gatekeeper перед доступом |
+| Все контексты | hasPin/verify | gatekeeper перед доступом |

@@ -1,20 +1,21 @@
-# Query API: Партнёры
+# Query API: Партнёры (Partners)
+
+> Read-сторона (CEQRS): только из ReadModel.
 
 ## Запросы (чтение)
-| Запрос | Функция (код) | Response | Источник |
+| Запрос | Эндпоинт | Response | Источник |
 |---|---|---|---|
-| Список партнёров | renderPartners() | PartnersView | `partners` |
-| Аватар | avatarHtml(p) | AvatarView (img/initial) | `partners.photo` |
-| Форма редактирования | openPartnerEdit(id) | PartnerDraft | `partners` |
-| Список для select | populateCatalogPartnerSelect() | имена | `partners` |
+| Список партнёров | `GET /api/v1/partners` | PartnersView | ReadModel `partners` |
+| Партнёр | `GET /api/v1/partners/{id}` | PartnerView | ReadModel |
+| Для выбора (select) | `GET /api/v1/partners?select=1` | имена | ReadModel |
 
 ## Response DTO
 - PartnersView: карточки (аватар, имя, пол).
-- AvatarView: `<img>` или инициал, если фото нет.
+- PartnerView: name, photo, gender, notes.
 
 ## Потребители
 | Потребитель | Запросы | Назначение |
 |---|---|---|
-| UI пользователя | все | управление партнёрами |
-| Журнал | avatarHtml, имя, пол | выбор партнёра и типы оргазмов |
-| Каталог | populateCatalogPartnerSelect | привязка фантазии к партнёру |
+| UI | все | управление партнёрами |
+| Журнал | имя, пол | выбор партнёра, типы оргазмов |
+| Каталог | список | привязка фантазии к партнёру |

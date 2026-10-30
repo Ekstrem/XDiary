@@ -1,9 +1,11 @@
-# Query API: Шлюз Apple Health
+# Query API: Шлюз Apple Health (AppleHealthGateway)
+
+> Read-сторона (CEQRS).
 
 ## Запросы (чтение)
-| Запрос | Функция (код) | Response | Источник |
-|---|---|---|---|
-| Статус импорта | — | ImportStatus | агрегат AppleImport |
+| Запрос | Эндпоинт | Response |
+|---|---|---|
+| Статус импорта | `GET /api/v1/apple-health/status` | ImportStatus |
 
 ## Response DTO
 - ImportStatus: lastImport, processedFiles.
