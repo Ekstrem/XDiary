@@ -13,8 +13,6 @@
 </head>
 <body>
 
-  <div id="sync-bar" class="sync-bar hidden"><span id="sync-bar-text"></span></div>
-
   <!-- Блокировка -->
   <section id="view-lock" class="view hidden">
     <div class="lock-card">
@@ -36,13 +34,6 @@
       </div>
     </header>
     <main class="content">
-      <div id="garmin-suggest" class="suggest-banner hidden">
-        <div class="suggest-text" id="suggest-text"></div>
-        <div class="suggest-actions">
-          <button class="btn primary" id="suggest-add">Внести</button>
-          <button class="btn" id="suggest-hide">Скрыть</button>
-        </div>
-      </div>
       <div id="journal-list" class="journal-list"></div>
       <div id="journal-empty" class="empty-state hidden">
         <p>Пока пусто.</p>
@@ -50,7 +41,6 @@
       </div>
     </main>
     <button id="btn-new" class="fab" title="Записать" aria-label="Новая запись">+</button>
-    <button id="btn-garmin-add" class="fab fab-garmin" title="Из Garmin" aria-label="Добавить из Garmin">⌚</button>
   </section>
 
   <!-- Партнёры -->
@@ -128,17 +118,6 @@
         <h2>Соматика (Garmin)</h2>
         <button class="btn full" id="btn-import-open">Импорт данных Garmin…</button>
         <p class="muted">Распознаёт отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип определяется автоматически.</p>
-
-        <h2>Автосинхронизация (прокси на ПК)</h2>
-        <div class="field">
-          <label for="gem-proxy">Адрес прокси</label>
-          <input type="text" id="gem-proxy" placeholder="http://192.168.1.224:8765" autocomplete="off">
-        </div>
-        <div class="btn-row">
-          <button class="btn primary" id="btn-garmin-sync">Обновить статистику</button>
-          <button class="btn" id="btn-garmin-test">Проверить прокси</button>
-        </div>
-        <p class="muted" id="gem-status"></p>
 
         <h2>Опасная зона</h2>
         <p class="muted">Стирает все данные (записи, соматику, сон, тренды) и PIN-код. Необратимо.</p>
@@ -289,22 +268,6 @@
     </main>
   </section>
 
-  <!-- Из Garmin -->
-  <section id="view-garmin" class="view hidden">
-    <header class="appbar">
-      <button id="btn-garmin-back" class="icon-btn" aria-label="Назад">←</button>
-      <h1>Из Garmin</h1>
-    </header>
-    <main class="content">
-      <div id="garmin-status" class="muted hidden">Загрузка занятий…</div>
-      <div id="garmin-list" class="journal-list"></div>
-      <button id="garmin-more" class="btn full hidden" type="button">Показать ещё</button>
-      <div id="garmin-empty" class="empty-state hidden">
-        <p>Нет «сердечных» занятий за последние 30 дней.</p>
-      </div>
-    </main>
-  </section>
-
   <nav class="tabbar hidden" id="tabbar">
     <button class="tab active" id="tab-journal"><span class="tab-ico">📓</span><span>Журнал</span></button>
     <button class="tab" id="tab-partners"><span class="tab-ico">👤</span><span>Партнёры</span></button>
@@ -320,19 +283,6 @@
         <button class="btn" id="confirm-no">Нет</button>
         <button class="btn danger" id="confirm-yes">Да</button>
       </div>
-    </div>
-  </div>
-
-  <div id="sync-modal" class="modal hidden">
-    <div class="modal-card">
-      <h2 class="sync-title">Синхронизация</h2>
-      <ul class="sync-steps" id="sync-steps">
-        <li data-step="stress"><span class="sync-ico">⏳</span><span class="sync-label">Стресс</span><span class="sync-count"></span></li>
-        <li data-step="somatic"><span class="sync-ico">⏳</span><span class="sync-label">Пульс + Body Battery</span><span class="sync-count"></span></li>
-        <li data-step="sleep"><span class="sync-ico">⏳</span><span class="sync-label">Сон</span><span class="sync-count"></span></li>
-        <li data-step="hrv"><span class="sync-ico">⏳</span><span class="sync-label">HRV</span><span class="sync-count"></span></li>
-        <li data-step="activities"><span class="sync-ico">⏳</span><span class="sync-label">Занятия</span><span class="sync-count"></span></li>
-      </ul>
     </div>
   </div>
 

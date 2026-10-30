@@ -89,6 +89,12 @@
       removePin: function () { return del("/api/v1/privacy/pin"); },
       token: function (pin) { return post("/api/v1/privacy/token", { pin: pin }); }
     },
+    somatic: {
+      slice: function (fromT, toT) { return get("/api/v1/somatic-series/slice?fromT=" + encodeURIComponent(fromT) + "&toT=" + encodeURIComponent(toT)); }
+    },
+    daily: {
+      series: function (fromDate, toDate) { return get("/api/v1/daily-metrics/series?fromDate=" + encodeURIComponent(fromDate) + "&toDate=" + encodeURIComponent(toDate)); }
+    },
 
     // Журнал: цепочка команд (StartManualEntry → Specify* → Complete)
     journal: {
