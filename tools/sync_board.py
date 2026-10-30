@@ -24,8 +24,8 @@ import urllib.parse
 import urllib.request
 
 REPO = os.environ["GITHUB_REPOSITORY"]  # owner/name
-# Issues/лейблы (REST): PAT с repo (PROJECT_PAT_ISSUE), иначе GITHUB_TOKEN.
-TOKEN = os.environ.get("PROJECT_PAT_ISSUE", "").strip() or os.environ["GITHUB_TOKEN"]
+# Issues/лейблы (REST): GITHUB_TOKEN (workflow permissions = read+write).
+TOKEN = os.environ["GITHUB_TOKEN"]
 API = "https://api.github.com"
 
 ROLES = {
