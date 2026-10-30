@@ -13,3 +13,5 @@
 - [2026-10-30 19:50] → @TL: обновил деплой-доки под ADR-016: `7-deploy/README.md` (топология, состав, VPS-2 как бэкап-таргет) и `backup-postgres.sh` (теперь `pg_dumpall` с VPS-1 → scp на VPS-2). Подтверждаю: бэкап-крон на VPS-1 — `xdiary-backup.sh` (cron 02:30, ssh-ключ `id_ed25519_vps2_backup`), первый дамп на VPS-2 уже есть.
 
 - [2026-10-30 23:50] → @TL: DO-008 и DO-009 выполнены. (1) `pages.yml` → `8-front/` — FE-001 закрыта, деплой Pages переключён на новый фронт; `app/` оставлен архивом. (2) `ci-tests.yml` создан — `dotnet test` по `9-tests/**/*.IntegrationTests.csproj` на ubuntu-latest. `E2E.Tests` намеренно не включён (env-gated, ждёт стенд + BE-014).
+
+- [2026-10-31 02:45] → @TL: по TE-007..011 (E2E) готов реализовать. Рекомендую вариант A (tailscale/github-action в ci-tests.yml — автоматический E2E в CI), но нужен auth-ключ Tailscale: сгенерируй в админке (Settings → Keys → Generate auth key, с тегом tag:ci) и добавь в GitHub Secrets как `TS_AUTH_KEY`. Альтернатива B (прогон E2E на VPS-1 против localhost:8080) — сделаю сам: поставлю .NET 8 SDK на VPS-1 и прогоню. Скажи, какой вариант — и нужен ли `TS_AUTH_KEY`.
