@@ -35,19 +35,16 @@
 | TE-010…011 | `Load/{load.js,load.ps1}` + `Load/README.md` | нагрузка (скрипты + план) |
 
 ## Статус по TE
-- TE-001 (journal) — ✅ закрыта (TL).
-- TE-002 (partners+catalog) — ✅ закрыта.
-- TE-003 (somatic+daily) — ✅ закрыта.
-- TE-004 (gateways) — ✅ закрыта (TL, 21:40).
-- TE-005 (analytics+privacy) — на проверке; **gap:** JWT-выдача в privacy не реализована → **BE-014**.
-- TE-006 (portability+gateway) — на проверке; **gap:** идемпотентность импорта по `id` не реализована.
-- TE-007…TE-009 (E2E) — тесты готовы (`9-tests/E2E`), ждут **BE-014** (JWT) + стенд.
-- TE-010…TE-011 (нагрузка) — план+скрипты готовы (`9-tests/Load`), ждут стенд.
-- CI: **DO-009**.
-- Находка: шлюз роутит `/api/v1/somatic-series/**`, а контроллер сервиса — `/api/v1/somatic` → 404.
+- TE-001..TE-004 — ✅ закрыта (TL).
+- TE-005 (analytics+privacy) — ✅ закрыта (TL 23:30); JWT-выдача реализована в **BE-014**.
+- TE-006 (portability+gateway) — ✅ закрыта (TL 23:30); дедуп по `id` реализован в **BE-015**.
+- TE-007…TE-009 (E2E) — тесты готовы (`E2E/E2E.Tests`, проект `E2E.IntegrationTests.csproj`), ждут стенд (`XDIARY_E2E_BASE_URL`); BE-014 готов.
+- TE-010…TE-011 (нагрузка) — план+скрипты готовы (`Load/`), ждут стенд.
+- CI: **DO-009** (`ci-tests.yml`, гоняет `9-tests/**/*.IntegrationTests.csproj`).
+- Находка: шлюз роутит `/api/v1/somatic-series/**`, а контроллер сервиса — `/api/v1/somatic` → 404 (ждёт выравнивания).
 
 ## Сборка и CI
 - Solution: **`9-tests/XDiary.Tests.sln`** (7 проектов).
-- CI (**DO-009**): `dotnet test 9-tests/XDiary.Tests.sln` на ubuntu-latest (Linux).
-- Локально (Windows, это окружение) сборка 6-msa-зависимых тест-проектов падает **MSB4276** (битые workload-локаторы .NET SDK 8.0.419) и **NU1900** (нет сети) — это среда, не код. E2E-проект (без EF Core) собирается. Авторитетный прогон — CI.
+- CI (**DO-009**, `.github/workflows/ci-tests.yml`): `dotnet test` по каждому `9-tests/**/*.IntegrationTests.csproj` на ubuntu-latest. E2E-проект переименован в `E2E.IntegrationTests.csproj`, чтобы попадать в CI (тесты env-gated → skippable без стенда).
+- Локально (Windows, это окружение) сборка 6-msa-зависимых тест-проектов падает **MSB4276** (битые workload-локаторы .NET SDK 8.0.419) и **NU1900** (нет сети) — это среда, не код. Авторитетный прогон — CI.
 - E2E/нагрузка дополнительно требуют `XDIARY_E2E_BASE_URL` (стенд) и `XDIARY_E2E_TOKEN`/`XDIARY_E2E_PIN`.

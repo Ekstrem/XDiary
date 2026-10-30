@@ -55,4 +55,18 @@ public class PortabilityTests
         var r = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "a", "b" });
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
+
+    [Fact]
+    public void ImportRecords_DeduplicatesById_LastRowWins()
+    {
+        // BE-015: идемпотентность импорта — первая колонка (id) уникальна, последняя строка побеждает.
+        var rows = new[] { "id1,first", "id2,other", "id1,second" };
+
+        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(rows);
+
+        Assert.Equal(DomainOperationResultEnum.Success, r.Result);
+        Assert.Equal(2, r.Model().Rows.Count);
+        Assert.Equal("id1,second", r.Model().Rows[0]);
+        Assert.Equal("id2,other", r.Model().Rows[1]);
+    }
 }
