@@ -2207,6 +2207,61 @@
     }).catch(function (e) { toast("Ошибка импорта: " + e.message); });
   }
 
+  // ---- Миграция IndexedDB → бэкенд (FE-003) ----
+  var migrating = false;
+  function forEachSeq(list, fn) {
+    return list.reduce(function (p, item) { return p.then(function () { return fn(item); }); }, Promise.resolve());
+  }
+  function migrateData() {
+    if (migrating) { toast("Миграция уже выполняется"); return; }
+    if (!window.confirm("Перенести локальные данные (журнал/партнёры/каталог) в бэкенд? Повторный запуск пропустит дубли.")) return;
+    migrating = true;
+    toast("Миграция начата…");
+    var nameToId = {};
+    var n = { partners: 0, catalog: 0, records: 0, skipped: 0 };
+
+    DB.rawPartners()
+      .then(function (ps) {
+        return forEachSeq(ps || [], function (p) {
+          return DB.putPartner({ name: p.name, photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" })
+            .then(function (saved) { nameToId[p.name] = saved.id; n.partners++; })
+            .catch(function () {});
+        });
+      })
+      .then(function () {
+        return DB.rawCatalog().then(function (cs) {
+          return forEachSeq(cs || [], function (it) {
+            return DB.putCatalogItem({ kind: it.kind, name: it.name, photo: it.photo || "", notes: it.notes || "", brand: it.brand || "", archived: !!it.archived, partner: it.partner || "" })
+              .then(function () { n.catalog++; })
+              .catch(function () {});
+          });
+        });
+      })
+      .then(function () {
+        return Promise.all([DB.rawRecords(), DB.getAllRecords()]).then(function (res) {
+          var seen = {};
+          (res[1] || []).forEach(function (r) { seen[(r.startedAt || "") + "|" + (r.partnerId || "") + "|" + (r.durationMin || 0)] = true; });
+          return forEachSeq(res[0] || [], function (r) {
+            var pid = nameToId[r.partner] || "";
+            var key = (r.startedAt || "") + "|" + pid + "|" + (r.durationMin || 0);
+            if (seen[key]) { n.skipped++; return Promise.resolve(); }
+            seen[key] = true;
+            r.partnerId = pid;
+            return DB.putRecord(r).then(function () { n.records++; }).catch(function () {});
+          });
+        });
+      })
+      .then(function () {
+        migrating = false;
+        toast("Миграция: партнёров " + n.partners + ", каталога " + n.catalog + ", записей " + n.records + " (пропущено " + n.skipped + ")");
+        renderJournal(); renderPartners(); renderCatalog();
+      })
+      .catch(function (e) {
+        migrating = false;
+        toast("Ошибка миграции: " + e.message);
+      });
+  }
+
   // ---- PIN (диалог) ----
   function refreshPinStatus() {
     Pin.hasPin().then(function (has) {
@@ -2369,6 +2424,7 @@
     DB.getMeta("myGender").then(function (r) { myGender = (r && r.value) || "male"; renderMyGender(); });
     $("btn-export").addEventListener("click", downloadCsv);
     $("btn-import").addEventListener("click", function () { $("import-file").click(); });
+    $("btn-migrate").addEventListener("click", migrateData);
     $("import-file").addEventListener("change", function (e) {
       var f = e.target.files && e.target.files[0];
       if (f) importCsvFile(f);

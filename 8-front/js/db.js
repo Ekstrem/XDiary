@@ -129,6 +129,10 @@
     getCatalogItem: function (id) { return getOne("catalog", id); },
     putCatalogItem: function (item) { return putOne("catalog", item); },
     deleteCatalogItem: function (id) { return deleteOne("catalog", id); },
+    // сырые данные IndexedDB для миграции (repository.js их не переопределяет)
+    rawRecords: function () { return getAll("records"); },
+    rawPartners: function () { return getAll("partners"); },
+    rawCatalog: function () { return getAll("catalog"); },
     // соматика (time-series, ключ — минута "YYYY-MM-DDTHH:mm")
     putSomaticBatch: function (list) { return putBatch("somatic", list); },
     getSomaticRange: function (start, end) { return getRange("somatic", start, end); },
