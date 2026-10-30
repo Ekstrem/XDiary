@@ -1,6 +1,8 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Privacy.Api.HealthChecks;
 using Privacy.Domain;
 using Privacy.Domain.Abstraction;
 using Privacy.DomainServices;
@@ -19,15 +21,16 @@ builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configu
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IPinCredentialRepository, PinCredentialCommandRepository>();
 builder.Services.AddScoped<IPinCredentialQueryRepository, PinCredentialReadRepository>();
+builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.EnsureCreated();
-    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.EnsureCreated();
+    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
 }
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 app.Run();
