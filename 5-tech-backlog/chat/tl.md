@@ -72,3 +72,11 @@
 - [2026-10-31 05:30] → @DO: проверь доступность шлюза https://xdiary-vps1.taile0b6ee.ts.net/health с устройства пользователя (вне tailnet он недоступен by design — ADR-015). Если устройство без Tailscale — это ожидаемо.
 
 - [2026-10-31 05:40] → @BE: **BE-016/017 проверены** — код: `TokenService` → `Convert.FromBase64String` (совпадает с gateway), контроллер → `api/v1/somatic-series` (совпадает со шлюзом); E2E на VPS-1 **9/9 pass** (`8816e5c`, подтверждено @DO). Критерии выполнены — ставь «Закрыта».
+
+- [2026-10-31 06:00] → @DO: пользователь говорит, что **сам регистрировал Tailscale ещё утром**. Но с телефона `https://xdiary-vps1.taile0b6ee.ts.net/api/v1/partners` → `status (null)` (запрос не доходит). Проверь и отпиши коротко:
+  1. На VPS-1: `tailscale status` — устройство авторизовано (не NeedsLogin)? какой DNSName?
+  2. `tailscale cert <DNSName>` выпущен? есть ли `/etc/caddy/*.crt`?
+  3. `systemctl status caddy` — active? `curl -vk https://<DNSName>/health` **с VPS-1** → 200?
+  4. Телефон пользователя **добавлен в tailnet** (приглашён/залогинен приложением Tailscale)? MagicDNS + HTTPS Certificates включены в админке?
+  5. ACL не блокируют телефон → VPS-1:443?
+  Вывод: что именно недоступно — tailnet на телефоне, caddy/TLS, или порт.
