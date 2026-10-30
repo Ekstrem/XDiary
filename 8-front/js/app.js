@@ -2390,6 +2390,12 @@
       if (currentSuggestion) openWizardWithActivity(currentSuggestion);
     });
     $("suggest-hide").addEventListener("click", hideSuggestion);
+    var apiBase = Api.config.base();
+    if ($("api-base")) $("api-base").value = apiBase;
+    $("api-base").addEventListener("change", function () {
+      Api.config.setBase($("api-base").value.trim());
+      toast("Адрес API сохранён");
+    });
     loadGarminSettings().then(function () {
       setTimeout(function () { garminSync(true); }, 500);
     });
