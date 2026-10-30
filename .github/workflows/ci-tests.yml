@@ -1,0 +1,24 @@
+name: Test (9-tests)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run integration tests (9-tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for proj in $(find 9-tests -name '*.IntegrationTests.csproj' | sort); do
+            echo "=== $proj ==="
+            dotnet test "$proj" --verbosity minimal
+          done
