@@ -48,3 +48,16 @@
 - CI (**DO-009**, `.github/workflows/ci-tests.yml`): **✅ зелёный** — run #14 (`5c4990f`), шаг «Run integration tests (9-tests)» success (~63 с). Гоняет `dotnet test` по каждому `9-tests/**/*.IntegrationTests.csproj` на ubuntu-latest. E2E-проект `E2E.IntegrationTests.csproj` тоже в CI (тесты env-gated → skipped без стенда).
 - Локально (Windows, это окружение) сборка 6-msa-зависимых тест-проектов падает **MSB4276** (битые workload-локаторы .NET SDK 8.0.419) и **NU1900** (нет сети) — это среда, не код. Авторитетный прогон — CI.
 - E2E/нагрузка дополнительно требуют `XDIARY_E2E_BASE_URL` (стенд) и `XDIARY_E2E_TOKEN`/`XDIARY_E2E_PIN`.
+
+## Runbook: E2E и нагрузка на стенде (TE-007..011)
+1. Получить access-токен: `POST {BASE}/api/v1/privacy/token` с телом `{"pin":"<PIN>"}` → `{accessToken, refreshToken}`.
+2. **E2E** (TE-007..009):
+   ```bash
+   XDIARY_E2E_BASE_URL="https://xdiary-vps1.taile0b6ee.ts.net" XDIARY_E2E_PIN="1234" \
+     dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj
+   ```
+   Без `XDIARY_E2E_BASE_URL` тесты пропускаются (skipped), не падают.
+3. **Нагрузка** (TE-010..011): `k6 run -e XDIARY_E2E_BASE_URL=... -e XDIARY_E2E_TOKEN=... 9-tests/Load/load.js`
+   или PowerShell: `./9-tests/Load/load.ps1 -Minutes 10 -Out report.csv`.
+4. Метрики стенда: `podman stats` по контейнерам + `pg_stat_activity`; отчёт — по шаблону `Load/README.md`.
+5. **Известный блокер TE-009:** шлюз роутит `/api/v1/somatic-series/**`, а контроллер — `/api/v1/somatic` → 404. Пока не выровнено, E2E-срез соматики будет падать.
