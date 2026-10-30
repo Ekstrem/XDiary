@@ -53,6 +53,9 @@
 1. Получить access-токен: `POST {BASE}/api/v1/privacy/token` с телом `{"pin":"<PIN>"}` → `{accessToken, refreshToken}`.
 2. **E2E** (TE-007..009):
    ```bash
+   # одной командой (скрипт):
+   BASE="https://xdiary-vps1.taile0b6ee.ts.net" PIN="1234" ./9-tests/E2E/run-e2e.sh
+   # или напрямую:
    XDIARY_E2E_BASE_URL="https://xdiary-vps1.taile0b6ee.ts.net" XDIARY_E2E_PIN="1234" \
      dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj
    ```
