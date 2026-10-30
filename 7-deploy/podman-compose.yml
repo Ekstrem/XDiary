@@ -1,0 +1,139 @@
+# XDiary — VPS-1 (podman rootless)
+# 10 микросервисов + API Gateway (YARP), профиль Single.
+# Образы собирает CI и публикует в GHCR (ghcr.io/ekstrem/xdiary-*:single).
+# Секреты и строки подключения — в secrets/.env (gitignored, chmod 600).
+#
+# Применение (от пользователя deploy на VPS-1, из /opt/xdiary/7-deploy):
+#   podman compose -f podman-compose.yml up -d
+#   # или: podman-compose -f podman-compose.yml up -d
+#
+# Порт 8080 шлюза публикуем только на loopback — наружу его проксирует
+# caddy/nginx на 443 (TLS). Сервисы наружу порты не публикуют (только шлюз).
+#
+# read_only: true + tmpfs /tmp — hardening (DO-005). Если какой-то сервис упадёт
+# с ошибкой записи (например, DataProtection/временные файлы), для него можно
+# убрать read_only/tmpfs или добавить writable-том под его каталог.
+
+services:
+  api-gateway:
+    image: ghcr.io/ekstrem/xdiary-api-gateway:single
+    env_file: secrets/.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Single
+    ports:
+      - "127.0.0.1:8080:8080"
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+
+  journal:
+    image: ghcr.io/ekstrem/xdiary-journal:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  partners:
+    image: ghcr.io/ekstrem/xdiary-partners:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  catalog:
+    image: ghcr.io/ekstrem/xdiary-catalog:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  somatic-series:
+    image: ghcr.io/ekstrem/xdiary-somatic-series:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  daily-metrics:
+    image: ghcr.io/ekstrem/xdiary-daily-metrics:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  garmin-gateway:
+    image: ghcr.io/ekstrem/xdiary-garmin-gateway:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  apple-health-gateway:
+    image: ghcr.io/ekstrem/xdiary-apple-health-gateway:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  analytics:
+    image: ghcr.io/ekstrem/xdiary-analytics:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  privacy:
+    image: ghcr.io/ekstrem/xdiary-privacy:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  portability:
+    image: ghcr.io/ekstrem/xdiary-portability:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+# Внешняя сеть с ручным CNI-конфигом v0.4.0 (без plugin firewall):
+# podman 3.4.4 генерирует CNI 1.0.0 + firewall, что ломает rootless-сеть
+# (см. README «Примечание про podman»). Сеть создаётся вручную:
+#   podman network create xdiary  (затем поправить conflist на 0.4.0)
+networks:
+  default:
+    external:
+      name: xdiary
