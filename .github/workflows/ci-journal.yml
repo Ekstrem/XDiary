@@ -75,7 +75,8 @@ jobs:
     - name: Build and push Docker image (Single profile)
       uses: docker/build-push-action@v6
       with:
-        context: 6-msa/BC-Journal
+        context: 6-msa
+        file: BC-Journal/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
