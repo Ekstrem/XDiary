@@ -12,9 +12,11 @@
 ## 2. Description (Описание)
 Агрегат защищает целостность одной фиксации акта. Хранится в IndexedDB `records`.
 
-> **Id / Version — вне домена.** Их предоставляет фреймворк EDM через `IAggregateRoot<IJournal>` (root-интерфейс несёт Id и Version). В Value Objects домена Id/Version **не** описываем.
+**Aggregate Root (корень агрегата):**
+- **`Record`** — корень агрегата: `IJournalRoot : IAggregateRoot<IJournal>`.
+- **Id / Version** предоставляет фреймворк EDM (`IAggregateRoot`); в Value Objects домена их **не** описываем.
 
-**Value Objects (домен):**
+**State (AnemicModel — Value Objects домена):**
 - **When**: startedAt («YYYY-MM-DDTHH:mm»)
 - **PartnerRef**: partner (string — имя)
 - **Place**: place (string)
