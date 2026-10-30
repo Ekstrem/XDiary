@@ -51,8 +51,8 @@ ROLE_COLORS = {
 # мой статус -> опция поля Status (дефолтный набор Project Board)
 STATUS_TO_OPTION = {
     "открыта": "Todo",
-    "в работе": "In Progress",
-    "на проверке": "In Progress",
+    "в-работе": "In Progress",
+    "на-проверке": "In Progress",
     "закрыта": "Done",
 }
 
@@ -110,9 +110,9 @@ def parse_task(path):
         if "закрыта" in s or "выполнена" in s:
             status = "закрыта"
         elif "на проверке" in s:
-            status = "на проверке"
+            status = "на-проверке"
         elif "в работе" in s:
-            status = "в работе"
+            status = "в-работе"
     return title, status
 
 
