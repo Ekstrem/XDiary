@@ -22,6 +22,18 @@
   Load/                                          — TE-010..TE-011 (k6 load.js + load.ps1 + план)
 ```
 
+## Карта TE → тесты
+| TE | Файлы | Тип |
+|---|---|---|
+| TE-001 | `Journal/Journal.IntegrationTests/{RecordLifecycleTests,RecordInvariantTests}.cs` | интеграционные (домен) |
+| TE-002 | `Partners.Catalog/PartnersCatalog.IntegrationTests/{PartnerTests,CatalogTests}.cs` | интеграционные |
+| TE-003 | `Somatic.Daily/SomaticDaily.IntegrationTests/{SomaticSeriesTests,DailyMetricsTests}.cs` | интеграционные |
+| TE-004 | `Gateways/Gateways.IntegrationTests/{GarminGatewayTests,AppleHealthGatewayTests}.cs` | интеграционные |
+| TE-005 | `Analytics.Privacy/AnalyticsPrivacy.IntegrationTests/{AnalyticsTests,PrivacyTests}.cs` | интеграционные |
+| TE-006 | `Portability.Gateway/PortabilityGateway.IntegrationTests/{PortabilityTests,GatewayJwtTests}.cs` | интеграционные |
+| TE-007…009 | `E2E/E2E.Tests/{AuthE2ETests,JournalE2ETests,SomaticAnalyticsE2ETests}.cs` | E2E (HTTP, env-gated) |
+| TE-010…011 | `Load/{load.js,load.ps1}` + `Load/README.md` | нагрузка (скрипты + план) |
+
 ## Статус по TE
 - TE-001 (journal) — ✅ закрыта (TL).
 - TE-002 (partners+catalog) — ✅ закрыта.
