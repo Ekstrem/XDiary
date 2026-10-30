@@ -1,3 +1,4 @@
+using XDiary.Contracts;
 using DailyMetrics.Domain;
 using DailyMetrics.Domain.Abstraction;
 using DailyMetrics.Domain.Implementation;

@@ -1,3 +1,4 @@
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Portability.Application.Csv;
 using Portability.Domain;

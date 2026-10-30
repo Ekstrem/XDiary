@@ -1,3 +1,4 @@
+using XDiary.Contracts;
 using Catalog.Domain;
 using Catalog.Domain.Abstraction;
 using Catalog.Domain.Implementation;

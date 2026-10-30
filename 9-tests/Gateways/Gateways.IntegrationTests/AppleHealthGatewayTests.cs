@@ -1,3 +1,4 @@
+using XDiary.Contracts;
 using AppleHealthGateway.Domain;
 using AppleHealthGateway.Domain.Abstraction;
 using AppleHealthGateway.Domain.Implementation;
