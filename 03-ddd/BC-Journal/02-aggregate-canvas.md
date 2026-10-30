@@ -31,6 +31,21 @@
 - **Orgasms**: orgasms[] — по участнику: { participant («me» | partnerId), count (int), types[] (string), rating (int 0–5) }
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
 
+### Кардинальность полей (из US/CJM)
+| Поле | Кардинальность | Источник |
+|---|---|---|
+| startedAt | 1 (обязательно) | US-01 |
+| partners[] | 0..N (0 = соло) | US-02 «если есть» + «участников» |
+| place | 0..1 (можно пропустить) | US-03 |
+| positions[] | 0..N («одну или несколько») | US-04 |
+| tags[] | 0..N | US-05 |
+| durationMin | 1 | US-06 |
+| orgasms[] | 0..N участников («кто и сколько») | US-07 |
+| costumes[] | 0..N | KS-02 |
+| toys[] | 0..N | IT-02 |
+| fantasies[] | 0..N | FZ-03 |
+| contraceptives[] + count | 0..N | CP-01 |
+
 > «Клиент» = «Партнёр»; в домене используем **«партнёр»**. Отдельный BC «Клиент» (комплаенс/безопасность) — позже.
 
 ## 3. State Transitions (Переходы состояний)
