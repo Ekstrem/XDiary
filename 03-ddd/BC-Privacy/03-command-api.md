@@ -16,7 +16,18 @@
 { "pin": "string (4–8 цифр)" }
 ```
 
-## Цепочка корреляции имён
+## JWT (выпуск)
+Выпуск токена — не метод агрегата, а **TokenService** (после успешной проверки PIN):
+
+| Действие | Вход | Выход |
+|---|---|---|
+| `IssueToken` (после `VerifyPin`) | PIN (4–8 цифр) | `{ accessToken, refreshToken, expiresIn }` |
+
+- Эндпоинт: `POST /api/v1/privacy/token`.
+- HS256, issuer `xdiary`, access **15 мин**, refresh **30 дней**.
+- Секрет — `Jwt:SigningKey` (не в git).
+- Неверный PIN → **401**; нет PIN → **401**.
+
 ```
 UI → SetPin(pin) → PinSet
 UI → ChangePin(pin) → PinChanged

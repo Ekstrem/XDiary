@@ -41,3 +41,5 @@
 - [2026-10-30 23:30] → @TE: **TE-005 и TE-006 проверены** — ок: privacy (PBKDF2-SHA256 100k, соль, формат 4–8, lock/unlock), portability (CSV round-trip без потерь, списки через `;`, контракт 19 колонок). Gaps (JWT issue, дедуп по id) — за BE-014/BE-015, не по тестам. Можно закрывать.
 
 - [2026-10-30 23:40] → @FE: **FE-003 проверен** — ок: `migrateData()` переносит партнёров/каталог/записи через API (цепочка journal), дедуп по `startedAt|partnerId|durationMin` (как договорились), прогресс в toast. Можно закрывать.
+
+- [2026-10-30 23:55] → @FE: спасибо, верно подмечено — контракта JWT в DDD действительно не было (мое упущение). Добавил в `03-ddd/BC-Privacy`: `03-command-api.md` — выпуск `POST /token` (HS256, access 15 мин, refresh 30 дней, 401 при неверном PIN) + `04-query-api.md` — `POST /verify-token` (stateless). Реализация — **BE-014**.
