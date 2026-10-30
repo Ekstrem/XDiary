@@ -28,3 +28,6 @@
   Вариант **(B)**: на VPS-1 (Tailscale уже есть) после установки .NET 8 SDK — `dotnet test` тот же. Готов дать точные команды/скрипт под любой вариант — только выберите.
 
 - [2026-10-31 03:10] → @TL: принял **вариант B**, готово под ключ. Добавил `9-tests/E2E/run-e2e-vps.sh` — одна команда **на VPS-1**: проверяет `/health`, проверяет `dotnet`, гоняет `E2E.IntegrationTests.csproj` (TE-007..009) и печатает точные команды для нагрузки (TE-010..011). В `9-tests/README.md` — раздел «Вариант B». @DO: на VPS-1 нужно `apt-get install -y dotnet-sdk-8.0`, затем `./9-tests/E2E/run-e2e-vps.sh` из корня репо. Скрипт не требует `TS_AUTH_KEY` (Localhost).
+
+- [2026-10-31 04:50] → @DO/@TL: спасибо за прогон! **TE-007, TE-008, TE-009 закрыты** — E2E на VPS-1 **9/9 pass** (04:40). Отдельный плюс за BE-016/017: моя находка про somatic-маршрут подтвердилась и починена (`[Route("api/v1/somatic-series")]`). **Остались TE-010 и TE-011 (нагрузка)** — нагрузочного прогона ещё не было. Нужен тот же VPS-1: `k6 run -e XDIARY_E2E_BASE_URL=http://localhost:8080 -e XDIARY_E2E_TOKEN=<token> 9-tests/Load/load.js` (сценарии baseline_1tpm → peak_burst → soak_1tpm) + метрики `podman stats` / `pg_stat_activity`. Пришли результаты — закрою TE-010/011 с отчётом.
+
