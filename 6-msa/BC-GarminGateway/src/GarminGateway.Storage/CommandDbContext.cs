@@ -1,21 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace GarminGateway.Storage;
-
-/// <summary>
-/// DbContext РґР»СЏ Command Store (Event Sourcing) Р¶СѓСЂРЅР°Р»Р°.
-/// РҐСЂР°РЅРёС‚ РґРѕРјРµРЅРЅС‹Рµ СЃРѕР±С‹С‚РёСЏ РІ С‚Р°Р±Р»РёС†Рµ DomainEvents (СЃС…РµРјР° public вЂ” РїСЂРѕС„РёР»СЊ Single).
-/// </summary>
+using Microsoft.EntityFrameworkCore;
 public sealed class CommandDbContext : DbContext
 {
-    public CommandDbContext(DbContextOptions<CommandDbContext> options) : base(options)
-    {
-    }
-
-    public DbSet<DomainEventEventEntry> Events { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-        => modelBuilder
-            .HasAnnotation("ProductVersion", "0.0.1")
-            .ApplyConfiguration(new DomainEventMapping());
+    public CommandDbContext(DbContextOptions<CommandDbContext> options) : base(options) { }
+    public DbSet<GarminSyncEntity> Sync => Set<GarminSyncEntity>();
+    protected override void OnModelCreating(ModelBuilder b)
+    { b.Entity<GarminSyncEntity>(e => { e.ToTable("garmin_sync"); e.HasKey(x => x.Id); e.HasIndex(x => x.SourceId).IsUnique(); e.Property(x => x.SourceId).HasMaxLength(32).IsRequired(); }); }
 }

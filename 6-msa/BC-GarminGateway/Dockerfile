@@ -4,20 +4,9 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-
-# NuGet — только nuget.org (все пакеты DigiTFactory опубликованы там)
-COPY nuget.config .
-
-COPY src/GarminGateway.Api/GarminGateway.Api.csproj GarminGateway.Api/
-COPY src/GarminGateway.Application/GarminGateway.Application.csproj GarminGateway.Application/
-COPY src/GarminGateway.Domain/GarminGateway.Domain.csproj GarminGateway.Domain/
-COPY src/GarminGateway.DomainServices/GarminGateway.DomainServices.csproj GarminGateway.DomainServices/
-COPY src/GarminGateway.InternalContracts/GarminGateway.InternalContracts.csproj GarminGateway.InternalContracts/
-COPY src/GarminGateway.Storage/GarminGateway.Storage.csproj GarminGateway.Storage/
-RUN dotnet restore GarminGateway.Api/GarminGateway.Api.csproj
-
-COPY src/ .
-RUN dotnet publish GarminGateway.Api/GarminGateway.Api.csproj -c Release -o /app/publish --no-restore
+COPY . .
+RUN dotnet restore BC-GarminGateway/src/GarminGateway.Api/GarminGateway.Api.csproj
+RUN dotnet publish BC-GarminGateway/src/GarminGateway.Api/GarminGateway.Api.csproj -c Release -o /app/publish --no-restore
 
 FROM base AS final
 ARG DEPLOYMENT_PROFILE=Single

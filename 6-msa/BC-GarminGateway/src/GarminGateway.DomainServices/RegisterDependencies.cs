@@ -1,28 +1,13 @@
-using Autofac;
-using DigiTFactory.Libraries.SeedWorks.Events;
-using DigiTFactory.Libraries.SeedWorks.Monads;
-using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using GarminGateway.Domain;
-using GarminGateway.Domain.Abstraction;
-
 namespace GarminGateway.DomainServices;
-
-/// <summary>
-/// Autofac-РјРѕРґСѓР»СЊ: СЂРµРіРёСЃС‚СЂР°С†РёСЏ РґРѕРјРµРЅРЅС‹С… СЃРµСЂРІРёСЃРѕРІ Р¶СѓСЂРЅР°Р»Р°.
-/// </summary>
-public class RegisterDependencies : Module
+using Autofac;
+using GarminGateway.Domain;
+using XDiary.Contracts;
+public sealed class RegisterDependencies : Module
 {
     protected override void Load(ContainerBuilder builder)
-        => RegisterDomainServices(builder);
-
-    private static ContainerBuilder RegisterDomainServices(ContainerBuilder builder)
-        => builder
-            .Do(b => b
-                .RegisterType<AggregateProvider>()
-                .As<IAggregateProvider<IGarminGateway, IGarminSyncAggregate>>()
-                .As<IGarminSyncAggregateProvider>())
-            .Do(b => b
-                .RegisterType<BusAdapter>()
-                .As<IObserver<AggregateResult<IGarminGateway, IAnemicModel<IGarminGateway>>>>());
+    {
+        builder.RegisterType<AggregateProvider>().AsSelf().SingleInstance();
+        builder.RegisterType<BusAdapter>().As<IBusAdapter<IGarminGateway>>().SingleInstance();
+        builder.RegisterType<Notifier>().As<INotifier<IGarminGateway>>().SingleInstance();
+    }
 }
