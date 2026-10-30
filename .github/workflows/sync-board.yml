@@ -1,4 +1,4 @@
-name: Sync board (md -> Issues)
+name: Sync board (md -> Issues + Project)
 
 on:
   push:
@@ -21,8 +21,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Sync tasks to Issues
+      - name: Sync tasks to Issues + Project
         run: python tools/sync_board.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+          PROJECT_OWNER: "Ekstrem"
+          PROJECT_NUMBER: "2"

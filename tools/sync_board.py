@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Синхронизация 5-tech-backlog/*.md -> GitHub Issues (для Projects-доски).
+"""Синхронизация 5-tech-backlog/*.md -> GitHub Issues + Projects-доска.
 
-Каждая задача (.md) превращается в Issue:
-  заголовок: "[BE-002] Реализовать journal ..."
-  лейблы: роль (BE/DO/FE/TE/AR) + status:<открыта|в-работе|на-проверке|закрыта>
+Два источника данных:
+1. GitHub Issues (REST, GITHUB_TOKEN) — карточка-зеркало с лейблами
+   роли (BE/DO/FE/TE/AR) и статуса (status:*).
+2. GitHub Project (GraphQL, PROJECT_PAT) — поле Status для канбан-колонок.
 
-Источник правды — .md-файлы; Issues — автоматическое зеркало.
-Запускается GitHub Action'ом (push в main). Только stdlib.
+Переменные окружения:
+  GITHUB_TOKEN     — токен репозитория (issues: write), автомат. в Actions.
+  GITHUB_REPOSITORY— owner/name (автомат. в Actions).
+  PROJECT_PAT      — PAT с scope "project" (для ProjectsV2 GraphQL).
+  PROJECT_OWNER    — владелец проекта (login), напр. Ekstrem.
+  PROJECT_NUMBER   — номер проекта, напр. 2.
+
+Если PROJECT_PAT не задан — синк только Issues (без колонок проекта).
 """
 import json
 import os
@@ -41,11 +48,18 @@ ROLE_COLORS = {
     "AR": "5319e7",
 }
 
+# мой статус -> опция поля Status (дефолтный набор Project Board)
+STATUS_TO_OPTION = {
+    "открыта": "Todo",
+    "в работе": "In Progress",
+    "на проверке": "In Progress",
+    "закрыта": "Done",
+}
 
-def api(method, path, data=None):
-    """Вызов GitHub REST API v3."""
+
+def rest(method, path, data=None, token=None):
     req = urllib.request.Request(API + path, method=method)
-    req.add_header("Authorization", "Bearer " + TOKEN)
+    req.add_header("Authorization", "Bearer " + (token or TOKEN))
     req.add_header("Accept", "application/vnd.github+json")
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
     body = None
@@ -61,15 +75,27 @@ def api(method, path, data=None):
         return None
 
 
+def graphql(query, variables, token):
+    req = urllib.request.Request(API + "/graphql", method="POST")
+    req.add_header("Authorization", "Bearer " + token)
+    req.add_header("Content-Type", "application/json")
+    body = json.dumps({"query": query, "variables": variables}).encode("utf-8")
+    try:
+        with urllib.request.urlopen(req, body) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        print("  ! GraphQL HTTP %s: %s" % (e.code, e.read().decode("utf-8", "ignore")[:300]),
+              file=sys.stderr)
+        return None
+
+
 def ensure_label(name, color):
-    """Создать лейбл, если его ещё нет."""
-    if api("GET", "/repos/%s/labels/%s" % (REPO, urllib.parse.quote(name))):
+    if rest("GET", "/repos/%s/labels/%s" % (REPO, urllib.parse.quote(name))):
         return
-    api("POST", "/repos/%s/labels" % REPO, {"name": name, "color": color})
+    rest("POST", "/repos/%s/labels" % REPO, {"name": name, "color": color})
 
 
 def parse_task(path):
-    """Вернуть (title, status_label) из .md."""
     with open(path, encoding="utf-8") as f:
         text = f.read()
     title = ""
@@ -77,26 +103,93 @@ def parse_task(path):
         if line.startswith("# "):
             title = line[2:].strip()
             break
-    status = "status:открыта"
+    status = "открыта"
     m = re.search(r"Статус:\*\*\s*([^)\n]+)", text)
     if m:
         s = m.group(1).strip().lower()
         if "закрыта" in s or "выполнена" in s:
-            status = "status:закрыта"
+            status = "закрыта"
         elif "на проверке" in s:
-            status = "status:на-проверке"
+            status = "на проверке"
         elif "в работе" in s:
-            status = "status:в-работе"
+            status = "в работе"
     return title, status
 
 
 def find_issue(task_id):
-    """Найти существующий Issue по [ID] в заголовке."""
     q = urllib.parse.quote('repo:%s in:title "[%s]"' % (REPO, task_id))
-    r = api("GET", "/search/issues?q=" + q)
+    r = rest("GET", "/search/issues?q=" + q)
     if r and r.get("items"):
         return r["items"][0]
     return None
+
+
+def resolve_project(owner, number, token):
+    """Вернуть (project_id, field_id, {option_name: option_id}) для Status."""
+    q = """
+    query($login: String!, $number: Int!) {
+      user(login: $login) {
+        projectV2(number: $number) {
+          id
+          fields(first: 30) {
+            nodes {
+              ... on ProjectV2SingleSelectField {
+                id name options { id name }
+              }
+            }
+          }
+        }
+      }
+    }"""
+    r = graphql(q, {"login": owner, "number": number}, token)
+    if not r or "errors" in r or not r.get("data", {}).get("user", {}).get("projectV2"):
+        print("  ! не удалось получить проект (owner=%s number=%s)" % (owner, number),
+              file=sys.stderr)
+        return None, None, None
+    pv = r["data"]["user"]["projectV2"]
+    project_id = pv["id"]
+    for field in pv["fields"]["nodes"]:
+        if field["name"].lower() == "status":
+            opts = {o["name"]: o["id"] for o in field["options"]}
+            return project_id, field["id"], opts
+    return project_id, None, None
+
+
+def sync_project(items, token, owner, number):
+    """Добавить issue в проект и выставить Status."""
+    project_id, field_id, opts = resolve_project(owner, number, token)
+    if not project_id or not field_id:
+        return 0
+    done = 0
+    for (issue_node_id, status_key) in items:
+        if not issue_node_id:
+            continue
+        # добавить в проект (идемпотентно: уже добавленные вернутся)
+        m = """
+        mutation($projectId: ID!, $contentId: ID!) {
+          addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+            item { id }
+          }
+        }"""
+        r = graphql(m, {"projectId": project_id, "contentId": issue_node_id}, token)
+        if not r or "errors" in r:
+            continue
+        item_id = r["data"]["addProjectV2ItemById"]["item"]["id"]
+        opt_name = STATUS_TO_OPTION.get(status_key, "Todo")
+        opt_id = opts.get(opt_name)
+        if not opt_id:
+            continue
+        u = """
+        mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+          updateProjectV2ItemFieldValue(input: {
+            projectId: $projectId, itemId: $itemId, fieldId: $fieldId,
+            value: { singleSelectOptionId: $value }
+          }) { clientMutationId }
+        }"""
+        graphql(u, {"projectId": project_id, "itemId": item_id,
+                    "fieldId": field_id, "value": opt_id}, token)
+        done += 1
+    return done
 
 
 def main():
@@ -104,6 +197,7 @@ def main():
         ensure_label(name, color)
 
     created = updated = 0
+    project_items = []  # (issue_node_id, status_key)
     for role_dir, role_label in ROLES.items():
         base = os.path.join("5-tech-backlog", role_dir)
         if not os.path.isdir(base):
@@ -111,26 +205,40 @@ def main():
         for fn in sorted(os.listdir(base)):
             if not fn.endswith(".md") or fn == "README.md":
                 continue
-            task_id = fn[:-3]  # BE-001
+            task_id = fn[:-3]
             path = os.path.join(base, fn).replace("\\", "/")
-            title, status = parse_task(path)
+            title, status_key = parse_task(path)
             issue_title = "[%s] %s" % (task_id, title)
-            labels = [role_label, status]
+            labels = [role_label, "status:" + status_key]
             body = "Авто-синк из `%s`.\n\nЗадача-источник: `%s`" % (path, path)
 
             existing = find_issue(task_id)
             if existing:
                 n = existing["number"]
-                api("PATCH", "/repos/%s/issues/%d" % (REPO, n),
-                    {"title": issue_title, "labels": labels})
+                rest("PATCH", "/repos/%s/issues/%d" % (REPO, n),
+                     {"title": issue_title, "labels": labels})
                 updated += 1
+                node_id = existing.get("node_id")
             else:
-                r = api("POST", "/repos/%s/issues" % REPO,
-                        {"title": issue_title, "body": body, "labels": labels})
+                r = rest("POST", "/repos/%s/issues" % REPO,
+                         {"title": issue_title, "body": body, "labels": labels})
                 if r:
                     created += 1
+                    node_id = r.get("node_id")
+                else:
+                    node_id = None
+            project_items.append((node_id, status_key))
 
     print("sync-board: created=%d updated=%d" % (created, updated))
+
+    pat = os.environ.get("PROJECT_PAT", "").strip()
+    owner = os.environ.get("PROJECT_OWNER", "").strip()
+    number = os.environ.get("PROJECT_NUMBER", "").strip()
+    if pat and owner and number:
+        n = sync_project(project_items, pat, owner, int(number))
+        print("sync-project: items=%d" % n)
+    else:
+        print("sync-project: пропущен (нет PROJECT_PAT/OWNER/NUMBER)")
 
 
 if __name__ == "__main__":
