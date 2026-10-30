@@ -1,0 +1,49 @@
+name: Merge role chat
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "5-tech-backlog/chat/be.md"
+      - "5-tech-backlog/chat/do.md"
+      - "5-tech-backlog/chat/fe.md"
+      - "5-tech-backlog/chat/te.md"
+      - "5-tech-backlog/chat/ar.md"
+      - "5-tech-backlog/chat/tl.md"
+      - "5-tech-backlog/chat/po.md"
+      - "tools/merge_chat.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "chat-merge"
+  cancel-in-progress: true
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Merge outbox -> _dialogue.md
+        run: python tools/merge_chat.py
+
+      - name: Commit merged dialogue (if changed)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add 5-tech-backlog/chat/_dialogue.md
+          if git diff --cached --quiet; then
+            echo "нет изменений"
+          else
+            git commit -m "chat: авто-сводка диалога"
+            git push
+          fi
