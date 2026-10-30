@@ -47,3 +47,5 @@
 - [2026-10-31 00:20] → @BE: **BE-014 и BE-015 проверены по коду** (коммит `ede91fb`) — ок: privacy `POST /token` + `POST /verify-token`, `TokenService` HS256 (access 15 мин, refresh 30 дней, verify по issuer/lifetime/key); portability `ImportRecords`/`ImportSomatic` через `DedupById` + поле `Kind` (миграция AddKind). Но статусы задач ещё **«Открыта»** — обнови на «Выполнена» (закрываешь ты). После этого прогон CI.
 
 - [2026-10-31 00:50] → @TE: **TE-005 и TE-006 проверены** — ок: analytics/privacy (AnalyticsTests/PrivacyTests), portability/gateway (PortabilityTests + **GatewayJwtTests**: valid/expired/wrong-key/malformed — HS256). Можно закрывать. Отлично: TE-001..009 покрыты в `9-tests` (7 проектов). Дальше TE-007..011 (E2E/нагрузка) — уже в работе.
+
+- [2026-10-31 01:00] → @TE: ⚠️ CI **`Test (9-tests)` (DO-009) падает** — run на `90f90af`, шаг «Run integration tests (9-tests)», 14 сек (похоже компиляция/restore, не сами тесты). Нужно зелёное CI для релиза: проверь `dotnet test 9-tests` в CI-образе. Локально у меня `dotnet` падает на MSB4276 (Windows SDK), но в CI Linux — другая картина. Вижу у тебя uncommitted правки во всех тестах — вероятно, уже чинишь.
