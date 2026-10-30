@@ -1,23 +1,23 @@
 # Command API: Журнал интимной активности (Journal)
 
-> Внутренний API (UI → сервис). В MSA — REST-команды на `journal` (см. ADR-006, ADR-001).
-> Именованные команды повторяют экраны визарда (CJM); Id/Version — от фреймворка EDM.
+> Внутренний API (UI → сервис). В MSA — REST-команды на `journal` (ADR-006, ADR-001).
+> Именованные команды повторяют экраны визарда (CJM); Id/Version — составной ключ `<guid, long>` фреймворка EDM (DF).
 
-## Команды (по экранам визарда)
-| Команда | Метод агрегата | Входные VO | Состояние до |
+## Команды (по экранам визарда) → события
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| StartManualEntry | `StartManualEntry()` | — | (нет) |
-| StartFromGarmin | `StartFromGarmin(activity)` | GarminActivity | (нет) |
-| SpecifyWhen | `SpecifyWhen(startedAt)` | When | Draft |
-| ChoosePartner | `ChoosePartner(partner)` | PartnerRef | Draft |
-| SpecifyPlace | `SpecifyPlace(place)` | Place | Draft |
-| AddPositions | `AddPositions(positions)` | Positions | Draft |
-| AddAccessories | `AddAccessories(costumes, toys, fantasies, tags)` | Accessories | Draft |
-| RecordContraception | `RecordContraception(contraceptives, count)` | Contraception | Draft |
-| SpecifyDuration | `SpecifyDuration(durationMin)` | Duration | Draft |
-| RecordOrgasms | `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | Orgasms | Draft |
-| Complete | `Complete()` | — | Draft |
-| Delete | `Delete()` | — | Recorded |
+| StartManualEntry | `StartManualEntry()` | `ManualEntryStarted` | — |
+| StartFromGarmin | `StartFromGarmin(activity)` | `GarminEntryStarted` | GarminActivity |
+| SpecifyWhen | `SpecifyWhen(startedAt)` | `WhenSpecified` | When |
+| ChoosePartner | `ChoosePartner(partner)` | `PartnerChosen` | PartnerRef |
+| SpecifyPlace | `SpecifyPlace(place)` | `PlaceSpecified` | Place |
+| AddPositions | `AddPositions(positions)` | `PositionsAdded` | Positions |
+| AddAccessories | `AddAccessories(costumes, toys, fantasies, tags)` | `AccessoriesAdded` | Accessories |
+| RecordContraception | `RecordContraception(contraceptives, count)` | `ContraceptionRecorded` | Contraception |
+| SpecifyDuration | `SpecifyDuration(durationMin)` | `DurationSpecified` | Duration |
+| RecordOrgasms | `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | `OrgasmsRecorded` | Orgasms |
+| Complete | `Complete()` | `RecordCompleted` | — |
+| Delete | `Delete()` | `RecordDeleted` | — |
 
 ## Request DTO (RecordDraft)
 ```json
@@ -52,7 +52,9 @@
 
 ## Цепочка корреляции имён
 ```
-UI «Новая запись» → StartManualEntry → Draft → (SpecifyWhen → ChoosePartner → … → RecordOrgasms) → Complete → RecordRecorded
-UI «Из Garmin» → StartFromGarmin(activity) → Draft → Complete → RecordRecorded
+UI «Новая запись» → StartManualEntry → ManualEntryStarted → Draft
+  → SpecifyWhen → WhenSpecified → … → RecordOrgasms → OrgasmsRecorded
+  → Complete → RecordCompleted
+UI «Из Garmin» → StartFromGarmin(activity) → GarminEntryStarted → Draft → Complete → RecordCompleted
 UI → Delete → RecordDeleted
 ```

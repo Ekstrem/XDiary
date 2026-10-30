@@ -12,18 +12,20 @@
 ## 2. Description (Описание)
 Агрегат защищает целостность одной фиксации акта. Хранится в IndexedDB `records`.
 
-**Aggregate Root (корень агрегата):**
-- **`Record`** — корень агрегата: `IJournalRoot : IAggregateRoot<IJournal>`.
-- **Id / Version** предоставляет фреймворк EDM (`IAggregateRoot`); в Value Objects домена их **не** описываем.
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — `guid` идентифицирует агрегат, `long` — его версию. Технический, для **быстрого поиска**. **НЕ входит в сущность.**
 
-**State (AnemicModel — Value Objects домена):**
-- **When**: startedAt («YYYY-MM-DDTHH:mm»)
+**Сущность (Entity — корень агрегата):**
+- **Record** — совокупность признаков, однозначно идентифицирующих запись:
+  - `startedAt` («YYYY-MM-DDTHH:mm») — когда произошёл акт
+  - `durationMin` (int) — длительность
+
+**Объект-значения (Value Objects):**
 - **PartnerRef**: partner (string — имя)
 - **Place**: place (string)
 - **Positions**: positions[] (string)
 - **Accessories**: costumes[], toys[], fantasies[], tags[]
 - **Contraception**: contraceptives[] (string), contraceptiveCount (int)
-- **Duration**: durationMin (int)
 - **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
 
@@ -45,8 +47,8 @@ Recorded → [Delete] → Deleted
 ## 5. Corrective Policies (Компенсирующие действия)
 | Политика | Триггер | Действие |
 |---|---|---|
-| JournalRefresh | RecordRecorded / RecordDeleted | перерисовать журнал |
-| AnalyticsNotify | RecordRecorded | событие «акт записан» → Аналитика |
+| JournalRefresh | любое событие записи | перерисовать журнал |
+| AnalyticsNotify | RecordCompleted | событие «акт записан» → Аналитика |
 
 ## 6. Handled Commands (методы агрегата — по экранам визарда/CJM)
 | Метод (код) | Экран (CJM) | Входные VO |
@@ -65,15 +67,26 @@ Recorded → [Delete] → Deleted
 | `Delete()` | — | — |
 
 ## 7. Created Events (Порождаемые события)
-| Событие | Когда |
+Каждый метод порождает доменное событие, **соразмерное названию метода** (через нотификатор доменных сообщений DF):
+
+| Метод | Событие |
 |---|---|
-| `RecordDraftStarted` | StartManualEntry / StartFromGarmin |
-| `RecordRecorded` | Complete |
-| `RecordDeleted` | Delete |
+| `StartManualEntry` | `ManualEntryStarted` |
+| `StartFromGarmin` | `GarminEntryStarted` |
+| `SpecifyWhen` | `WhenSpecified` |
+| `ChoosePartner` | `PartnerChosen` |
+| `SpecifyPlace` | `PlaceSpecified` |
+| `AddPositions` | `PositionsAdded` |
+| `AddAccessories` | `AccessoriesAdded` |
+| `RecordContraception` | `ContraceptionRecorded` |
+| `SpecifyDuration` | `DurationSpecified` |
+| `RecordOrgasms` | `OrgasmsRecorded` |
+| `Complete` | `RecordCompleted` |
+| `Delete` | `RecordDeleted` |
 
 ## 8. Throughput (Пропускная способность)
 - Частота: единицы в день (одна пара).
 
 ## 9. Size (Размер)
-- Событий за жизнь: несколько (старт + финализация + редкие правки).
+- Событий за жизнь: 1..N (по одному на каждый вызванный метод).
 - Снапшоты: не нужны — текущее состояние в `records`.
