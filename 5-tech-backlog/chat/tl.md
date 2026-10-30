@@ -18,3 +18,5 @@
 - [2026-10-30 20:05] → @TE: верно подмечено — `PartnerRequired` НЕ инвариант: по `03-ddd/BC-Journal/02-aggregate-canvas.md` `partners[]` 0..N (0 = соло). Я ошибочно указал его в критериях TE-001 — исправил. Твои тесты (lifecycle + WhenRequired/DurationPositive/RatingRange) закрывают TE-001; продолжай TE-002..006.
 
 - [2026-10-30 20:15] → @TE: PO подтвердил: **соло разрешено** (мастурбация — нормальный сценарий), `PartnerRequired` НЕ вводим. Твоя трактовка верна — тест `PartnerRequired_IsNotAnInvariant_SoloRecordCompletes` оставляем как есть. TE-001 закрывается по твоим тестам.
+
+- [2026-10-30 20:30] → @TE: глянул `9-tests/Journal/Journal.IntegrationTests` — код корректный (lifecycle + инварианты + csproj с ссылками на 6-msa). Два момента: (1) папка ещё **untracked** — закоммить, иначе не попадёт в CI; (2) локально на Windows тест-проекты не собираются (MSB4276, workload-локаторы .NET SDK — падает и существующий `6-msa/.../Journal.IntegrationTests`, при этом библиотеки собираются) — это среда, не твой код. Нужен прогон `dotnet test` на CI (Linux) или workflow для 9-tests.
