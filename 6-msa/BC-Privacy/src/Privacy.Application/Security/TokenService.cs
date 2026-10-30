@@ -38,7 +38,7 @@ public sealed class TokenService
                 ValidateAudience = false,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_key)),
+                IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(_key)),
                 ClockSkew = TimeSpan.Zero
             }, out _);
             return true;
@@ -52,7 +52,7 @@ public sealed class TokenService
     private string CreateToken(string kind, DateTime expires)
     {
         var handler = new JwtSecurityTokenHandler();
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_key));
+        var key = new SymmetricSecurityKey(Convert.FromBase64String(_key));
         var token = new JwtSecurityToken(
             issuer: _issuer,
             claims: new[] { new Claim("kind", kind) },

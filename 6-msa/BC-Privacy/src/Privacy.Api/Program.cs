@@ -22,7 +22,7 @@ builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configu
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IPinCredentialRepository, PinCredentialCommandRepository>();
 builder.Services.AddScoped<IPinCredentialQueryRepository, PinCredentialReadRepository>();
-builder.Services.AddSingleton(new TokenService(builder.Configuration["Jwt:SigningKey"] ?? "dev-only-signing-key-32bytes-minimum!!", builder.Configuration["Jwt:Issuer"] ?? "xdiary"));
+builder.Services.AddSingleton(new TokenService(builder.Configuration["Jwt:SigningKey"] ?? "eGRpYXJ5LWRldi1zaWduaW5nLWtleS1taW5pbXVtLTMyLWJ5dGVzLTIwMjY=", builder.Configuration["Jwt:Issuer"] ?? "xdiary"));
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 

@@ -9,7 +9,7 @@ using SomaticSeries.Domain.Abstraction;
 using XDiary.Contracts;
 
 [ApiController]
-[Route("api/v1/somatic")]
+[Route("api/v1/somatic-series")]
 public sealed class SomaticSeriesController : ControllerBase
 {
     private readonly IMediator _mediator;
