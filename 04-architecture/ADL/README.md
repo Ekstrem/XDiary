@@ -24,6 +24,7 @@
 | 013 | Версионирование API и контракты | `/api/v1` + OpenAPI | Принято |
 | 014 | Наблюдаемость | Serilog + OpenTelemetry | Принято |
 | 015 | TLS и доступ без домена | Tailscale + MagicDNS + `tailscale cert` | Принято |
+| 016 | Размещение PostgreSQL | co-locate на VPS-1 (Hostkey без приватной сети) | Принято |
 
 ## Статусы
 - **Предложено** (Proposed) — решение обсуждается, варианты собраны.

@@ -9,11 +9,12 @@
 
 | ВМ | Роль | Публичный доступ | Внутренний доступ |
 |---|---|---|---|
-| VPS-1 | podman: 10 сервисов + шлюз YARP | 22 (SSH) + Tailscale (VPN) | → VPS-2:5432 |
-| VPS-2 | PostgreSQL: 1 кластер, 10 БД | **нет** (только 22 SSH) | ← VPS-1:5432 |
+| VPS-1 | podman: 10 сервисов + шлюз + **PostgreSQL (co-locate)** | 22 (SSH) + Tailscale (VPN) | локально (127.0.0.1) |
+| VPS-2 | **бэкап-таргет** / заморожена | **нет** (только 22 SSH) | — |
 
 - Доступ к приложению — **только через Tailscale** (частная VPN + валидный TLS, ADR-015); публичный 443 не открывается.
-- Между ВМ — **приватная сеть** (VPC/private network хостера). PostgreSQL **не публикуется наружу**.
+- **PostgreSQL co-locate на VPS-1** (ADR-016): у Hostkey нет приватной сети, публичный канал VPS-1↔VPS-2 непригоден для БД (`SELECT 1` 3–7 с).
+- VPS-2 — бэкап-таргет (`pg_dump`) или заморозка до появления VPC у провайдера.
 - Всё управление — по SSH (белый IP или через Tailscale SSH).
 
 ---
@@ -67,21 +68,20 @@ podman ps                     # проверка
 
 ---
 
-## 3. VPS-2 (PostgreSQL)
+## 3. PostgreSQL (co-locate на VPS-1)
 
-### 3.1 Что установить
+### 3.1 Что установить (на VPS-1)
 ```bash
-sudo apt update && sudo apt full-upgrade -y
-sudo apt install -y postgresql postgresql-contrib fail2ban ufw unattended-upgrades
+sudo apt install -y postgresql postgresql-contrib
 
 # (опционально) PostgreSQL 16 из PGDG вместо штатного 14:
 # https://www.postgresql.org/download/linux/ubuntu/
 ```
 
-### 3.2 Что должно быть на ВМ
-- 1 кластер PostgreSQL, внутри — **10 БД + 10 ролей** (по одной на сервис), пароли — в secrets.
-- Скрипт бэкапа (`pg_dumpall`/`pgBackRest`) в cron.
-- Данные в `/var/lib/postgresql/...`, WAL, бэкапы на отдельный диск/том.
+### 3.2 Что должно быть
+- 1 кластер PostgreSQL на VPS-1, внутри — **10 БД + 10 ролей** (по одной на сервис), пароли — в secrets.
+- Скрипт бэкапа (`pg_dump`) в cron → **на VPS-2** (или S3).
+- Данные в `/var/lib/postgresql/...` на VPS-1.
 
 ### 3.3 Создание БД и ролей
 ```bash
@@ -97,19 +97,18 @@ CREATE DATABASE partners OWNER partners;
 SQL
 ```
 
-### 3.4 Настройка доступа
+### 3.4 Настройка доступа (co-locate)
 `/etc/postgresql/*/main/postgresql.conf`:
 ```ini
-listen_addresses = '10.0.0.2'        # приватный IP VPS-2 (НЕ 0.0.0.0!)
+listen_addresses = '127.0.0.1'        # только локально (co-locate)
 port = 5432
 password_encryption = scram-sha-256
 ```
 
 `/etc/postgresql/*/main/pg_hba.conf`:
 ```conf
-# только VPS-1 по приватной сети
-host  all  all  10.0.0.1/32  scram-sha-256
-# локально
+# только локальные контейнеры
+host  all  all  127.0.0.1/32  scram-sha-256
 local all  postgres          peer
 ```
 
@@ -143,13 +142,13 @@ sudo ufw enable
 # HTTPS (443/80) НЕ открывать публично — доступ через Tailscale (tailscale0)
 ```
 
-VPS-2:
+VPS-2 (бэкап-таргет):
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow 22/tcp
-sudo ufw allow from 10.0.0.1 to any port 5432 proto tcp   # только VPS-1
 sudo ufw enable
+# 5432 НЕ открывать — БД на VPS-1 (co-locate)
 ```
 
 ### 4.3 fail2ban
@@ -174,7 +173,7 @@ sudo dpkg-reconfigure -plow unattended-upgrades   # включить security-о
 - Для порта 443 от rootless podman — `CAP_NET_BIND_SERVICE` или caddy/nginx на 443 → шлюз на 8080.
 
 ### 4.7 PostgreSQL hardening
-- Не открывать 5432 наружу (только приватная сеть, только VPS-1).
+- Не открывать 5432 наружу (`listen_addresses = 127.0.0.1`, co-locate).
 - Отдельная роль на сервис, минимальные права (`CREATE/ALL` только на свою БД).
 - Регулярный `VACUUM`/`ANALYZE` (autovacuum по умолчанию).
 
@@ -182,25 +181,24 @@ sudo dpkg-reconfigure -plow unattended-upgrades   # включить security-о
 
 ## 5. Порядок развёртывания (checklist)
 
-- [ ] Создать 2 VPS, включить приватную сеть.
+- [ ] Создать VPS-1 (и VPS-2 под бэкап, опционально).
 - [ ] Базово обновить, создать `deploy`, настроить SSH-ключи, отключить root/password.
 - [ ] ufw: deny by default + разрешить минимум.
 - [ ] fail2ban + unattended-upgrades.
-- [ ] **VPS-2:** поставить PostgreSQL, настроить `listen_addresses`/`pg_hba`, создать 10 БД/ролей.
-- [ ] **VPS-1:** поставить podman + .NET SDK, git clone, настроить TLS (caddy/nginx+certbot).
-- [ ] Собрать образы и поднять 10 сервисов + шлюз.
+- [ ] **VPS-1:** поставить podman + PostgreSQL + .NET SDK, создать 10 БД/ролей, настроить TLS (Tailscale).
+- [ ] Собрать образы и поднять 10 сервисов + шлюз + PostgreSQL.
 - [ ] Прокинуть секреты `.env` (Garmin key, JWT secret, пароли БД).
-- [ ] Проверить доступ: PWA → шлюз (HTTPS) → сервисы → БД.
-- [ ] Настроить бэкап PostgreSQL (cron, `pg_dumpall`).
+- [ ] Проверить доступ: PWA → шлюз (HTTPS) → сервисы → БД (локально).
+- [ ] Настроить бэкап PostgreSQL (cron, `pg_dump` → VPS-2/S3).
 
 ---
 
 ## 6. Проверки (acceptance)
 
 - [ ] `ssh root@VPS` — **отказано**; вход только `deploy` по ключу.
-- [ ] `nc -zv VPS2 5432` снаружи — **закрыто**; с VPS-1 — открыто.
+- [ ] `SELECT 1` локально (psql) < 100 мс — стабильно.
 - [ ] `https://xdiary.vps1.ts.net` (через Tailscale) — валидный сертификат, PWA грузится.
-- [ ] Контейнеры подняты: `podman ps` = 11 строк (10 сервисов + шлюз).
+- [ ] Контейнеры подняты: `podman ps` = 12 строк (10 сервисов + шлюз + postgres).
 - [ ] БД доступна с сервисов, миграция CSV прошла.
 - [ ] Бэкап создаётся и восстанавливается (`pg_restore` в тестовую БД).
 
