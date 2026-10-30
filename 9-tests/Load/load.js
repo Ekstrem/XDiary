@@ -26,6 +26,16 @@ export const options = {
       preAllocatedVUs: 5,
       maxVUs: 10,
     },
+    soak_1tpm: {
+      // TE-011: soak — длительный прогон; для реального soak увеличь duration до 4h+.
+      executor: 'constant-arrival-rate',
+      rate: 1,
+      timeUnit: '1m',
+      duration: '1h',
+      startTime: '14m',
+      preAllocatedVUs: 2,
+      maxVUs: 5,
+    },
   },
   thresholds: {
     http_req_failed: ['rate<0.01'],
