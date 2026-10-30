@@ -1,6 +1,6 @@
 # Aggregate Design Canvas: DailyMetrics
 
-> Bounded Context: Дневные метрики
+> Bounded Context: Дневные метрики (DailyMetrics)
 > Агрегат: DailyMetrics
 > Профиль: Append-only (импорт), Single-writer
 
@@ -12,8 +12,14 @@
 ## 2. Description (Описание)
 Дневная сводка. Хранится в IndexedDB `weekly` (стресс/пульс покоя/HRV) и `sleep` (сон).
 
-**Value Objects:**
-- **Root**: date (string)
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
+
+**Сущность (Entity — корень агрегата):**
+- **DailyMetrics** — совокупность признаков, идентифицирующих сводку:
+  - `date` (string) — день «YYYY-MM-DD»
+
+**Объект-значения (Value Objects):**
 - **Stress**: stress (int)
 - **RestingHR**: resting_hr (int)
 - **Hrv**: hrv (int)
@@ -21,8 +27,8 @@
 
 ## 3. State Transitions
 ```
-(нет) → [ImportDaily] → Stored
-Stored → [ReimportDaily] → Stored (upsert по date)
+(нет) → [RecordX] → Stored
+Stored → [RecordX] → Stored (upsert по date)
 ```
 
 ## 4. Enforced Invariants
@@ -34,26 +40,26 @@ Stored → [ReimportDaily] → Stored (upsert по date)
 ## 5. Corrective Policies
 | Политика | Триггер | Действие |
 |---|---|---|
-| AnalyticsRefresh | новые дневные метрики | Аналитика пересчитывает тренды |
+| AnalyticsRefresh | любое событие метрики | Аналитика пересчитывает тренды |
 
-## 6. Handled Commands
-| Команда | Функция (код) | Входные VO | Инициатор |
-|---|---|---|---|
-| SyncStress | garminSync → importWeekly(items, "stress") | stress | UI/автосинк |
-| SyncSleep | garminSync → DB.putSleepBatch | sleep | UI/автосинк |
-| SyncHrv | garminSync → importWeekly(items, "hrv") | hrv | UI/автосинк |
-| ImportCsv | handleImportAnyFile() | CSV (stress/sleep/resting) | UI |
+## 6. Handled Commands (именованные методы)
+| Метод | Входные VO |
+|---|---|
+| `RecordStress(date, stress)` | Stress |
+| `RecordRestingHr(date, resting_hr)` | RestingHR |
+| `RecordHrv(date, hrv)` | Hrv |
+| `RecordSleep(date, sleep)` | Sleep |
 
-## 7. Created Events
-| Событие | Изменённые VO | Когда |
-|---|---|---|
-| StressImported | Stress | SyncStress/ImportCsv |
-| SleepImported | Sleep | SyncSleep/ImportCsv |
-| HrvImported | Hrv | SyncHrv/ImportCsv |
-| RestingHrImported | RestingHR | SyncSomatic(resting)/ImportCsv |
+## 7. Created Events (каждый метод → событие)
+| Метод | Событие |
+|---|---|
+| `RecordStress` | `StressRecorded` |
+| `RecordRestingHr` | `RestingHrRecorded` |
+| `RecordHrv` | `HrvRecorded` |
+| `RecordSleep` | `SleepRecorded` |
 
 ## 8. Throughput
-- Частота: пакетная (31 день за синк), редкие вызовы.
+- Пакетная (31 день за синк), редкие вызовы.
 
 ## 9. Size
-- Объём: дни (не месяцы точек). Снапшоты не нужны.
+- Объём: дни. Снапшоты не нужны.

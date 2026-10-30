@@ -1,23 +1,22 @@
-# Command API: Переносимость данных
+# Command API: Переносимость данных (Portability)
 
-> Внутренний API (UI → сервис), без HTTP.
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| ExportRecords | downloadCsv() | все записи | — |
-| ImportRecords | importCsvFile(file) | CSV | — |
-| ImportSomatic | handleImportAnyFile(file) | CSV (соматика/сон/стресс) | — |
+| ExportRecords | `ExportRecords(records)` | `RecordsExported` | Row[] |
+| ImportRecords | `ImportRecords(csv)` | `RecordsImported` | Row[] |
+| ImportSomatic | `ImportSomatic(csv)` | `SomaticImported` | Row[] |
 
-## Формат (Published Language)
-### CSV записей (CSV_HEADERS)
+## Формат (Published Language — CSV_HEADERS)
 ```
 id,started_at,duration_min,partner,place,positions,tags,costumes,toys,fantasies,contraceptives,contraceptive_count,orgasms_me,orgasms_partner,orgasm_me_type,orgasm_me_rating,orgasm_partner_type,orgasm_partner_rating,garmin
 ```
 
 ## Цепочка корреляции имён
 ```
-UI → downloadCsv() → recordsToCsv() → blob → файл
-UI → importCsvFile() → csvToRecords() → DB.putRecord(по id) → RecordImported
-UI → handleImportAnyFile() → распознать тип CSV → DB.put* → …Imported
+UI → ExportRecords(records) → RecordsExported (файл CSV)
+UI → ImportRecords(csv) → RecordsImported (upsert по id)
+UI → ImportSomatic(csv) → SomaticImported
 ```

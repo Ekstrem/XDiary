@@ -1,6 +1,6 @@
 # Aggregate Design Canvas: AppleImport
 
-> Bounded Context: Шлюз Apple Health
+> Bounded Context: Шлюз Apple Health (AppleHealthGateway)
 > Агрегат: AppleImport
 > Профиль: Single-writer (интеграционное состояние)
 
@@ -10,15 +10,22 @@
 ## 2. Description (Описание)
 Агрегат владеет конфигурацией и состоянием импорта Apple Health.
 
-**Value Objects:**
-- **Root**: sourceId (string, «apple»)
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
+
+**Сущность (Entity — корень агрегата):**
+- **AppleImport** — совокупность признаков, идентифицирующих источник:
+  - `sourceId` (string) — «apple»
+
+**Объект-значения (Value Objects):**
 - **ImportConfig**: metrics[]
 - **LastImport**: timestamp
 - **ProcessedFiles**: names[]
 
 ## 3. State Transitions
 ```
-(нет) → [ImportFile] → Imported (обновляет LastImport)
+(нет) → [Configure] → Configured
+Configured → [ImportFile] → Configured (обновляет LastImport)
 ```
 
 ## 4. Enforced Invariants
@@ -32,18 +39,20 @@
 |---|---|---|
 | SkipDuplicate | файл уже импортирован | пропустить |
 
-## 6. Handled Commands
-| Команда | Функция (код) | Входные VO | Инициатор |
-|---|---|---|---|
-| ImportFile | handleImportAnyFile() | файл | UI |
+## 6. Handled Commands (именованные методы)
+| Метод | Входные VO |
+|---|---|
+| `Configure(metrics)` | ImportConfig |
+| `ImportFile(file)` | файл |
 
-## 7. Created Events
-| Событие | Изменённые VO | Когда |
-|---|---|---|
-| AppleSomaticsImported | (наружу: точки/сводки) | ImportFile |
+## 7. Created Events (каждый метод → событие)
+| Метод | Событие |
+|---|---|
+| `Configure` | `AppleImportConfigured` |
+| `ImportFile` | `AppleFileImported` |
 
 ## 8. Throughput
 - Редкий ручной импорт файла.
 
 ## 9. Size
-- Один агрегат на источник; снапшоты не нужны.
+- Один агрегат на источник. Снапшоты не нужны.

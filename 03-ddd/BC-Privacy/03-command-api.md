@@ -1,15 +1,15 @@
-# Command API: Приватность и доступ
+# Command API: Приватность и доступ (Privacy)
 
-> Внутренний API (UI → сервис), без HTTP.
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| SetPin | Pin.setPin(pin) | pin (4–8 цифр) | (нет) |
-| VerifyPin | Pin.verifyPin(pin) | pin | Set |
-| RemovePin | Pin.removePin() | — | Set |
-| Lock | lock() | — | Unlocked |
-| Unlock | unlock() | pin | Locked |
+| SetPin | `SetPin(pin)` | `PinSet` | Salt, Hash, Iterations |
+| ChangePin | `ChangePin(pin)` | `PinChanged` | Salt, Hash, Iterations |
+| Remove | `Remove()` | `PinRemoved` | — |
+| Lock | `Lock()` | `Locked` | — |
+| Unlock | `Unlock()` | `Unlocked` | — |
 
 ## Request DTO
 ```json
@@ -18,7 +18,8 @@
 
 ## Цепочка корреляции имён
 ```
-UI → openPinDialog() → applyPin() → Pin.setPin(nw) → PinSet
-UI → unlock() → Pin.verifyPin(pin) → showView("journal")
-UI → lock() → Pin.hasPin() → showView("lock")
+UI → SetPin(pin) → PinSet
+UI → ChangePin(pin) → PinChanged
+UI → Remove() → PinRemoved
+UI → Lock() → Locked → Unlock() → Unlocked
 ```

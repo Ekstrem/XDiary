@@ -1,22 +1,29 @@
 # Aggregate Design Canvas: CsvDocument (документ переноса)
 
-> Bounded Context: Переносимость данных
-> Агрегат: CsvDocument (сервис-контекст, агрегат-документ)
+> Bounded Context: Переносимость данных (Portability)
+> Агрегат: CsvDocument (документ-агрегат, транзитный)
 
 ## 1. Name (Имя)
-- **Имя:** CsvDocument (CSV-документ переноса)
-- **Создаётся когда:** экспорт (downloadCsv) или импорт (importCsvFile)
+- **Имя:** CsvDocument (CSV-документ переноса).
+- **Создаётся когда:** экспорт или импорт CSV.
 
 ## 2. Description (Описание)
-Контекст сериализует/десериализует записи и соматику в CSV. Это «опубликованный язык» (Published Language) для обмена с внешним миром.
+Контекст сериализует/десериализует записи и соматику в CSV — «опубликованный язык» (Published Language) для обмена.
 
-**Value Objects:**
-- **Headers** (CSV_HEADERS): фиксированный набор колонок.
-- **Row**: строка записи (поля, списки через `;`).
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — технический, для **быстрого поиска**. Документ транзитный (формируется/читается разово).
+
+**Сущность (Entity — корень агрегата):**
+- **CsvDocument** — транзитный документ; идентичность неявная (экспорт/импорт-батч).
+
+**Объект-значения (Value Objects):**
+- **Headers**: фиксированный набор колонок (CSV_HEADERS)
+- **Row**: строка записи (поля, списки через `;`)
 
 ## 3. State Transitions
 ```
-(нет) — документ формируется/читается разово.
+(нет) → [Export] → (файл) → (нет)
+(нет) → [Import] → (другие контексты) → (нет)
 ```
 
 ## 4. Enforced Invariants
@@ -28,20 +35,24 @@
 ## 5. Corrective Policies
 | Политика | Триггер | Действие |
 |---|---|---|
-| MergeById | импорт | upsert записей по id (не дублировать) |
+| MergeById | импорт записей | upsert по id (не дублировать) |
 
-## 6. Handled Commands
-| Команда | Функция (код) | Входные VO | Инициатор |
-|---|---|---|---|
-| ExportRecords | downloadCsv() | записи | UI |
-| ImportRecords | importCsvFile() | CSV | UI |
-| ImportSomatic | handleImportAnyFile() | CSV (соматика/сон/…) | UI |
+## 6. Handled Commands (именованные методы)
+| Метод | Входные VO |
+|---|---|
+| `ExportRecords(records)` | Row[] |
+| `ImportRecords(csv)` | Row[] |
+| `ImportSomatic(csv)` | Row[] |
 
-## 7. Created Events
-- Нет (пишет в другие контексты через их API).
+## 7. Created Events (каждый метод → событие)
+| Метод | Событие |
+|---|---|
+| `ExportRecords` | `RecordsExported` |
+| `ImportRecords` | `RecordsImported` |
+| `ImportSomatic` | `SomaticImported` |
 
 ## 8. Throughput
 - Редкие ручные операции.
 
 ## 9. Size
-- Объём файлов: весь журнал/соматика.
+- Объём: весь журнал/соматика за раз.

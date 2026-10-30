@@ -1,21 +1,22 @@
-# Command API: Шлюз Garmin
+# Command API: Шлюз Garmin (GarminGateway)
 
-> Внутренний API — ACL к Garmin (Personal API через прокси/CSV).
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| SyncSomatics | garminSync() → `/local/*` | SyncConfig | Configured |
-| ImportActivities | openGarminPicker() → `/activities` | — | Configured |
+| Connect | `Connect(credentials)` | `GarminConnected` | Credentials |
+| Sync | `Sync(config)` | `GarminSynced` | SyncConfig |
+| FetchActivities | `FetchActivities()` | `GarminActivitiesFetched` | — |
 
 ## Request DTO
-### SomaticBatch (из `/local/somatic`)
 ```json
-{ "somatic": [["YYYY-MM-DDTHH:mm", hr, body_battery]] }
+{ "credentials": { "apiKey": "…", "oauthToken": "…" }, "config": { "metrics": ["hr","bb","stress","sleep","hrv"], "windowDays": 30 } }
 ```
 
 ## Цепочка корреляции имён
 ```
-UI/автосинк → garminSync() → garminFetch("/local/*") → нормализованные DTO → SomaticSeries/DailyMetrics
-UI «Из Garmin» → openGarminPicker() → `/activities` → занятия → Журнал
+UI → Connect(credentials) → GarminConnected
+UI/автосинк → Sync(config) → GarminSynced (норм. соматика → SomaticSeries/DailyMetrics)
+UI «Из Garmin» → FetchActivities() → GarminActivitiesFetched (занятия → Journal)
 ```

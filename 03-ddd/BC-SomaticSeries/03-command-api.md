@@ -1,21 +1,18 @@
-# Command API: Соматика — минутные точки
+# Command API: Соматика — минутные точки (SomaticSeries)
 
-> Внутренний API. Источник — локальный прокси/CSV.
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| SyncSomatic | garminSync() → `/local/somatic` → DB.putSomaticBatch | точки | Stored |
-| ImportCsv | handleImportAnyFile() | CSV (somatic) | Stored |
+| RecordPoint | `RecordPoint(t, hr, body_battery)` | `SomaticPointRecorded` | t, HeartRate, BodyBattery |
 
-## Request DTO
-### SomaticBatch (из `/local/somatic`)
+## Request DTO (SomaticBatch)
 ```json
-{ "somatic": [["YYYY-MM-DDTHH:mm", hr, body_battery]] }
+{ "somatic": [["YYYY-MM-DDTHH:mm", 72, 55]] }
 ```
 
 ## Цепочка корреляции имён
 ```
-UI/автосинк → garminSync() → garminFetch("/local/somatic") → DB.putSomaticBatch → SomaticImported
-CSV → handleImportAnyFile() → parse → DB.putSomaticBatch → SomaticImported
+UI/автосинк (из шлюза) → RecordPoint(t, hr, bb) → SomaticPointRecorded
 ```

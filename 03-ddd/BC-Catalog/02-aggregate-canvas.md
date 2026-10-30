@@ -1,38 +1,45 @@
 # Aggregate Design Canvas: CatalogItem (Элемент каталога)
 
-> Bounded Context: Каталог и инвентарь
+> Bounded Context: Каталог и инвентарь (Catalog)
 > Агрегат: CatalogItem
 > Профиль: Single-writer
 
 ## 1. Name (Имя)
-- **Имя:** CatalogItem (Элемент каталога)
-- **Создаётся когда:** пользователь добавляет элемент (saveCatalogEdit, новый)
-- **Завершается когда:** удаление элемента (deleteCatalogEdit)
+- **Имя:** CatalogItem (Элемент каталога).
+- **Создаётся когда:** пользователь добавляет элемент каталога.
+- **Завершается когда:** удаление элемента.
 
 ## 2. Description (Описание)
 Агрегат CatalogItem хранит элемент одного вида (costume/toy/fantasy/contraception). Поставляет выбор в Журнал.
 
-**Value Objects:**
-- **Root** (ItemRoot): id (uuid), kind («costume»|«toy»|«fantasy»|«contraception»), name (string)
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
+
+**Сущность (Entity — корень агрегата):**
+- **CatalogItem** — совокупность признаков, идентифицирующих элемент:
+  - `kind` («costume» | «toy» | «fantasy» | «contraception») — вид
+  - `name` (string) — имя
+
+**Объект-значения (Value Objects):**
 - **Photo**: photo (dataURL)
 - **Notes**: notes (string)
 - **Brand** (только toy): brand (string)
-- **Archive** (только toy): archived (bool)
+- **Archived** (только toy): archived (bool)
 - **FantasyPartner** (только fantasy): partner (string)
 
 ## 3. State Transitions
 ```
-(нет) → [CreateItem] → Active
-Active → [UpdateItem] → Active
-Active → [ArchiveItem] → Archived
-Archived → [RestoreItem] → Active
-Active/Archived → [DeleteItem] → Deleted
+(нет) → [AddItem] → Active
+Active → [Rename / UpdateDetails] → Active
+Active → [Archive] → Archived
+Archived → [Restore] → Active
+Active/Archived → [Remove] → Removed
 ```
 
 ## 4. Enforced Invariants
 | Инвариант | Описание |
 |---|---|
-| NameRequired | name обязателен (saveCatalogEdit) |
+| NameRequired | name обязателен |
 | KindEnum | kind ∈ {costume, toy, fantasy, contraception} |
 | BrandToyOnly | brand заполняется только для toy |
 | ArchiveToyOnly | archived применяется только для toy |
@@ -40,28 +47,31 @@ Active/Archived → [DeleteItem] → Deleted
 ## 5. Corrective Policies
 | Политика | Триггер | Действие |
 |---|---|---|
-| JournalSync | ItemUpdated/Deleted | Журнал читает актуальные имена при следующем выборе |
-| ArchiveBottom | archived=true | список показывает элемент внизу, полупрозрачным |
+| JournalSync | ItemRenamed / ItemRemoved | Журнал читает актуальные имена |
+| ArchiveBottom | ItemArchived | список показывает элемент внизу, полупрозрачным |
 
-## 6. Handled Commands
-| Команда | Функция (код) | Входные VO | Инициатор |
-|---|---|---|---|
-| CreateItem | saveCatalogEdit() | ItemDraft | UI |
-| UpdateItem | saveCatalogEdit() (editingCatalogId) | ItemDraft + id | UI |
-| DeleteItem | deleteCatalogEdit() | id | UI |
-| ArchiveItem | ce-archive toggle → saveCatalogEdit() | archived | UI |
+## 6. Handled Commands (именованные методы)
+| Метод | Входные VO |
+|---|---|
+| `AddItem(kind, name)` | kind, name |
+| `Rename(name)` | name |
+| `UpdateDetails(photo, notes, brand, fantasyPartner)` | Photo, Notes, Brand, FantasyPartner |
+| `Archive()` | Archived |
+| `Restore()` | Archived |
+| `Remove()` | — |
 
-## 7. Created Events
-| Событие | Изменённые VO | Когда |
-|---|---|---|
-| ItemCreated | все | CreateItem |
-| ItemUpdated | все | UpdateItem |
-| ItemDeleted | — | DeleteItem |
+## 7. Created Events (каждый метод → событие)
+| Метод | Событие |
+|---|---|
+| `AddItem` | `ItemAdded` |
+| `Rename` | `ItemRenamed` |
+| `UpdateDetails` | `ItemDetailsUpdated` |
+| `Archive` | `ItemArchived` |
+| `Restore` | `ItemRestored` |
+| `Remove` | `ItemRemoved` |
 
 ## 8. Throughput
 - Частота: единицы (редкое пополнение каталога).
-- Конкурентность: нет.
 
 ## 9. Size
-- Событий за жизнь: 1..несколько.
-- Снапшоты: не нужны.
+- Событий за жизнь: 1..несколько. Снапшоты не нужны.

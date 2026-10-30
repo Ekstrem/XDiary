@@ -1,31 +1,27 @@
-# Command API: Каталог и инвентарь
+# Command API: Каталог и инвентарь (Catalog)
 
-> Внутренний API (UI → сервис), без HTTP.
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| CreateItem | saveCatalogEdit() | ItemDraft | (нет) |
-| UpdateItem | saveCatalogEdit() | ItemDraft + editingCatalogId | Active |
-| DeleteItem | deleteCatalogEdit() | editingCatalogId | Active/Archived |
-| ArchiveItem | ce-archive → saveCatalogEdit() | archived | Active |
+| AddItem | `AddItem(kind, name)` | `ItemAdded` | kind, name |
+| Rename | `Rename(name)` | `ItemRenamed` | name |
+| UpdateDetails | `UpdateDetails(photo, notes, brand, fantasyPartner)` | `ItemDetailsUpdated` | Photo, Notes, Brand, FantasyPartner |
+| Archive | `Archive()` | `ItemArchived` | Archived |
+| Restore | `Restore()` | `ItemRestored` | Archived |
+| Remove | `Remove()` | `ItemRemoved` | — |
 
-## Request DTO
-### ItemDraft
+## Request DTO (ItemDraft)
 ```json
-{
-  "kind": "costume | toy | fantasy | contraception",
-  "name": "string",
-  "photo": "dataURL | null",
-  "notes": "string",
-  "brand": "string | null",
-  "archived": false,
-  "partner": "string | null"
-}
+{ "kind": "costume|toy|fantasy|contraception", "name": "string", "photo": "dataURL", "notes": "string", "brand": "string", "fantasyPartner": "string" }
 ```
 
 ## Цепочка корреляции имён
 ```
-UI → openCatalogEdit(id, kind) → DB.getCatalogItem(id) → форма → saveCatalogEdit() → DB.putCatalogItem → ItemCreated/Updated
-UI → deleteCatalogEdit() → DB.deleteCatalogItem(id) → ItemDeleted
+UI → AddItem(kind, name) → ItemAdded
+UI → Rename(name) → ItemRenamed
+UI → UpdateDetails(...) → ItemDetailsUpdated
+UI → Archive() → ItemArchived → Restore() → ItemRestored
+UI → Remove() → ItemRemoved
 ```

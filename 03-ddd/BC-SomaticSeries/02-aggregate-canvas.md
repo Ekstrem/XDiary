@@ -1,53 +1,57 @@
 # Aggregate Design Canvas: SomaticPoint
 
-> Bounded Context: Соматика — минутные точки
+> Bounded Context: Соматика — минутные точки (SomaticSeries)
 > Агрегат: SomaticPoint
 > Профиль: Append-only (импорт), Single-writer
 
 ## 1. Name (Имя)
-- **SomaticPoint** — одно значение за минуту (t = «YYYY-MM-DDTHH:mm»).
+- **SomaticPoint** — одно значение за минуту.
 - **Создаётся когда:** импорт соматики (синк/CSV).
 - **Завершается когда:** полная очистка данных.
 
 ## 2. Description (Описание)
 Минутная точка физиологии. Хранится в IndexedDB `somatic`.
 
-**Value Objects:**
-- **Root**: t (string, минута)
+**Идентификатор агрегата (DF):**
+- Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
+
+**Сущность (Entity — корень агрегата):**
+- **SomaticPoint** — совокупность признаков, идентифицирующих точку:
+  - `t` (string) — минута «YYYY-MM-DDTHH:mm» («во сколько»)
+
+**Объект-значения (Value Objects):**
 - **HeartRate**: hr (int)
 - **BodyBattery**: body_battery (int)
 
 ## 3. State Transitions
 ```
-(нет) → [ImportSomatic] → Stored
-Stored → [ReimportSomatic] → Stored (upsert по t)
+(нет) → [RecordPoint] → Stored
+Stored → [RecordPoint] → Stored (upsert по t)
 ```
 
 ## 4. Enforced Invariants
 | Инвариант | Описание |
 |---|---|
-| MinuteGranularity | t имеет формат «YYYY-MM-DDTHH:mm» |
+| MinuteGranularity | t — «YYYY-MM-DDTHH:mm» |
 | NonNegative | hr / body_battery ≥ 0 |
 
 ## 5. Corrective Policies
 | Политика | Триггер | Действие |
 |---|---|---|
-| JournalSliceRefresh | новые точки | Журнал пересчитывает срез вокруг акта |
+| JournalSliceRefresh | SomaticPointRecorded | Журнал пересчитывает срез вокруг акта |
 
-## 6. Handled Commands
-| Команда | Функция (код) | Входные VO | Инициатор |
-|---|---|---|---|
-| SyncSomatic | garminSync() → DB.putSomaticBatch | точки (t, hr, bb) | UI/автосинк |
-| ImportCsv | handleImportAnyFile() | CSV (somatic) | UI |
+## 6. Handled Commands (именованные методы)
+| Метод | Входные VO |
+|---|---|
+| `RecordPoint(t, hr, body_battery)` | t, HeartRate, BodyBattery |
 
-## 7. Created Events
-| Событие | Изменённые VO | Когда |
-|---|---|---|
-| SomaticImported | SomaticPoint | SyncSomatic/ImportCsv |
+## 7. Created Events (каждый метод → событие)
+| Метод | Событие |
+|---|---|
+| `RecordPoint` | `SomaticPointRecorded` |
 
 ## 8. Throughput
-- Частота: пакетная (тысячи точек за синк), редкие вызовы.
+- Пакетная (тысячи точек за синк), редкие вызовы.
 
 ## 9. Size
-- Объём: месяцы данных (~23k точек/месяц).
-- Снапшоты: не нужны (append-only в IndexedDB).
+- Объём: месяцы данных (~23k точек/месяц). Снапшоты не нужны.

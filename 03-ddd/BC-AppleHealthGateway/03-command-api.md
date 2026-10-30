@@ -1,19 +1,20 @@
-# Command API: Шлюз Apple Health
+# Command API: Шлюз Apple Health (AppleHealthGateway)
 
-> Внутренний API — ACL к Apple Health (ручной экспорт).
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| ImportFile | handleImportAnyFile() | `export.xml`/CSV | Imported |
+| Configure | `Configure(metrics)` | `AppleImportConfigured` | ImportConfig |
+| ImportFile | `ImportFile(file)` | `AppleFileImported` | файл |
 
 ## Request DTO
-### AppleExport (файл)
-```text
-export.xml / CSV: пульс, HRV, сон, пульс покоя
+```json
+{ "metrics": ["hr","hrv","sleep","resting_hr"] }
 ```
 
 ## Цепочка корреляции имён
 ```
-UI → handleImportAnyFile() → parse export.xml/CSV → нормализованные DTO → SomaticSeries/DailyMetrics
+UI → Configure(metrics) → AppleImportConfigured
+UI → ImportFile(export.xml/CSV) → AppleFileImported (норм. соматика → SomaticSeries/DailyMetrics)
 ```

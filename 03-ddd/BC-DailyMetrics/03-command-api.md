@@ -1,23 +1,21 @@
-# Command API: Дневные метрики
+# Command API: Дневные метрики (DailyMetrics)
 
-> Внутренний API. Источник — локальный прокси/CSV.
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| SyncStress | garminSync() → `/local/stress` → importWeekly(items, "stress") | stress | Stored |
-| SyncSleep | garminSync() → `/local/sleep` → DB.putSleepBatch | sleep | Stored |
-| SyncHrv | garminSync() → `/local/hrv` → importWeekly(items, "hrv") | hrv | Stored |
-| ImportCsv | handleImportAnyFile() | CSV (stress/sleep/resting) | Stored |
+| RecordStress | `RecordStress(date, stress)` | `StressRecorded` | Stress |
+| RecordRestingHr | `RecordRestingHr(date, resting_hr)` | `RestingHrRecorded` | RestingHR |
+| RecordHrv | `RecordHrv(date, hrv)` | `HrvRecorded` | Hrv |
+| RecordSleep | `RecordSleep(date, sleep)` | `SleepRecorded` | Sleep |
 
 ## Request DTO
-### StressBatch (из `/local/stress`)
 ```json
-{ "stress": { "YYYY-MM-DD": int } }
+{ "date": "YYYY-MM-DD", "stress": 0, "resting_hr": 0, "hrv": 0, "sleep": { "score": 0, "durationMin": 0, "deepMin": 0, "lightMin": 0, "remMin": 0, "awakeMin": 0 } }
 ```
 
 ## Цепочка корреляции имён
 ```
-UI/автосинк → garminSync() → garminFetch("/local/*") → importWeekly / DB.putSleepBatch → StressImported/…
-CSV → handleImportAnyFile() → parse → DB.put* → …Imported
+UI/автосинк (из шлюза) → RecordStress / RecordRestingHr / RecordHrv / RecordSleep → StressRecorded / …
 ```

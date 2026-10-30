@@ -1,28 +1,24 @@
-# Command API: Партнёры
+# Command API: Партнёры (Partners)
 
-> Внутренний API (UI → сервис), без HTTP.
+> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
 
 ## Команды
-| Команда | Функция (код) | Входные VO | Состояние до |
+| Команда | Метод агрегата | Событие | Входные VO |
 |---|---|---|---|
-| CreatePartner | savePartnerEdit() | PartnerDraft | (нет) |
-| UpdatePartner | savePartnerEdit() | PartnerDraft + editingPartnerId | Active |
-| DeletePartner | deletePartnerEdit() | editingPartnerId | Active |
-| OpenEdit | openPartnerEdit(id) | id? | — |
+| Register | `Register(name)` | `PartnerRegistered` | name |
+| Rename | `Rename(name)` | `PartnerRenamed` | name |
+| UpdateProfile | `UpdateProfile(photo, gender, notes)` | `PartnerProfileUpdated` | Photo, Gender, Notes |
+| Remove | `Remove()` | `PartnerRemoved` | — |
 
-## Request DTO
-### PartnerDraft
+## Request DTO (PartnerDraft)
 ```json
-{
-  "name": "string",
-  "photo": "dataURL | null",
-  "gender": "male | female",
-  "notes": "string"
-}
+{ "name": "string", "photo": "dataURL", "gender": "male|female", "notes": "string" }
 ```
 
 ## Цепочка корреляции имён
 ```
-UI → openPartnerEdit(id) → DB.getPartner(id) → форма → savePartnerEdit() → DB.putPartner → PartnerCreated/Updated
-UI → deletePartnerEdit() → DB.deletePartner(id) → PartnerDeleted
+UI → Register(name) → PartnerRegistered
+UI → Rename(name) → PartnerRenamed
+UI → UpdateProfile(...) → PartnerProfileUpdated
+UI → Remove() → PartnerRemoved
 ```
