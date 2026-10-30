@@ -223,7 +223,9 @@ def main():
             task_id = fn[:-3]
             path = os.path.join(base, fn).replace("\\", "/")
             title, status_key = parse_task(path)
-            issue_title = "[%s] %s" % (task_id, title)
+            # убрать ведущий "BE-001: " из заголовка .md (иначе дубль в Issue)
+            clean_title = re.sub(r"^" + re.escape(task_id) + r"\s*[:—–-]\s*", "", title)
+            issue_title = "[%s] %s" % (task_id, clean_title)
             labels = [role_label, "status:" + status_key]
             body = "Авто-синк из `%s`.\n\nЗадача-источник: `%s`" % (path, path)
 
