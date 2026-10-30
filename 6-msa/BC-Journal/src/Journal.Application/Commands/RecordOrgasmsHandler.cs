@@ -16,19 +16,18 @@ public class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand, Journa
 
     public async Task<JournalOperationResult> Handle(RecordOrgasmsCommand request, CancellationToken ct)
     {
-        var error = RecordModelFactory.ValidateRating(request.OrgasmMeRating)
-            ?? RecordModelFactory.ValidateRating(request.OrgasmPartnerRating);
-        if (error != null)
-            return JournalOperationResult.Failed(request.AggregateId, error);
+        foreach (var orgasm in request.Orgasms)
+        {
+            var error = RecordModelFactory.ValidateRating(orgasm.Rating);
+            if (error != null)
+                return JournalOperationResult.Failed(request.AggregateId, error);
+        }
 
         var aggregate = await _provider.GetAggregateAsync(request.AggregateId, ct);
 
         var vos = new Dictionary<string, IValueObject>
         {
-            ["Orgasms"] = RecordModelFactory.BuildOrgasms(
-                request.OrgasmsMe, request.OrgasmsPartner,
-                request.OrgasmMeType, request.OrgasmPartnerType,
-                request.OrgasmMeRating, request.OrgasmPartnerRating)
+            ["Orgasms"] = RecordModelFactory.BuildOrgasms(request.Orgasms)
         };
 
         var command = CommandToAggregate.Commit(

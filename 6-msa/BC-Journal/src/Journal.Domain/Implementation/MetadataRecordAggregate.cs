@@ -48,7 +48,9 @@ public sealed class MetadataRecordAggregate : IRecordAggregate
         => Execute(model, commandMetadata);
     public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyWhen(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
         => Execute(model, commandMetadata);
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> ChoosePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> AddPartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> RemovePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
         => Execute(model, commandMetadata);
     public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyPlace(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
         => Execute(model, commandMetadata);

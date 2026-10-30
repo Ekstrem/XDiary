@@ -40,8 +40,10 @@ internal class Notifier :
         => Aggregate.StartFromGarmin(model, commandMetadata).Do(MatchAndPushNotification);
     public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyWhen(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
         => Aggregate.SpecifyWhen(model, commandMetadata).Do(MatchAndPushNotification);
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> ChoosePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => Aggregate.ChoosePartner(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> AddPartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.AddPartner(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> RemovePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.RemovePartner(model, commandMetadata).Do(MatchAndPushNotification);
     public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyPlace(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
         => Aggregate.SpecifyPlace(model, commandMetadata).Do(MatchAndPushNotification);
     public AggregateResult<IJournal, IAnemicModel<IJournal>> AddPositions(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)

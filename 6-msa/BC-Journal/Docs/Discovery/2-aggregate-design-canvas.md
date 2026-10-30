@@ -16,9 +16,11 @@
 - Составной ключ `<guid, long>` — `guid` идентифицирует агрегат, `long` — его версию. Технический, для **быстрого поиска**. **НЕ входит в сущность.**
 
 **Сущность (Entity — корень агрегата):**
-- **Record** — совокупность признаков, однозначно идентифицирующих запись (**кто и во сколько**):
-  - `partnerId` (uuid) — «кто» (ссылка на Партнёра)
+- **Record** — совокупность признаков, идентифицирующих запись (**кто и во сколько**):
+  - `partners[]` (uuid[]) — «кто» (партнёры; 0 = соло, N = несколько)
   - `startedAt` («YYYY-MM-DDTHH:mm») — «во сколько»
+
+> Участники акта = «я» (владелец, неявный) + `partners[]`.
 
 **Объект-значения (Value Objects):**
 - **Duration**: durationMin (int) — длительность
@@ -26,8 +28,23 @@
 - **Positions**: positions[] (string)
 - **Accessories**: costumes[], toys[], fantasies[], tags[]
 - **Contraception**: contraceptives[] (string), contraceptiveCount (int)
-- **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
+- **Orgasms**: orgasms[] — по участнику: { participant («me» | partnerId), count (int), types[] (string), rating (int 0–5) }
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
+
+### Кардинальность полей (из US/CJM)
+| Поле | Кардинальность | Источник |
+|---|---|---|
+| startedAt | 1 (обязательно) | US-01 |
+| partners[] | 0..N (0 = соло) | US-02 «если есть» + «участников» |
+| place | 0..1 (можно пропустить) | US-03 |
+| positions[] | 0..N («одну или несколько») | US-04 |
+| tags[] | 0..N | US-05 |
+| durationMin | 1 | US-06 |
+| orgasms[] | 0..N участников («кто и сколько») | US-07 |
+| costumes[] | 0..N | KS-02 |
+| toys[] | 0..N | IT-02 |
+| fantasies[] | 0..N | FZ-03 |
+| contraceptives[] + count | 0..N | CP-01 |
 
 > «Клиент» = «Партнёр»; в домене используем **«партнёр»**. Отдельный BC «Клиент» (комплаенс/безопасность) — позже.
 
@@ -41,7 +58,7 @@ Recorded → [Delete] → Deleted
 ## 4. Enforced Invariants (Обязательные инварианты)
 | Инвариант | Описание |
 |---|---|
-| PartnerRequired | partnerId обязателен до `Complete` |
+| PartnersCardinality | partners[] — 0..N (0 = соло, без партнёра) |
 | WhenRequired | startedAt обязателен до `Complete` |
 | DurationPositive | durationMin ≥ 1 |
 | RatingRange | rating ∈ 0..5 |
@@ -59,13 +76,14 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry()` | фабрика — ручная запись | — |
 | `StartFromGarmin(activity)` | фабрика — импорт занятия Garmin | GarminActivity |
 | `SpecifyWhen(startedAt)` | «Дата» | When |
-| `ChoosePartner(partnerId)` | «Партнёр» | partnerId |
+| `AddPartner(partnerId)` | «Партнёр» | partnerId |
+| `RemovePartner(partnerId)` | «Партнёр» | partnerId |
 | `SpecifyPlace(place)` | «Место» | Place |
 | `AddPositions(positions)` | «Позы» | Positions |
 | `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
 | `RecordContraception(contraceptives, count)` | «Контрацепция» | Contraception |
 | `SpecifyDuration(durationMin)` | «Длительность» | Duration |
-| `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | «Оргазмы» | Orgasms |
+| `RecordOrgasms(orgasms[])` | «Оргазмы» | Orgasms |
 | `Complete()` | «Итог» | — |
 | `Delete()` | — | — |
 
@@ -77,7 +95,8 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry` | `ManualEntryStarted` |
 | `StartFromGarmin` | `GarminEntryStarted` |
 | `SpecifyWhen` | `WhenSpecified` |
-| `ChoosePartner` | `PartnerChosen` |
+| `AddPartner` | `PartnerAdded` |
+| `RemovePartner` | `PartnerRemoved` |
 | `SpecifyPlace` | `PlaceSpecified` |
 | `AddPositions` | `PositionsAdded` |
 | `AddAccessories` | `AccessoriesAdded` |

@@ -9,13 +9,14 @@
 | StartManualEntry | `StartManualEntry()` | `ManualEntryStarted` | — |
 | StartFromGarmin | `StartFromGarmin(activity)` | `GarminEntryStarted` | GarminActivity |
 | SpecifyWhen | `SpecifyWhen(startedAt)` | `WhenSpecified` | When |
-| ChoosePartner | `ChoosePartner(partnerId)` | `PartnerChosen` | partnerId |
+| AddPartner | `AddPartner(partnerId)` | `PartnerAdded` | partnerId |
+| RemovePartner | `RemovePartner(partnerId)` | `PartnerRemoved` | partnerId |
 | SpecifyPlace | `SpecifyPlace(place)` | `PlaceSpecified` | Place |
 | AddPositions | `AddPositions(positions)` | `PositionsAdded` | Positions |
 | AddAccessories | `AddAccessories(costumes, toys, fantasies, tags)` | `AccessoriesAdded` | Accessories |
 | RecordContraception | `RecordContraception(contraceptives, count)` | `ContraceptionRecorded` | Contraception |
 | SpecifyDuration | `SpecifyDuration(durationMin)` | `DurationSpecified` | Duration |
-| RecordOrgasms | `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | `OrgasmsRecorded` | Orgasms |
+| RecordOrgasms | `RecordOrgasms(orgasms[])` | `OrgasmsRecorded` | Orgasms |
 | Complete | `Complete()` | `RecordCompleted` | — |
 | Delete | `Delete()` | `RecordDeleted` | — |
 
@@ -24,7 +25,7 @@
 {
   "startedAt": "YYYY-MM-DDTHH:mm",
   "durationMin": 0,
-  "partnerId": "uuid",
+  "partners": ["uuid"],
   "place": "string",
   "positions": ["string"],
   "costumes": ["string"],
@@ -33,12 +34,7 @@
   "tags": ["string"],
   "contraceptives": ["string"],
   "contraceptiveCount": 0,
-  "orgasmsMe": 0,
-  "orgasmsPartner": 0,
-  "orgasmMeType": ["string"],
-  "orgasmPartnerType": ["string"],
-  "orgasmMeRating": 0,
-  "orgasmPartnerRating": 0,
+  "orgasms": [{ "participant": "me|partnerId", "count": 0, "types": ["string"], "rating": 0 }],
   "garmin": false,
   "garminId": ""
 }

@@ -22,7 +22,7 @@ public class ReadDbContext : DbContext
             entity.ToTable("records");
             entity.HasKey(e => e.Id);
 
-            entity.Property(e => e.PartnerId).HasMaxLength(64);
+            entity.Property(e => e.Partners).HasColumnType("text[]");
             entity.Property(e => e.StartedAt).HasMaxLength(32);
             entity.Property(e => e.Place).HasMaxLength(256);
             entity.Property(e => e.Positions).HasColumnType("text[]");
@@ -31,8 +31,7 @@ public class ReadDbContext : DbContext
             entity.Property(e => e.Toys).HasColumnType("text[]");
             entity.Property(e => e.Fantasies).HasColumnType("text[]");
             entity.Property(e => e.Contraceptives).HasColumnType("text[]");
-            entity.Property(e => e.OrgasmMeType).HasColumnType("text[]");
-            entity.Property(e => e.OrgasmPartnerType).HasColumnType("text[]");
+            entity.Property(e => e.Orgasms).HasColumnType("jsonb");
             entity.Property(e => e.GarminId).HasMaxLength(128);
 
             entity.HasIndex(e => e.StartedAt);

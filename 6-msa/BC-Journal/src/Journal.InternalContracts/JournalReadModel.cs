@@ -9,7 +9,7 @@ namespace Journal.InternalContracts;
 public class JournalReadModel : IReadModel<IJournal>
 {
     public Guid Id { get; set; }
-    public string PartnerId { get; set; } = string.Empty;
+    public List<string> Partners { get; set; } = new();
     public string StartedAt { get; set; } = string.Empty;
     public int DurationMin { get; set; }
     public string Place { get; set; } = string.Empty;
@@ -20,12 +20,7 @@ public class JournalReadModel : IReadModel<IJournal>
     public List<string> Fantasies { get; set; } = new();
     public List<string> Contraceptives { get; set; } = new();
     public int ContraceptiveCount { get; set; }
-    public int OrgasmsMe { get; set; }
-    public int OrgasmsPartner { get; set; }
-    public List<string> OrgasmMeType { get; set; } = new();
-    public List<string> OrgasmPartnerType { get; set; } = new();
-    public int OrgasmMeRating { get; set; }
-    public int OrgasmPartnerRating { get; set; }
+    public List<OrgasmsEntry> Orgasms { get; set; } = new();
     public bool Garmin { get; set; }
     public string GarminId { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;

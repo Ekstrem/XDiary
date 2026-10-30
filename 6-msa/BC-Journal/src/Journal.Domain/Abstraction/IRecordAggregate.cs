@@ -6,14 +6,15 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Journal.Domain.Abstraction;
 
 /// <summary>
-/// Агрегат Record: 12 команд по экранам визарда.
+/// Агрегат Record: 13 команд по экранам визарда.
 /// </summary>
 public interface IRecordAggregate : IAggregate<IJournal>
 {
     AggregateResult<IJournal, IAnemicModel<IJournal>> StartManualEntry(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
     AggregateResult<IJournal, IAnemicModel<IJournal>> StartFromGarmin(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
     AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyWhen(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
-    AggregateResult<IJournal, IAnemicModel<IJournal>> ChoosePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
+    AggregateResult<IJournal, IAnemicModel<IJournal>> AddPartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
+    AggregateResult<IJournal, IAnemicModel<IJournal>> RemovePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
     AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyPlace(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
     AggregateResult<IJournal, IAnemicModel<IJournal>> AddPositions(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);
     AggregateResult<IJournal, IAnemicModel<IJournal>> AddAccessories(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata);

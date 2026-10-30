@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain;
@@ -10,9 +11,9 @@ namespace Journal.Application.Commands;
 /// </summary>
 internal static class RecordModelFactory
 {
-    public static IValueObject BuildRoot(string partnerId, string startedAt) => new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
+    public static IValueObject BuildRoot(IEnumerable<string>? partners, string startedAt) => new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
     {
-        ["PartnerId"] = partnerId,
+        ["Partners"] = partners?.ToArray() ?? Array.Empty<string>(),
         ["StartedAt"] = startedAt
     });
 
@@ -53,36 +54,34 @@ internal static class RecordModelFactory
         ["ContraceptiveCount"] = count
     });
 
-    public static IValueObject BuildOrgasms(int me, int partner, IEnumerable<string>? meTypes, IEnumerable<string>? partnerTypes, int meRating, int partnerRating) => new DynamicValueObject("RecordOrgasms", new Dictionary<string, object?>
+    public static IValueObject BuildOrgasms(IEnumerable<OrgasmsEntry>? orgasms) => new DynamicValueObject("RecordOrgasms", new Dictionary<string, object?>
     {
-        ["OrgasmsMe"] = me,
-        ["OrgasmsPartner"] = partner,
-        ["OrgasmMeType"] = meTypes?.ToArray() ?? Array.Empty<string>(),
-        ["OrgasmPartnerType"] = partnerTypes?.ToArray() ?? Array.Empty<string>(),
-        ["OrgasmMeRating"] = meRating,
-        ["OrgasmPartnerRating"] = partnerRating
+        ["Orgasms"] = JsonSerializer.Serialize(orgasms?.ToList() ?? new List<OrgasmsEntry>())
     });
 
     public static Dictionary<string, IValueObject> BuildValueObjects(RecordDraft d) => new()
     {
-        ["Root"] = BuildRoot(d.PartnerId, d.StartedAt),
+        ["Root"] = BuildRoot(d.Partners, d.StartedAt),
         ["Duration"] = BuildDuration(d.DurationMin),
         ["Place"] = BuildPlace(d.Place),
         ["Positions"] = BuildPositions(d.Positions),
         ["Accessories"] = BuildAccessories(d.Costumes, d.Toys, d.Fantasies, d.Tags),
         ["Contraception"] = BuildContraception(d.Contraceptives, d.ContraceptiveCount),
-        ["Orgasms"] = BuildOrgasms(d.OrgasmsMe, d.OrgasmsPartner, d.OrgasmMeType, d.OrgasmPartnerType, d.OrgasmMeRating, d.OrgasmPartnerRating),
+        ["Orgasms"] = BuildOrgasms(d.Orgasms),
         ["Origin"] = BuildOrigin(d.Garmin, d.GarminId, d.CreatedAt, d.UpdatedAt)
     };
 
-    /// <summary>Текущий корень (partnerId, startedAt) для слияния в шагах визарда.</summary>
-    public static (string PartnerId, string StartedAt) ReadRoot(IRecordAggregate aggregate)
+    /// <summary>Текущий корень (partners[], startedAt) для слияния в шагах визарда.</summary>
+    public static (string[] Partners, string StartedAt) ReadRoot(IRecordAggregate aggregate)
     {
         var vos = aggregate.GetValueObjects();
         if (vos.TryGetValue("Root", out var root) && root is DynamicValueObject r)
-            return (r.Get<string>("PartnerId") ?? string.Empty, r.Get<string>("StartedAt") ?? string.Empty);
-        return (string.Empty, string.Empty);
+            return (r.Get<string[]>("Partners") ?? Array.Empty<string>(), r.Get<string>("StartedAt") ?? string.Empty);
+        return (Array.Empty<string>(), string.Empty);
     }
+
+    public static List<string> ToList(string[]? items)
+        => items?.ToList() ?? new List<string>();
 
     public static string? ValidateDuration(int durationMin)
         => durationMin < 1 ? "durationMin must be >= 1." : null;

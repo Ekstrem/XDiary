@@ -17,16 +17,14 @@ public class CompleteHandler : IRequestHandler<CompleteCommand, JournalOperation
     public async Task<JournalOperationResult> Handle(CompleteCommand request, CancellationToken ct)
     {
         var aggregate = await _provider.GetAggregateAsync(request.AggregateId, ct);
-        var (partnerId, startedAt) = RecordModelFactory.ReadRoot(aggregate);
+        var (partners, startedAt) = RecordModelFactory.ReadRoot(aggregate);
 
-        if (string.IsNullOrWhiteSpace(partnerId))
-            return JournalOperationResult.Failed(request.AggregateId, "partnerId is required before Complete.");
         if (string.IsNullOrWhiteSpace(startedAt))
             return JournalOperationResult.Failed(request.AggregateId, "startedAt is required before Complete.");
 
         var vos = new Dictionary<string, IValueObject>
         {
-            ["Root"] = RecordModelFactory.BuildRoot(partnerId, startedAt)
+            ["Root"] = RecordModelFactory.BuildRoot(partners, startedAt)
         };
 
         var command = CommandToAggregate.Commit(

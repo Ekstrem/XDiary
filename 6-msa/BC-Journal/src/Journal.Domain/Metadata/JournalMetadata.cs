@@ -5,7 +5,8 @@ namespace Journal.Domain.Metadata;
 
 /// <summary>
 /// Канонические метаданные агрегата Record (запись / акт).
-/// 12 команд по экранам визарда (CJM) → по одному соразмерному событию.
+/// 13 команд по экранам визарда (CJM) → по одному соразмерному событию.
+/// Сущность = partners[] (0..N, 0 = соло) + startedAt.
 /// </summary>
 public static class JournalMetadata
 {
@@ -13,7 +14,7 @@ public static class JournalMetadata
     {
         Id = new Guid("a0000000-0000-0000-0000-000000000001"),
         AggregateName = "Record",
-        Description = "Агрегат Record: фиксация акта. Сущность = partnerId + startedAt; визард → Recorded.",
+        Description = "Агрегат Record: фиксация акта. Сущность = partners[] + startedAt; визард → Recorded.",
         ValueObjects = new List<ValueObjectMetadata>
         {
             new()
@@ -21,7 +22,7 @@ public static class JournalMetadata
                 Name = "Root", IsAggregateRoot = true, IsCollection = false,
                 Properties = new List<PropertyMetadata>
                 {
-                    new() { Name = "PartnerId", TypeName = "string", IsRequired = false },
+                    new() { Name = "Partners", TypeName = "string[]", IsRequired = false },
                     new() { Name = "StartedAt", TypeName = "string", IsRequired = false }
                 }
             },
@@ -63,15 +64,7 @@ public static class JournalMetadata
             new()
             {
                 Name = "Orgasms", IsAggregateRoot = false, IsCollection = false,
-                Properties = new List<PropertyMetadata>
-                {
-                    new() { Name = "OrgasmsMe", TypeName = "int", IsRequired = false },
-                    new() { Name = "OrgasmsPartner", TypeName = "int", IsRequired = false },
-                    new() { Name = "OrgasmMeType", TypeName = "string[]", IsRequired = false },
-                    new() { Name = "OrgasmPartnerType", TypeName = "string[]", IsRequired = false },
-                    new() { Name = "OrgasmMeRating", TypeName = "int", IsRequired = false },
-                    new() { Name = "OrgasmPartnerRating", TypeName = "int", IsRequired = false }
-                }
+                Properties = new List<PropertyMetadata> { new() { Name = "Orgasms", TypeName = "string", IsRequired = false } }
             },
             new()
             {
@@ -104,7 +97,8 @@ public static class JournalMetadata
                 Invariants = new List<InvariantMetadata> { New() }
             },
             Step("SpecifyWhen", "WhenSpecified", "Root"),
-            Step("ChoosePartner", "PartnerChosen", "Root"),
+            Step("AddPartner", "PartnerAdded", "Root"),
+            Step("RemovePartner", "PartnerRemoved", "Root"),
             Step("SpecifyPlace", "PlaceSpecified", "Place"),
             Step("AddPositions", "PositionsAdded", "Positions"),
             Step("AddAccessories", "AccessoriesAdded", "Accessories"),
@@ -120,7 +114,6 @@ public static class JournalMetadata
                 Invariants = new List<InvariantMetadata>
                 {
                     Existing(),
-                    new() { Name = "PartnerRequired", Type = InvariantType.Assertion, RuleExpression = "PropertyNotNull:Root.PartnerId", FailureReason = "Партнёр обязателен.", FailureResult = DomainOperationResultEnum.Exception },
                     new() { Name = "WhenRequired", Type = InvariantType.Assertion, RuleExpression = "PropertyNotNull:Root.StartedAt", FailureReason = "Дата обязательна.", FailureResult = DomainOperationResultEnum.Exception }
                 }
             },
@@ -138,7 +131,8 @@ public static class JournalMetadata
             new() { FromState = "*", ToState = "Draft", TriggerOperation = "StartManualEntry" },
             new() { FromState = "*", ToState = "Draft", TriggerOperation = "StartFromGarmin" },
             new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "SpecifyWhen" },
-            new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "ChoosePartner" },
+            new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "AddPartner" },
+            new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "RemovePartner" },
             new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "SpecifyPlace" },
             new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "AddPositions" },
             new() { FromState = "Draft", ToState = "Draft", TriggerOperation = "AddAccessories" },

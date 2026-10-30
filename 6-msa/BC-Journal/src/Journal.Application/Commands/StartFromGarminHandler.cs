@@ -21,7 +21,7 @@ public class StartFromGarminHandler : IRequestHandler<StartFromGarminCommand, Jo
 
         var vos = new Dictionary<string, IValueObject>
         {
-            ["Root"] = RecordModelFactory.BuildRoot(string.Empty, request.StartedAt),
+            ["Root"] = RecordModelFactory.BuildRoot(Array.Empty<string>(), request.StartedAt),
             ["Duration"] = RecordModelFactory.BuildDuration(request.DurationMin),
             ["Origin"] = RecordModelFactory.BuildOrigin(true, request.GarminId, now, now)
         };

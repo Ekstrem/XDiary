@@ -21,7 +21,7 @@ public class StartManualEntryHandler : IRequestHandler<StartManualEntryCommand, 
 
         var vos = new Dictionary<string, IValueObject>
         {
-            ["Root"] = RecordModelFactory.BuildRoot(string.Empty, string.Empty),
+            ["Root"] = RecordModelFactory.BuildRoot(Array.Empty<string>(), string.Empty),
             ["Origin"] = RecordModelFactory.BuildOrigin(false, string.Empty, now, now)
         };
 

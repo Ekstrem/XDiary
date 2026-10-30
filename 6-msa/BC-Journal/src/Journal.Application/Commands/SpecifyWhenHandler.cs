@@ -17,11 +17,11 @@ public class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, JournalOpe
     public async Task<JournalOperationResult> Handle(SpecifyWhenCommand request, CancellationToken ct)
     {
         var aggregate = await _provider.GetAggregateAsync(request.AggregateId, ct);
-        var (partnerId, _) = RecordModelFactory.ReadRoot(aggregate);
+        var (partners, _) = RecordModelFactory.ReadRoot(aggregate);
 
         var vos = new Dictionary<string, IValueObject>
         {
-            ["Root"] = RecordModelFactory.BuildRoot(partnerId, request.StartedAt)
+            ["Root"] = RecordModelFactory.BuildRoot(partners, request.StartedAt)
         };
 
         var command = CommandToAggregate.Commit(

@@ -8,29 +8,31 @@ using MediatR;
 
 namespace Journal.Application.Commands;
 
-public class ChoosePartnerHandler : IRequestHandler<ChoosePartnerCommand, JournalOperationResult>
+public class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand, JournalOperationResult>
 {
     private readonly IJournalAggregateProvider _provider;
 
-    public ChoosePartnerHandler(IJournalAggregateProvider provider) => _provider = provider;
+    public RemovePartnerHandler(IJournalAggregateProvider provider) => _provider = provider;
 
-    public async Task<JournalOperationResult> Handle(ChoosePartnerCommand request, CancellationToken ct)
+    public async Task<JournalOperationResult> Handle(RemovePartnerCommand request, CancellationToken ct)
     {
         var aggregate = await _provider.GetAggregateAsync(request.AggregateId, ct);
-        var (_, startedAt) = RecordModelFactory.ReadRoot(aggregate);
+        var (partners, startedAt) = RecordModelFactory.ReadRoot(aggregate);
+
+        var updated = partners.Where(p => p != request.PartnerId).ToList();
 
         var vos = new Dictionary<string, IValueObject>
         {
-            ["Root"] = RecordModelFactory.BuildRoot(request.PartnerId, startedAt)
+            ["Root"] = RecordModelFactory.BuildRoot(updated, startedAt)
         };
 
         var command = CommandToAggregate.Commit(
-            Guid.NewGuid(), nameof(IRecordAggregate.ChoosePartner), "ChoosePartner",
+            Guid.NewGuid(), nameof(IRecordAggregate.RemovePartner), "RemovePartner",
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         var model = DynamicAnemicModel<IJournal>.Create(
-            request.AggregateId, 0, Guid.NewGuid(), nameof(IRecordAggregate.ChoosePartner), "ChoosePartner", vos);
+            request.AggregateId, 0, Guid.NewGuid(), nameof(IRecordAggregate.RemovePartner), "RemovePartner", vos);
 
-        var result = aggregate.ChoosePartner(model, command);
+        var result = aggregate.RemovePartner(model, command);
         return JournalOperationResult.From(request.AggregateId, result);
     }
 }

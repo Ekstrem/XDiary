@@ -44,14 +44,20 @@ public class JournalController : ControllerBase
         return await Send(command, ct);
     }
 
-    /// <summary>Выбрать партнёра.</summary>
-    [HttpPost("records/{id:guid}/partner")]
-    public async Task<ActionResult<JournalOperationResult>> ChoosePartner(
-        Guid id, [FromBody] ChoosePartnerCommand command, CancellationToken ct)
+    /// <summary>Добавить партнёра (0..N).</summary>
+    [HttpPost("records/{id:guid}/partners")]
+    public async Task<ActionResult<JournalOperationResult>> AddPartner(
+        Guid id, [FromBody] AddPartnerCommand command, CancellationToken ct)
     {
         command.AggregateId = id;
         return await Send(command, ct);
     }
+
+    /// <summary>Удалить партнёра.</summary>
+    [HttpDelete("records/{id:guid}/partners/{partnerId}")]
+    public async Task<ActionResult<JournalOperationResult>> RemovePartner(
+        Guid id, string partnerId, CancellationToken ct)
+        => await Send(new RemovePartnerCommand { AggregateId = id, PartnerId = partnerId }, ct);
 
     /// <summary>Указать место.</summary>
     [HttpPost("records/{id:guid}/place")]

@@ -66,7 +66,7 @@ public class RecordAggregateTest
     {
         var id = Guid.NewGuid();
         var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos("partner-1", "2026-10-29T21:00"));
+        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(new[] { "partner-1" }, "2026-10-29T21:00"));
 
         var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
 
@@ -74,13 +74,26 @@ public class RecordAggregateTest
     }
 
     [Fact]
-    public void Complete_MissingPartner_Fails()
+    public void Complete_Solo_Succeeds()
     {
         var id = Guid.NewGuid();
         var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(null!, "2026-10-29T21:00"));
+        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(Array.Empty<string>(), "2026-10-29T21:00"));
 
-        // Инвариант PropertyNotNull:Root.PartnerId должен провалиться
+        // 0 партнёров = соло, допустимо (PartnersCardinality 0..N)
+        var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
+
+        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+    }
+
+    [Fact]
+    public void Complete_MissingWhen_Fails()
+    {
+        var id = Guid.NewGuid();
+        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
+        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(new[] { "partner-1" }, null!));
+
+        // Инвариант PropertyNotNull:Root.StartedAt должен провалиться
         var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
 
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);

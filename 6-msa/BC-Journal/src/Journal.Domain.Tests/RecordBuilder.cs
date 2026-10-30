@@ -9,9 +9,9 @@ namespace Journal.Domain.Tests;
 /// </summary>
 public static class RecordBuilder
 {
-    public static IValueObject Root(string partnerId, string startedAt) => new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
+    public static IValueObject Root(string[] partners, string startedAt) => new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
     {
-        ["PartnerId"] = partnerId,
+        ["Partners"] = partners,
         ["StartedAt"] = startedAt
     });
 
@@ -24,16 +24,13 @@ public static class RecordBuilder
     });
 
     public static Dictionary<string, IValueObject> StartVos()
-        => new() { ["Root"] = Root("", ""), ["Origin"] = Origin(false, "") };
+        => new() { ["Root"] = Root(Array.Empty<string>(), ""), ["Origin"] = Origin(false, "") };
 
     public static Dictionary<string, IValueObject> WhenVos(string startedAt)
-        => new() { ["Root"] = Root("", startedAt) };
+        => new() { ["Root"] = Root(Array.Empty<string>(), startedAt) };
 
-    public static Dictionary<string, IValueObject> PartnerVos(string partnerId)
-        => new() { ["Root"] = Root(partnerId, "2026-10-29T21:00") };
-
-    public static Dictionary<string, IValueObject> CompleteVos(string partnerId, string startedAt)
-        => new() { ["Root"] = Root(partnerId, startedAt) };
+    public static Dictionary<string, IValueObject> CompleteVos(string[] partners, string startedAt)
+        => new() { ["Root"] = Root(partners, startedAt) };
 
     public static IAnemicModel<IJournal> NewDraftModel(Guid id)
         => DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "StartManualEntry", "StartManualEntry", StartVos());

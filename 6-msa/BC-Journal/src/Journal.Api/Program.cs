@@ -112,6 +112,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-/// <summary>Маркер для WebApplicationFactory в интеграционных тестах.</summary>
-public partial class Program { }

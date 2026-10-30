@@ -106,7 +106,7 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
     {
         if (vos.TryGetValue("Root", out var root) && root is DynamicValueObject r)
         {
-            model.PartnerId = r.Get<string>("PartnerId") ?? string.Empty;
+            model.Partners = ToList(r.Get<string[]>("Partners"));
             model.StartedAt = r.Get<string>("StartedAt") ?? string.Empty;
         }
 
@@ -135,12 +135,8 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
 
         if (vos.TryGetValue("Orgasms", out var o) && o is DynamicValueObject orgasms)
         {
-            model.OrgasmsMe = orgasms.Get<int>("OrgasmsMe");
-            model.OrgasmsPartner = orgasms.Get<int>("OrgasmsPartner");
-            model.OrgasmMeType = ToList(orgasms.Get<string[]>("OrgasmMeType"));
-            model.OrgasmPartnerType = ToList(orgasms.Get<string[]>("OrgasmPartnerType"));
-            model.OrgasmMeRating = orgasms.Get<int>("OrgasmMeRating");
-            model.OrgasmPartnerRating = orgasms.Get<int>("OrgasmPartnerRating");
+            var json = orgasms.Get<string>("Orgasms");
+            model.Orgasms = System.Text.Json.JsonSerializer.Deserialize<List<OrgasmsEntry>>(json ?? "[]") ?? new List<OrgasmsEntry>();
         }
 
         if (vos.TryGetValue("Origin", out var origin) && origin is DynamicValueObject org)
