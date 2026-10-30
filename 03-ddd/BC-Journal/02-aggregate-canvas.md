@@ -17,7 +17,7 @@
 
 **Сущность (Entity — корень агрегата):**
 - **Record** — совокупность признаков, однозначно идентифицирующих запись (**кто и во сколько**):
-  - `clientId` (uuid) — «кто» (ссылка на Клиента)
+  - `partnerId` (uuid) — «кто» (ссылка на Партнёра)
   - `startedAt` («YYYY-MM-DDTHH:mm») — «во сколько»
 
 **Объект-значения (Value Objects):**
@@ -29,7 +29,7 @@
 - **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
 
-> **Клиент** — участник акта («кто»). В текущей модели это «Партнёр» (BC-Partners). Если «клиент» ≠ «партнёр» — уточни.
+> «Клиент» = «Партнёр»; в домене используем **«партнёр»**. Отдельный BC «Клиент» (комплаенс/безопасность) — позже.
 
 ## 3. State Transitions (Переходы состояний)
 ```
@@ -41,7 +41,7 @@ Recorded → [Delete] → Deleted
 ## 4. Enforced Invariants (Обязательные инварианты)
 | Инвариант | Описание |
 |---|---|
-| ClientRequired | clientId обязателен до `Complete` |
+| PartnerRequired | partnerId обязателен до `Complete` |
 | WhenRequired | startedAt обязателен до `Complete` |
 | DurationPositive | durationMin ≥ 1 |
 | RatingRange | rating ∈ 0..5 |
@@ -59,7 +59,7 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry()` | фабрика — ручная запись | — |
 | `StartFromGarmin(activity)` | фабрика — импорт занятия Garmin | GarminActivity |
 | `SpecifyWhen(startedAt)` | «Дата» | When |
-| `ChooseClient(clientId)` | «Партнёр» (кто = клиент) | clientId |
+| `ChoosePartner(partnerId)` | «Партнёр» | partnerId |
 | `SpecifyPlace(place)` | «Место» | Place |
 | `AddPositions(positions)` | «Позы» | Positions |
 | `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
@@ -77,7 +77,7 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry` | `ManualEntryStarted` |
 | `StartFromGarmin` | `GarminEntryStarted` |
 | `SpecifyWhen` | `WhenSpecified` |
-| `ChooseClient` | `ClientChosen` |
+| `ChoosePartner` | `PartnerChosen` |
 | `SpecifyPlace` | `PlaceSpecified` |
 | `AddPositions` | `PositionsAdded` |
 | `AddAccessories` | `AccessoriesAdded` |
