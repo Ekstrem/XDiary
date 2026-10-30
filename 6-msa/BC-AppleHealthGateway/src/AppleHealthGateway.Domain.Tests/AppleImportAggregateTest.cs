@@ -1,57 +1,28 @@
-using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using AppleHealthGateway.Domain;
+using AppleHealthGateway.Domain.Implementation;
 using Xunit;
 
-namespace AppleHealthGateway.Domain.Tests;
-
-/// <summary>
-/// Доменные тесты агрегата AppleImport (metadata-driven, in-memory).
-/// </summary>
 public class AppleImportAggregateTest
 {
     [Fact]
-    public void UpsertImportState_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = AppleHealthGatewayMetadataHelper.CreateNewAggregate(id);
-        var model = AppleImportBuilder.NewImportModel(id);
-
-        var result = aggregate.UpsertImportState(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
+    public void Configure_Valid_Succeeds()
+    { var r = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr", "hrv" }); Assert.Equal(DomainOperationResultEnum.Success, r.Result); }
     [Fact]
-    public void UpsertImportState_OverExisting_Succeeds()
+    public void ImportFile_Adds_File()
     {
-        var id = Guid.NewGuid();
-        var aggregate = AppleHealthGatewayMetadataHelper.CreateAggregate(AppleImportBuilder.ExistingImportModel(id));
-        var model = AppleImportBuilder.NewImportModel(id);
-
-        // Upsert: повторное сохранение состояния не должно падать (нет IsNewEntity)
-        var result = aggregate.UpsertImportState(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var cfg = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr" });
+        var r = Aggregate.CreateInstance(cfg.Model()).ImportFile("export.xml");
+        Assert.Equal(DomainOperationResultEnum.Success, r.Result);
+        Assert.Contains("export.xml", r.Model().ProcessedFiles);
     }
-
     [Fact]
-    public void UpsertImportState_MissingSourceId_Fails()
+    public void ImportFile_Duplicate_Skips()
     {
-        var id = Guid.NewGuid();
-        var aggregate = AppleHealthGatewayMetadataHelper.CreateNewAggregate(id);
-
-        var vos = AppleImportBuilder.BuildValueObjects();
-        vos["Root"] = new DynamicValueObject("AppleImportRoot", new Dictionary<string, object?>
-        {
-            ["SourceId"] = null
-        });
-        var model = DynamicAnemicModel<IAppleHealthGateway>.Create(id, 0, Guid.NewGuid(), "UpsertImportState", "UpsertImportState", vos);
-
-        var result = aggregate.UpsertImportState(model, model.CommandName.CreateCommandMetadata());
-
-        // Инвариант PropertyNotNull:Root.SourceId должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
+        var cfg = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr" });
+        var first = Aggregate.CreateInstance(cfg.Model()).ImportFile("export.xml");
+        var second = Aggregate.CreateInstance(first.Model()).ImportFile("export.xml");
+        Assert.Equal(DomainOperationResultEnum.Success, second.Result);
+        Assert.Single(second.Model().ProcessedFiles);
     }
 }

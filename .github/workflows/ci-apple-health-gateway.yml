@@ -5,11 +5,13 @@ on:
     branches: [ main ]
     paths:
       - '6-msa/BC-AppleHealthGateway/**'
+      - '6-msa/Shared/**'
       - '.github/workflows/ci-apple-health-gateway.yml'
   pull_request:
     branches: [ main ]
     paths:
       - '6-msa/BC-AppleHealthGateway/**'
+      - '6-msa/Shared/**'
       - '.github/workflows/ci-apple-health-gateway.yml'
   workflow_dispatch:
 
@@ -40,6 +42,9 @@ jobs:
 
     - name: Unit Tests
       run: dotnet test src/AppleHealthGateway.Domain.Tests/AppleHealthGateway.Domain.Tests.csproj --no-build --configuration Release --verbosity normal
+
+    - name: Integration Tests
+      run: dotnet test src/AppleHealthGateway.IntegrationTests/AppleHealthGateway.IntegrationTests.csproj --configuration Release --verbosity normal
 
   docker:
     needs: build-and-test
@@ -72,7 +77,8 @@ jobs:
     - name: Build and push Docker image (Single profile)
       uses: docker/build-push-action@v6
       with:
-        context: 6-msa/BC-AppleHealthGateway
+        context: 6-msa
+        file: 6-msa/BC-AppleHealthGateway/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}

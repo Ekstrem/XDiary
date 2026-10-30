@@ -1,37 +1,26 @@
-using AppleHealthGateway.Application;
-using AppleHealthGateway.Application.Commands;
-using AppleHealthGateway.Application.Queries;
+namespace AppleHealthGateway.Api.Controllers;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using AppleHealthGateway.Application.Commands;
+using AppleHealthGateway.Application.Queries;
+using AppleHealthGateway.Domain;
+using AppleHealthGateway.Domain.Abstraction;
+using XDiary.Contracts;
 
-namespace AppleHealthGateway.Api.Controllers;
-
-/// <summary>
-/// Command/Query API шлюза Apple Health: /api/v1/apple-health-gateway.
-/// </summary>
 [ApiController]
-[Route("api/v1/apple-health-gateway")]
-public class AppleHealthGatewayController : ControllerBase
+[Route("api/v1/apple-health")]
+public sealed class AppleHealthGatewayController : ControllerBase
 {
     private readonly IMediator _mediator;
-
     public AppleHealthGatewayController(IMediator mediator) => _mediator = mediator;
+    private IActionResult Respond(AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
-    /// <summary>Сохранить состояние импорта (upsert по sourceId).</summary>
-    [HttpPost]
-    public async Task<ActionResult<AppleHealthGatewayOperationResult>> Upsert(
-        [FromBody] UpsertImportStateCommand command, CancellationToken ct)
-    {
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Состояние импорта по источнику.</summary>
+    [HttpPost("configure")]
+    public async Task<IActionResult> Configure([FromBody] ConfigureCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPost("import")]
+    public async Task<IActionResult> ImportFile([FromBody] ImportFileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpGet("state")]
-    public async Task<IActionResult> State(
-        [FromQuery] string sourceId = "apple-health", CancellationToken ct = default)
-    {
-        var result = await _mediator.Send(new GetImportStateQuery { SourceId = sourceId }, ct);
-        return result == null ? NotFound() : Ok(result);
-    }
+    public async Task<IActionResult> State([FromQuery] string sourceId, CancellationToken ct)
+    { var r = await _mediator.Send(new GetImportStateQuery(sourceId), ct); return r is null ? NotFound() : Ok(r); }
 }
