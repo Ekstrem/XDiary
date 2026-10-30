@@ -17,44 +17,56 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // ======================================================
-// РџСЂРѕС„РёР»СЊ Single (ADR-002): 1 РїСЂРѕС†РµСЃСЃ (Cmd + Evt + Qry).
-// Command DB = PostgreSQL (Event Sourcing), Read DB = С‚Р° Р¶Рµ Р‘Р”,
-// EventBus = InMemory.
+// Профиль деплоймента. Single = роль All (Cmd + Evt + Qry в одном процессе).
+// Профили Cqrs/Ceqrs используют роли Command/Event/Query (ADR-002, deployment-profiles).
 // ======================================================
+var deploymentRole = builder.Configuration["DeploymentRole"] ?? "All";
 
-// Autofac
+// Autofac (DomainServices — составление агрегата/Notifier/BusAdapter)
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
 {
     containerBuilder.RegisterModule<RegisterDependencies>();
 });
 
-// РњРµС‚Р°РґР°РЅРЅС‹Рµ Р°РіСЂРµРіР°С‚Р° Record (in-memory) + С„Р°Р±СЂРёРєР° Р°РіСЂРµРіР°С‚РѕРІ
-builder.Services.AddSingleton<IMetadataCache, JournalMetadataCache>();
-builder.Services.AddScoped<AbstractAggregateFactory<IJournal>>();
+// Command Store + агрегаты — только Command и All
+if (deploymentRole is "Command" or "All")
+{
+    builder.Services.AddSingleton<IMetadataCache, JournalMetadataCache>();
+    builder.Services.AddScoped<AbstractAggregateFactory<IJournal>>();
 
-// Command Store (Event Sourcing, PostgreSQL)
-var connectionString = builder.Configuration.GetConnectionString("JournalDb");
-builder.Services.AddDbContext<CommandDbContext>(options =>
-    options.UseNpgsql(connectionString,
-        npgsql => npgsql.MigrationsAssembly("Journal.Storage")));
+    var connectionString = builder.Configuration.GetConnectionString("JournalDb");
+    builder.Services.AddDbContext<CommandDbContext>(options =>
+        options.UseNpgsql(connectionString,
+            npgsql => npgsql.MigrationsAssembly("Journal.Storage")));
 
-builder.Services.AddScoped<IQueryRepository<DomainEventEventEntry>, QueryRepository<DomainEventEventEntry>>();
-builder.Services.AddScoped<IRepository, Repository>();
+    builder.Services.AddScoped<IQueryRepository<DomainEventEventEntry>, QueryRepository<DomainEventEventEntry>>();
+    builder.Services.AddScoped<IRepository, Repository>();
+}
 
-// EventBus (InMemory вЂ” РїСЂРѕС„РёР»СЊ Single)
-builder.Services.AddEventBusInMemory();
+// EventBus — для Command (publish), Event (subscribe), All. НЕ для Query.
+if (deploymentRole is not "Query")
+{
+    builder.Services.AddEventBusInMemory();
+}
 
-// Read Store (PostgreSQL, С‚Р° Р¶Рµ Р‘Р” вЂ” Р±РµР· РѕС‚РґРµР»СЊРЅРѕР№ СЃС…РµРјС‹)
-var readConnectionString = builder.Configuration.GetConnectionString("JournalReadDb");
-if (string.IsNullOrEmpty(readConnectionString))
-    readConnectionString = connectionString;
-builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(readConnectionString!);
+// Read Store — для Event, Query и All. НЕ для Command.
+if (deploymentRole is "Event" or "Query" or "All")
+{
+    var connectionString = builder.Configuration.GetConnectionString("JournalDb");
+    var readConnectionString = builder.Configuration.GetConnectionString("JournalReadDb");
+    if (string.IsNullOrEmpty(readConnectionString))
+        readConnectionString = connectionString;
+    builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(readConnectionString!);
+}
 
-// РџСЂРѕРµРєС†РёРё + Rebuild + РїСЂРѕРµРєС‚РѕСЂ РІ Command Store
-builder.Services.AddScoped<JournalProjectionHandler>();
-builder.Services.AddScoped<JournalCommandDbProjector>();
-builder.Services.AddScoped<IRebuildService<IJournal>, JournalRebuildService>();
+// Проекции + Rebuild — только Event и All
+if (deploymentRole is "Event" or "All")
+{
+    builder.Services.AddScoped<JournalProjectionHandler>();
+    builder.Services.AddScoped<JournalCommandDbProjector>();
+    builder.Services.AddScoped<IRebuildService<IJournal>, JournalRebuildService>();
+}
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
@@ -75,15 +87,18 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// РџРѕРґРїРёСЃР°С‚СЊ РїСЂРѕРµРєС†РёРѕРЅРЅС‹Рµ РѕР±СЂР°Р±РѕС‚С‡РёРєРё РЅР° С€РёРЅСѓ (Event + All РІ РїСЂРѕС„РёР»Рµ Single)
-using (var scope = app.Services.CreateScope())
+// Подписать проекционные обработчики на шину (Event + All в профиле Single)
+if (deploymentRole is "Event" or "All")
 {
-    var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
-    var projectionHandler = scope.ServiceProvider.GetRequiredService<JournalProjectionHandler>();
-    var commandDbProjector = scope.ServiceProvider.GetRequiredService<JournalCommandDbProjector>();
+    using (var scope = app.Services.CreateScope())
+    {
+        var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
+        var projectionHandler = scope.ServiceProvider.GetRequiredService<JournalProjectionHandler>();
+        var commandDbProjector = scope.ServiceProvider.GetRequiredService<JournalCommandDbProjector>();
 
-    eventBus.Subscribe<IJournal>(projectionHandler);
-    eventBus.Subscribe<IJournal>(commandDbProjector);
+        eventBus.Subscribe<IJournal>(projectionHandler);
+        eventBus.Subscribe<IJournal>(commandDbProjector);
+    }
 }
 
 if (app.Environment.IsDevelopment())
