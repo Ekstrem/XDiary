@@ -34,17 +34,30 @@ internal class Notifier :
 
     #endregion
 
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> CreateRecord(IAnemicModel<IJournal> model)
-        => Aggregate.CreateRecord(model).Do(MatchAndPushNotification);
-
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> UpdateRecord(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => Aggregate.UpdateRecord(model, commandMetadata).Do(MatchAndPushNotification);
-
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> DeleteRecord(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => Aggregate.DeleteRecord(model, commandMetadata).Do(MatchAndPushNotification);
-
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> ImportRecord(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => Aggregate.ImportRecord(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> StartManualEntry(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.StartManualEntry(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> StartFromGarmin(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.StartFromGarmin(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyWhen(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.SpecifyWhen(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> ChoosePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.ChoosePartner(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyPlace(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.SpecifyPlace(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> AddPositions(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.AddPositions(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> AddAccessories(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.AddAccessories(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> RecordContraception(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.RecordContraception(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyDuration(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.SpecifyDuration(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> RecordOrgasms(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.RecordOrgasms(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> Complete(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.Complete(model, commandMetadata).Do(MatchAndPushNotification);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> Delete(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Aggregate.Delete(model, commandMetadata).Do(MatchAndPushNotification);
 
     public IDisposable Subscribe(IObserver<AggregateResult<IJournal, IAnemicModel<IJournal>>> observer)
         => Unsubscriber<AggregateResult<IJournal, IAnemicModel<IJournal>>>.Subscribe(_observers, observer);

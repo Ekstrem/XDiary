@@ -7,123 +7,93 @@ using Xunit;
 namespace Journal.Domain.Tests;
 
 /// <summary>
-/// Доменные тесты агрегата Record (metadata-driven, in-memory).
+/// Доменные тесты агрегата Record (metadata-driven, визард, in-memory).
 /// </summary>
 public class RecordAggregateTest
 {
     [Fact]
-    public void CreateRecord_HappyPath()
+    public void StartManualEntry_HappyPath()
     {
         var id = Guid.NewGuid();
         var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
+        var model = RecordBuilder.NewDraftModel(id);
 
-        var result = aggregate.CreateRecord(RecordBuilder.NewRecordModel(id));
+        var result = aggregate.StartManualEntry(model, model.CommandName.CreateCommandMetadata());
 
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void CreateRecord_AlreadyExists_Fails()
+    public void StartManualEntry_AlreadyExists_Fails()
     {
         var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingRecordModel(id));
-
-        var result = aggregate.CreateRecord(RecordBuilder.NewRecordModel(id));
+        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
+        var model = RecordBuilder.NewDraftModel(id);
 
         // Инвариант IsNewEntity должен провалиться
+        var result = aggregate.StartManualEntry(model, model.CommandName.CreateCommandMetadata());
+
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void CreateRecord_MissingStartedAt_Fails()
+    public void SpecifyWhen_HappyPath()
     {
         var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
+        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
+        var model = RecordBuilder.Model(id, 1, "SpecifyWhen", RecordBuilder.WhenVos("2026-10-29T21:00"));
 
-        var vos = RecordBuilder.BuildValueObjects();
-        vos["Root"] = new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
-        {
-            ["StartedAt"] = null,
-            ["DurationMin"] = 30
-        });
-        var model = DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "CreateRecord", "CreateRecord", vos);
-
-        var result = aggregate.CreateRecord(model);
-
-        // Инвариант PropertyNotNull:Root.StartedAt должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void UpdateRecord_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingRecordModel(id));
-        var model = RecordBuilder.UpdateRecordModel(id);
-
-        var result = aggregate.UpdateRecord(model, model.CommandName.CreateCommandMetadata());
+        var result = aggregate.SpecifyWhen(model, model.CommandName.CreateCommandMetadata());
 
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void UpdateRecord_NotExists_Fails()
+    public void SpecifyWhen_OnNew_Fails()
     {
         var id = Guid.NewGuid();
         var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
-        var model = RecordBuilder.UpdateRecordModel(id);
-
-        var result = aggregate.UpdateRecord(model, model.CommandName.CreateCommandMetadata());
+        var model = RecordBuilder.Model(id, 0, "SpecifyWhen", RecordBuilder.WhenVos("2026-10-29T21:00"));
 
         // Инвариант IsNotNewEntity должен провалиться
+        var result = aggregate.SpecifyWhen(model, model.CommandName.CreateCommandMetadata());
+
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void DeleteRecord_HappyPath()
+    public void Complete_HappyPath()
     {
         var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingRecordModel(id));
-        var model = RecordBuilder.DeleteRecordModel(id);
+        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
+        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos("partner-1", "2026-10-29T21:00"));
 
-        var result = aggregate.DeleteRecord(model, model.CommandName.CreateCommandMetadata());
+        var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
 
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void DeleteRecord_NotExists_Fails()
+    public void Complete_MissingPartner_Fails()
     {
         var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
-        var model = RecordBuilder.DeleteRecordModel(id);
+        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
+        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos("", "2026-10-29T21:00"));
 
-        var result = aggregate.DeleteRecord(model, model.CommandName.CreateCommandMetadata());
+        // Инвариант PropertyNotNull:Root.PartnerId должен провалиться
+        var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
 
-        // Инвариант IsNotNewEntity должен провалиться
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void ImportRecord_Upsert_Succeeds()
+    public void Delete_HappyPath()
     {
         var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
-        var model = RecordBuilder.ImportRecordModel(id);
+        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
+        var model = RecordBuilder.Model(id, 1, "Delete", new Dictionary<string, IValueObject>());
 
-        var result = aggregate.ImportRecord(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void ImportRecord_OverExisting_Succeeds()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingRecordModel(id));
-        var model = RecordBuilder.ImportRecordModel(id);
-
-        var result = aggregate.ImportRecord(model, model.CommandName.CreateCommandMetadata());
+        var result = aggregate.Delete(model, model.CommandName.CreateCommandMetadata());
 
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }

@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Journal.Storage;
 
 /// <summary>
-/// DbContext для Command Store (Event Sourcing) журнала.
-/// Хранит доменные события в таблице DomainEvents (схема public — профиль Single).
+/// DbContext РґР»СЏ Command Store (Event Sourcing) Р¶СѓСЂРЅР°Р»Р°.
+/// РҐСЂР°РЅРёС‚ РґРѕРјРµРЅРЅС‹Рµ СЃРѕР±С‹С‚РёСЏ РІ С‚Р°Р±Р»РёС†Рµ DomainEvents (СЃС…РµРјР° public вЂ” РїСЂРѕС„РёР»СЊ Single).
 /// </summary>
 public sealed class CommandDbContext : DbContext
 {

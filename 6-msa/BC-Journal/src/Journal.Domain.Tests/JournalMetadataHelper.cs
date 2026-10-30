@@ -11,8 +11,8 @@ using Journal.Domain.Metadata;
 namespace Journal.Domain.Tests;
 
 /// <summary>
-/// Строит MetadataRecordAggregate из in-memory метаданных (без БД).
-/// Использует тот же JournalMetadata.Build(), что и рантайм.
+/// РЎС‚СЂРѕРёС‚ MetadataRecordAggregate РёР· in-memory РјРµС‚Р°РґР°РЅРЅС‹С… (Р±РµР· Р‘Р”).
+/// РСЃРїРѕР»СЊР·СѓРµС‚ С‚РѕС‚ Р¶Рµ JournalMetadata.Build(), С‡С‚Рѕ Рё СЂР°РЅС‚Р°Р№Рј.
 /// </summary>
 public static class JournalMetadataHelper
 {

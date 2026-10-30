@@ -1,7 +1,7 @@
 namespace Journal.Storage;
 
 /// <summary>
-/// Запись доменного события в Command Store.
+/// Р—Р°РїРёСЃСЊ РґРѕРјРµРЅРЅРѕРіРѕ СЃРѕР±С‹С‚РёСЏ РІ Command Store.
 /// </summary>
 public class DomainEventEventEntry
 {
@@ -11,7 +11,7 @@ public class DomainEventEventEntry
     public string CommandName { get; set; } = string.Empty;
     public string SubjectName { get; set; } = string.Empty;
 
-    /// <summary>Сериализованные ChangedValueObjects (JSON).</summary>
+    /// <summary>РЎРµСЂРёР°Р»РёР·РѕРІР°РЅРЅС‹Рµ ChangedValueObjects (JSON).</summary>
     public string ChangedValueObjectsJson { get; set; } = string.Empty;
 
     public string BoundedContext { get; set; } = string.Empty;

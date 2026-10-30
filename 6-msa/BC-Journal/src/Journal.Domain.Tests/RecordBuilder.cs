@@ -5,87 +5,42 @@ using Journal.Domain;
 namespace Journal.Domain.Tests;
 
 /// <summary>
-/// Строит анемичные модели Record для тестов (аналог RecordDraft).
+/// Строит анемичные модели Record для тестов (по шагам визарда).
 /// </summary>
 public static class RecordBuilder
 {
-    public static Dictionary<string, IValueObject> BuildValueObjects(
-        string startedAt = "2026-10-29T21:00",
-        int durationMin = 30,
-        string partner = "Партнёр",
-        string place = "Дом")
+    public static IValueObject Root(string partnerId, string startedAt) => new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
     {
-        return new Dictionary<string, IValueObject>
-        {
-            ["Root"] = new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
-            {
-                ["StartedAt"] = startedAt,
-                ["DurationMin"] = durationMin
-            }),
-            ["Partner"] = new DynamicValueObject("RecordPartner", new Dictionary<string, object?>
-            {
-                ["Name"] = partner
-            }),
-            ["Place"] = new DynamicValueObject("RecordPlace", new Dictionary<string, object?>
-            {
-                ["Name"] = place
-            }),
-            ["Positions"] = new DynamicValueObject("RecordPositions", new Dictionary<string, object?>
-            {
-                ["Items"] = new[] { "миссионерская" }
-            }),
-            ["Tags"] = new DynamicValueObject("RecordTags", new Dictionary<string, object?>
-            {
-                ["Items"] = new[] { "романтика" }
-            }),
-            ["Costumes"] = new DynamicValueObject("RecordCostumes", new Dictionary<string, object?>
-            {
-                ["Items"] = Array.Empty<string>()
-            }),
-            ["Toys"] = new DynamicValueObject("RecordToys", new Dictionary<string, object?>
-            {
-                ["Items"] = new[] { "вибратор" }
-            }),
-            ["Fantasies"] = new DynamicValueObject("RecordFantasies", new Dictionary<string, object?>
-            {
-                ["Items"] = Array.Empty<string>()
-            }),
-            ["Contraception"] = new DynamicValueObject("RecordContraception", new Dictionary<string, object?>
-            {
-                ["Contraceptives"] = new[] { "презерватив" },
-                ["ContraceptiveCount"] = 2
-            }),
-            ["Orgasms"] = new DynamicValueObject("RecordOrgasms", new Dictionary<string, object?>
-            {
-                ["OrgasmsMe"] = 1,
-                ["OrgasmsPartner"] = 2,
-                ["OrgasmMeType"] = new[] { "клиторальный" },
-                ["OrgasmPartnerType"] = new[] { "вагинальный", "клиторальный" },
-                ["OrgasmMeRating"] = 4,
-                ["OrgasmPartnerRating"] = 5
-            }),
-            ["Origin"] = new DynamicValueObject("RecordOrigin", new Dictionary<string, object?>
-            {
-                ["Garmin"] = false,
-                ["GarminId"] = string.Empty
-            })
-        };
-    }
+        ["PartnerId"] = partnerId,
+        ["StartedAt"] = startedAt
+    });
 
-    public static IAnemicModel<IJournal> NewRecordModel(Guid id)
-        => DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "CreateRecord", "CreateRecord", BuildValueObjects());
+    public static IValueObject Origin(bool garmin, string garminId) => new DynamicValueObject("RecordOrigin", new Dictionary<string, object?>
+    {
+        ["Garmin"] = garmin,
+        ["GarminId"] = garminId,
+        ["CreatedAt"] = "2026-10-29T20:00:00",
+        ["UpdatedAt"] = "2026-10-29T20:00:00"
+    });
 
-    public static IAnemicModel<IJournal> ExistingRecordModel(Guid id)
-        => DynamicAnemicModel<IJournal>.Create(id, 1, Guid.NewGuid(), "CreateRecord", "CreateRecord", BuildValueObjects());
+    public static Dictionary<string, IValueObject> StartVos()
+        => new() { ["Root"] = Root("", ""), ["Origin"] = Origin(false, "") };
 
-    public static IAnemicModel<IJournal> UpdateRecordModel(Guid id)
-        => DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "UpdateRecord", "UpdateRecord",
-            BuildValueObjects(startedAt: "2026-10-29T22:00", durationMin: 45));
+    public static Dictionary<string, IValueObject> WhenVos(string startedAt)
+        => new() { ["Root"] = Root("", startedAt) };
 
-    public static IAnemicModel<IJournal> DeleteRecordModel(Guid id)
-        => DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "DeleteRecord", "DeleteRecord",
-            new Dictionary<string, IValueObject>());
+    public static Dictionary<string, IValueObject> PartnerVos(string partnerId)
+        => new() { ["Root"] = Root(partnerId, "2026-10-29T21:00") };
 
-    public static IAnemicModel<IJournal> ImportRecordModel(Guid id)
-        => DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "ImportRecord", "ImportRecord", BuildValueObjects());
+    public static Dictionary<string, IValueObject> CompleteVos(string partnerId, string startedAt)
+        => new() { ["Root"] = Root(partnerId, startedAt) };
+
+    public static IAnemicModel<IJournal> NewDraftModel(Guid id)
+        => DynamicAnemicModel<IJournal>.Create(id, 0, Guid.NewGuid(), "StartManualEntry", "StartManualEntry", StartVos());
+
+    public static IAnemicModel<IJournal> ExistingDraftModel(Guid id)
+        => DynamicAnemicModel<IJournal>.Create(id, 1, Guid.NewGuid(), "StartManualEntry", "StartManualEntry", StartVos());
+
+    public static IAnemicModel<IJournal> Model(Guid id, long version, string commandName, Dictionary<string, IValueObject> vos)
+        => DynamicAnemicModel<IJournal>.Create(id, version, Guid.NewGuid(), commandName, commandName, vos);
 }

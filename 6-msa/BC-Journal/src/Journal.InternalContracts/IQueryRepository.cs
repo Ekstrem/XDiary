@@ -3,7 +3,7 @@ using Ardalis.Specification;
 namespace Journal.InternalContracts;
 
 /// <summary>
-/// Универсальный репозиторий запросов (Ardalis Specification).
+/// РЈРЅРёРІРµСЂСЃР°Р»СЊРЅС‹Р№ СЂРµРїРѕР·РёС‚РѕСЂРёР№ Р·Р°РїСЂРѕСЃРѕРІ (Ardalis Specification).
 /// </summary>
 public interface IQueryRepository<T> where T : class
 {

@@ -5,8 +5,8 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Journal.Storage;
 
 /// <summary>
-/// Сериализация ChangedValueObjects (словарь VO) в/из JSON.
-/// Хранит runtime-тип VO и сохраняет string[] как массивы.
+/// РЎРµСЂРёР°Р»РёР·Р°С†РёСЏ ChangedValueObjects (СЃР»РѕРІР°СЂСЊ VO) РІ/РёР· JSON.
+/// РҐСЂР°РЅРёС‚ runtime-С‚РёРї VO Рё СЃРѕС…СЂР°РЅСЏРµС‚ string[] РєР°Рє РјР°СЃСЃРёРІС‹.
 /// </summary>
 internal static class DomainEventJson
 {

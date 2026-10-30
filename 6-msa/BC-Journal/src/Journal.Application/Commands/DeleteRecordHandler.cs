@@ -18,18 +18,14 @@ public class DeleteRecordHandler : IRequestHandler<DeleteRecordCommand, JournalO
     {
         var aggregate = await _provider.GetAggregateAsync(request.AggregateId, ct);
 
+        var vos = new Dictionary<string, IValueObject>();
         var command = CommandToAggregate.Commit(
-            Guid.NewGuid(),
-            nameof(IRecordAggregate.DeleteRecord),
-            "DeleteRecord",
+            Guid.NewGuid(), nameof(IRecordAggregate.Delete), "Delete",
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-
         var model = DynamicAnemicModel<IJournal>.Create(
-            request.AggregateId, 0, Guid.NewGuid(),
-            nameof(IRecordAggregate.DeleteRecord), "DeleteRecord",
-            new Dictionary<string, IValueObject>());
+            request.AggregateId, 0, Guid.NewGuid(), nameof(IRecordAggregate.Delete), "Delete", vos);
 
-        var result = aggregate.DeleteRecord(model, command);
+        var result = aggregate.Delete(model, command);
         return JournalOperationResult.From(request.AggregateId, result);
     }
 }

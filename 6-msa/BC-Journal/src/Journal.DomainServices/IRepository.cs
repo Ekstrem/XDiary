@@ -5,12 +5,12 @@ using Journal.Domain;
 namespace Journal.DomainServices;
 
 /// <summary>
-/// Репозиторий анемичных моделей агрегата Record.
+/// Р РµРїРѕР·РёС‚РѕСЂРёР№ Р°РЅРµРјРёС‡РЅС‹С… РјРѕРґРµР»РµР№ Р°РіСЂРµРіР°С‚Р° Record.
 /// </summary>
 public interface IRepository : IAnemicModelRepository<IJournal, IAnemicModel<IJournal>>
 {
     /// <summary>
-    /// Сохранить доменное событие в Command Store (event sourcing).
+    /// РЎРѕС…СЂР°РЅРёС‚СЊ РґРѕРјРµРЅРЅРѕРµ СЃРѕР±С‹С‚РёРµ РІ Command Store (event sourcing).
     /// </summary>
     Task SaveEventAsync(IDomainEvent<IJournal> domainEvent, CancellationToken cancellationToken = default);
 }

@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace Journal.Storage;
 
 /// <summary>
-/// Репозиторий агрегата Record: чтение/запись доменных событий (Event Sourcing).
+/// Р РµРїРѕР·РёС‚РѕСЂРёР№ Р°РіСЂРµРіР°С‚Р° Record: С‡С‚РµРЅРёРµ/Р·Р°РїРёСЃСЊ РґРѕРјРµРЅРЅС‹С… СЃРѕР±С‹С‚РёР№ (Event Sourcing).
 /// </summary>
 public class Repository : IRepository
 {
@@ -34,7 +34,7 @@ public class Repository : IRepository
         if (entries == null || entries.Count == 0)
             return new List<IAnemicModel<IJournal>>();
 
-        // Последнее состояние — запись с максимальной версией (сначала).
+        // РџРѕСЃР»РµРґРЅРµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ вЂ” Р·Р°РїРёСЃСЊ СЃ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№ РІРµСЂСЃРёРµР№ (СЃРЅР°С‡Р°Р»Р°).
         return entries
             .OrderByDescending(e => e.Version)
             .Select(ToAnemicModel)
@@ -54,8 +54,8 @@ public class Repository : IRepository
     }
 
     /// <summary>
-    /// Сохранить доменное событие в Command Store (event sourcing).
-    /// Version хранится как новая версия (Command.Version — Unix ms).
+    /// РЎРѕС…СЂР°РЅРёС‚СЊ РґРѕРјРµРЅРЅРѕРµ СЃРѕР±С‹С‚РёРµ РІ Command Store (event sourcing).
+    /// Version С…СЂР°РЅРёС‚СЃСЏ РєР°Рє РЅРѕРІР°СЏ РІРµСЂСЃРёСЏ (Command.Version вЂ” Unix ms).
     /// </summary>
     public async Task SaveEventAsync(IDomainEvent<IJournal> domainEvent, CancellationToken cancellationToken = default)
     {
@@ -77,7 +77,7 @@ public class Repository : IRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Событие сохранено: Id={Id}, Version={Version}, Command={Command}",
+            "РЎРѕР±С‹С‚РёРµ СЃРѕС…СЂР°РЅРµРЅРѕ: Id={Id}, Version={Version}, Command={Command}",
             entry.Id, entry.Version, entry.CommandName);
     }
 

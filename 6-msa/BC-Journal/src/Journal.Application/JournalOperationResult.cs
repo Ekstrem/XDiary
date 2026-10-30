@@ -5,7 +5,7 @@ using Journal.Domain;
 namespace Journal.Application;
 
 /// <summary>
-/// DTO результата операции над агрегатом Record.
+/// DTO СЂРµР·СѓР»СЊС‚Р°С‚Р° РѕРїРµСЂР°С†РёРё РЅР°Рґ Р°РіСЂРµРіР°С‚РѕРј Record.
 /// </summary>
 public class JournalOperationResult
 {

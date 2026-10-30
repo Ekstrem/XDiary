@@ -50,7 +50,7 @@ internal class AggregateProvider : IJournalAggregateProvider
         var metadata = await _factory.GetMetadataAsync("Record", ct);
         var scope = _factory.BuildScope(metadata, model);
         var aggregate = Aggregate<IJournal>.CreateInstance(model, scope);
-        var recordAggregate = MetadataRecordAggregate.Create(aggregate, model, scope);
-        return recordAggregate.PipeNotifierToContract(_observers);
+        var RecordAggregate = MetadataRecordAggregate.Create(aggregate, model, scope);
+        return RecordAggregate.PipeNotifierToContract(_observers);
     }
 }

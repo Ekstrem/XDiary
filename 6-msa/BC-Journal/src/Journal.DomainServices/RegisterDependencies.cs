@@ -9,7 +9,7 @@ using Journal.Domain.Abstraction;
 namespace Journal.DomainServices;
 
 /// <summary>
-/// Autofac-модуль: регистрация доменных сервисов журнала.
+/// Autofac-РјРѕРґСѓР»СЊ: СЂРµРіРёСЃС‚СЂР°С†РёСЏ РґРѕРјРµРЅРЅС‹С… СЃРµСЂРІРёСЃРѕРІ Р¶СѓСЂРЅР°Р»Р°.
 /// </summary>
 public class RegisterDependencies : Module
 {

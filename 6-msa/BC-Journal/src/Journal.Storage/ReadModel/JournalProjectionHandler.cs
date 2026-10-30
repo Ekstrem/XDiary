@@ -41,7 +41,7 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
         var commandName = domainEvent.Command.CommandName;
         var aggregateId = domainEvent.Id;
 
-        if (commandName == nameof(IRecordAggregate.DeleteRecord))
+        if (commandName == nameof(IRecordAggregate.Delete))
         {
             await _store.DeleteAsync(aggregateId, ct);
             return;
@@ -51,12 +51,12 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
         if (existing != null && existing.Version >= domainEvent.Command.Version)
             return;
 
-        var readModel = existing ?? new JournalReadModel { Id = aggregateId, CreatedAt = DateTimeOffset.UtcNow };
+        var readModel = existing ?? new JournalReadModel { Id = aggregateId };
 
         ApplyValueObjects(readModel, domainEvent.ChangedValueObjects);
 
         readModel.Version = domainEvent.Command.Version;
-        readModel.UpdatedAt = DateTimeOffset.UtcNow;
+        readModel.RecordUpdatedAt = DateTimeOffset.UtcNow;
 
         await _store.UpsertAsync(readModel, ct);
 
@@ -70,7 +70,7 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
     {
         var aggregateId = entry.Id;
 
-        if (entry.CommandName == nameof(IRecordAggregate.DeleteRecord))
+        if (entry.CommandName == nameof(IRecordAggregate.Delete))
         {
             await _store.DeleteAsync(aggregateId, ct);
             return;
@@ -80,12 +80,12 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
         if (existing != null && existing.Version >= entry.Version)
             return;
 
-        var readModel = existing ?? new JournalReadModel { Id = aggregateId, CreatedAt = DateTimeOffset.UtcNow };
+        var readModel = existing ?? new JournalReadModel { Id = aggregateId };
 
         ApplyValueObjects(readModel, DomainEventJson.Deserialize(entry.ChangedValueObjectsJson));
 
         readModel.Version = entry.Version;
-        readModel.UpdatedAt = DateTimeOffset.UtcNow;
+        readModel.RecordUpdatedAt = DateTimeOffset.UtcNow;
 
         await _store.UpsertAsync(readModel, ct);
     }
@@ -106,48 +106,49 @@ public class JournalProjectionHandler : IDomainEventHandler<IJournal>, IObserver
     {
         if (vos.TryGetValue("Root", out var root) && root is DynamicValueObject r)
         {
-            if (r.Get<string>("StartedAt") is { } startedAt)
-                model.StartedAt = startedAt;
-            model.DurationMin = r.Get<int>("DurationMin");
+            model.PartnerId = r.Get<string>("PartnerId") ?? string.Empty;
+            model.StartedAt = r.Get<string>("StartedAt") ?? string.Empty;
         }
 
-        if (vos.TryGetValue("Partner", out var partner) && partner is DynamicValueObject p)
-            model.Partner = p.Get<string>("Name") ?? string.Empty;
+        if (vos.TryGetValue("Duration", out var d) && d is DynamicValueObject dur)
+            model.DurationMin = dur.Get<int>("DurationMin");
 
-        if (vos.TryGetValue("Place", out var place) && place is DynamicValueObject pl)
-            model.Place = pl.Get<string>("Name") ?? string.Empty;
+        if (vos.TryGetValue("Place", out var p) && p is DynamicValueObject place)
+            model.Place = place.Get<string>("Place") ?? string.Empty;
 
-        if (vos.TryGetValue("Positions", out var positions) && positions is DynamicValueObject po)
-            model.Positions = ToList(po.Get<string[]>("Items"));
-        if (vos.TryGetValue("Tags", out var tags) && tags is DynamicValueObject tg)
-            model.Tags = ToList(tg.Get<string[]>("Items"));
-        if (vos.TryGetValue("Costumes", out var costumes) && costumes is DynamicValueObject cs)
-            model.Costumes = ToList(cs.Get<string[]>("Items"));
-        if (vos.TryGetValue("Toys", out var toys) && toys is DynamicValueObject ty)
-            model.Toys = ToList(ty.Get<string[]>("Items"));
-        if (vos.TryGetValue("Fantasies", out var fantasies) && fantasies is DynamicValueObject fa)
-            model.Fantasies = ToList(fa.Get<string[]>("Items"));
+        if (vos.TryGetValue("Positions", out var pos) && pos is DynamicValueObject positions)
+            model.Positions = ToList(positions.Get<string[]>("Positions"));
 
-        if (vos.TryGetValue("Contraception", out var contraception) && contraception is DynamicValueObject cp)
+        if (vos.TryGetValue("Accessories", out var acc) && acc is DynamicValueObject accessories)
         {
-            model.Contraceptives = ToList(cp.Get<string[]>("Contraceptives"));
-            model.ContraceptiveCount = cp.Get<int>("ContraceptiveCount");
+            model.Costumes = ToList(accessories.Get<string[]>("Costumes"));
+            model.Toys = ToList(accessories.Get<string[]>("Toys"));
+            model.Fantasies = ToList(accessories.Get<string[]>("Fantasies"));
+            model.Tags = ToList(accessories.Get<string[]>("Tags"));
         }
 
-        if (vos.TryGetValue("Orgasms", out var orgasms) && orgasms is DynamicValueObject og)
+        if (vos.TryGetValue("Contraception", out var c) && c is DynamicValueObject contraception)
         {
-            model.OrgasmsMe = og.Get<int>("OrgasmsMe");
-            model.OrgasmsPartner = og.Get<int>("OrgasmsPartner");
-            model.OrgasmMeType = ToList(og.Get<string[]>("OrgasmMeType"));
-            model.OrgasmPartnerType = ToList(og.Get<string[]>("OrgasmPartnerType"));
-            model.OrgasmMeRating = og.Get<int>("OrgasmMeRating");
-            model.OrgasmPartnerRating = og.Get<int>("OrgasmPartnerRating");
+            model.Contraceptives = ToList(contraception.Get<string[]>("Contraceptives"));
+            model.ContraceptiveCount = contraception.Get<int>("ContraceptiveCount");
         }
 
-        if (vos.TryGetValue("Origin", out var origin) && origin is DynamicValueObject or)
+        if (vos.TryGetValue("Orgasms", out var o) && o is DynamicValueObject orgasms)
         {
-            model.Garmin = or.Get<bool>("Garmin");
-            model.GarminId = or.Get<string>("GarminId") ?? string.Empty;
+            model.OrgasmsMe = orgasms.Get<int>("OrgasmsMe");
+            model.OrgasmsPartner = orgasms.Get<int>("OrgasmsPartner");
+            model.OrgasmMeType = ToList(orgasms.Get<string[]>("OrgasmMeType"));
+            model.OrgasmPartnerType = ToList(orgasms.Get<string[]>("OrgasmPartnerType"));
+            model.OrgasmMeRating = orgasms.Get<int>("OrgasmMeRating");
+            model.OrgasmPartnerRating = orgasms.Get<int>("OrgasmPartnerRating");
+        }
+
+        if (vos.TryGetValue("Origin", out var origin) && origin is DynamicValueObject org)
+        {
+            model.Garmin = org.Get<bool>("Garmin");
+            model.GarminId = org.Get<string>("GarminId") ?? string.Empty;
+            model.CreatedAt = org.Get<string>("CreatedAt") ?? string.Empty;
+            model.UpdatedAt = org.Get<string>("UpdatedAt") ?? string.Empty;
         }
     }
 

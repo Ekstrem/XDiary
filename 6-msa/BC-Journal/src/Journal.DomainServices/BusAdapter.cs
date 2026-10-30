@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Journal.DomainServices;
 
 /// <summary>
-/// Наблюдатель результата агрегата — публикует доменное событие в шину.
+/// РќР°Р±Р»СЋРґР°С‚РµР»СЊ СЂРµР·СѓР»СЊС‚Р°С‚Р° Р°РіСЂРµРіР°С‚Р° вЂ” РїСѓР±Р»РёРєСѓРµС‚ РґРѕРјРµРЅРЅРѕРµ СЃРѕР±С‹С‚РёРµ РІ С€РёРЅСѓ.
 /// </summary>
 internal class BusAdapter : IObserver<AggregateResult<IJournal, IAnemicModel<IJournal>>>
 {
@@ -21,9 +21,9 @@ internal class BusAdapter : IObserver<AggregateResult<IJournal, IAnemicModel<IJo
         _logger = logger;
     }
 
-    public void OnCompleted() => _logger.LogInformation("Поток доменных событий журнала завершён.");
+    public void OnCompleted() => _logger.LogInformation("РџРѕС‚РѕРє РґРѕРјРµРЅРЅС‹С… СЃРѕР±С‹С‚РёР№ Р¶СѓСЂРЅР°Р»Р° Р·Р°РІРµСЂС€С‘РЅ.");
 
-    public void OnError(Exception error) => _logger.LogError(error, "Ошибка в потоке доменных событий журнала.");
+    public void OnError(Exception error) => _logger.LogError(error, "РћС€РёР±РєР° РІ РїРѕС‚РѕРєРµ РґРѕРјРµРЅРЅС‹С… СЃРѕР±С‹С‚РёР№ Р¶СѓСЂРЅР°Р»Р°.");
 
     public void OnNext(AggregateResult<IJournal, IAnemicModel<IJournal>> value)
     {

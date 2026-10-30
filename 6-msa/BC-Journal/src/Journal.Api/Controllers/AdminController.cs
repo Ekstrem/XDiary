@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace Journal.Api.Controllers;
 
 /// <summary>
-/// Админ-операции журнала.
+/// РђРґРјРёРЅ-РѕРїРµСЂР°С†РёРё Р¶СѓСЂРЅР°Р»Р°.
 /// </summary>
 [ApiController]
-[Route("api/v1/journal/admin")]
+[Route("api/v1/Journal/admin")]
 public class AdminController : ControllerBase
 {
     private readonly IRebuildService<IJournal> _rebuildService;
@@ -16,12 +16,12 @@ public class AdminController : ControllerBase
     public AdminController(IRebuildService<IJournal> rebuildService) => _rebuildService = rebuildService;
 
     /// <summary>
-    /// Перестроить проекции JournalReadModel из Event Store (идемпотентно).
+    /// РџРµСЂРµСЃС‚СЂРѕРёС‚СЊ РїСЂРѕРµРєС†РёРё JournalReadModel РёР· Event Store (РёРґРµРјРїРѕС‚РµРЅС‚РЅРѕ).
     /// </summary>
     [HttpPost("rebuild-projections")]
     public async Task<IActionResult> RebuildProjections(CancellationToken ct)
     {
         await _rebuildService.RebuildAsync(ct);
-        return Ok(new { message = "Rebuild проекций завершён." });
+        return Ok(new { message = "Rebuild РїСЂРѕРµРєС†РёР№ Р·Р°РІРµСЂС€С‘РЅ." });
     }
 }

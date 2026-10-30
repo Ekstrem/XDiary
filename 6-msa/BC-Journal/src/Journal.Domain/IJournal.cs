@@ -3,13 +3,13 @@ using DigiTFactory.Libraries.SeedWorks.Definition;
 namespace Journal.Domain;
 
 /// <summary>
-/// Ограниченный контекст «Журнал интимной активности».
-/// Единственный агрегат контекста — Record (запись/акт).
+/// Ограниченный контекст «Партнёры».
+/// Единственный агрегат контекста — Record (профиль партнёра).
 /// </summary>
 public interface IJournal : IBoundedContext { }
 
 /// <summary>
-/// Описание ограниченного контекста журнала.
+/// Описание ограниченного контекста партнёров.
 /// </summary>
 public class JournalBoundedContextDescription : IBoundedContextDescription
 {

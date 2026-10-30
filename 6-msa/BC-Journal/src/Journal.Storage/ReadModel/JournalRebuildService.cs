@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace Journal.Storage.ReadModel;
 
 /// <summary>
-/// Перестраивает проекции JournalReadModel из Command Store (Event Sourcing).
-/// Идемпотентно: события с Version <= текущей версии проекции пропускаются.
+/// РџРµСЂРµСЃС‚СЂР°РёРІР°РµС‚ РїСЂРѕРµРєС†РёРё JournalReadModel РёР· Command Store (Event Sourcing).
+/// РРґРµРјРїРѕС‚РµРЅС‚РЅРѕ: СЃРѕР±С‹С‚РёСЏ СЃ Version <= С‚РµРєСѓС‰РµР№ РІРµСЂСЃРёРё РїСЂРѕРµРєС†РёРё РїСЂРѕРїСѓСЃРєР°СЋС‚СЃСЏ.
 /// </summary>
 public class JournalRebuildService : IRebuildService<IJournal>
 {
@@ -27,13 +27,13 @@ public class JournalRebuildService : IRebuildService<IJournal>
 
     public async Task RebuildAsync(CancellationToken ct = default)
     {
-        _logger.LogInformation("Rebuild проекций JournalReadModel: начало.");
+        _logger.LogInformation("Rebuild РїСЂРѕРµРєС†РёР№ JournalReadModel: РЅР°С‡Р°Р»Рѕ.");
 
         var events = await _commandDb.Events
             .OrderBy(e => e.Version)
             .ToListAsync(ct);
 
-        _logger.LogInformation("Rebuild: найдено {Count} событий в Event Store.", events.Count);
+        _logger.LogInformation("Rebuild: РЅР°Р№РґРµРЅРѕ {Count} СЃРѕР±С‹С‚РёР№ РІ Event Store.", events.Count);
 
         var projected = 0;
         foreach (var entry in events)
@@ -42,6 +42,6 @@ public class JournalRebuildService : IRebuildService<IJournal>
             projected++;
         }
 
-        _logger.LogInformation("Rebuild проекций JournalReadModel завершён: {Count} событий.", projected);
+        _logger.LogInformation("Rebuild РїСЂРѕРµРєС†РёР№ JournalReadModel Р·Р°РІРµСЂС€С‘РЅ: {Count} СЃРѕР±С‹С‚РёР№.", projected);
     }
 }

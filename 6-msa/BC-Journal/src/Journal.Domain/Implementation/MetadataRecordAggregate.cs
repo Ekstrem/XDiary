@@ -10,8 +10,7 @@ namespace Journal.Domain.Implementation;
 
 /// <summary>
 /// Metadata-driven реализация IRecordAggregate.
-/// Делегирует бизнес-операции в Aggregate&lt;IJournal&gt;.Operations,
-/// загруженные из AbstractAggregate metadata store.
+/// Делегирует бизнес-операции в Aggregate&lt;IJournal&gt;.Operations.
 /// </summary>
 public sealed class MetadataRecordAggregate : IRecordAggregate
 {
@@ -43,25 +42,38 @@ public sealed class MetadataRecordAggregate : IRecordAggregate
 
     #region Business operations
 
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> CreateRecord(IAnemicModel<IJournal> model)
-        => ExecuteOperation(model, CreateCommand(model));
-
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> UpdateRecord(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => ExecuteOperation(model, ToCommandToAggregate(commandMetadata));
-
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> DeleteRecord(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => ExecuteOperation(model, ToCommandToAggregate(commandMetadata));
-
-    public AggregateResult<IJournal, IAnemicModel<IJournal>> ImportRecord(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
-        => ExecuteOperation(model, ToCommandToAggregate(commandMetadata));
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> StartManualEntry(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> StartFromGarmin(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyWhen(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> ChoosePartner(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyPlace(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> AddPositions(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> AddAccessories(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> RecordContraception(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> SpecifyDuration(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> RecordOrgasms(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> Complete(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
+    public AggregateResult<IJournal, IAnemicModel<IJournal>> Delete(IAnemicModel<IJournal> model, ICommandToAggregate commandMetadata)
+        => Execute(model, commandMetadata);
 
     #endregion
 
     #region Internal helpers
 
-    private AggregateResult<IJournal, IAnemicModel<IJournal>> ExecuteOperation(
+    private AggregateResult<IJournal, IAnemicModel<IJournal>> Execute(
         IAnemicModel<IJournal> incomingModel,
-        CommandToAggregate command,
+        ICommandToAggregate commandMetadata,
         [CallerMemberName] string operationName = "")
     {
         if (!_aggregate.Operations.TryGetValue(operationName, out var operation))
@@ -71,22 +83,11 @@ public sealed class MetadataRecordAggregate : IRecordAggregate
 
         _scope.CurrentModel = _currentModel;
 
-        return operation.Handle(incomingModel, command, _scope);
+        return operation.Handle(incomingModel, ToCommandToAggregate(commandMetadata), _scope);
     }
 
-    private static CommandToAggregate CreateCommand(IAnemicModel<IJournal> model)
-        => CommandToAggregate.Commit(
-            model.CorrelationToken,
-            model.CommandName,
-            model.SubjectName,
-            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-
     private static CommandToAggregate ToCommandToAggregate(ICommandToAggregate cmd)
-        => CommandToAggregate.Commit(
-            cmd.CorrelationToken,
-            cmd.CommandName,
-            cmd.SubjectName,
-            cmd.Version);
+        => CommandToAggregate.Commit(cmd.CorrelationToken, cmd.CommandName, cmd.SubjectName, cmd.Version);
 
     #endregion
 

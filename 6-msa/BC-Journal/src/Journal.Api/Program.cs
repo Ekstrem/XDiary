@@ -17,8 +17,8 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // ======================================================
-// Профиль Single (ADR-002): 1 процесс (Cmd + Evt + Qry).
-// Command DB = PostgreSQL (Event Sourcing), Read DB = та же БД,
+// РџСЂРѕС„РёР»СЊ Single (ADR-002): 1 РїСЂРѕС†РµСЃСЃ (Cmd + Evt + Qry).
+// Command DB = PostgreSQL (Event Sourcing), Read DB = С‚Р° Р¶Рµ Р‘Р”,
 // EventBus = InMemory.
 // ======================================================
 
@@ -29,7 +29,7 @@ builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
     containerBuilder.RegisterModule<RegisterDependencies>();
 });
 
-// Метаданные агрегата Record (in-memory) + фабрика агрегатов
+// РњРµС‚Р°РґР°РЅРЅС‹Рµ Р°РіСЂРµРіР°С‚Р° Record (in-memory) + С„Р°Р±СЂРёРєР° Р°РіСЂРµРіР°С‚РѕРІ
 builder.Services.AddSingleton<IMetadataCache, JournalMetadataCache>();
 builder.Services.AddScoped<AbstractAggregateFactory<IJournal>>();
 
@@ -42,23 +42,23 @@ builder.Services.AddDbContext<CommandDbContext>(options =>
 builder.Services.AddScoped<IQueryRepository<DomainEventEventEntry>, QueryRepository<DomainEventEventEntry>>();
 builder.Services.AddScoped<IRepository, Repository>();
 
-// EventBus (InMemory — профиль Single)
+// EventBus (InMemory вЂ” РїСЂРѕС„РёР»СЊ Single)
 builder.Services.AddEventBusInMemory();
 
-// Read Store (PostgreSQL, та же БД — без отдельной схемы)
+// Read Store (PostgreSQL, С‚Р° Р¶Рµ Р‘Р” вЂ” Р±РµР· РѕС‚РґРµР»СЊРЅРѕР№ СЃС…РµРјС‹)
 var readConnectionString = builder.Configuration.GetConnectionString("JournalReadDb");
 if (string.IsNullOrEmpty(readConnectionString))
     readConnectionString = connectionString;
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(readConnectionString!);
 
-// Проекции + Rebuild + проектор в Command Store
+// РџСЂРѕРµРєС†РёРё + Rebuild + РїСЂРѕРµРєС‚РѕСЂ РІ Command Store
 builder.Services.AddScoped<JournalProjectionHandler>();
 builder.Services.AddScoped<JournalCommandDbProjector>();
 builder.Services.AddScoped<IRebuildService<IJournal>, JournalRebuildService>();
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(CreateRecordCommand).Assembly));
+    cfg.RegisterServicesFromAssembly(typeof(StartManualEntryCommand).Assembly));
 
 // Controllers + Swagger
 builder.Services.AddControllers();
@@ -69,13 +69,13 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Journal Microservice API",
         Version = "v1",
-        Description = "BC-Journal: журнал интимной активности (агрегат Record). CEQRS, профиль Single."
+        Description = "BC-Journal: журнал интимной активности (агрегат Record, визард). CEQRS, профиль Single."
     });
 });
 
 var app = builder.Build();
 
-// Подписать проекционные обработчики на шину (Event + All в профиле Single)
+// РџРѕРґРїРёСЃР°С‚СЊ РїСЂРѕРµРєС†РёРѕРЅРЅС‹Рµ РѕР±СЂР°Р±РѕС‚С‡РёРєРё РЅР° С€РёРЅСѓ (Event + All РІ РїСЂРѕС„РёР»Рµ Single)
 using (var scope = app.Services.CreateScope())
 {
     var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();

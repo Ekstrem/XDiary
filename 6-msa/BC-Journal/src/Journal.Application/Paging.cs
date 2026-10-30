@@ -3,7 +3,7 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 namespace Journal.Application;
 
 /// <summary>
-/// Простая реализация IPaging.
+/// РџСЂРѕСЃС‚Р°СЏ СЂРµР°Р»РёР·Р°С†РёСЏ IPaging.
 /// </summary>
 public sealed class Paging : IPaging
 {

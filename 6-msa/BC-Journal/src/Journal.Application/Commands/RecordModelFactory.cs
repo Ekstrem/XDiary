@@ -1,81 +1,92 @@
 using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
+using Journal.Domain;
+using Journal.Domain.Abstraction;
 
 namespace Journal.Application.Commands;
 
 /// <summary>
-/// Строит Value Objects динамической анемичной модели Record из RecordDraft.
+/// Строит Value Objects анемичной модели Record. Пошагово (визард) — только затронутые VO.
 /// </summary>
 internal static class RecordModelFactory
 {
-    public static Dictionary<string, IValueObject> BuildValueObjects(RecordDraft draft) => new()
+    public static IValueObject BuildRoot(string partnerId, string startedAt) => new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
     {
-        ["Root"] = new DynamicValueObject("RecordRoot", new Dictionary<string, object?>
-        {
-            ["StartedAt"] = draft.StartedAt,
-            ["DurationMin"] = draft.DurationMin
-        }),
-        ["Partner"] = new DynamicValueObject("RecordPartner", new Dictionary<string, object?>
-        {
-            ["Name"] = draft.Partner
-        }),
-        ["Place"] = new DynamicValueObject("RecordPlace", new Dictionary<string, object?>
-        {
-            ["Name"] = draft.Place
-        }),
-        ["Positions"] = new DynamicValueObject("RecordPositions", new Dictionary<string, object?>
-        {
-            ["Items"] = draft.Positions?.ToArray() ?? Array.Empty<string>()
-        }),
-        ["Tags"] = new DynamicValueObject("RecordTags", new Dictionary<string, object?>
-        {
-            ["Items"] = draft.Tags?.ToArray() ?? Array.Empty<string>()
-        }),
-        ["Costumes"] = new DynamicValueObject("RecordCostumes", new Dictionary<string, object?>
-        {
-            ["Items"] = draft.Costumes?.ToArray() ?? Array.Empty<string>()
-        }),
-        ["Toys"] = new DynamicValueObject("RecordToys", new Dictionary<string, object?>
-        {
-            ["Items"] = draft.Toys?.ToArray() ?? Array.Empty<string>()
-        }),
-        ["Fantasies"] = new DynamicValueObject("RecordFantasies", new Dictionary<string, object?>
-        {
-            ["Items"] = draft.Fantasies?.ToArray() ?? Array.Empty<string>()
-        }),
-        ["Contraception"] = new DynamicValueObject("RecordContraception", new Dictionary<string, object?>
-        {
-            ["Contraceptives"] = draft.Contraceptives?.ToArray() ?? Array.Empty<string>(),
-            ["ContraceptiveCount"] = draft.ContraceptiveCount
-        }),
-        ["Orgasms"] = new DynamicValueObject("RecordOrgasms", new Dictionary<string, object?>
-        {
-            ["OrgasmsMe"] = draft.OrgasmsMe,
-            ["OrgasmsPartner"] = draft.OrgasmsPartner,
-            ["OrgasmMeType"] = draft.OrgasmMeType?.ToArray() ?? Array.Empty<string>(),
-            ["OrgasmPartnerType"] = draft.OrgasmPartnerType?.ToArray() ?? Array.Empty<string>(),
-            ["OrgasmMeRating"] = draft.OrgasmMeRating,
-            ["OrgasmPartnerRating"] = draft.OrgasmPartnerRating
-        }),
-        ["Origin"] = new DynamicValueObject("RecordOrigin", new Dictionary<string, object?>
-        {
-            ["Garmin"] = draft.Garmin,
-            ["GarminId"] = draft.GarminId
-        })
+        ["PartnerId"] = partnerId,
+        ["StartedAt"] = startedAt
+    });
+
+    public static IValueObject BuildOrigin(bool garmin, string garminId, string createdAt, string updatedAt) => new DynamicValueObject("RecordOrigin", new Dictionary<string, object?>
+    {
+        ["Garmin"] = garmin,
+        ["GarminId"] = garminId,
+        ["CreatedAt"] = createdAt,
+        ["UpdatedAt"] = updatedAt
+    });
+
+    public static IValueObject BuildDuration(int durationMin) => new DynamicValueObject("RecordDuration", new Dictionary<string, object?>
+    {
+        ["DurationMin"] = durationMin
+    });
+
+    public static IValueObject BuildPlace(string place) => new DynamicValueObject("RecordPlace", new Dictionary<string, object?>
+    {
+        ["Place"] = place
+    });
+
+    public static IValueObject BuildPositions(IEnumerable<string>? positions) => new DynamicValueObject("RecordPositions", new Dictionary<string, object?>
+    {
+        ["Positions"] = positions?.ToArray() ?? Array.Empty<string>()
+    });
+
+    public static IValueObject BuildAccessories(IEnumerable<string>? costumes, IEnumerable<string>? toys, IEnumerable<string>? fantasies, IEnumerable<string>? tags) => new DynamicValueObject("RecordAccessories", new Dictionary<string, object?>
+    {
+        ["Costumes"] = costumes?.ToArray() ?? Array.Empty<string>(),
+        ["Toys"] = toys?.ToArray() ?? Array.Empty<string>(),
+        ["Fantasies"] = fantasies?.ToArray() ?? Array.Empty<string>(),
+        ["Tags"] = tags?.ToArray() ?? Array.Empty<string>()
+    });
+
+    public static IValueObject BuildContraception(IEnumerable<string>? contraceptives, int count) => new DynamicValueObject("RecordContraception", new Dictionary<string, object?>
+    {
+        ["Contraceptives"] = contraceptives?.ToArray() ?? Array.Empty<string>(),
+        ["ContraceptiveCount"] = count
+    });
+
+    public static IValueObject BuildOrgasms(int me, int partner, IEnumerable<string>? meTypes, IEnumerable<string>? partnerTypes, int meRating, int partnerRating) => new DynamicValueObject("RecordOrgasms", new Dictionary<string, object?>
+    {
+        ["OrgasmsMe"] = me,
+        ["OrgasmsPartner"] = partner,
+        ["OrgasmMeType"] = meTypes?.ToArray() ?? Array.Empty<string>(),
+        ["OrgasmPartnerType"] = partnerTypes?.ToArray() ?? Array.Empty<string>(),
+        ["OrgasmMeRating"] = meRating,
+        ["OrgasmPartnerRating"] = partnerRating
+    });
+
+    public static Dictionary<string, IValueObject> BuildValueObjects(RecordDraft d) => new()
+    {
+        ["Root"] = BuildRoot(d.PartnerId, d.StartedAt),
+        ["Duration"] = BuildDuration(d.DurationMin),
+        ["Place"] = BuildPlace(d.Place),
+        ["Positions"] = BuildPositions(d.Positions),
+        ["Accessories"] = BuildAccessories(d.Costumes, d.Toys, d.Fantasies, d.Tags),
+        ["Contraception"] = BuildContraception(d.Contraceptives, d.ContraceptiveCount),
+        ["Orgasms"] = BuildOrgasms(d.OrgasmsMe, d.OrgasmsPartner, d.OrgasmMeType, d.OrgasmPartnerType, d.OrgasmMeRating, d.OrgasmPartnerRating),
+        ["Origin"] = BuildOrigin(d.Garmin, d.GarminId, d.CreatedAt, d.UpdatedAt)
     };
 
-    /// <summary>
-    /// Инварианты, которые нельзя выразить DSL-метаданных (числовые диапазоны).
-    /// Возвращает причину отказа или null, если всё в порядке.
-    /// </summary>
-    public static string? Validate(RecordDraft draft)
+    /// <summary>Текущий корень (partnerId, startedAt) для слияния в шагах визарда.</summary>
+    public static (string PartnerId, string StartedAt) ReadRoot(IRecordAggregate aggregate)
     {
-        if (string.IsNullOrWhiteSpace(draft.StartedAt))
-            return "startedAt is required.";
-        if (draft.DurationMin < 1)
-            return "durationMin must be >= 1.";
-        if (draft.OrgasmMeRating is < 0 or > 5 || draft.OrgasmPartnerRating is < 0 or > 5)
-            return "orgasm rating must be in 0..5.";
-        return null;
+        var vos = aggregate.GetValueObjects();
+        if (vos.TryGetValue("Root", out var root) && root is DynamicValueObject r)
+            return (r.Get<string>("PartnerId") ?? string.Empty, r.Get<string>("StartedAt") ?? string.Empty);
+        return (string.Empty, string.Empty);
     }
+
+    public static string? ValidateDuration(int durationMin)
+        => durationMin < 1 ? "durationMin must be >= 1." : null;
+
+    public static string? ValidateRating(int rating)
+        => rating is < 0 or > 5 ? "rating must be 0..5." : null;
 }
