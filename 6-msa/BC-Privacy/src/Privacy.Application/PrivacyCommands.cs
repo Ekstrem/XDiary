@@ -1,0 +1,10 @@
+namespace Privacy.Application.Commands;
+using DigiTFactory.Libraries.SeedWorks.Result;
+using MediatR;
+using Privacy.Domain;
+using Privacy.Domain.Abstraction;
+public sealed record SetPinCommand(string Pin) : IRequest<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>;
+public sealed record ChangePinCommand(string Pin) : IRequest<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>;
+public sealed record RemovePinCommand : IRequest<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>;
+public sealed record LockPinCommand : IRequest<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>;
+public sealed record UnlockPinCommand : IRequest<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>;

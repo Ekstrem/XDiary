@@ -1,79 +1,33 @@
-using Privacy.Application;
-using Privacy.Application.Commands;
-using Privacy.Application.Queries;
-using Privacy.Application.Security;
+namespace Privacy.Api.Controllers;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Privacy.Application.Commands;
+using Privacy.Application.Queries;
+using Privacy.Domain;
+using Privacy.Domain.Abstraction;
+using XDiary.Contracts;
 
-namespace Privacy.Api.Controllers;
-
-/// <summary>
-/// Command/Query API приватности: /api/v1/privacy.
-/// </summary>
 [ApiController]
 [Route("api/v1/privacy")]
-public class PrivacyController : ControllerBase
+public sealed class PrivacyController : ControllerBase
 {
     private readonly IMediator _mediator;
-    private readonly TokenService _tokenService;
+    public PrivacyController(IMediator mediator) => _mediator = mediator;
+    private IActionResult Respond(AggregateResult<IPrivacy, IPinCredentialAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
-    public PrivacyController(IMediator mediator, TokenService tokenService)
-    {
-        _mediator = mediator;
-        _tokenService = tokenService;
-    }
-
-    /// <summary>Установить PIN (PBKDF2-SHA256, открытый PIN не сохраняется).</summary>
-    [HttpPost("pin")]
-    public async Task<ActionResult<PrivacyOperationResult>> SetPin(
-        [FromBody] SetPinCommand command, CancellationToken ct)
-    {
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Удалить PIN.</summary>
+    [HttpPost("pin/set")]
+    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPost("pin/change")]
+    public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpDelete("pin")]
-    public async Task<ActionResult<PrivacyOperationResult>> RemovePin(
-        [FromQuery] string userId, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new RemovePinCommand { UserId = userId }, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Установлен ли PIN.</summary>
-    [HttpGet("has-pin")]
-    public async Task<IActionResult> HasPin([FromQuery] string userId, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new HasPinQuery { UserId = userId }, ct);
-        return Ok(result);
-    }
-
-    /// <summary>Проверить PIN.</summary>
-    [HttpPost("verify-pin")]
-    public async Task<IActionResult> VerifyPin([FromBody] VerifyPinQuery query, CancellationToken ct)
-    {
-        var result = await _mediator.Send(query, ct);
-        return Ok(result);
-    }
-
-    /// <summary>Выпустить access/refresh JWT (после проверки PIN).</summary>
-    [HttpPost("token")]
-    public async Task<IActionResult> Token([FromBody] TokenRequest request, CancellationToken ct)
-    {
-        var verified = await _mediator.Send(new VerifyPinQuery { UserId = request.UserId, Pin = request.Pin }, ct);
-        if (!verified)
-            return Unauthorized();
-
-        var tokens = _tokenService.Issue(request.UserId);
-        return Ok(tokens);
-    }
-
-    /// <summary>Проверить JWT (stateless, для шлюза).</summary>
-    [HttpPost("verify-token")]
-    public IActionResult VerifyToken([FromBody] VerifyTokenRequest request)
-        => Ok(_tokenService.Verify(request.Token));
+    public async Task<IActionResult> Remove(CancellationToken ct) => Respond(await _mediator.Send(new RemovePinCommand(), ct));
+    [HttpPost("pin/lock")]
+    public async Task<IActionResult> Lock(CancellationToken ct) => Respond(await _mediator.Send(new LockPinCommand(), ct));
+    [HttpPost("pin/unlock")]
+    public async Task<IActionResult> Unlock(CancellationToken ct) => Respond(await _mediator.Send(new UnlockPinCommand(), ct));
+    [HttpGet("pin/has")]
+    public async Task<IActionResult> HasPin(CancellationToken ct) => Ok(await _mediator.Send(new HasPinQuery(), ct));
+    [HttpPost("pin/verify")]
+    public async Task<IActionResult> VerifyPin([FromBody] VerifyPinQuery q, CancellationToken ct) => Ok(await _mediator.Send(q, ct));
 }
-
-public record TokenRequest(string UserId, string Pin);
-public record VerifyTokenRequest(string Token);
