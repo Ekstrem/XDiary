@@ -117,12 +117,63 @@ def parse_task(path):
     return title, status
 
 
+ISSUE_INDEX = {}  # task_id -> канонический issue (минимальный номер)
+ISSUES_ALL = []
+
+
+def task_id_of(issue):
+    m = re.match(r"^\[([A-Z]+-\d+)\]", issue.get("title", ""))
+    return m.group(1) if m else None
+
+
+def fetch_issues():
+    """Все issues (открытые+закрытые), пагинация по 100. Детерминированно."""
+    out, page = [], 1
+    while True:
+        r = rest("GET", "/repos/%s/issues?state=all&per_page=100&page=%d" % (REPO, page))
+        if not r:
+            break
+        out += r
+        if len(r) < 100:
+            break
+        page += 1
+    return out
+
+
+def build_issue_index(issues):
+    """task_id -> канонический issue (с минимальным номером = самый старый)."""
+    idx = {}
+    for i in issues:
+        if i.get("pull_request"):
+            continue
+        tid = task_id_of(i)
+        if not tid:
+            continue
+        cur = idx.get(tid)
+        if cur is None or i["number"] < cur["number"]:
+            idx[tid] = i
+    return idx
+
+
 def find_issue(task_id):
-    q = urllib.parse.quote('repo:%s in:title "[%s]"' % (REPO, task_id))
-    r = rest("GET", "/search/issues?q=" + q)
-    if r and r.get("items"):
-        return r["items"][0]
-    return None
+    return ISSUE_INDEX.get(task_id)
+
+
+def close_duplicates(issues):
+    """Закрыть лишние ОТКРЫТЫЕ issue с тем же task_id (канон — минимальный номер)."""
+    closed = 0
+    for i in issues:
+        if i.get("pull_request"):
+            continue
+        tid = task_id_of(i)
+        if not tid:
+            continue
+        canon = ISSUE_INDEX.get(tid)
+        if canon and i["number"] != canon["number"] and i.get("state") == "open":
+            rest("PATCH", "/repos/%s/issues/%d" % (REPO, i["number"]),
+                 {"state": "closed", "labels": ["duplicate"]})
+            closed += 1
+    return closed
 
 
 def resolve_project(owner, number, token):
@@ -211,6 +262,17 @@ def main():
     me = rest("GET", "/user")
     print("token-user: %s" % (me.get("login") if me else "ОШИБКА/невалиден"))
 
+    # ДЕТЕРМИНИРОВАННЫЙ индекс issues вместо Search API.
+    # Search API даёт лаг индексации и rate-limit → только что созданные issue
+    # не находились, и скрипт создавал дубли (было 500 issue на 40 задач).
+    global ISSUES_ALL, ISSUE_INDEX
+    ISSUES_ALL = fetch_issues()
+    ISSUE_INDEX = build_issue_index(ISSUES_ALL)
+    print("issues: %d, уникальных задач: %d" % (len(ISSUES_ALL), len(ISSUE_INDEX)))
+    dups = close_duplicates(ISSUES_ALL)
+    if dups:
+        print("dedup: закрыто %d дублей" % dups)
+
     created = updated = failed = 0
     project_items = []  # (issue_node_id, status_key)
     for role_dir, role_label in ROLES.items():
@@ -233,7 +295,8 @@ def main():
             if existing:
                 n = existing["number"]
                 rest("PATCH", "/repos/%s/issues/%d" % (REPO, n),
-                     {"title": issue_title, "labels": labels})
+                     {"title": issue_title, "labels": labels,
+                      "state": "closed" if status_key == "закрыта" else "open"})
                 updated += 1
                 node_id = existing.get("node_id")
             else:
