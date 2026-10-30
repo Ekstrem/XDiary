@@ -8,15 +8,16 @@
   var ACCESS_KEY = "xdiary.accessToken";
   var REFRESH_KEY = "xdiary.refreshToken";
   var BASE_KEY = "xdiary.apiBase";
+  var DEFAULT_BASE = "https://xdiary-vps1.taile0b6ee.ts.net";
 
   function storeGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function storeSet(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
 
   function token() { return storeGet(ACCESS_KEY); }
+  function baseUrl() { return storeGet(BASE_KEY) || DEFAULT_BASE; }
 
   function request(method, path, body) {
-    var base = storeGet(BASE_KEY);
-    if (!base) return Promise.reject(new Error("Не задан адрес API (шлюза)"));
+    var base = baseUrl();
     var headers = { "Accept": "application/json" };
     if (token()) headers["Authorization"] = "Bearer " + token();
     var opts = { method: method, headers: headers };
@@ -24,7 +25,9 @@
       headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
-    return fetch(base + path, opts).then(function (r) {
+    return fetch(base + path, opts).catch(function () {
+      throw new Error("Недоступен API (шлюз) — проверьте сеть/адрес");
+    }).then(function (r) {
       if (r.status === 204) return null;
       var ct = r.headers.get("content-type") || "";
       var p = (ct.indexOf("json") !== -1) ? r.json() : r.text();
@@ -47,7 +50,7 @@
 
   window.Api = {
     config: {
-      base: function () { return storeGet(BASE_KEY); },
+      base: function () { return baseUrl(); },
       setBase: function (u) { storeSet(BASE_KEY, u); },
       token: token,
       setToken: function (t) { storeSet(ACCESS_KEY, t); },
