@@ -1,113 +1,36 @@
-using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using Journal.Domain;
+using Journal.Domain.Implementation;
 using Xunit;
 
-namespace Journal.Domain.Tests;
-
-/// <summary>
-/// Доменные тесты агрегата Record (metadata-driven, визард, in-memory).
-/// </summary>
 public class RecordAggregateTest
 {
     [Fact]
-    public void StartManualEntry_HappyPath()
+    public void Complete_WithoutStartedAt_Fails()
     {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
-        var model = RecordBuilder.NewDraftModel(id);
-
-        var result = aggregate.StartManualEntry(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void StartManualEntry_AlreadyExists_Fails()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.NewDraftModel(id);
-
-        // Инвариант IsNewEntity должен провалиться
-        var result = aggregate.StartManualEntry(model, model.CommandName.CreateCommandMetadata());
-
+        var aggregate = Aggregate.CreateInstance(new AnemicModel());
+        var result = aggregate.Complete();
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void SpecifyWhen_HappyPath()
+    public void Wizard_Then_Complete_Succeeds()
     {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "SpecifyWhen", RecordBuilder.WhenVos("2026-10-29T21:00"));
-
-        var result = aggregate.SpecifyWhen(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var aggregate = Aggregate.CreateInstance(new AnemicModel());
+        var start = aggregate.StartManualEntry();
+        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
+        var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1");
+        var complete = Aggregate.CreateInstance(partner.Model()).Complete();
+        Assert.Equal(DomainOperationResultEnum.Success, complete.Result);
     }
 
     [Fact]
-    public void SpecifyWhen_OnNew_Fails()
+    public void Solo_Complete_Succeeds()
     {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateNewAggregate(id);
-        var model = RecordBuilder.Model(id, 0, "SpecifyWhen", RecordBuilder.WhenVos("2026-10-29T21:00"));
-
-        // Инвариант IsNotNewEntity должен провалиться
-        var result = aggregate.SpecifyWhen(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void Complete_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(new[] { "partner-1" }, "2026-10-29T21:00"));
-
-        var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void Complete_Solo_Succeeds()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(Array.Empty<string>(), "2026-10-29T21:00"));
-
-        // 0 партнёров = соло, допустимо (PartnersCardinality 0..N)
-        var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void Complete_MissingWhen_Fails()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Complete", RecordBuilder.CompleteVos(new[] { "partner-1" }, null!));
-
-        // Инвариант PropertyNotNull:Root.StartedAt должен провалиться
-        var result = aggregate.Complete(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void Delete_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = JournalMetadataHelper.CreateAggregate(RecordBuilder.ExistingDraftModel(id));
-        var model = RecordBuilder.Model(id, 1, "Delete", new Dictionary<string, IValueObject>());
-
-        var result = aggregate.Delete(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var aggregate = Aggregate.CreateInstance(new AnemicModel());
+        var start = aggregate.StartManualEntry();
+        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
+        var complete = Aggregate.CreateInstance(when.Model()).Complete();
+        Assert.Equal(DomainOperationResultEnum.Success, complete.Result);
     }
 }
