@@ -30,4 +30,14 @@ public sealed class PrivacyController : ControllerBase
     public async Task<IActionResult> HasPin(CancellationToken ct) => Ok(await _mediator.Send(new HasPinQuery(), ct));
     [HttpPost("pin/verify")]
     public async Task<IActionResult> VerifyPin([FromBody] VerifyPinQuery q, CancellationToken ct) => Ok(await _mediator.Send(q, ct));
+
+    [HttpPost("token")]
+    public async Task<IActionResult> Token([FromBody] IssueTokenCommand c, CancellationToken ct)
+    {
+        var r = await _mediator.Send(c, ct);
+        return r is null ? Unauthorized() : Ok(r);
+    }
+
+    [HttpPost("verify-token")]
+    public async Task<IActionResult> VerifyToken([FromBody] VerifyTokenQuery q, CancellationToken ct) => Ok(await _mediator.Send(q, ct));
 }

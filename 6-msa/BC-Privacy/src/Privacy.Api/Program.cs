@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Privacy.Api.HealthChecks;
 using Privacy.Domain;
 using Privacy.Domain.Abstraction;
+using Privacy.Application.Security;
 using Privacy.DomainServices;
 using Privacy.InternalContracts;
 using Privacy.Storage;
@@ -21,6 +22,7 @@ builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configu
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IPinCredentialRepository, PinCredentialCommandRepository>();
 builder.Services.AddScoped<IPinCredentialQueryRepository, PinCredentialReadRepository>();
+builder.Services.AddSingleton(new TokenService(builder.Configuration["Jwt:SigningKey"] ?? "dev-only-signing-key-32bytes-minimum!!", builder.Configuration["Jwt:Issuer"] ?? "xdiary"));
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 

@@ -16,9 +16,9 @@ public sealed class PortabilityCommandRepository : IPortabilityRepository
     public async Task SaveAsync(AggregateResult<IPortability, ICsvDocumentAnemicModel> result, CancellationToken ct = default)
     {
         var m = result.Model();
-        var e = new CsvDocumentEntity { Id = m.Id };
+        var e = await _db.Documents.FirstOrDefaultAsync(x => x.Kind == m.Kind, ct);
+        if (e is null) { e = new CsvDocumentEntity { Id = m.Id }; _db.Documents.Add(e); }
         PortabilityMapper.MapToEntity(m, e);
-        _db.Documents.Add(e);
         await _db.SaveChangesAsync(ct);
     }
 }

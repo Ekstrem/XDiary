@@ -32,6 +32,10 @@ namespace Portability.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("RowsJson")
                         .IsRequired()
                         .HasColumnType("text");
@@ -40,6 +44,9 @@ namespace Portability.Storage.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Kind")
+                        .IsUnique();
 
                     b.ToTable("csv_documents", (string)null);
                 });
