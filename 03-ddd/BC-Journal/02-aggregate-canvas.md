@@ -28,7 +28,7 @@
 - **Positions**: positions[] (string)
 - **Accessories**: costumes[], toys[], fantasies[], tags[]
 - **Contraception**: contraceptives[] (string), contraceptiveCount (int)
-- **Orgasms**: orgasmsMe, orgasmsPartner (int); orgasmMeType[], orgasmPartnerType[] (string); orgasmMeRating, orgasmPartnerRating (int 0–5)
+- **Orgasms**: orgasms[] — по участнику: { participant («me» | partnerId), count (int), types[] (string), rating (int 0–5) }
 - **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
 
 > «Клиент» = «Партнёр»; в домене используем **«партнёр»**. Отдельный BC «Клиент» (комплаенс/безопасность) — позже.
@@ -68,7 +68,7 @@ Recorded → [Delete] → Deleted
 | `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
 | `RecordContraception(contraceptives, count)` | «Контрацепция» | Contraception |
 | `SpecifyDuration(durationMin)` | «Длительность» | Duration |
-| `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | «Оргазмы» | Orgasms |
+| `RecordOrgasms(orgasms[])` | «Оргазмы» | Orgasms |
 | `Complete()` | «Итог» | — |
 | `Delete()` | — | — |
 

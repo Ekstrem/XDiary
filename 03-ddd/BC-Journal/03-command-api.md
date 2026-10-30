@@ -16,7 +16,7 @@
 | AddAccessories | `AddAccessories(costumes, toys, fantasies, tags)` | `AccessoriesAdded` | Accessories |
 | RecordContraception | `RecordContraception(contraceptives, count)` | `ContraceptionRecorded` | Contraception |
 | SpecifyDuration | `SpecifyDuration(durationMin)` | `DurationSpecified` | Duration |
-| RecordOrgasms | `RecordOrgasms(me, partner, meTypes, partnerTypes, meRating, partnerRating)` | `OrgasmsRecorded` | Orgasms |
+| RecordOrgasms | `RecordOrgasms(orgasms[])` | `OrgasmsRecorded` | Orgasms |
 | Complete | `Complete()` | `RecordCompleted` | — |
 | Delete | `Delete()` | `RecordDeleted` | — |
 
@@ -34,12 +34,7 @@
   "tags": ["string"],
   "contraceptives": ["string"],
   "contraceptiveCount": 0,
-  "orgasmsMe": 0,
-  "orgasmsPartner": 0,
-  "orgasmMeType": ["string"],
-  "orgasmPartnerType": ["string"],
-  "orgasmMeRating": 0,
-  "orgasmPartnerRating": 0,
+  "orgasms": [{ "participant": "me|partnerId", "count": 0, "types": ["string"], "rating": 0 }],
   "garmin": false,
   "garminId": ""
 }
