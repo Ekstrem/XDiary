@@ -186,6 +186,11 @@
   }
 
   // ---- блокировка ----
+  function ensureToken(pin) {
+    return Api.auth.login(pin).catch(function () {
+      return Api.privacy.setPin(pin).then(function () { return Api.auth.login(pin); });
+    });
+  }
   function lock() {
     Pin.hasPin().then(function (hasPin) {
       if (!hasPin) { showView("journal"); return; }
@@ -201,7 +206,7 @@
       if (ok) {
         $("pin-error").classList.add("hidden");
         $("pin-input").value = "";
-        showView("journal");
+        ensureToken(pin).then(function () { showView("journal"); }, function () { showView("journal"); });
       } else {
         $("pin-error").classList.remove("hidden");
         $("pin-input").value = "";
@@ -2297,6 +2302,7 @@
         if (!Pin.isValidPin(nw)) { toast("Новый PIN: 4–8 цифр"); return; }
         if (nw !== cf) { toast("PIN не совпадают"); return; }
         Pin.setPin(nw).then(function () {
+          Api.privacy.setPin(nw).catch(function () {});
           toast("PIN сохранён");
           $("pin-modal").classList.add("hidden");
           refreshPinStatus();
@@ -2308,6 +2314,8 @@
     confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
       Pin.removePin().then(function () {
+        Api.auth.logout();
+        Api.privacy.removePin().catch(function () {});
         toast("PIN удалён");
         $("pin-modal").classList.add("hidden");
         refreshPinStatus();
@@ -2320,6 +2328,7 @@
     confirmDialog("Стереть все данные (записи, соматику, сон, тренды) и PIN-код? Это необратимо.").then(function (ok) {
       if (!ok) return;
       Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), DB.clearWeekly(), DB.clearSleepWeekly(), Pin.removePin()]).then(function () {
+        Api.auth.logout();
         toast("Все данные удалены");
         renderJournal();
         refreshPinStatus();

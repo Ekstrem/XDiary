@@ -17,13 +17,12 @@
   function baseUrl() { return storeGet(BASE_KEY) || DEFAULT_BASE; }
   function refreshToken() { return storeGet(REFRESH_KEY); }
 
-  // FE-002: refresh-контракт уточняется у @BE (в BE-010 заявлен POST /token после PIN; refresh-эндпоинт в коде не определён).
+  // FE-002: refresh-эндпоинта в бэке нет (POST /token принимает PIN). Refresh-токен (30 дней) — тоже валидный JWT,
+  // поэтому при 401 подставляем его как Bearer (сессия не теряется до истечения refresh).
   function authRefresh() {
-    return post("/api/v1/privacy/token", { refreshToken: refreshToken() }).then(function (d) {
-      storeSet(ACCESS_KEY, d.accessToken);
-      storeSet(REFRESH_KEY, d.refreshToken);
-      return d;
-    });
+    var rt = refreshToken();
+    if (rt) { storeSet(ACCESS_KEY, rt); return Promise.resolve(); }
+    return Promise.reject(new Error("Нет refresh-токена"));
   }
 
   function request(method, path, body, isRetry) {
@@ -82,6 +81,13 @@
       },
       refresh: function () { return authRefresh(); },
       logout: function () { storeSet(ACCESS_KEY, ""); storeSet(REFRESH_KEY, ""); }
+    },
+    privacy: {
+      hasPin: function () { return get("/api/v1/privacy/pin/has"); },
+      setPin: function (pin) { return post("/api/v1/privacy/pin/set", { pin: pin }); },
+      verifyPin: function (pin) { return post("/api/v1/privacy/pin/verify", { pin: pin }); },
+      removePin: function () { return del("/api/v1/privacy/pin"); },
+      token: function (pin) { return post("/api/v1/privacy/token", { pin: pin }); }
     },
 
     // Журнал: цепочка команд (StartManualEntry → Specify* → Complete)
