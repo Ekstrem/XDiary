@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#12101a">
+  <meta name="description" content="XDiary — приватный дневник пары">
+  <title>XDiary</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <div id="sync-bar" class="sync-bar hidden"><span id="sync-bar-text"></span></div>
+
+  <!-- Блокировка -->
+  <section id="view-lock" class="view hidden">
+    <div class="lock-card">
+      <div class="lock-icon">🔒</div>
+      <h1>XDiary</h1>
+      <p class="muted">Введите PIN-код</p>
+      <input id="pin-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off">
+      <p id="pin-error" class="error hidden">Неверный PIN</p>
+      <button id="pin-submit" class="btn primary">Войти</button>
+    </div>
+  </section>
+
+  <!-- Журнал -->
+  <section id="view-journal" class="view">
+    <header class="appbar">
+      <h1>Журнал</h1>
+      <div class="appbar-actions">
+        <button id="btn-lock" class="icon-btn" title="Заблокировать" aria-label="Заблокировать">🔒</button>
+      </div>
+    </header>
+    <main class="content">
+      <div id="garmin-suggest" class="suggest-banner hidden">
+        <div class="suggest-text" id="suggest-text"></div>
+        <div class="suggest-actions">
+          <button class="btn primary" id="suggest-add">Внести</button>
+          <button class="btn" id="suggest-hide">Скрыть</button>
+        </div>
+      </div>
+      <div id="journal-list" class="journal-list"></div>
+      <div id="journal-empty" class="empty-state hidden">
+        <p>Пока пусто.</p>
+        <p>Нажмите «+», чтобы добавить первую запись.</p>
+      </div>
+    </main>
+    <button id="btn-new" class="fab" title="Записать" aria-label="Новая запись">+</button>
+    <button id="btn-garmin-add" class="fab fab-garmin" title="Из Garmin" aria-label="Добавить из Garmin">⌚</button>
+  </section>
+
+  <!-- Партнёры -->
+  <section id="view-partners" class="view hidden">
+    <header class="appbar">
+      <h1>Партнёры</h1>
+      <button id="btn-partner-add" class="btn primary">+ Добавить</button>
+    </header>
+    <main class="content">
+      <div id="partners-list" class="partners-list"></div>
+      <div id="partners-empty" class="empty-state hidden">
+        <p>Партнёров пока нет.</p>
+        <p>Добавьте партнёра с фото и подробностями.</p>
+      </div>
+    </main>
+  </section>
+
+  <!-- Каталог (костюмы / игрушки / фантазии) -->
+  <section id="view-catalog" class="view hidden">
+    <header class="appbar">
+      <h1>Каталог</h1>
+      <button id="btn-catalog-add" class="btn primary">+ Добавить</button>
+    </header>
+    <main class="content">
+      <div class="segmented" id="catalog-tabs">
+        <button class="active" data-kind="costume">Костюмчики</button>
+        <button data-kind="toy">Игрушки</button>
+        <button data-kind="fantasy">Фантазии</button>
+        <button data-kind="contraception">Контрацепция</button>
+      </div>
+      <div id="catalog-list" class="partners-list"></div>
+      <div id="catalog-empty" class="empty-state hidden">
+        <p>Пока пусто.</p>
+        <p>Добавьте первый элемент.</p>
+      </div>
+    </main>
+  </section>
+
+  <!-- Настройки -->
+  <section id="view-settings" class="view hidden">
+    <header class="appbar">
+      <h1>Настройки</h1>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <div class="app-version" id="app-version">XDiary</div>
+        <h2>PIN-код</h2>
+        <p id="pin-status" class="muted">…</p>
+        <button class="btn full" id="btn-pin-open">Установить PIN</button>
+
+        <h2>Пол</h2>
+        <div class="btn-row" id="my-gender-row">
+          <button type="button" class="btn gender-btn" id="my-gender-male">Мужской</button>
+          <button type="button" class="btn gender-btn" id="my-gender-female">Женский</button>
+        </div>
+
+        <h2>Данные</h2>
+        <div class="btn-row">
+          <button class="btn" id="btn-export">Экспорт CSV</button>
+          <button class="btn" id="btn-import">Импорт CSV</button>
+        </div>
+        <p class="muted">Экспорт сохраняет все записи в CSV-файл (открывается в Excel/Sheets). Импорт объединяет записи по id.</p>
+
+        <h2>Соматика (Garmin)</h2>
+        <button class="btn full" id="btn-import-open">Импорт данных Garmin…</button>
+        <p class="muted">Распознаёт отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип определяется автоматически.</p>
+
+        <h2>Автосинхронизация (прокси на ПК)</h2>
+        <div class="field">
+          <label for="gem-proxy">Адрес прокси</label>
+          <input type="text" id="gem-proxy" placeholder="http://192.168.1.224:8765" autocomplete="off">
+        </div>
+        <div class="btn-row">
+          <button class="btn primary" id="btn-garmin-sync">Обновить статистику</button>
+          <button class="btn" id="btn-garmin-test">Проверить прокси</button>
+        </div>
+        <p class="muted" id="gem-status"></p>
+
+        <h2>Опасная зона</h2>
+        <p class="muted">Стирает все данные (записи, соматику, сон, тренды) и PIN-код. Необратимо.</p>
+        <button class="btn danger full" id="btn-wipe">Стереть всё</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- Мастер записи -->
+  <section id="view-wizard" class="view hidden">
+    <header class="appbar">
+      <button id="btn-wizard-close" class="icon-btn" aria-label="Закрыть">✕</button>
+      <h1 id="wizard-title">Новая запись</h1>
+    </header>
+    <div class="progress" id="wizard-progress"></div>
+    <main class="content">
+      <div id="wizard-body"></div>
+    </main>
+    <footer class="wizard-footer">
+      <button id="btn-wizard-prev" class="btn">Назад</button>
+      <button id="btn-wizard-next" class="btn primary">Далее</button>
+      <button id="btn-wizard-save" class="btn primary hidden">Сохранить</button>
+      <button id="btn-wizard-delete" class="btn danger hidden">Удалить</button>
+    </footer>
+  </section>
+
+  <!-- Партнёр: редактирование -->
+  <section id="view-partner-edit" class="view hidden">
+    <header class="appbar">
+      <button id="btn-partner-edit-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1 id="partner-edit-title">Партнёр</h1>
+      <button id="btn-partner-save" class="btn primary">Сохранить</button>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <div class="photo-picker">
+          <div id="pe-photo-preview"></div>
+          <label class="btn" for="pe-photo">Фото</label>
+          <input type="file" id="pe-photo" accept="image/*" class="hidden">
+        </div>
+        <div class="field">
+          <label for="pe-name">Имя</label>
+          <input type="text" id="pe-name" placeholder="Имя партнёра" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Пол</label>
+          <div class="btn-row">
+            <button type="button" class="btn gender-btn" id="pe-gender-male">Мужской</button>
+            <button type="button" class="btn gender-btn" id="pe-gender-female">Женский</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="pe-notes">Подробности</label>
+          <textarea id="pe-notes" rows="4" placeholder="Заметки, предпочтения…"></textarea>
+        </div>
+        <button type="button" class="btn danger full hidden" id="btn-partner-delete">Удалить партнёра</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- Каталог: редактирование элемента -->
+  <section id="view-catalog-edit" class="view hidden">
+    <header class="appbar">
+      <button id="btn-catalog-edit-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1 id="catalog-edit-title">Элемент</h1>
+      <button id="btn-catalog-save" class="btn primary">Сохранить</button>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <div class="photo-picker">
+          <div id="ce-photo-preview"></div>
+          <label class="btn" for="ce-photo">Фото</label>
+          <input type="file" id="ce-photo" accept="image/*" class="hidden">
+        </div>
+        <div class="field">
+          <label for="ce-name">Название</label>
+          <input type="text" id="ce-name" placeholder="Название" autocomplete="off">
+        </div>
+        <div class="field hidden" id="ce-brand-wrap">
+          <label for="ce-brand">Бренд</label>
+          <input type="text" id="ce-brand" placeholder="Бренд" autocomplete="off">
+        </div>
+        <div class="field hidden" id="ce-partner-wrap">
+          <label for="ce-partner">Партнёр</label>
+          <select id="ce-partner"></select>
+        </div>
+        <div class="field">
+          <label for="ce-notes">Подробности</label>
+          <textarea id="ce-notes" rows="4" placeholder="Заметки…"></textarea>
+        </div>
+        <button type="button" class="btn full hidden" id="ce-archive">В архив</button>
+        <button type="button" class="btn danger full hidden" id="btn-catalog-delete">Удалить</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- Просмотр записи (с соматикой) -->
+  <section id="view-detail" class="view hidden">
+    <header class="appbar">
+      <button id="btn-detail-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1>Запись</h1>
+      <button id="btn-detail-edit" class="btn primary">Изменить</button>
+    </header>
+    <main class="content">
+      <div id="detail-body"></div>
+    </main>
+  </section>
+
+  <!-- Импорт данных Garmin -->
+  <section id="view-import" class="view hidden">
+    <header class="appbar">
+      <button id="btn-import-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1>Импорт Garmin</h1>
+    </header>
+    <main class="content">
+      <div class="settings">
+        <button class="btn full" id="btn-import-pick">Выбрать CSV-файл</button>
+        <div id="import-result" class="hidden">
+          <div class="import-type" id="import-type"></div>
+          <pre class="import-preview" id="import-preview"></pre>
+          <button class="btn primary full" id="btn-import-apply">Импортировать</button>
+        </div>
+        <p class="muted">Поддерживаются отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип распознаётся автоматически.</p>
+      </div>
+    </main>
+  </section>
+
+  <!-- Тренды / Корреляции -->
+  <section id="view-trends" class="view hidden">
+    <header class="appbar">
+      <h1>Тренды</h1>
+    </header>
+    <main class="content">
+      <div class="segmented" id="trend-tabs">
+        <button class="active" data-tab="trends">Тренды</button>
+        <button data-tab="corr">Корреляции</button>
+      </div>
+      <div id="trend-trends">
+        <div class="chips-grid" id="trend-chips"></div>
+        <div class="chart-wrap" style="margin-top:12px"><canvas id="trend-canvas"></canvas></div>
+        <div class="somatic-stats" id="trend-stats"></div>
+        <div id="trend-list"></div>
+      </div>
+      <div id="trend-corr" class="hidden">
+        <div id="corr-summary"></div>
+        <div id="corr-table"></div>
+      </div>
+    </main>
+  </section>
+
+  <!-- Из Garmin -->
+  <section id="view-garmin" class="view hidden">
+    <header class="appbar">
+      <button id="btn-garmin-back" class="icon-btn" aria-label="Назад">←</button>
+      <h1>Из Garmin</h1>
+    </header>
+    <main class="content">
+      <div id="garmin-status" class="muted hidden">Загрузка занятий…</div>
+      <div id="garmin-list" class="journal-list"></div>
+      <button id="garmin-more" class="btn full hidden" type="button">Показать ещё</button>
+      <div id="garmin-empty" class="empty-state hidden">
+        <p>Нет «сердечных» занятий за последние 30 дней.</p>
+      </div>
+    </main>
+  </section>
+
+  <nav class="tabbar hidden" id="tabbar">
+    <button class="tab active" id="tab-journal"><span class="tab-ico">📓</span><span>Журнал</span></button>
+    <button class="tab" id="tab-partners"><span class="tab-ico">👤</span><span>Партнёры</span></button>
+    <button class="tab" id="tab-catalog"><span class="tab-ico">🧺</span><span>Каталог</span></button>
+    <button class="tab" id="tab-trends"><span class="tab-ico">📈</span><span>Тренды</span></button>
+    <button class="tab" id="tab-settings"><span class="tab-ico">⚙️</span><span>Настройки</span></button>
+  </nav>
+
+  <div id="confirm-modal" class="modal hidden">
+    <div class="modal-card">
+      <p class="modal-text" id="confirm-text"></p>
+      <div class="modal-actions">
+        <button class="btn" id="confirm-no">Нет</button>
+        <button class="btn danger" id="confirm-yes">Да</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sync-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 class="sync-title">Синхронизация</h2>
+      <ul class="sync-steps" id="sync-steps">
+        <li data-step="stress"><span class="sync-ico">⏳</span><span class="sync-label">Стресс</span><span class="sync-count"></span></li>
+        <li data-step="somatic"><span class="sync-ico">⏳</span><span class="sync-label">Пульс + Body Battery</span><span class="sync-count"></span></li>
+        <li data-step="sleep"><span class="sync-ico">⏳</span><span class="sync-label">Сон</span><span class="sync-count"></span></li>
+        <li data-step="hrv"><span class="sync-ico">⏳</span><span class="sync-label">HRV</span><span class="sync-count"></span></li>
+        <li data-step="activities"><span class="sync-ico">⏳</span><span class="sync-label">Занятия</span><span class="sync-count"></span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="pin-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 class="sync-title">PIN-код</h2>
+      <div class="field hidden" id="pin-current-wrap">
+        <label for="pin-current">Текущий PIN</label>
+        <input type="password" id="pin-current" inputmode="numeric" maxlength="8" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="pin-new">Новый PIN (4–8 цифр)</label>
+        <input type="password" id="pin-new" inputmode="numeric" maxlength="8" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="pin-confirm">Повторите новый PIN</label>
+        <input type="password" id="pin-confirm" inputmode="numeric" maxlength="8" autocomplete="off">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="pin-cancel">Отмена</button>
+        <button class="btn primary" id="btn-pin-set">Сохранить</button>
+      </div>
+      <button class="btn danger full hidden" id="btn-pin-remove" style="margin-top:10px">Удалить PIN</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">
+  <input type="file" id="import-any-file" accept=".csv,text/csv" class="hidden">
+
+  <datalist id="partner-suggest"></datalist>
+  <datalist id="place-suggest"></datalist>
+
+  <script src="js/db.js"></script>
+  <script src="js/pin.js"></script>
+  <script src="js/csv.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
