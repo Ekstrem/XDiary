@@ -16,9 +16,11 @@
 - Составной ключ `<guid, long>` — `guid` идентифицирует агрегат, `long` — его версию. Технический, для **быстрого поиска**. **НЕ входит в сущность.**
 
 **Сущность (Entity — корень агрегата):**
-- **Record** — совокупность признаков, однозначно идентифицирующих запись (**кто и во сколько**):
-  - `partnerId` (uuid) — «кто» (ссылка на Партнёра)
+- **Record** — совокупность признаков, идентифицирующих запись (**кто и во сколько**):
+  - `partners[]` (uuid[]) — «кто» (партнёры; 0 = соло, N = несколько)
   - `startedAt` («YYYY-MM-DDTHH:mm») — «во сколько»
+
+> Участники акта = «я» (владелец, неявный) + `partners[]`.
 
 **Объект-значения (Value Objects):**
 - **Duration**: durationMin (int) — длительность
@@ -41,7 +43,7 @@ Recorded → [Delete] → Deleted
 ## 4. Enforced Invariants (Обязательные инварианты)
 | Инвариант | Описание |
 |---|---|
-| PartnerRequired | partnerId обязателен до `Complete` |
+| PartnersCardinality | partners[] — 0..N (0 = соло, без партнёра) |
 | WhenRequired | startedAt обязателен до `Complete` |
 | DurationPositive | durationMin ≥ 1 |
 | RatingRange | rating ∈ 0..5 |
@@ -59,7 +61,8 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry()` | фабрика — ручная запись | — |
 | `StartFromGarmin(activity)` | фабрика — импорт занятия Garmin | GarminActivity |
 | `SpecifyWhen(startedAt)` | «Дата» | When |
-| `ChoosePartner(partnerId)` | «Партнёр» | partnerId |
+| `AddPartner(partnerId)` | «Партнёр» | partnerId |
+| `RemovePartner(partnerId)` | «Партнёр» | partnerId |
 | `SpecifyPlace(place)` | «Место» | Place |
 | `AddPositions(positions)` | «Позы» | Positions |
 | `AddAccessories(costumes, toys, fantasies, tags)` | «Аксессуары» | Accessories |
@@ -77,7 +80,8 @@ Recorded → [Delete] → Deleted
 | `StartManualEntry` | `ManualEntryStarted` |
 | `StartFromGarmin` | `GarminEntryStarted` |
 | `SpecifyWhen` | `WhenSpecified` |
-| `ChoosePartner` | `PartnerChosen` |
+| `AddPartner` | `PartnerAdded` |
+| `RemovePartner` | `PartnerRemoved` |
 | `SpecifyPlace` | `PlaceSpecified` |
 | `AddPositions` | `PositionsAdded` |
 | `AddAccessories` | `AccessoriesAdded` |

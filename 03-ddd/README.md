@@ -32,7 +32,7 @@
 **Идентификатор агрегата (DF):** `<guid, long>` — технический, для быстрого поиска.
 
 **Сущность:** совокупность признаков, идентифицирующих запись (**кто и во сколько**):
-- `partnerId` — «кто» (ссылка на Партнёра)
+- `partners[]` — «кто» (партнёры; 0..N, 0 = соло)
 - `startedAt` — «во сколько»
 
 **VO:** Duration, Place, Positions, Accessories, Contraception, Orgasms, Origin.
@@ -42,7 +42,8 @@
 StartManualEntry()      → ManualEntryStarted
 StartFromGarmin(activity) → GarminEntryStarted
 SpecifyWhen(startedAt)  → WhenSpecified
-ChoosePartner(partnerId)→ PartnerChosen
+AddPartner(partnerId)    → PartnerAdded
+RemovePartner(partnerId) → PartnerRemoved
 SpecifyPlace(place)     → PlaceSpecified
 AddPositions(...)       → PositionsAdded
 AddAccessories(...)     → AccessoriesAdded
