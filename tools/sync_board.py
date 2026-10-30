@@ -142,17 +142,27 @@ def resolve_project(owner, number, token):
       }
     }"""
     r = graphql(q, {"login": owner, "number": number}, token)
-    if not r or "errors" in r or not r.get("data", {}).get("user", {}).get("projectV2"):
-        print("  ! не удалось получить проект (owner=%s number=%s)" % (owner, number),
-              file=sys.stderr)
+    if not r:
         return None, None, None
-    pv = r["data"]["user"]["projectV2"]
-    project_id = pv["id"]
-    for field in pv["fields"]["nodes"]:
-        if field["name"].lower() == "status":
-            opts = {o["name"]: o["id"] for o in field["options"]}
-            return project_id, field["id"], opts
-    return project_id, None, None
+    if r.get("errors"):
+        for e in r["errors"]:
+            print("  ! GraphQL: %s" % e.get("message", ""), file=sys.stderr)
+        return None, None, None
+    pv = ((r.get("data") or {}).get("user") or {}).get("projectV2")
+    if not pv:
+        print("  ! проект не найден (owner=%s number=%s)" % (owner, number), file=sys.stderr)
+        return None, None, None
+    project_id = pv.get("id")
+    field_id = None
+    opts = {}
+    for field in (pv.get("fields") or {}).get("nodes", []):
+        if not field:
+            continue
+        if (field.get("name") or "").lower() == "status":
+            field_id = field.get("id")
+            opts = {o.get("name"): o.get("id") for o in (field.get("options") or []) if o}
+            break
+    return project_id, field_id, opts
 
 
 def sync_project(items, token, owner, number):
