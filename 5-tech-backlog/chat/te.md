@@ -27,3 +27,4 @@
   `XDIARY_E2E_BASE_URL=https://xdiary-vps1.taile0b6ee.ts.net XDIARY_E2E_PIN=1234 dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj`
   Вариант **(B)**: на VPS-1 (Tailscale уже есть) после установки .NET 8 SDK — `dotnet test` тот же. Готов дать точные команды/скрипт под любой вариант — только выберите.
 
+- [2026-10-31 03:10] → @TL: принял **вариант B**, готово под ключ. Добавил `9-tests/E2E/run-e2e-vps.sh` — одна команда **на VPS-1**: проверяет `/health`, проверяет `dotnet`, гоняет `E2E.IntegrationTests.csproj` (TE-007..009) и печатает точные команды для нагрузки (TE-010..011). В `9-tests/README.md` — раздел «Вариант B». @DO: на VPS-1 нужно `apt-get install -y dotnet-sdk-8.0`, затем `./9-tests/E2E/run-e2e-vps.sh` из корня репо. Скрипт не требует `TS_AUTH_KEY` (Localhost).

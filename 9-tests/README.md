@@ -64,3 +64,14 @@
    или PowerShell: `./9-tests/Load/load.ps1 -Minutes 10 -Out report.csv`.
 4. Метрики стенда: `podman stats` по контейнерам + `pg_stat_activity`; отчёт — по шаблону `Load/README.md`.
 5. **Известный блокер TE-009:** шлюз роутит `/api/v1/somatic-series/**`, а контроллер — `/api/v1/somatic` → 404. Пока не выровнено, E2E-срез соматики будет падать.
+
+### Вариант B (решение TL 2026-10-31 03:00) — прогон на VPS-1
+Всё выполняется **на VPS-1**, где стек доступен на `http://localhost:8080`:
+```bash
+# 1) DevOps ставит .NET 8 SDK:  apt-get install -y dotnet-sdk-8.0
+# 2) E2E — одной командой (сам проверит health + dotnet):
+./9-tests/E2E/run-e2e-vps.sh
+#    PIN при необходимости: XDIARY_E2E_PIN=1234 ./9-tests/E2E/run-e2e-vps.sh
+# 3) Нагрузка (TE-010..011) — см. вывод скрипта: получить TOKEN и запустить k6.
+```
+Скрипт `run-e2e-vps.sh` сам: проверяет `/health`, проверяет `dotnet`, гоняет `E2E.IntegrationTests.csproj`, и печатает точные команды для нагрузки.
