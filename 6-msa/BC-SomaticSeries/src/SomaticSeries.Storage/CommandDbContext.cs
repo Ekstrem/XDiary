@@ -1,21 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-
 namespace SomaticSeries.Storage;
-
-/// <summary>
-/// DbContext РґР»СЏ Command Store (Event Sourcing) Р¶СѓСЂРЅР°Р»Р°.
-/// РҐСЂР°РЅРёС‚ РґРѕРјРµРЅРЅС‹Рµ СЃРѕР±С‹С‚РёСЏ РІ С‚Р°Р±Р»РёС†Рµ DomainEvents (СЃС…РµРјР° public вЂ” РїСЂРѕС„РёР»СЊ Single).
-/// </summary>
+using Microsoft.EntityFrameworkCore;
 public sealed class CommandDbContext : DbContext
 {
-    public CommandDbContext(DbContextOptions<CommandDbContext> options) : base(options)
-    {
-    }
-
-    public DbSet<DomainEventEventEntry> Events { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-        => modelBuilder
-            .HasAnnotation("ProductVersion", "0.0.1")
-            .ApplyConfiguration(new DomainEventMapping());
+    public CommandDbContext(DbContextOptions<CommandDbContext> options) : base(options) { }
+    public DbSet<SomaticPointEntity> Points => Set<SomaticPointEntity>();
+    protected override void OnModelCreating(ModelBuilder b)
+    { b.Entity<SomaticPointEntity>(e => { e.ToTable("somatic_points"); e.HasKey(x => x.Id); e.HasIndex(x => x.T); e.Property(x => x.T).HasMaxLength(16).IsRequired(); }); }
 }

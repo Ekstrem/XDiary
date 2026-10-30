@@ -1,57 +1,26 @@
-using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using SomaticSeries.Domain;
+using SomaticSeries.Domain.Implementation;
 using Xunit;
 
-namespace SomaticSeries.Domain.Tests;
-
-/// <summary>
-/// Доменные тесты агрегата SomaticPoint (metadata-driven, in-memory).
-/// </summary>
 public class SomaticPointAggregateTest
 {
     [Fact]
-    public void ImportPoint_HappyPath()
+    public void RecordPoint_Valid_Succeeds()
     {
-        var id = Guid.NewGuid();
-        var aggregate = SomaticSeriesMetadataHelper.CreateNewAggregate(id);
-        var model = SomaticPointBuilder.NewPointModel(id);
-
-        var result = aggregate.ImportPoint(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:00", 72, 55);
+        Assert.Equal(DomainOperationResultEnum.Success, res.Result);
     }
-
     [Fact]
-    public void ImportPoint_OverExisting_Succeeds()
+    public void RecordPoint_BadT_Fails()
     {
-        var id = Guid.NewGuid();
-        var aggregate = SomaticSeriesMetadataHelper.CreateAggregate(SomaticPointBuilder.ExistingPointModel(id));
-        var model = SomaticPointBuilder.NewPointModel(id);
-
-        // Upsert: повторный импорт той же точки не должен падать (нет IsNewEntity)
-        var result = aggregate.ImportPoint(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("bad", 72, 55);
+        Assert.NotEqual(DomainOperationResultEnum.Success, res.Result);
     }
-
     [Fact]
-    public void ImportPoint_MissingT_Fails()
+    public void RecordPoint_Negative_Fails()
     {
-        var id = Guid.NewGuid();
-        var aggregate = SomaticSeriesMetadataHelper.CreateNewAggregate(id);
-
-        var vos = SomaticPointBuilder.BuildValueObjects();
-        vos["Root"] = new DynamicValueObject("SomaticPointRoot", new Dictionary<string, object?>
-        {
-            ["T"] = null
-        });
-        var model = DynamicAnemicModel<ISomaticSeries>.Create(id, 0, Guid.NewGuid(), "ImportPoint", "ImportPoint", vos);
-
-        var result = aggregate.ImportPoint(model, model.CommandName.CreateCommandMetadata());
-
-        // Инвариант PropertyNotNull:Root.T должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
+        var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:00", -1, 55);
+        Assert.NotEqual(DomainOperationResultEnum.Success, res.Result);
     }
 }

@@ -9,13 +9,14 @@
   <ItemGroup>
     <PackageReference Include="MediatR" Version="12.4.1" />
     <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.5.0" />
-    <PackageReference Include="DigiTFactory.Libraries.AbstractAggregate" Version="0.1.0" />
+    <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SomaticSeries.Domain\SomaticSeries.Domain.csproj" />
     <ProjectReference Include="..\SomaticSeries.DomainServices\SomaticSeries.DomainServices.csproj" />
     <ProjectReference Include="..\SomaticSeries.InternalContracts\SomaticSeries.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

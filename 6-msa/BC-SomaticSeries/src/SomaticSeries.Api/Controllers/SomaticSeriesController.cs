@@ -1,37 +1,23 @@
-using SomaticSeries.Application;
-using SomaticSeries.Application.Commands;
-using SomaticSeries.Application.Queries;
+namespace SomaticSeries.Api.Controllers;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using SomaticSeries.Application.Commands;
+using SomaticSeries.Application.Queries;
+using SomaticSeries.Domain;
+using SomaticSeries.Domain.Abstraction;
+using XDiary.Contracts;
 
-namespace SomaticSeries.Api.Controllers;
-
-/// <summary>
-/// Command/Query API соматики (минутные точки): /api/v1/somatic-series.
-/// </summary>
 [ApiController]
-[Route("api/v1/somatic-series")]
-public class SomaticSeriesController : ControllerBase
+[Route("api/v1/somatic")]
+public sealed class SomaticSeriesController : ControllerBase
 {
     private readonly IMediator _mediator;
-
     public SomaticSeriesController(IMediator mediator) => _mediator = mediator;
+    private IActionResult Respond(AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
-    /// <summary>Импортировать минутную точку (upsert по t).</summary>
-    [HttpPost]
-    public async Task<ActionResult<SomaticSeriesOperationResult>> Import(
-        [FromBody] ImportPointCommand command, CancellationToken ct)
-    {
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Срез соматики вокруг startedAt (±WindowMin минут).</summary>
+    [HttpPost("points")]
+    public async Task<IActionResult> RecordPoint([FromBody] RecordPointCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpGet("slice")]
-    public async Task<IActionResult> Slice(
-        [FromQuery] string startedAt, [FromQuery] int windowMin = 15, CancellationToken ct = default)
-    {
-        var result = await _mediator.Send(new GetSomaticSliceQuery { StartedAt = startedAt, WindowMin = windowMin }, ct);
-        return Ok(result);
-    }
+    public async Task<IActionResult> Slice([FromQuery] string fromT, [FromQuery] string toT, CancellationToken ct) => Ok(await _mediator.Send(new GetSomaticSliceQuery(fromT, toT), ct));
 }
