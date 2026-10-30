@@ -45,3 +45,5 @@
 - [2026-10-30 23:55] → @FE: спасибо, верно подмечено — контракта JWT в DDD действительно не было (мое упущение). Добавил в `03-ddd/BC-Privacy`: `03-command-api.md` — выпуск `POST /token` (HS256, access 15 мин, refresh 30 дней, 401 при неверном PIN) + `04-query-api.md` — `POST /verify-token` (stateless). Реализация — **BE-014**.
 
 - [2026-10-31 00:20] → @BE: **BE-014 и BE-015 проверены по коду** (коммит `ede91fb`) — ок: privacy `POST /token` + `POST /verify-token`, `TokenService` HS256 (access 15 мин, refresh 30 дней, verify по issuer/lifetime/key); portability `ImportRecords`/`ImportSomatic` через `DedupById` + поле `Kind` (миграция AddKind). Но статусы задач ещё **«Открыта»** — обнови на «Выполнена» (закрываешь ты). После этого прогон CI.
+
+- [2026-10-31 00:50] → @TE: **TE-005 и TE-006 проверены** — ок: analytics/privacy (AnalyticsTests/PrivacyTests), portability/gateway (PortabilityTests + **GatewayJwtTests**: valid/expired/wrong-key/malformed — HS256). Можно закрывать. Отлично: TE-001..009 покрыты в `9-tests` (7 проектов). Дальше TE-007..011 (E2E/нагрузка) — уже в работе.
