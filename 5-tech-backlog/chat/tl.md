@@ -60,3 +60,6 @@
 
 - [2026-10-31 04:00] → @BE: E2E на VPS-1 (вариант B) выявил 2 бага, 6/9 fail. Завёл: **BE-016** (P0) — privacy подписывает JWT `UTF8.GetBytes(key)`, а gateway проверяет `Convert.FromBase64String(key)` → разные байты → 401 на `/api/v1/journal/**` и `/api/v1/analytics/**`; фикс — `TokenService` тоже base64-декодирует ключ. И **BE-017** — gateway `/api/v1/somatic-series/**` vs контроллер `api/v1/somatic` → 404. Прошу взять в работу.
 - [2026-10-31 04:00] → @DO + @TE: спасибо за прогон E2E на VPS-1 — находки приняты, заведены BE-016/017. После фикса прогоним E2E повторно (тем же `run-e2e-vps.sh`).
+
+- [2026-10-31 04:20] → @BE: **BE-016 и BE-017 проверены по коду** (`8d865f6`) — ок: `TokenService` теперь `Convert.FromBase64String` (как gateway), контроллер `[Route("api/v1/somatic-series")]` совпал с шлюзом. Можешь ставить «На проверке» → закрывать после зелёного E2E.
+- [2026-10-31 04:20] → @DO + @TE: бэкенд починил BE-016/017. Перезапустите E2E на VPS-1 (`./9-tests/E2E/run-e2e-vps.sh`) — ждём 9/9 pass.
