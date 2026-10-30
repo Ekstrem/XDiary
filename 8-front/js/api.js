@@ -15,8 +15,18 @@
 
   function token() { return storeGet(ACCESS_KEY); }
   function baseUrl() { return storeGet(BASE_KEY) || DEFAULT_BASE; }
+  function refreshToken() { return storeGet(REFRESH_KEY); }
 
-  function request(method, path, body) {
+  // FE-002: refresh-контракт уточняется у @BE (в BE-010 заявлен POST /token после PIN; refresh-эндпоинт в коде не определён).
+  function authRefresh() {
+    return post("/api/v1/privacy/token", { refreshToken: refreshToken() }).then(function (d) {
+      storeSet(ACCESS_KEY, d.accessToken);
+      storeSet(REFRESH_KEY, d.refreshToken);
+      return d;
+    });
+  }
+
+  function request(method, path, body, isRetry) {
     var base = baseUrl();
     var headers = { "Accept": "application/json" };
     if (token()) headers["Authorization"] = "Bearer " + token();
@@ -28,6 +38,10 @@
     return fetch(base + path, opts).catch(function () {
       throw new Error("Недоступен API (шлюз) — проверьте сеть/адрес");
     }).then(function (r) {
+      if (r.status === 401 && !isRetry && refreshToken() && path.indexOf("/privacy/token") !== 0) {
+        return authRefresh().then(function () { return request(method, path, body, true); })
+          .catch(function () { var e = new Error("Сессия истекла (401)"); e.status = 401; throw e; });
+      }
       if (r.status === 204) return null;
       var ct = r.headers.get("content-type") || "";
       var p = (ct.indexOf("json") !== -1) ? r.json() : r.text();
@@ -57,6 +71,17 @@
       refresh: function () { return storeGet(REFRESH_KEY); },
       setRefresh: function (t) { storeSet(REFRESH_KEY, t); },
       clear: function () { storeSet(ACCESS_KEY, ""); storeSet(REFRESH_KEY, ""); }
+    },
+    auth: {
+      login: function (pin) {
+        return post("/api/v1/privacy/token", { pin: pin }).then(function (d) {
+          storeSet(ACCESS_KEY, d.accessToken);
+          storeSet(REFRESH_KEY, d.refreshToken);
+          return d;
+        });
+      },
+      refresh: function () { return authRefresh(); },
+      logout: function () { storeSet(ACCESS_KEY, ""); storeSet(REFRESH_KEY, ""); }
     },
 
     // Журнал: цепочка команд (StartManualEntry → Specify* → Complete)
