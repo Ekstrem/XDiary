@@ -1,105 +1,33 @@
-using DigiTFactory.Libraries.AbstractAggregate.DynamicTypes;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-using Partners.Domain;
+using Partners.Domain.Implementation;
 using Xunit;
 
-namespace Partners.Domain.Tests;
-
-/// <summary>
-/// Доменные тесты агрегата Partner (metadata-driven, in-memory).
-/// </summary>
 public class PartnerAggregateTest
 {
     [Fact]
-    public void CreatePartner_HappyPath()
+    public void Register_Then_Rename_Then_Remove()
     {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateNewAggregate(id);
-
-        var result = aggregate.CreatePartner(PartnerBuilder.NewPartnerModel(id));
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice");
+        Assert.Equal(DomainOperationResultEnum.Success, start.Result);
+        var rename = Aggregate.CreateInstance(start.Model()).Rename("Bob");
+        Assert.Equal(DomainOperationResultEnum.Success, rename.Result);
+        var remove = Aggregate.CreateInstance(rename.Model()).Remove();
+        Assert.Equal(DomainOperationResultEnum.Success, remove.Result);
     }
 
     [Fact]
-    public void CreatePartner_AlreadyExists_Fails()
+    public void Register_WithoutName_Fails()
     {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateAggregate(PartnerBuilder.ExistingPartnerModel(id));
-
-        var result = aggregate.CreatePartner(PartnerBuilder.NewPartnerModel(id));
-
-        // Инвариант IsNewEntity должен провалиться
+        var result = Aggregate.CreateInstance(new AnemicModel()).Register("");
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
-    public void CreatePartner_MissingName_Fails()
+    public void UpdateProfile_BadGender_Fails()
     {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateNewAggregate(id);
-
-        var vos = PartnerBuilder.BuildValueObjects();
-        vos["Root"] = new DynamicValueObject("PartnerRoot", new Dictionary<string, object?>
-        {
-            ["Name"] = null
-        });
-        var model = DynamicAnemicModel<IPartners>.Create(id, 0, Guid.NewGuid(), "CreatePartner", "CreatePartner", vos);
-
-        var result = aggregate.CreatePartner(model);
-
-        // Инвариант PropertyNotNull:Root.Name должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void UpdatePartner_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateAggregate(PartnerBuilder.ExistingPartnerModel(id));
-        var model = PartnerBuilder.UpdatePartnerModel(id);
-
-        var result = aggregate.UpdatePartner(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void UpdatePartner_NotExists_Fails()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateNewAggregate(id);
-        var model = PartnerBuilder.UpdatePartnerModel(id);
-
-        var result = aggregate.UpdatePartner(model, model.CommandName.CreateCommandMetadata());
-
-        // Инвариант IsNotNewEntity должен провалиться
-        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void DeletePartner_HappyPath()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateAggregate(PartnerBuilder.ExistingPartnerModel(id));
-        var model = PartnerBuilder.DeletePartnerModel(id);
-
-        var result = aggregate.DeletePartner(model, model.CommandName.CreateCommandMetadata());
-
-        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
-    }
-
-    [Fact]
-    public void DeletePartner_NotExists_Fails()
-    {
-        var id = Guid.NewGuid();
-        var aggregate = PartnersMetadataHelper.CreateNewAggregate(id);
-        var model = PartnerBuilder.DeletePartnerModel(id);
-
-        var result = aggregate.DeletePartner(model, model.CommandName.CreateCommandMetadata());
-
-        // Инвариант IsNotNewEntity должен провалиться
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice");
+        var result = Aggregate.CreateInstance(start.Model()).UpdateProfile("photo", "x", "note");
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 }

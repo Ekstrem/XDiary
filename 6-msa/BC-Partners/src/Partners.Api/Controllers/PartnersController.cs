@@ -1,62 +1,32 @@
-using Partners.Application;
-using Partners.Application.Commands;
-using Partners.Application.Queries;
+namespace Partners.Api.Controllers;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Partners.Application.Commands;
+using Partners.Application.Queries;
+using Partners.Domain;
+using Partners.Domain.Abstraction;
+using XDiary.Contracts;
 
-namespace Partners.Api.Controllers;
-
-/// <summary>
-/// Command/Query API партнёров: /api/v1/partners.
-/// </summary>
 [ApiController]
 [Route("api/v1/partners")]
-public class PartnersController : ControllerBase
+public sealed class PartnersController : ControllerBase
 {
     private readonly IMediator _mediator;
-
     public PartnersController(IMediator mediator) => _mediator = mediator;
+    private IActionResult Respond(AggregateResult<IPartners, IPartnerAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
-    /// <summary>Создать профиль партнёра.</summary>
     [HttpPost]
-    public async Task<ActionResult<PartnersOperationResult>> Create(
-        [FromBody] CreatePartnerCommand command, CancellationToken ct)
-    {
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Отредактировать профиль партнёра.</summary>
-    [HttpPut("{id:guid}")]
-    public async Task<ActionResult<PartnersOperationResult>> Update(
-        Guid id, [FromBody] UpdatePartnerCommand command, CancellationToken ct)
-    {
-        command.AggregateId = id;
-        var result = await _mediator.Send(command, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Удалить партнёра.</summary>
+    public async Task<IActionResult> Register([FromBody] RegisterPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [HttpPut("{id:guid}/name")]
+    public async Task<IActionResult> Rename(Guid id, [FromBody] RenamePartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    [HttpPut("{id:guid}/profile")]
+    public async Task<IActionResult> UpdateProfile(Guid id, [FromBody] UpdatePartnerProfileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpDelete("{id:guid}")]
-    public async Task<ActionResult<PartnersOperationResult>> Delete(Guid id, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new DeletePartnerCommand { AggregateId = id }, ct);
-        return result.IsSuccess ? Ok(result) : BadRequest(result);
-    }
-
-    /// <summary>Деталь партнёра.</summary>
-    [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
-    {
-        var result = await _mediator.Send(new GetPartnerByIdQuery { AggregateId = id }, ct);
-        return result == null ? NotFound() : Ok(result);
-    }
-
-    /// <summary>Список партнёров.</summary>
+    public async Task<IActionResult> Remove(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RemovePartnerCommand(id), ct));
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct)
-    {
-        var result = await _mediator.Send(new ListPartnersQuery(), ct);
-        return Ok(result);
-    }
+    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListPartnersQuery(), ct));
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> Get(Guid id, CancellationToken ct)
+    { var r = await _mediator.Send(new GetPartnerByIdQuery(id), ct); return r is null ? NotFound() : Ok(r); }
 }
