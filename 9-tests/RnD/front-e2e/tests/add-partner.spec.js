@@ -1,45 +1,45 @@
 // RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
-// API замокан через page.route; service worker заблокирован (иначе SW перехватывает
-// fetch до page.route — известное ограничение Playwright).
+//
+// Почему стаб fetch, а не page.route:
+//  - приложение по умолчанию ходит на кросс-доменный https://...ts.net;
+//  - PWA регистрирует sw.js, а service worker может перехватывать fetch ДО page.route.
+// Стаб window.fetch через addInitScript убирает сеть/CORS/SW из уравнения: тест
+// проверяет именно UI-логику (кнопки, роутинг видов, рендер списка).
 const { test, expect } = require('@playwright/test');
 
-const BASE = 'http://127.0.0.1:4173';
-
 test('Добавить партнёра: сохранение и появление в списке', async ({ page }) => {
-  const partners = [];
-
   page.on('console', (m) => console.log('[console]', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  page.on('requestfailed', (r) => console.log('[reqfail]', r.url(), r.failure() && r.failure().errorText));
 
-  // same-origin API → CORS не нужен
-  await page.addInitScript((base) => {
-    try { localStorage.setItem('xdiary.apiBase', base); } catch (e) { /* ignore */ }
-  }, BASE);
-
-  await page.route('**/api/v1/**', async (route) => {
-    const req = route.request();
-    const p = new URL(req.url()).pathname;
-    const method = req.method();
-    let body = {};
-
-    if (p === '/api/v1/privacy/pin/has') body = false;
-    else if (p === '/api/v1/privacy/token') body = { accessToken: 'test-access', refreshToken: 'test-refresh' };
-    else if (p === '/api/v1/partners' && method === 'GET') body = partners;
-    else if (p === '/api/v1/partners' && method === 'POST') {
-      const payload = JSON.parse(req.postData() || '{}');
-      const created = { id: 'p' + (partners.length + 1), name: payload.name, photo: '', gender: 'female', notes: '' };
-      partners.push(created);
-      body = created;
-    } else if (p.startsWith('/api/v1/partners/') && method === 'PUT') body = {};
-    else if (p === '/api/v1/journal/records') body = [];
-
-    await route.fulfill({
+  await page.addInitScript(() => {
+    const partners = [];
+    window.__partners = partners;
+    const json = (body) => new Response(JSON.stringify(body), {
       status: 200,
-      contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' },
-      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
     });
+
+    window.fetch = function (input, init) {
+      const opts = init || {};
+      const url = String(typeof input === 'string' ? input : (input && input.url) || '');
+      const method = String(opts.method || 'GET').toUpperCase();
+      const path = url.replace(/^[a-z]+:\/\/[^/]+/i, '');
+
+      if (path === '/api/v1/privacy/pin/has') return Promise.resolve(json(false));
+      if (path === '/api/v1/privacy/token') return Promise.resolve(json({ accessToken: 't', refreshToken: 'r' }));
+      if (path === '/api/v1/partners' && method === 'GET') return Promise.resolve(json(partners));
+      if (path === '/api/v1/partners' && method === 'POST') {
+        let body = {};
+        try { body = JSON.parse(opts.body || '{}'); } catch (e) { body = {}; }
+        const created = { id: 'p' + (partners.length + 1), name: body.name || '', photo: '', gender: 'female', notes: '' };
+        partners.push(created);
+        return Promise.resolve(json(created));
+      }
+      if (path.indexOf('/api/v1/partners/') === 0 && method === 'PUT') return Promise.resolve(json({}));
+      if (path === '/api/v1/journal/records') return Promise.resolve(json([]));
+      if (path.indexOf('/local/') === 0 || path.indexOf('/activities') === 0) return Promise.resolve(json([]));
+      return Promise.resolve(json({}));
+    };
   });
 
   console.log('== goto ==');
@@ -67,5 +67,6 @@ test('Добавить партнёра: сохранение и появлен�
   await expect(page.locator('#partners-list')).toContainText('Аня');
   console.log('== partner in list ==');
 
-  expect(partners.map((x) => x.name)).toContain('Аня');
+  const names = await page.evaluate(() => (window.__partners || []).map((p) => p.name));
+  expect(names).toContain('Аня');
 });
