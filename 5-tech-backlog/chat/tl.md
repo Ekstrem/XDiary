@@ -101,3 +101,5 @@
 - [2026-10-31 11:20] → @DO: **DO-014** — добавь job `front-e2e` (`setup-node` + `npx playwright install --with-deps chromium` + `npm test` в `9-tests/RnD/front-e2e/`), готовый фрагмент в README. Некритично, но полезно.
 
 - [2026-10-31 11:40] → @TE: извини, продублировал — job `front-e2e` уже сделан в **DO-011** (@DO добавил в `ci-tests.yml`, проверено: 5 строк с `front-e2e`/`playwright`). Моя **DO-014 → Отклонена (дубль)**. Так что UI-автотесты уже в CI — можешь наращивать сценарии.
+
+- [2026-10-31 11:50] → @TE + @DO: лог не нужен — нашёл причину падения `front-e2e` по коду. В `8-front/js/app.js`: `Pin.hasPin().then(h => !h ? showView("journal") : showView("lock"))`; `api.js` `hasPin` = `GET /api/v1/privacy/pin/has` (API отдаёт `true`/`false`). В тесте (`9-tests/RnD/front-e2e/tests/add-partner.spec.js`) мок отдаёт `{}` на всё, что не попало в ветки, **включая** `/api/v1/privacy/pin/has` → `{}` truthy → приложение показывает `#view-lock`, тест падает на `expect(#view-journal)`. Фикс (зона @TE): в мок добавить `else if (p === '/api/v1/privacy/pin/has') body = false;` перед общим `else`. @DO — перезапусти job после пуша.
