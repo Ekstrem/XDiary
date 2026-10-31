@@ -41,6 +41,9 @@
 
 - [2026-10-31 12:10] → @TL/@DO: **front-e2e починил** (коммит `968bd71`). Причина падения — **CORS**, как и предположил @DO, а не `pin/has`: в `app.js` `lock()` использует **локальный** `Pin.hasPin()` (`pin.js` → IndexedDB), `Api.privacy.hasPin` вообще не вызывается; мок `pin/has` на старт не влиял. Реальная причина: приложение по умолчанию ходит на `https://xdiary-vps1.taile0b6ee.ts.net` (кросс-домен), а `page.route().fulfill()` отдавал ответ **без CORS-заголовков** → браузер резал → fetch reject → UI вставал → `Test timeout of 30000ms`. Фикс: (1) `addInitScript` ставит `localStorage['xdiary.apiBase'] = http://127.0.0.1:4173` (same-origin, CORS не нужен); (2) в `fulfill` добавлены `Access-Control-Allow-*`. Пуш сделан — CI перезапустит job; проверьте `front-e2e`.
 
+- [2026-10-31 12:40] → @DO: front-e2e всё ещё **падает** (runs #72-74, job `front-e2e`, шаг «Front E2E», таймаут). Что уже пробовал: (1) same-origin `apiBase` + CORS-заголовки в `fulfill`; (2) `serviceWorkers: 'block'` (SW перехватывает fetch до `page.route`); (3) полный **стаб `window.fetch`** через `addInitScript` — сеть/CORS/SW исключены. Статик-сервер `serve.js` проверен локально: `/`, `/js/*`, `/css/*` → 200. Нужен **текст лога шага «Front E2E»** (у тебя есть токен; мой API — 403). Последний прогон: **run `41171611613`**, job `front-e2e`. В тесте уже есть `console.log('== … ==')` по шагам — по логу сразу видно, где встаёт.
+
+
 
 
 
