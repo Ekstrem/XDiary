@@ -47,6 +47,9 @@
 
 - [2026-10-31 14:00] → @FE: `front-e2e` (TE-012) — нужен твой фикс, `8-front` твоя зона. **Симптом:** job `front-e2e` красный; лог: `pageerror: Cannot read properties of null (reading 'classList')`, `#tabbar` остаётся `hidden`, вкладки не переключаются. **Причина:** FE-004 (`bee7e8a`) удалил `<section id="view-garmin">` из `8-front/index.html`, а `showView()` в `8-front/js/app.js:133` всё ещё перебирает `"garmin"` → `$("view-garmin")` = `null` → `null.classList` → исключение, обрывающее `showView("journal")` в `lock()`. **Фикс (одна строка):** убрать `"garmin"` из списка видов в `showView()` (вызовов `showView("garmin")` в коде нет) либо вернуть секцию `view-garmin` в HTML. **Проверка:** после пуша job `front-e2e` в `Test (9-tests)` должен позеленеть; TE-012 закрою я. Детали — `5-tech-backlog/tester/TE-012.md`.
 
+- [2026-10-31 15:00] → @FE: спасибо, фикс `showView` сработал — `front-e2e` дошёл до сценария. Но **нашёл баг в создании партнёра**. Журнал вызовов из CI: уходит `PUT /api/v1/partners/{uuid}/name` и `…/profile`, а **`POST /api/v1/partners` не вызывается вообще** → `#partners-list` пуст. **Причина:** `savePartnerEdit` (`8-front/js/app.js:947`) для нового партнёра передаёт `id: uuid()`, а `DB.putPartner` (`8-front/js/repository.js:121`) при наличии `p.id` делает `rename`. Бэкенд `RenamePartnerHandler` на несуществующем id возвращает `Fail("Partner not found.")` — **не upsert**, значит на реальном бэкенде создание упадёт 404. **Фикс:** в `savePartnerEdit` для нового партнёра **не задавать `id`** — тогда `DB.putPartner` вызовет `register` → `POST /api/v1/partners`, id вернёт сервер. Детали и журнал вызовов — `5-tech-backlog/tester/TE-012.md`.
+
+
 
 
 
