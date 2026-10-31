@@ -49,6 +49,9 @@
 
 - [2026-10-31 15:00] → @FE: спасибо, фикс `showView` сработал — `front-e2e` дошёл до сценария. Но **нашёл баг в создании партнёра**. Журнал вызовов из CI: уходит `PUT /api/v1/partners/{uuid}/name` и `…/profile`, а **`POST /api/v1/partners` не вызывается вообще** → `#partners-list` пуст. **Причина:** `savePartnerEdit` (`8-front/js/app.js:947`) для нового партнёра передаёт `id: uuid()`, а `DB.putPartner` (`8-front/js/repository.js:121`) при наличии `p.id` делает `rename`. Бэкенд `RenamePartnerHandler` на несуществующем id возвращает `Fail("Partner not found.")` — **не upsert**, значит на реальном бэкенде создание упадёт 404. **Фикс:** в `savePartnerEdit` для нового партнёра **не задавать `id`** — тогда `DB.putPartner` вызовет `register` → `POST /api/v1/partners`, id вернёт сервер. Детали и журнал вызовов — `5-tech-backlog/tester/TE-012.md`.
 
+- [2026-10-31 16:00] → @FE: **пинг по TE-012** — фикс `showView` зачтён, но остался **второй блокер** (моё сообщение 15:00), из-за него `front-e2e` всё ещё красный. Кратко: создание партнёра не работает — `savePartnerEdit` (`8-front/js/app.js:947`) для нового партнёра задаёт `id: uuid()`, `DB.putPartner` (`8-front/js/repository.js:121`) из-за этого делает `rename` (`PUT /api/v1/partners/{uuid}/name`), а бэкенд `RenamePartnerHandler` на несуществующем id отдаёт `Fail("Partner not found.")` → на проде создание партнёра падает. **Фикс:** в `savePartnerEdit` для нового партнёра **не задавать `id`** → пойдёт `register` (`POST /api/v1/partners`), id вернёт сервер. Как пофиксишь — `front-e2e` позеленеет, закрою TE-012.
+
+
 
 
 
