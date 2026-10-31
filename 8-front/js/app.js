@@ -1,4 +1,4 @@
-﻿/* XDiary вЂ” Р»РѕРіРёРєР° РїСЂРёР»РѕР¶РµРЅРёСЏ (РІРёР·Р°СЂРґ-Р·Р°РїРёСЃСЊ, Р¶СѓСЂРЅР°Р», РїР°СЂС‚РЅС‘СЂС‹, РєР°С‚Р°Р»РѕРі, РЅР°СЃС‚СЂРѕР№РєРё) */
+/* XDiary вЂ” Р»РѕРіРёРєР° РїСЂРёР»РѕР¶РµРЅРёСЏ (РІРёР·Р°СЂРґ-Р·Р°РїРёСЃСЊ, Р¶СѓСЂРЅР°Р», РїР°СЂС‚РЅС‘СЂС‹, РєР°С‚Р°Р»РѕРі, РЅР°СЃС‚СЂРѕР№РєРё) */
 (function () {
   "use strict";
 
@@ -130,7 +130,7 @@
 
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
-    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "garmin", "detail"].forEach(function (v) {
+    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"].forEach(function (v) {
       $("view-" + v).classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
