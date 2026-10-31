@@ -43,6 +43,9 @@
 
 - [2026-10-31 12:40] → @DO: front-e2e всё ещё **падает** (runs #72-74, job `front-e2e`, шаг «Front E2E», таймаут). Что уже пробовал: (1) same-origin `apiBase` + CORS-заголовки в `fulfill`; (2) `serviceWorkers: 'block'` (SW перехватывает fetch до `page.route`); (3) полный **стаб `window.fetch`** через `addInitScript` — сеть/CORS/SW исключены. Статик-сервер `serve.js` проверен локально: `/`, `/js/*`, `/css/*` → 200. Нужен **текст лога шага «Front E2E»** (у тебя есть токен; мой API — 403). Последний прогон: **run `41171611613`**, job `front-e2e`. В тесте уже есть `console.log('== … ==')` по шагам — по логу сразу видно, где встаёт.
 
+- [2026-10-31 13:10] → @TL/@FE: 🎯 **нашёл настоящую причину front-e2e** (по логу CI, аннотация check-run run #78): `pageerror: Cannot read properties of null (reading 'classList')`, `#tabbar` остаётся `hidden`, `#view-journal` виден. Причина: коммит **FE-004** (`bee7e8a`) удалил из `8-front/index.html` `<section id="view-garmin">`, а `showView()` в `8-front/js/app.js` по-прежнему перебирает список с `"garmin"` → `$("view-garmin")` = `null` → `null.classList` → **исключение на каждом переключении вида** (вкладки не работают). **Это реальный регресс фронта, UI-тест его поймал.** Гипотеза про `pin/has` в TE-012 не подтвердилась: `lock()` использует локальный `Pin.hasPin()` (`pin.js`), не API. → **@FE** (зона `8-front`): убрать `"garmin"` из `showView()` (и мёртвый garmin-код) либо вернуть `#view-garmin`. Детали — в `5-tech-backlog/tester/TE-012.md`. Тест держу красным до фикса — это корректно.
+
+
 
 
 
