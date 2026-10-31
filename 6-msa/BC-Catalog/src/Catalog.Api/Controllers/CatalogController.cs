@@ -18,15 +18,15 @@ public sealed class CatalogController : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Add([FromBody] AddCatalogItemCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
-    [HttpPut("{id:guid}/name")]
+    [HttpPost("{id:guid}/name")]
     public async Task<IActionResult> Rename(Guid id, [FromBody] RenameCatalogItemCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
-    [HttpPut("{id:guid}/details")]
+    [HttpPost("{id:guid}/details")]
     public async Task<IActionResult> UpdateDetails(Guid id, [FromBody] UpdateCatalogItemDetailsCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("{id:guid}/archive")]
     public async Task<IActionResult> Archive(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new ArchiveCatalogItemCommand(id), ct));
     [HttpPost("{id:guid}/restore")]
     public async Task<IActionResult> Restore(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RestoreCatalogItemCommand(id), ct));
-    [HttpDelete("{id:guid}")]
+    [HttpPost("{id:guid}/remove")]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RemoveCatalogItemCommand(id), ct));
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListCatalogItemsQuery(), ct));

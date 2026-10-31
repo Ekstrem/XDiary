@@ -26,7 +26,7 @@ public sealed class JournalController : ControllerBase
     public async Task<IActionResult> SpecifyWhen(Guid id, [FromBody] SpecifyWhenCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("records/{id:guid}/partners")]
     public async Task<IActionResult> AddPartner(Guid id, [FromBody] AddPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
-    [HttpDelete("records/{id:guid}/partners/{partnerId}")]
+    [HttpPost("records/{id:guid}/partners/{partnerId}/remove")]
     public async Task<IActionResult> RemovePartner(Guid id, string partnerId, CancellationToken ct) => Respond(await _mediator.Send(new RemovePartnerCommand(id, partnerId), ct));
     [HttpPost("records/{id:guid}/place")]
     public async Task<IActionResult> SpecifyPlace(Guid id, [FromBody] SpecifyPlaceCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
@@ -42,7 +42,7 @@ public sealed class JournalController : ControllerBase
     public async Task<IActionResult> RecordOrgasms(Guid id, [FromBody] RecordOrgasmsCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("records/{id:guid}/complete")]
     public async Task<IActionResult> Complete(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new CompleteCommand(id), ct));
-    [HttpDelete("records/{id:guid}")]
+    [HttpPost("records/{id:guid}/delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new DeleteRecordCommand(id), ct));
     [HttpGet("records")]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListRecordsQuery(), ct));

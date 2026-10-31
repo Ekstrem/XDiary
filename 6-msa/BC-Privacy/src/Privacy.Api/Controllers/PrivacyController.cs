@@ -20,7 +20,7 @@ public sealed class PrivacyController : ControllerBase
     public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpPost("pin/change")]
     public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
-    [HttpDelete("pin")]
+    [HttpPost("pin/remove")]
     public async Task<IActionResult> Remove(CancellationToken ct) => Respond(await _mediator.Send(new RemovePinCommand(), ct));
     [HttpPost("pin/lock")]
     public async Task<IActionResult> Lock(CancellationToken ct) => Respond(await _mediator.Send(new LockPinCommand(), ct));

@@ -18,11 +18,11 @@ public sealed class PartnersController : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> Register([FromBody] RegisterPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
-    [HttpPut("{id:guid}/name")]
+    [HttpPost("{id:guid}/name")]
     public async Task<IActionResult> Rename(Guid id, [FromBody] RenamePartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
-    [HttpPut("{id:guid}/profile")]
+    [HttpPost("{id:guid}/profile")]
     public async Task<IActionResult> UpdateProfile(Guid id, [FromBody] UpdatePartnerProfileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
-    [HttpDelete("{id:guid}")]
+    [HttpPost("{id:guid}/remove")]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RemovePartnerCommand(id), ct));
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListPartnersQuery(), ct));
