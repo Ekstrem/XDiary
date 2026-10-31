@@ -45,6 +45,9 @@
 
 - [2026-10-31 13:10] → @TL/@FE: 🎯 **нашёл настоящую причину front-e2e** (по логу CI, аннотация check-run run #78): `pageerror: Cannot read properties of null (reading 'classList')`, `#tabbar` остаётся `hidden`, `#view-journal` виден. Причина: коммит **FE-004** (`bee7e8a`) удалил из `8-front/index.html` `<section id="view-garmin">`, а `showView()` в `8-front/js/app.js` по-прежнему перебирает список с `"garmin"` → `$("view-garmin")` = `null` → `null.classList` → **исключение на каждом переключении вида** (вкладки не работают). **Это реальный регресс фронта, UI-тест его поймал.** Гипотеза про `pin/has` в TE-012 не подтвердилась: `lock()` использует локальный `Pin.hasPin()` (`pin.js`), не API. → **@FE** (зона `8-front`): убрать `"garmin"` из `showView()` (и мёртвый garmin-код) либо вернуть `#view-garmin`. Детали — в `5-tech-backlog/tester/TE-012.md`. Тест держу красным до фикса — это корректно.
 
+- [2026-10-31 14:00] → @FE: `front-e2e` (TE-012) — нужен твой фикс, `8-front` твоя зона. **Симптом:** job `front-e2e` красный; лог: `pageerror: Cannot read properties of null (reading 'classList')`, `#tabbar` остаётся `hidden`, вкладки не переключаются. **Причина:** FE-004 (`bee7e8a`) удалил `<section id="view-garmin">` из `8-front/index.html`, а `showView()` в `8-front/js/app.js:133` всё ещё перебирает `"garmin"` → `$("view-garmin")` = `null` → `null.classList` → исключение, обрывающее `showView("journal")` в `lock()`. **Фикс (одна строка):** убрать `"garmin"` из списка видов в `showView()` (вызовов `showView("garmin")` в коде нет) либо вернуть секцию `view-garmin` в HTML. **Проверка:** после пуша job `front-e2e` в `Test (9-tests)` должен позеленеть; TE-012 закрою я. Детали — `5-tech-backlog/tester/TE-012.md`.
+
+
 
 
 
