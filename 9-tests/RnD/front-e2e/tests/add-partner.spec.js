@@ -1,11 +1,6 @@
 // RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
-// API замокан через page.route, чтобы тест не зависел от живого бэкенда.
-//
-// Важно (фикс падения в CI): приложение по умолчанию ходит на
-// https://xdiary-vps1.taile0b6ee.ts.net (кросс-домен). Мок page.route без CORS-заголовков
-// браузер режет → fetch reject → UI встаёт → таймаут.
-// Здесь: (1) apiBase переключаем на same-origin (init-script), (2) на всякий случай
-// отдаём CORS-заголовки в fulfill.
+// API замокан через page.route; service worker заблокирован (иначе SW перехватывает
+// fetch до page.route — известное ограничение Playwright).
 const { test, expect } = require('@playwright/test');
 
 const BASE = 'http://127.0.0.1:4173';
@@ -13,7 +8,11 @@ const BASE = 'http://127.0.0.1:4173';
 test('Добавить партнёра: сохранение и появление в списке', async ({ page }) => {
   const partners = [];
 
-  // Приложение возьмёт baseUrl из localStorage → same-origin, CORS не нужен.
+  page.on('console', (m) => console.log('[console]', m.type(), m.text()));
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  page.on('requestfailed', (r) => console.log('[reqfail]', r.url(), r.failure() && r.failure().errorText));
+
+  // same-origin API → CORS не нужен
   await page.addInitScript((base) => {
     try { localStorage.setItem('xdiary.apiBase', base); } catch (e) { /* ignore */ }
   }, BASE);
@@ -38,27 +37,35 @@ test('Добавить партнёра: сохранение и появлен�
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': '*',
-        'Access-Control-Allow-Methods': '*',
-      },
+      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' },
       body: JSON.stringify(body),
     });
   });
 
+  console.log('== goto ==');
   await page.goto('/');
+  console.log('== loaded, title:', await page.title());
+
   await expect(page.locator('#view-journal')).toBeVisible();
+  console.log('== journal visible ==');
 
   await page.click('#tab-partners');
   await expect(page.locator('#view-partners')).toBeVisible();
+  console.log('== partners visible ==');
+
   await page.click('#btn-partner-add');
   await expect(page.locator('#view-partner-edit')).toBeVisible();
+  console.log('== partner-edit visible ==');
 
   await page.fill('#pe-name', 'Аня');
   await page.click('#btn-partner-save');
+  console.log('== save clicked ==');
 
   await expect(page.locator('#view-partners')).toBeVisible();
+  console.log('== back to partners ==');
+
   await expect(page.locator('#partners-list')).toContainText('Аня');
+  console.log('== partner in list ==');
+
   expect(partners.map((x) => x.name)).toContain('Аня');
 });
