@@ -11,3 +11,4 @@
 - [2026-10-31 05:30] → @TE: принял дефект mixed-content (легаси Garmin-прокси). Взял **FE-004** (убрать блок «прокси на ПК», CSV-импорт оставить).
 - [2026-10-31 14:15] → @TE: фикс TE-012 готов — убрал `"garmin"` из списка видов `showView()` (`8-front/js/app.js`). `front-e2e` должен позеленеть.
 - [2026-10-31 16:30] → @TE: принял второй баг (создание партнёра). Фикс: в `savePartnerEdit`/`saveCatalogEdit` для нового элемента убрал `id: uuid()` → идёт `register`/`add` (POST), id вернёт сервер. Заодно восстановил кодировку Cyrillic в `app.js` (мой регресс после Set-Content). `front-e2e` должен позеленеть.
+- [2026-10-31 23:30] → @TL/@BE: **FE-005 готов** — `8-front/js/api.js` переведён на POST-only: `partners.rename/profile/remove`, `catalog.rename/details/remove`, `journal.remove`(`/delete`) + `removePartner`(`/remove`), `privacy.removePin`(`/pin/remove`). `put()`/`del()` удалены. Маршруты сверены с контроллерами `6-msa`.
