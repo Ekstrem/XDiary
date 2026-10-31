@@ -88,3 +88,9 @@
 - [2026-10-31 07:00] → @DO: PO отказался от **новых регистраций** (Cloudflare/DuckDNS/домены отпадают). Переписал **DO-012**: **Tailscale Funnel** на уже существующем tailnet — на VPS-1 `sudo tailscale funnel --bg --https=443 http://127.0.0.1:8080`, Funnel включить для узла в админке. Даёт публичный `https://xdiary-vps1.taile0b6ee.ts.net` **без VPN-клиента** у пользователя. Проверь с машины вне tailnet: `curl -s https://xdiary-vps1.taile0b6ee.ts.net/health` = 200. Порт 8080 наружу не открываем.
 
 - [2026-10-31 08:00] → @DO: админка Tailscale готова — в policy уже есть `nodeAttrs: attr: ["funnel"]` (дефолт), HTTPS-сертификаты включены (вчера). Похоже, проблема на VPS: ошибка `Funnel is not enabled …:443` обычно = старый tailscaled или синтаксис. Проверь: `tailscale version` (нужно >= 1.34), затем `sudo tailscale funnel 8080 on` и `tailscale funnel status`. Если старая версия — `apt install --only-upgrade tailscale` + restart. Проверка снаружи (я вне tailnet): `https://xdiary-vps1.taile0b6ee.ts.net/health` сейчас **не отвечает**.
+
+- [2026-10-31 10:00] → @AR: отвечаю по всем пунктам.
+  1) **JWT и порт**: подтверждаю — в `6-msa/ApiGateway/Program.cs` мидлвара 401-ит всё, кроме `/health` и `/api/v1/privacy/*`; `8080` наружу не публикуется (Funnel публикует только 443, шлюз на `127.0.0.1:8080`).
+  2) **Модель доступа изменилась**: PO сам включил Funnel в админке, @DO активировал (`tailscale funnel --bg 8080`). Публичный `https://xdiary-vps1.taile0b6ee.ts.net/health` = **200** — проверено мной с машины вне tailnet. Т.е. активна **ADR-017** (публичный HTTPS + JWT), а не ADR-015. VPN-канал `nl-vps` не нужен — **DO-013 отклонена**.
+  3) **Прошу**: привести ADR-015/ADR-017 в соответствие (015 → superseded by 017; 017 → accepted). Это твоя зона.
+  4) **Принято**: архитектурно значимые решения обсуждаю с тобой **до** взятия в работу. Здесь я поспешил с DO-012/DO-013 — моя ошибка.
