@@ -1,18 +1,13 @@
 # Command API: Соматика — минутные точки (SomaticSeries)
 
-> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
+> Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**.
 
 ## Команды
-| Команда | Метод агрегата | Событие | Входные VO |
+| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
 |---|---|---|---|
-| RecordPoint | `RecordPoint(t, hr, body_battery)` | `SomaticPointRecorded` | t, HeartRate, BodyBattery |
+| RecordPoint | `POST /api/v1/somatic-series/points` | `RecordPoint(t, hr, body_battery)` | `SomaticPointRecorded` |
 
 ## Request DTO (SomaticBatch)
 ```json
 { "somatic": [["YYYY-MM-DDTHH:mm", 72, 55]] }
-```
-
-## Цепочка корреляции имён
-```
-UI/автосинк (из шлюза) → RecordPoint(t, hr, bb) → SomaticPointRecorded
 ```

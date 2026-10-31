@@ -1,24 +1,18 @@
 # Command API: Партнёры (Partners)
 
-> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
+> Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**. ⚠️ = техдолг (AR-003).
 
 ## Команды
-| Команда | Метод агрегата | Событие | Входные VO |
+| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
 |---|---|---|---|
-| Register | `Register(name)` | `PartnerRegistered` | name |
-| Rename | `Rename(name)` | `PartnerRenamed` | name |
-| UpdateProfile | `UpdateProfile(photo, gender, notes)` | `PartnerProfileUpdated` | Photo, Gender, Notes |
-| Remove | `Remove()` | `PartnerRemoved` | — |
+| Register | `POST /api/v1/partners` | `Register(name)` | `PartnerRegistered` |
+| Rename | `PUT /api/v1/partners/{id}/name` ⚠️ | `Rename(name)` | `PartnerRenamed` |
+| UpdateProfile | `PUT /api/v1/partners/{id}/profile` ⚠️ | `UpdateProfile(photo, gender, notes)` | `PartnerProfileUpdated` |
+| Remove | `DELETE /api/v1/partners/{id}` ⚠️ | `Remove()` | `PartnerRemoved` |
 
 ## Request DTO (PartnerDraft)
 ```json
 { "name": "string", "photo": "dataURL", "gender": "male|female", "notes": "string" }
 ```
 
-## Цепочка корреляции имён
-```
-UI → Register(name) → PartnerRegistered
-UI → Rename(name) → PartnerRenamed
-UI → UpdateProfile(...) → PartnerProfileUpdated
-UI → Remove() → PartnerRemoved
-```
+> ⚠️ **Техдолг (AR-003):** `Rename`/`UpdateProfile` (PUT) и `Remove` (DELETE) должны быть `POST .../{action}`.

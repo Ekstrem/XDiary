@@ -1,20 +1,9 @@
 # Command API: Шлюз Apple Health (AppleHealthGateway)
 
-> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
+> Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**.
 
 ## Команды
-| Команда | Метод агрегата | Событие | Входные VO |
+| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
 |---|---|---|---|
-| Configure | `Configure(metrics)` | `AppleImportConfigured` | ImportConfig |
-| ImportFile | `ImportFile(file)` | `AppleFileImported` | файл |
-
-## Request DTO
-```json
-{ "metrics": ["hr","hrv","sleep","resting_hr"] }
-```
-
-## Цепочка корреляции имён
-```
-UI → Configure(metrics) → AppleImportConfigured
-UI → ImportFile(export.xml/CSV) → AppleFileImported (норм. соматика → SomaticSeries/DailyMetrics)
-```
+| Configure | `POST /api/v1/apple-health/configure` | `Configure(metrics)` | `AppleImportConfigured` |
+| ImportFile | `POST /api/v1/apple-health/import` | `ImportFile(file)` | `AppleFileImported` |

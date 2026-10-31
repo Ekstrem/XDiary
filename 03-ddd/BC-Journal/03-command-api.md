@@ -1,56 +1,31 @@
 # Command API: Журнал интимной активности (Journal)
 
-> Внутренний API (UI → сервис). В MSA — REST-команды на `journal` (ADR-006, ADR-001).
-> Именованные команды повторяют экраны визарда (CJM); Id/Version — составной ключ `<guid, long>` фреймворка EDM (DF).
+> Команды → методы агрегата → события. Конвенция EDM/DF — **только POST** (без PUT/DELETE). ⚠️ = техдолг (AR-003).
 
-## Команды (по экранам визарда) → события
-| Команда | Метод агрегата | Событие | Входные VO |
+## Команды
+| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
 |---|---|---|---|
-| StartManualEntry | `StartManualEntry()` | `ManualEntryStarted` | — |
-| StartFromGarmin | `StartFromGarmin(activity)` | `GarminEntryStarted` | GarminActivity |
-| SpecifyWhen | `SpecifyWhen(startedAt)` | `WhenSpecified` | When |
-| AddPartner | `AddPartner(partnerId)` | `PartnerAdded` | partnerId |
-| RemovePartner | `RemovePartner(partnerId)` | `PartnerRemoved` | partnerId |
-| SpecifyPlace | `SpecifyPlace(place)` | `PlaceSpecified` | Place |
-| AddPositions | `AddPositions(positions)` | `PositionsAdded` | Positions |
-| AddAccessories | `AddAccessories(costumes, toys, fantasies, tags)` | `AccessoriesAdded` | Accessories |
-| RecordContraception | `RecordContraception(contraceptives, count)` | `ContraceptionRecorded` | Contraception |
-| SpecifyDuration | `SpecifyDuration(durationMin)` | `DurationSpecified` | Duration |
-| RecordOrgasms | `RecordOrgasms(orgasms[])` | `OrgasmsRecorded` | Orgasms |
-| Complete | `Complete()` | `RecordCompleted` | — |
-| Delete | `Delete()` | `RecordDeleted` | — |
+| StartManualEntry | `POST /api/v1/journal/records` | `StartManualEntry()` | `ManualEntryStarted` |
+| StartFromGarmin | `POST /api/v1/journal/records/from-garmin` | `StartFromGarmin(activity)` | `GarminEntryStarted` |
+| SpecifyWhen | `POST /api/v1/journal/records/{id}/when` | `SpecifyWhen(startedAt)` | `WhenSpecified` |
+| AddPartner | `POST /api/v1/journal/records/{id}/partners` | `AddPartner(partnerId)` | `PartnerAdded` |
+| RemovePartner | `DELETE /api/v1/journal/records/{id}/partners/{partnerId}` ⚠️ | `RemovePartner(partnerId)` | `PartnerRemoved` |
+| SpecifyPlace | `POST /api/v1/journal/records/{id}/place` | `SpecifyPlace(place)` | `PlaceSpecified` |
+| AddPositions | `POST /api/v1/journal/records/{id}/positions` | `AddPositions(positions)` | `PositionsAdded` |
+| AddAccessories | `POST /api/v1/journal/records/{id}/accessories` | `AddAccessories(...)` | `AccessoriesAdded` |
+| RecordContraception | `POST /api/v1/journal/records/{id}/contraception` | `RecordContraception(...)` | `ContraceptionRecorded` |
+| SpecifyDuration | `POST /api/v1/journal/records/{id}/duration` | `SpecifyDuration(durationMin)` | `DurationSpecified` |
+| RecordOrgasms | `POST /api/v1/journal/records/{id}/orgasms` | `RecordOrgasms(orgasms[])` | `OrgasmsRecorded` |
+| Complete | `POST /api/v1/journal/records/{id}/complete` | `Complete()` | `RecordCompleted` |
+| Delete | `DELETE /api/v1/journal/records/{id}` ⚠️ | `Delete()` | `RecordDeleted` |
 
 ## Request DTO (RecordDraft)
 ```json
-{
-  "startedAt": "YYYY-MM-DDTHH:mm",
-  "durationMin": 0,
-  "partners": ["uuid"],
-  "place": "string",
-  "positions": ["string"],
-  "costumes": ["string"],
-  "toys": ["string"],
-  "fantasies": ["string"],
-  "tags": ["string"],
-  "contraceptives": ["string"],
-  "contraceptiveCount": 0,
+{ "startedAt": "YYYY-MM-DDTHH:mm", "partners": ["uuid"], "place": "string", "positions": ["string"],
+  "costumes": ["string"], "toys": ["string"], "fantasies": ["string"], "tags": ["string"],
+  "contraceptives": ["string"], "contraceptiveCount": 0, "durationMin": 0,
   "orgasms": [{ "participant": "me|partnerId", "count": 0, "types": ["string"], "rating": 0 }],
-  "garmin": false,
-  "garminId": ""
-}
+  "garmin": false, "garminId": "" }
 ```
 
-## Фабрики (два источника записи)
-| Источник | Фабрика | Что предзаполняется |
-|---|---|---|
-| Ручная запись (визард) | `StartManualEntry()` | ничего (пустой Draft) |
-| Импорт занятия Garmin | `StartFromGarmin(activity)` | startedAt, durationMin, garminId, garmin=true |
-
-## Цепочка корреляции имён
-```
-UI «Новая запись» → StartManualEntry → ManualEntryStarted → Draft
-  → SpecifyWhen → WhenSpecified → … → RecordOrgasms → OrgasmsRecorded
-  → Complete → RecordCompleted
-UI «Из Garmin» → StartFromGarmin(activity) → GarminEntryStarted → Draft → Complete → RecordCompleted
-UI → Delete → RecordDeleted
-```
+> ⚠️ **Техдолг (AR-003):** `RemovePartner` и `Delete` должны быть `POST .../{action}`, не `DELETE`.

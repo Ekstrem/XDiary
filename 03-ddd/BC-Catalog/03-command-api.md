@@ -1,27 +1,21 @@
 # Command API: Каталог и инвентарь (Catalog)
 
-> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
+> Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**. ⚠️ = техдолг (AR-003).
 
 ## Команды
-| Команда | Метод агрегата | Событие | Входные VO |
+| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
 |---|---|---|---|
-| AddItem | `AddItem(kind, name)` | `ItemAdded` | kind, name |
-| Rename | `Rename(name)` | `ItemRenamed` | name |
-| UpdateDetails | `UpdateDetails(photo, notes, brand, fantasyPartner)` | `ItemDetailsUpdated` | Photo, Notes, Brand, FantasyPartner |
-| Archive | `Archive()` | `ItemArchived` | Archived |
-| Restore | `Restore()` | `ItemRestored` | Archived |
-| Remove | `Remove()` | `ItemRemoved` | — |
+| AddItem | `POST /api/v1/catalog` | `AddItem(kind, name)` | `ItemAdded` |
+| Rename | `PUT /api/v1/catalog/{id}/name` ⚠️ | `Rename(name)` | `ItemRenamed` |
+| UpdateDetails | `PUT /api/v1/catalog/{id}/details` ⚠️ | `UpdateDetails(...)` | `ItemDetailsUpdated` |
+| Archive | `POST /api/v1/catalog/{id}/archive` | `Archive()` | `ItemArchived` |
+| Restore | `POST /api/v1/catalog/{id}/restore` | `Restore()` | `ItemRestored` |
+| Remove | `DELETE /api/v1/catalog/{id}` ⚠️ | `Remove()` | `ItemRemoved` |
 
 ## Request DTO (ItemDraft)
 ```json
-{ "kind": "costume|toy|fantasy|contraception", "name": "string", "photo": "dataURL", "notes": "string", "brand": "string", "fantasyPartner": "string" }
+{ "kind": "costume|toy|fantasy|contraception", "name": "string", "photo": "dataURL",
+  "notes": "string", "brand": "string", "fantasyPartner": "string" }
 ```
 
-## Цепочка корреляции имён
-```
-UI → AddItem(kind, name) → ItemAdded
-UI → Rename(name) → ItemRenamed
-UI → UpdateDetails(...) → ItemDetailsUpdated
-UI → Archive() → ItemArchived → Restore() → ItemRestored
-UI → Remove() → ItemRemoved
-```
+> ⚠️ **Техдолг (AR-003):** `Rename`/`UpdateDetails` (PUT) и `Remove` (DELETE) должны быть `POST .../{action}`.

@@ -20,6 +20,11 @@
 ## Кардинальность полей
 Перед моделированием агрегата — выпиши кардинальность каждого поля из US/CJM: **1 (обязательно) / 0..1 (опционально) / 0..N (список)**. Ошибки случаются именно там, где «может не быть» или «может быть несколько» (партнёры 0..N, игрушки 0..N, оргазмы по участникам). Пример — кардинальность Record в `BC-Journal/02-aggregate-canvas.md`.
 
+## Command API / Query API (HTTP)
+- **Команды — только POST**: `POST /api/v1/{context}` (создание/старт), `POST /api/v1/{context}/{id}/{action}` (действие).
+- **Без PUT/DELETE** (идемпотентные операции; статья «Тактические паттерны» запрещает PUT/DELETE для модификации агрегата). «Удаление» — `POST .../delete` / `.../remove`.
+- **Query API — только GET** (read-only, из ReadModel).
+
 ## Анти-паттерны (чего НЕ делать)
 
 | ❌ Неправильно | ✅ Правильно |
@@ -29,6 +34,7 @@
 | одно общее событие `RecordUpdated` | каждый метод → своё событие: `WhenSpecified`, `PartnerChosen`, `RecordCompleted` |
 | фабрика без учёта источника | две фабрики: `StartManualEntry()` / `StartFromGarmin(activity)` |
 | корень без явного описания | явно: `I{Context}Root : IAggregateRoot<I{Context}>` |
+| `PUT`/`DELETE` в Command API | только `POST` (действие в URL); `DELETE` → `POST .../delete` |
 
 ## Эталонный пример — Record (Журнал)
 

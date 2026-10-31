@@ -1,36 +1,19 @@
 # Command API: Приватность и доступ (Privacy)
 
-> Именованные команды → методы агрегата → события. Id/Version — `<guid, long>` фреймворка EDM (DF).
+> Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**. ⚠️ = техдолг (AR-003).
 
 ## Команды
-| Команда | Метод агрегата | Событие | Входные VO |
+| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
 |---|---|---|---|
-| SetPin | `SetPin(pin)` | `PinSet` | Salt, Hash, Iterations |
-| ChangePin | `ChangePin(pin)` | `PinChanged` | Salt, Hash, Iterations |
-| Remove | `Remove()` | `PinRemoved` | — |
-| Lock | `Lock()` | `Locked` | — |
-| Unlock | `Unlock()` | `Unlocked` | — |
+| SetPin | `POST /api/v1/privacy/pin/set` | `SetPin(pin)` | `PinSet` |
+| ChangePin | `POST /api/v1/privacy/pin/change` | `ChangePin(pin)` | `PinChanged` |
+| Remove | `DELETE /api/v1/privacy/pin` ⚠️ | `Remove()` | `PinRemoved` |
+| Lock | `POST /api/v1/privacy/pin/lock` | `Lock()` | `Locked` |
+| Unlock | `POST /api/v1/privacy/pin/unlock` | `Unlock()` | `Unlocked` |
+| IssueToken | `POST /api/v1/privacy/token` | TokenService (после PIN) | `{ accessToken, refreshToken, expiresIn }` |
+| VerifyToken | `POST /api/v1/privacy/verify-token` | TokenService (stateless) | `{ valid }` |
 
-## Request DTO
-```json
-{ "pin": "string (4–8 цифр)" }
-```
+> ⚠️ **Техдолг (AR-003):** `Remove` (DELETE) должен быть `POST .../pin/remove`.
 
 ## JWT (выпуск)
-Выпуск токена — не метод агрегата, а **TokenService** (после успешной проверки PIN):
-
-| Действие | Вход | Выход |
-|---|---|---|
-| `IssueToken` (после `VerifyPin`) | PIN (4–8 цифр) | `{ accessToken, refreshToken, expiresIn }` |
-
-- Эндпоинт: `POST /api/v1/privacy/token`.
-- HS256, issuer `xdiary`, access **15 мин**, refresh **30 дней**.
-- Секрет — `Jwt:SigningKey` (не в git).
-- Неверный PIN → **401**; нет PIN → **401**.
-
-```
-UI → SetPin(pin) → PinSet
-UI → ChangePin(pin) → PinChanged
-UI → Remove() → PinRemoved
-UI → Lock() → Locked → Unlock() → Unlocked
-```
+- HS256, issuer `xdiary`, access **15 мин**, refresh **30 дней**. Секрет — `Jwt:SigningKey` (не в git). Неверный PIN → **401**.
