@@ -1,28 +1,28 @@
-/* XDiary вЂ” Р»РѕРіРёРєР° РїСЂРёР»РѕР¶РµРЅРёСЏ (РІРёР·Р°СЂРґ-Р·Р°РїРёСЃСЊ, Р¶СѓСЂРЅР°Р», РїР°СЂС‚РЅС‘СЂС‹, РєР°С‚Р°Р»РѕРі, РЅР°СЃС‚СЂРѕР№РєРё) */
+/* XDiary — логика приложения (визард-запись, журнал, партнёры, каталог, настройки) */
 (function () {
   "use strict";
 
   function $(id) { return document.getElementById(id); }
 
   var CSV_HEADERS = ["id", "started_at", "duration_min", "partner", "place", "positions", "tags", "costumes", "toys", "fantasies", "contraceptives", "contraceptive_count", "orgasms_me", "orgasms_partner", "orgasm_me_type", "orgasm_me_rating", "orgasm_partner_type", "orgasm_partner_rating", "garmin"];
-  var STEPS = ["Р”Р°С‚Р°", "РџР°СЂС‚РЅС‘СЂ", "РњРµСЃС‚Рѕ", "РџРѕР·С‹", "РђРєСЃРµСЃСЃСѓР°СЂС‹", "РљРѕРЅС‚СЂР°С†РµРїС†РёСЏ", "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ", "РћСЂРіР°Р·РјС‹", "РС‚РѕРі"];
+  var STEPS = ["Дата", "Партнёр", "Место", "Позы", "Аксессуары", "Контрацепция", "Длительность", "Оргазмы", "Итог"];
   var POSITIONS = [
-    "РњРёСЃСЃРёРѕРЅРµСЂСЃРєР°СЏ", "Р”РѕРіРіРё (СЃР·Р°РґРё)", "РќР°РµР·РґРЅРёС†Р° (СЃРІРµСЂС…Сѓ)", "РћР±СЂР°С‚РЅР°СЏ РЅР°РµР·РґРЅРёС†Р°",
-    "Р›РѕР¶РєРё", "69", "РЎС‚РѕСЏ", "РЎРёРґСЏ (РЅР° РєРѕР»РµРЅСЏС…)", "РћСЂР°Р»СЊРЅС‹Р№", "РљРѕР»РµРЅРЅРѕ-Р»РѕРєС‚РµРІР°СЏ",
-    "РќРѕР¶РЅРёС†С‹", "РњРёСЃСЃРёРѕРЅРµСЂСЃРєР°СЏ (РЅРѕРіРё РІРІРµСЂС…)"
+    "Миссионерская", "Догги (сзади)", "Наездница (сверху)", "Обратная наездница",
+    "Ложки", "69", "Стоя", "Сидя (на коленях)", "Оральный", "Коленно-локтевая",
+    "Ножницы", "Миссионерская (ноги вверх)"
   ];
   var DURATION_PRESETS = [10, 15, 20, 30, 45, 60, 90];
 
   var KIND_ORDER = ["costume", "toy", "fantasy", "contraception"];
   var KIND_META = {
-    costume: { title: "РљРѕСЃС‚СЋРјС‡РёРєРё", single: "РљРѕСЃС‚СЋРј", icon: "рџ§Ґ" },
-    toy: { title: "РРіСЂСѓС€РєРё", single: "РРіСЂСѓС€РєР°", icon: "рџ§ё" },
-    fantasy: { title: "Р¤Р°РЅС‚Р°Р·РёРё", single: "Р¤Р°РЅС‚Р°Р·РёСЏ", icon: "вњЁ" },
-    contraception: { title: "РљРѕРЅС‚СЂР°С†РµРїС†РёСЏ", single: "РЎСЂРµРґСЃС‚РІРѕ", icon: "рџЌҐ" }
+    costume: { title: "Костюмчики", single: "Костюм", icon: "🧥" },
+    toy: { title: "Игрушки", single: "Игрушка", icon: "🧸" },
+    fantasy: { title: "Фантазии", single: "Фантазия", icon: "✨" },
+    contraception: { title: "Контрацепция", single: "Средство", icon: "🍥" }
   };
   var KIND_FIELD = { costume: "costumes", toy: "toys", fantasy: "fantasies", contraception: "contraceptives" };
 
-  // СЃРѕСЃС‚РѕСЏРЅРёРµ
+  // состояние
   var draft = null;
   var wizardStep = 0;
   var editingId = null;
@@ -45,26 +45,26 @@
   var detailWindow = 30;
   var METRIC_ORDER = ["hr", "stress", "body_battery"];
   var METRIC_META = {
-    hr: { label: "РџСѓР»СЊСЃ", color: "#e0567a", unit: "СѓРґ/РјРёРЅ" },
-    stress: { label: "РЎС‚СЂРµСЃСЃ", color: "#f0a04b", unit: "" },
+    hr: { label: "Пульс", color: "#e0567a", unit: "уд/мин" },
+    stress: { label: "Стресс", color: "#f0a04b", unit: "" },
     body_battery: { label: "Body Battery", color: "#4ade80", unit: "" },
-    hrv: { label: "HRV", color: "#60a5fa", unit: "РјСЃ" }
+    hrv: { label: "HRV", color: "#60a5fa", unit: "мс" }
   };
 
   var trendMetric = "stress";
   var trendTab = "trends";
   var TREND_META = {
-    stress: { label: "РЎС‚СЂРµСЃСЃ", color: "#f0a04b", field: "stress" },
-    resting_hr: { label: "РџСѓР»СЊСЃ РїРѕРєРѕСЏ", color: "#e0567a", field: "resting_hr" },
-    sleep: { label: "РЎРѕРЅ (РѕС†РµРЅРєР°)", color: "#4ade80", field: "score" },
+    stress: { label: "Стресс", color: "#f0a04b", field: "stress" },
+    resting_hr: { label: "Пульс покоя", color: "#e0567a", field: "resting_hr" },
+    sleep: { label: "Сон (оценка)", color: "#4ade80", field: "score" },
     hrv: { label: "HRV", color: "#60a5fa", field: "hrv" }
   };
-  var RU_MONTHS = { "СЏРЅРІ": 1, "С„РµРІ": 2, "РјР°СЂ": 3, "Р°РїСЂ": 4, "РјР°Р№": 5, "РёСЋРЅ": 6, "РёСЋР»": 7, "Р°РІРі": 8, "СЃРµРЅ": 9, "РѕРєС‚": 10, "РЅРѕСЏ": 11, "РґРµРє": 12 };
+  var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.27"; // СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°С‚СЊ СЃ CACHE РІ sw.js
+  var APP_VERSION = "0.27"; // синхронизировать с CACHE в sw.js
 
-  // ---- СѓС‚РёР»РёС‚С‹ ----
+  // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -178,7 +178,7 @@
     });
   }
 
-  // ---- Р±Р»РѕРєРёСЂРѕРІРєР° ----
+  // ---- блокировка ----
   function ensureToken(pin) {
     return Api.auth.login(pin).catch(function () {
       return Api.privacy.setPin(pin).then(function () { return Api.auth.login(pin); });
@@ -208,7 +208,7 @@
     });
   }
 
-  // ---- Р¶СѓСЂРЅР°Р» ----
+  // ---- журнал ----
   function renderJournal() {
     DB.getAllRecords().then(function (records) {
       records.sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
@@ -222,9 +222,9 @@
         card.className = "record-card";
 
         var meta = [];
-        if (r.partner) meta.push("рџ‘¤ " + esc(r.partner));
-        if (r.place) meta.push("рџ“Ќ " + esc(r.place));
-        meta.push("вЏ± " + (r.durationMin || 0) + " РјРёРЅ");
+        if (r.partner) meta.push("👤 " + esc(r.partner));
+        if (r.place) meta.push("📍 " + esc(r.place));
+        meta.push("⏱ " + (r.durationMin || 0) + " мин");
         var org = (r.orgasmsMe || 0) + (r.orgasmsPartner || 0);
 
         var posHtml = "";
@@ -234,21 +234,21 @@
           }).join("") + "</div>";
         }
         var marks = [];
-        (r.costumes || []).forEach(function (x) { marks.push('<span class="chip-mini">рџ§Ґ ' + esc(x) + "</span>"); });
-        (r.toys || []).forEach(function (x) { marks.push('<span class="chip-mini">рџ§ё ' + esc(x) + "</span>"); });
-        (r.fantasies || []).forEach(function (x) { marks.push('<span class="chip-mini">вњЁ ' + esc(x) + "</span>"); });
+        (r.costumes || []).forEach(function (x) { marks.push('<span class="chip-mini">🧥 ' + esc(x) + "</span>"); });
+        (r.toys || []).forEach(function (x) { marks.push('<span class="chip-mini">🧸 ' + esc(x) + "</span>"); });
+        (r.fantasies || []).forEach(function (x) { marks.push('<span class="chip-mini">✨ ' + esc(x) + "</span>"); });
         (r.tags || []).forEach(function (x) { marks.push('<span class="chip-mini tag">#' + esc(x) + "</span>"); });
         var marksHtml = marks.length ? '<div class="record-chips">' + marks.join("") + "</div>" : "";
 
         card.innerHTML =
           '<div class="record-card-top">' +
             '<span class="record-date">' +
-              (r.garmin ? '<span class="garmin-badge">вЊљ</span>' : "") +
+              (r.garmin ? '<span class="garmin-badge">⌚</span>' : "") +
               esc(fmtDateTime(r.startedAt)) +
             "</span>" +
-            '<span class="record-org">' + (org ? "рџ’— " + org : "") + "</span>" +
+            '<span class="record-org">' + (org ? "💗 " + org : "") + "</span>" +
           "</div>" +
-          '<div class="record-meta">' + meta.join(" В· ") + "</div>" +
+          '<div class="record-meta">' + meta.join(" · ") + "</div>" +
           posHtml + marksHtml;
 
         card.addEventListener("click", function () { openDetail(r.id); });
@@ -269,7 +269,7 @@
     return "";
   }
 
-  // ---- РІРёР·Р°СЂРґ ----
+  // ---- визард ----
   function newDraft() {
     return {
       startedAt: toInputValue(new Date()), partner: "", place: "",
@@ -316,7 +316,7 @@
   }
 
   function renderWizard() {
-    $("wizard-title").textContent = editingId ? "Р—Р°РїРёСЃСЊ" : "РќРѕРІР°СЏ Р·Р°РїРёСЃСЊ";
+    $("wizard-title").textContent = editingId ? "Запись" : "Новая запись";
 
     var prog = $("wizard-progress");
     prog.innerHTML = "";
@@ -358,7 +358,7 @@
 
   function stepDate(body) {
     body.innerHTML =
-      '<div class="step-label">РљРѕРіРґР° СЌС‚Рѕ Р±С‹Р»Рѕ?</div>' +
+      '<div class="step-label">Когда это было?</div>' +
       '<input type="datetime-local" id="w-startedAt" value="' + esc(draft.startedAt) + '">';
     $("w-startedAt").addEventListener("input", function (e) { draft.startedAt = e.target.value; });
   }
@@ -367,12 +367,12 @@
     DB.getAllPartners().then(function (partners) {
       DB.getAllRecords().then(function (records) {
         body.innerHTML =
-          '<div class="step-label">РЎ РєРµРј?</div>' +
+          '<div class="step-label">С кем?</div>' +
           '<div class="partner-grid" id="w-partner-grid"></div>' +
           '<div class="field">' +
-            '<input type="text" id="w-partner-custom" list="partner-suggest" placeholder="РР»Рё РІРІРµРґРёС‚Рµ РёРјСЏ" autocomplete="off">' +
+            '<input type="text" id="w-partner-custom" list="partner-suggest" placeholder="Или введите имя" autocomplete="off">' +
           "</div>" +
-          '<button type="button" class="btn" id="w-partner-none">Р‘РµР· РїР°СЂС‚РЅС‘СЂР°</button>';
+          '<button type="button" class="btn" id="w-partner-none">Без партнёра</button>';
 
         var grid = $("w-partner-grid");
         partners.forEach(function (p) {
@@ -390,7 +390,7 @@
         var add = document.createElement("button");
         add.type = "button";
         add.className = "partner-card partner-card-add";
-        add.innerHTML = '<span class="avatar avatar-initial">пј‹</span><span>Р”РѕР±Р°РІРёС‚СЊ</span>';
+        add.innerHTML = '<span class="avatar avatar-initial">＋</span><span>Добавить</span>';
         add.addEventListener("click", function () { partnerEditReturn = "wizard"; openPartnerEdit(null); });
         grid.appendChild(add);
 
@@ -426,10 +426,10 @@
     DB.getAllRecords().then(function (records) {
       var places = historyPlaces(records);
       body.innerHTML =
-        '<div class="step-label">Р“РґРµ?</div>' +
+        '<div class="step-label">Где?</div>' +
         '<div class="chips-grid" id="w-place-grid"></div>' +
         '<div class="field" style="margin-top:16px">' +
-          '<input type="text" id="w-place" list="place-suggest" placeholder="РЎРІРѕС‘ РјРµСЃС‚Рѕ" autocomplete="off">' +
+          '<input type="text" id="w-place" list="place-suggest" placeholder="Своё место" autocomplete="off">' +
         "</div>";
 
       var grid = $("w-place-grid");
@@ -471,10 +471,10 @@
     DB.getAllRecords().then(function (records) {
       var all = POSITIONS.concat(historyPositions(records));
       body.innerHTML =
-        '<div class="step-label">РџРѕР·С‹</div>' +
+        '<div class="step-label">Позы</div>' +
         '<div class="chips-grid" id="w-pos-grid"></div>' +
         '<div class="field" style="margin-top:16px">' +
-          '<input type="text" id="w-pos-custom" placeholder="РЎРІРѕСЏ РїРѕР·Р°" autocomplete="off">' +
+          '<input type="text" id="w-pos-custom" placeholder="Своя поза" autocomplete="off">' +
         "</div>";
 
       var grid = $("w-pos-grid");
@@ -504,15 +504,15 @@
     });
   }
 
-  // ---- Р°РєСЃРµСЃСЃСѓР°СЂС‹ (РєРѕСЃС‚СЋРјС‹ / РёРіСЂСѓС€РєРё / С„Р°РЅС‚Р°Р·РёРё / С‚РµРіРё) ----
+  // ---- аксессуары (костюмы / игрушки / фантазии / теги) ----
   function stepMarks(body) {
     DB.getAllCatalog().then(function (items) {
-      body.innerHTML = '<div class="step-label">РђРєСЃРµСЃСЃСѓР°СЂС‹</div>';
+      body.innerHTML = '<div class="step-label">Аксессуары</div>';
 
       var kinds = [
-        { key: "costume", label: "РљРѕСЃС‚СЋРјС‡РёРєРё" },
-        { key: "toy", label: "РРіСЂСѓС€РєРё" },
-        { key: "fantasy", label: "Р РµР°Р»РёР·РѕРІР°РЅРЅС‹Рµ С„Р°РЅС‚Р°Р·РёРё" }
+        { key: "costume", label: "Костюмчики" },
+        { key: "toy", label: "Игрушки" },
+        { key: "fantasy", label: "Реализованные фантазии" }
       ];
       kinds.forEach(function (k) {
         var field = KIND_FIELD[k.key];
@@ -520,7 +520,7 @@
         grp.className = "marks-group";
         grp.innerHTML =
           '<div class="marks-group-title">' + k.label +
-            ' <button type="button" class="chip-add" data-kind="' + k.key + '">пј‹</button></div>' +
+            ' <button type="button" class="chip-add" data-kind="' + k.key + '">＋</button></div>' +
           '<div class="chips-grid"></div>';
         body.appendChild(grp);
 
@@ -542,7 +542,7 @@
         if (!list.length) {
           var hint = document.createElement("span");
           hint.className = "muted";
-          hint.textContent = "РџРѕРєР° РїСѓСЃС‚Рѕ";
+          hint.textContent = "Пока пусто";
           grid.appendChild(hint);
         }
         grp.querySelector(".chip-add").addEventListener("click", function () {
@@ -551,13 +551,13 @@
         });
       });
 
-      // С‚РµРіРё (СЃРІРѕР±РѕРґРЅС‹Рµ)
+      // теги (свободные)
       var tags = document.createElement("div");
       tags.className = "marks-group";
       tags.innerHTML =
-        '<div class="marks-group-title">РўРµРіРё</div>' +
+        '<div class="marks-group-title">Теги</div>' +
         '<div class="chips-grid" id="w-tag-grid"></div>' +
-        '<input type="text" id="w-tag-custom" placeholder="РЎРІРѕР№ С‚РµРі" autocomplete="off">';
+        '<input type="text" id="w-tag-custom" placeholder="Свой тег" autocomplete="off">';
       body.appendChild(tags);
 
       DB.getAllRecords().then(function (records) {
@@ -611,13 +611,13 @@
         return '<button type="button" class="chip-toggle contraception-tally" data-cname="' + esc(it.name) + '">' + esc(it.name) + "</button>";
       }).join("");
       body.innerHTML =
-        '<div class="step-label">РљРѕРЅС‚СЂР°С†РµРїС†РёСЏ</div>' +
+        '<div class="step-label">Контрацепция</div>' +
         '<div class="orgasm-block">' +
-          '<div class="orgasm-head"><span>РСЃРїРѕР»СЊР·РѕРІР°РЅРѕ</span>' +
+          '<div class="orgasm-head"><span>Использовано</span>' +
             '<span class="orgasm-count" data-cnt="contra">' + draft.contraceptiveCount + "</span>" +
-            '<button type="button" class="orgasm-reset" data-rcnt="contra" title="РЎР±СЂРѕСЃРёС‚СЊ">в†є</button>' +
+            '<button type="button" class="orgasm-reset" data-rcnt="contra" title="Сбросить">↺</button>' +
           "</div>" +
-          (chips ? '<div class="chips-grid orgasm-types">' + chips + "</div>" : '<p class="muted">РќРµС‚ СЃСЂРµРґСЃС‚РІ вЂ” РґРѕР±Р°РІСЊС‚Рµ РІ РљР°С‚Р°Р»РѕРіРµ (РІРєР»Р°РґРєР° В«РљРѕРЅС‚СЂР°С†РµРїС†РёСЏВ»).</p>') +
+          (chips ? '<div class="chips-grid orgasm-types">' + chips + "</div>" : '<p class="muted">Нет средств — добавьте в Каталоге (вкладка «Контрацепция»).</p>') +
         "</div>";
 
       body.querySelectorAll(".contraception-tally").forEach(function (b) {
@@ -648,10 +648,10 @@
 
   function stepDuration(body) {
     body.innerHTML =
-      '<div class="step-label">РЎРєРѕР»СЊРєРѕ РґР»РёР»РѕСЃСЊ?</div>' +
+      '<div class="step-label">Сколько длилось?</div>' +
       '<div class="chips-grid" id="w-dur-grid"></div>' +
       '<div class="field" style="margin-top:16px">' +
-        '<input type="number" id="w-dur-custom" min="1" inputmode="numeric" placeholder="РЎРІРѕС‘ Р·РЅР°С‡РµРЅРёРµ, РјРёРЅ">' +
+        '<input type="number" id="w-dur-custom" min="1" inputmode="numeric" placeholder="Своё значение, мин">' +
       "</div>";
 
     var grid = $("w-dur-grid");
@@ -659,7 +659,7 @@
       var b = document.createElement("button");
       b.type = "button";
       b.className = "chip-toggle" + (draft.durationMin === d ? " on" : "");
-      b.textContent = d + " РјРёРЅ";
+      b.textContent = d + " мин";
       b.addEventListener("click", function () { draft.durationMin = d; stepDuration(body); });
       grid.appendChild(b);
     });
@@ -676,15 +676,15 @@
   function stepperHtml(key, label, val) {
     return '<div class="stepper-row">' +
       '<span class="stepper-label">' + label + "</span>" +
-      '<button type="button" class="stepper-btn" data-act="minus" data-key="' + key + '">в€’</button>' +
+      '<button type="button" class="stepper-btn" data-act="minus" data-key="' + key + '">−</button>' +
       '<span class="stepper-val" data-val="' + key + '">' + val + "</span>" +
       '<button type="button" class="stepper-btn" data-act="plus" data-key="' + key + '">+</button>' +
     "</div>";
   }
 
   var ORGASM_TYPES = {
-    male: ["РѕР±С‹С‡РЅС‹Р№", "РїСЂРѕСЃС‚Р°С‚РёС‡РµСЃРєРёР№"],
-    female: ["РєР»РёС‚РѕСЂР°Р»СЊРЅС‹Р№", "РІР°РіРёРЅР°Р»СЊРЅС‹Р№"]
+    male: ["обычный", "простатический"],
+    female: ["клиторальный", "вагинальный"]
   };
 
   function orgasmTallyChips(key, gender) {
@@ -699,7 +699,7 @@
     var html = "";
     for (var i = 1; i <= 5; i++) {
       html += '<button type="button" class="star' + (rating >= i ? " on" : "") +
-        '" data-okey="' + key + '" data-orating="' + i + '">' + (rating >= i ? "в…" : "в†") + "</button>";
+        '" data-okey="' + key + '" data-orating="' + i + '">' + (rating >= i ? "★" : "☆") + "</button>";
     }
     return '<div class="orgasm-stars">' + html + "</div>";
   }
@@ -710,15 +710,15 @@
       partners.forEach(function (x) { if (!p && x.name === draft.partner) p = x; });
       var partnerLabel = p
         ? avatarHtml(p) + "<span>" + esc(p.name) + "</span>"
-        : (draft.partner ? esc(draft.partner) : "РџР°СЂС‚РЅС‘СЂ");
+        : (draft.partner ? esc(draft.partner) : "Партнёр");
       var pGender = p ? (p.gender || "female") : "female";
 
       body.innerHTML =
-        '<div class="step-label">РћСЂРіР°Р·РјС‹</div>' +
+        '<div class="step-label">Оргазмы</div>' +
         '<div class="orgasm-block">' +
-          '<div class="orgasm-head"><span>РЇ</span>' +
+          '<div class="orgasm-head"><span>Я</span>' +
             '<span class="orgasm-count" data-count="me">' + draft.orgasmsMe + "</span>" +
-            '<button type="button" class="orgasm-reset" data-rkey="me" title="РЎР±СЂРѕСЃРёС‚СЊ">в†є</button>' +
+            '<button type="button" class="orgasm-reset" data-rkey="me" title="Сбросить">↺</button>' +
           "</div>" +
           '<div class="chips-grid orgasm-types">' + orgasmTallyChips("me", myGender) + "</div>" +
           orgasmStars("me") +
@@ -726,7 +726,7 @@
         '<div class="orgasm-block">' +
           '<div class="orgasm-head orgasm-partner">' + partnerLabel +
             '<span class="orgasm-count" data-count="partner">' + draft.orgasmsPartner + "</span>" +
-            '<button type="button" class="orgasm-reset" data-rkey="partner" title="РЎР±СЂРѕСЃРёС‚СЊ">в†є</button>' +
+            '<button type="button" class="orgasm-reset" data-rkey="partner" title="Сбросить">↺</button>' +
           "</div>" +
           '<div class="chips-grid orgasm-types">' + orgasmTallyChips("partner", pGender) + "</div>" +
           orgasmStars("partner") +
@@ -783,21 +783,21 @@
 
   function stepSummary(body) {
     var rows = [
-      ["Р”Р°С‚Р°", fmtDateTime(draft.startedAt)],
-      ["РџР°СЂС‚РЅС‘СЂ", draft.partner || "вЂ”"],
-      ["РњРµСЃС‚Рѕ", draft.place || "вЂ”"],
-      ["РџРѕР·С‹", draft.positions.join(", ") || "вЂ”"],
-      ["РљРѕСЃС‚СЋРјС‹", draft.costumes.join(", ") || "вЂ”"],
-      ["РРіСЂСѓС€РєРё", draft.toys.join(", ") || "вЂ”"],
-      ["Р¤Р°РЅС‚Р°Р·РёРё", draft.fantasies.join(", ") || "вЂ”"],
-      ["РљРѕРЅС‚СЂР°С†РµРїС†РёСЏ", (draft.contraceptiveCount > 0) ? (draft.contraceptives || []).join(", ") + " Г—" + draft.contraceptiveCount : "вЂ”"],
-      ["РўРµРіРё", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "вЂ”"],
-      ["Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ", (draft.durationMin || 0) + " РјРёРЅ"],
-      ["РћСЂРіР°Р·РјС‹", "РЇ: " + draft.orgasmsMe + fmtOrg(draft.orgasmMeType, draft.orgasmMeRating) +
-        ", РїР°СЂС‚РЅС‘СЂ: " + draft.orgasmsPartner + fmtOrg(draft.orgasmPartnerType, draft.orgasmPartnerRating)]
+      ["Дата", fmtDateTime(draft.startedAt)],
+      ["Партнёр", draft.partner || "—"],
+      ["Место", draft.place || "—"],
+      ["Позы", draft.positions.join(", ") || "—"],
+      ["Костюмы", draft.costumes.join(", ") || "—"],
+      ["Игрушки", draft.toys.join(", ") || "—"],
+      ["Фантазии", draft.fantasies.join(", ") || "—"],
+      ["Контрацепция", (draft.contraceptiveCount > 0) ? (draft.contraceptives || []).join(", ") + " ×" + draft.contraceptiveCount : "—"],
+      ["Теги", draft.tags.map(function (t) { return "#" + t; }).join(", ") || "—"],
+      ["Длительность", (draft.durationMin || 0) + " мин"],
+      ["Оргазмы", "Я: " + draft.orgasmsMe + fmtOrg(draft.orgasmMeType, draft.orgasmMeRating) +
+        ", партнёр: " + draft.orgasmsPartner + fmtOrg(draft.orgasmPartnerType, draft.orgasmPartnerRating)]
     ];
     body.innerHTML =
-      '<div class="step-label">Р’СЃС‘ РІРµСЂРЅРѕ?</div>' +
+      '<div class="step-label">Всё верно?</div>' +
       '<div class="summary">' +
       rows.map(function (r) {
         return '<div class="summary-row"><span>' + r[0] + '</span><span class="summary-val">' + esc(r[1]) + "</span></div>";
@@ -806,8 +806,8 @@
   }
 
   function saveWizard() {
-    if (!draft.startedAt) { toast("РЈРєР°Р¶РёС‚Рµ РґР°С‚Сѓ Рё РІСЂРµРјСЏ"); wizardStep = 0; renderWizard(); return; }
-    if (!draft.durationMin || draft.durationMin < 1) { toast("РЈРєР°Р¶РёС‚Рµ РґР»РёС‚РµР»СЊРЅРѕСЃС‚СЊ"); wizardStep = 6; renderWizard(); return; }
+    if (!draft.startedAt) { toast("Укажите дату и время"); wizardStep = 0; renderWizard(); return; }
+    if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 6; renderWizard(); return; }
     var nowIso = new Date().toISOString();
     function apply(rec) {
       rec.startedAt = draft.startedAt;
@@ -844,25 +844,25 @@
       promise = DB.putRecord(rec);
     }
     promise.then(function () {
-      toast("РЎРѕС…СЂР°РЅРµРЅРѕ");
+      toast("Сохранено");
       showView("journal");
       renderJournal();
-    }).catch(function (e) { toast("РћС€РёР±РєР°: " + e.message); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
   function deleteFromWizard() {
     if (!editingId) return;
-    confirmDialog("РЈРґР°Р»РёС‚СЊ СЌС‚Сѓ Р·Р°РїРёСЃСЊ?").then(function (ok) {
+    confirmDialog("Удалить эту запись?").then(function (ok) {
       if (!ok) return;
       DB.deleteRecord(editingId).then(function () {
-        toast("РЈРґР°Р»РµРЅРѕ");
+        toast("Удалено");
         showView("journal");
         renderJournal();
       });
     });
   }
 
-  // ---- РїР°СЂС‚РЅС‘СЂС‹ ----
+  // ---- партнёры ----
   function renderPartners() {
     DB.getAllPartners().then(function (partners) {
       var list = $("partners-list");
@@ -900,7 +900,7 @@
 
   function openPartnerEdit(id) {
     editingPartnerId = id || null;
-    $("partner-edit-title").textContent = id ? "РџР°СЂС‚РЅС‘СЂ" : "РќРѕРІС‹Р№ РїР°СЂС‚РЅС‘СЂ";
+    $("partner-edit-title").textContent = id ? "Партнёр" : "Новый партнёр";
     $("pe-name").value = "";
     $("pe-notes").value = "";
     $("pe-photo").value = "";
@@ -927,7 +927,7 @@
 
   function savePartnerEdit() {
     var name = $("pe-name").value.trim();
-    if (!name) { toast("РЈРєР°Р¶РёС‚Рµ РёРјСЏ"); return; }
+    if (!name) { toast("Укажите имя"); return; }
     var wasNew = !editingPartnerId;
     var nowIso = new Date().toISOString();
     var promise;
@@ -944,12 +944,12 @@
       });
     } else {
       promise = DB.putPartner({
-        id: uuid(), name: name, notes: $("pe-notes").value.trim(),
+        name: name, notes: $("pe-notes").value.trim(),
         photo: partnerEditPhotoData, gender: partnerEditGender, createdAt: nowIso, updatedAt: nowIso
       });
     }
     promise.then(function () {
-      toast("РЎРѕС…СЂР°РЅРµРЅРѕ");
+      toast("Сохранено");
       if (partnerEditReturn === "wizard") {
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
         showView("wizard");
@@ -963,17 +963,17 @@
 
   function deletePartnerEdit() {
     if (!editingPartnerId) return;
-    confirmDialog("РЈРґР°Р»РёС‚СЊ РїР°СЂС‚РЅС‘СЂР°?").then(function (ok) {
+    confirmDialog("Удалить партнёра?").then(function (ok) {
       if (!ok) return;
       DB.deletePartner(editingPartnerId).then(function () {
-        toast("РЈРґР°Р»РµРЅРѕ");
+        toast("Удалено");
         if (partnerEditReturn === "wizard") { showView("wizard"); renderWizard(); }
         else { showView("partners"); renderPartners(); }
       });
     });
   }
 
-  // ---- РєР°С‚Р°Р»РѕРі (РєРѕСЃС‚СЋРјС‹ / РёРіСЂСѓС€РєРё / С„Р°РЅС‚Р°Р·РёРё) ----
+  // ---- каталог (костюмы / игрушки / фантазии) ----
   function renderCatalog() {
     DB.getAllCatalog().then(function (items) {
       var filtered = items.filter(function (it) { return it.kind === catalogKind; });
@@ -989,16 +989,16 @@
           var c = document.createElement("button");
           c.type = "button";
           c.className = "partner-row" + (it.archived ? " archived" : "");
-          var badge = (catalogKind === "fantasy" && realized.has(it.name)) ? '<span class="badge-realized">вњ“</span>' : "";
+          var badge = (catalogKind === "fantasy" && realized.has(it.name)) ? '<span class="badge-realized">✓</span>' : "";
           var sub = [];
           if (it.brand) sub.push(esc(it.brand));
-          if (it.partner) sub.push("рџ‘¤ " + esc(it.partner));
+          if (it.partner) sub.push("👤 " + esc(it.partner));
           if (it.notes) sub.push(esc(it.notes));
           c.innerHTML =
             avatarHtml(it) +
             '<span class="partner-row-text">' +
-              '<span class="partner-row-name">' + esc(it.name) + " " + badge + (it.archived ? ' <span class="muted">(Р°СЂС…РёРІ)</span>' : "") + "</span>" +
-              (sub.length ? '<span class="partner-row-notes">' + sub.join(" В· ") + "</span>" : "") +
+              '<span class="partner-row-name">' + esc(it.name) + " " + badge + (it.archived ? ' <span class="muted">(архив)</span>' : "") + "</span>" +
+              (sub.length ? '<span class="partner-row-notes">' + sub.join(" · ") + "</span>" : "") +
             "</span>";
           c.addEventListener("click", function () { catalogEditReturn = "catalog"; openCatalogEdit(it.id, it.kind); });
           list.appendChild(c);
@@ -1012,7 +1012,7 @@
     var isFantasy = catalogEditKind === "fantasy";
     $("ce-brand-wrap").classList.toggle("hidden", !isToy);
     $("ce-archive").classList.toggle("hidden", !isToy);
-    if (isToy) $("ce-archive").textContent = catalogEditArchived ? "Р’РµСЂРЅСѓС‚СЊ РёР· Р°СЂС…РёРІР°" : "Р’ Р°СЂС…РёРІ";
+    if (isToy) $("ce-archive").textContent = catalogEditArchived ? "Вернуть из архива" : "В архив";
     $("ce-partner-wrap").classList.toggle("hidden", !isFantasy);
   }
 
@@ -1020,7 +1020,7 @@
     DB.getAllPartners().then(function (partners) {
       var sel = $("ce-partner");
       if (!sel) return;
-      sel.innerHTML = '<option value="">вЂ”</option>';
+      sel.innerHTML = '<option value="">—</option>';
       partners.forEach(function (p) {
         var o = document.createElement("option");
         o.value = p.name;
@@ -1071,7 +1071,7 @@
 
   function saveCatalogEdit() {
     var name = $("ce-name").value.trim();
-    if (!name) { toast("РЈРєР°Р¶РёС‚Рµ РЅР°Р·РІР°РЅРёРµ"); return; }
+    if (!name) { toast("Укажите название"); return; }
     var wasNew = !editingCatalogId;
     var nowIso = new Date().toISOString();
     var promise;
@@ -1091,7 +1091,7 @@
       });
     } else {
       promise = DB.putCatalogItem({
-        id: uuid(), kind: catalogEditKind, name: name,
+        kind: catalogEditKind, name: name,
         notes: $("ce-notes").value.trim(), brand: catalogEditBrand, archived: !!catalogEditArchived,
         partner: catalogEditPartner,
         photo: catalogEditPhotoData,
@@ -1099,7 +1099,7 @@
       });
     }
     promise.then(function () {
-      toast("РЎРѕС…СЂР°РЅРµРЅРѕ");
+      toast("Сохранено");
       if (catalogEditReturn === "wizard") {
         if (wasNew) {
           var field = KIND_FIELD[catalogEditKind];
@@ -1116,17 +1116,17 @@
 
   function deleteCatalogEdit() {
     if (!editingCatalogId) return;
-    confirmDialog("РЈРґР°Р»РёС‚СЊ?").then(function (ok) {
+    confirmDialog("Удалить?").then(function (ok) {
       if (!ok) return;
       DB.deleteCatalogItem(editingCatalogId).then(function () {
-        toast("РЈРґР°Р»РµРЅРѕ");
+        toast("Удалено");
         if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
         else { showView("catalog"); renderCatalog(); }
       });
     });
   }
 
-  // ---- РїСЂРѕСЃРјРѕС‚СЂ Р·Р°РїРёСЃРё + СЃРѕРјР°С‚РёРєР° ----
+  // ---- просмотр записи + соматика ----
   function openDetail(id) {
     detailRecordId = id;
     detailMetric = "hr";
@@ -1141,18 +1141,18 @@
       var body = $("detail-body");
       var org = (r.orgasmsMe || 0) + (r.orgasmsPartner || 0);
       var meta = [];
-      if (r.partner) meta.push("рџ‘¤ " + esc(r.partner));
-      if (r.place) meta.push("рџ“Ќ " + esc(r.place));
-      meta.push("вЏ± " + (r.durationMin || 0) + " РјРёРЅ");
+      if (r.partner) meta.push("👤 " + esc(r.partner));
+      if (r.place) meta.push("📍 " + esc(r.place));
+      meta.push("⏱ " + (r.durationMin || 0) + " мин");
 
       var chips = [];
       (r.positions || []).forEach(function (p) { chips.push('<span class="chip-mini">' + esc(p) + "</span>"); });
-      (r.costumes || []).forEach(function (x) { chips.push('<span class="chip-mini">рџ§Ґ ' + esc(x) + "</span>"); });
-      (r.toys || []).forEach(function (x) { chips.push('<span class="chip-mini">рџ§ё ' + esc(x) + "</span>"); });
-      (r.fantasies || []).forEach(function (x) { chips.push('<span class="chip-mini">вњЁ ' + esc(x) + "</span>"); });
+      (r.costumes || []).forEach(function (x) { chips.push('<span class="chip-mini">🧥 ' + esc(x) + "</span>"); });
+      (r.toys || []).forEach(function (x) { chips.push('<span class="chip-mini">🧸 ' + esc(x) + "</span>"); });
+      (r.fantasies || []).forEach(function (x) { chips.push('<span class="chip-mini">✨ ' + esc(x) + "</span>"); });
       if ((r.contraceptives || []).length) {
-        var contraTxt = "рџЌҐ " + (r.contraceptives || []).join(", ");
-        if ((r.contraceptiveCount || 0) > 1) contraTxt += " Г—" + r.contraceptiveCount;
+        var contraTxt = "🍥 " + (r.contraceptives || []).join(", ");
+        if ((r.contraceptiveCount || 0) > 1) contraTxt += " ×" + r.contraceptiveCount;
         chips.push('<span class="chip-mini">' + esc(contraTxt) + "</span>");
       }
       (r.tags || []).forEach(function (x) { chips.push('<span class="chip-mini tag">#' + esc(x) + "</span>"); });
@@ -1160,11 +1160,11 @@
       body.innerHTML =
         '<div class="detail-head">' +
           '<div class="detail-date">' +
-            (r.garmin ? '<span class="garmin-badge">вЊљ</span>' : "") +
+            (r.garmin ? '<span class="garmin-badge">⌚</span>' : "") +
             esc(fmtDateTime(r.startedAt)) +
-            (org ? ' <span class="record-org">рџ’— ' + org + "</span>" : "") +
+            (org ? ' <span class="record-org">💗 ' + org + "</span>" : "") +
           "</div>" +
-          '<div class="record-meta">' + meta.join(" В· ") + "</div>" +
+          '<div class="record-meta">' + meta.join(" · ") + "</div>" +
           (chips.length ? '<div class="record-chips">' + chips.join("") + "</div>" : "") +
         "</div>";
 
@@ -1208,16 +1208,16 @@
       }
       var summary =
         '<div class="act-summary">' +
-          row("Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ", (r.durationMin || 0) + " РјРёРЅ") +
-          row("РџСѓР»СЊСЃ (СЃСЂ / РјР°РєСЃ)", hrAvg != null ? hrAvg + " / " + hrMax : "вЂ”") +
-          row("Body Battery", (bbFirst != null && bbLast != null) ? bbFirst + " в†’ " + bbLast + " (" + (bbLast - bbFirst) + ")" : "вЂ”") +
-          row("РЎС‚СЂРµСЃСЃ Р·Р° РґРµРЅСЊ", stress != null ? stress : "вЂ”") +
-          row("РЎРѕРЅ", (sl && sl.score != null) ? sl.score + " (" + ((sl.durationMin || 0) / 60).toFixed(1) + " С‡)" : "вЂ”") +
-          row("HRV (РЅРѕС‡СЊ)", hrv != null ? hrv : "вЂ”") +
+          row("Длительность", (r.durationMin || 0) + " мин") +
+          row("Пульс (ср / макс)", hrAvg != null ? hrAvg + " / " + hrMax : "—") +
+          row("Body Battery", (bbFirst != null && bbLast != null) ? bbFirst + " → " + bbLast + " (" + (bbLast - bbFirst) + ")" : "—") +
+          row("Стресс за день", stress != null ? stress : "—") +
+          row("Сон", (sl && sl.score != null) ? sl.score + " (" + ((sl.durationMin || 0) / 60).toFixed(1) + " ч)" : "—") +
+          row("HRV (ночь)", hrv != null ? hrv : "—") +
         "</div>";
 
       el.innerHTML =
-        "<h2>РЎРѕРјР°С‚РёРєР°</h2>" + summary +
+        "<h2>Соматика</h2>" + summary +
         '<div class="chips-grid" id="metric-chips"></div>' +
         '<div class="chips-grid" id="window-chips" style="margin-top:8px"></div>' +
         '<div class="chart-wrap"><canvas id="somatic-canvas"></canvas></div>' +
@@ -1238,7 +1238,7 @@
         var b = document.createElement("button");
         b.type = "button";
         b.className = "chip-toggle" + (detailWindow === w ? " on" : "");
-        b.textContent = "В±" + w + " РјРёРЅ";
+        b.textContent = "±" + w + " мин";
         b.addEventListener("click", function () { detailWindow = w; renderDetail(); });
         wc.appendChild(b);
       });
@@ -1247,8 +1247,8 @@
       var s = $("somatic-stats");
       if (stats.count) {
         var m = METRIC_META[detailMetric];
-        s.textContent = "РјРёРЅ " + Math.round(stats.min) + " В· СЃСЂ " + Math.round(stats.avg) +
-          " В· РјР°РєСЃ " + Math.round(stats.max) + (m.unit ? " " + m.unit : "") + " В· С‚РѕС‡РµРє " + stats.count;
+        s.textContent = "мин " + Math.round(stats.min) + " · ср " + Math.round(stats.avg) +
+          " · макс " + Math.round(stats.max) + (m.unit ? " " + m.unit : "") + " · точек " + stats.count;
       } else {
         s.textContent = "";
       }
@@ -1277,7 +1277,7 @@
       ctx.fillStyle = "#a49db4";
       ctx.font = "14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("РќРµС‚ РґР°РЅРЅС‹С… РІ СЌС‚РѕРј РѕРєРЅРµ", cssW / 2, cssH / 2);
+      ctx.fillText("Нет данных в этом окне", cssW / 2, cssH / 2);
       return { min: null, avg: null, max: null, count: 0 };
     }
 
@@ -1333,7 +1333,7 @@
     return { min: min, avg: avg, max: max, count: vals.length };
   }
 
-  // ---- РёРјРїРѕСЂС‚ СЃРѕРјР°С‚РёРєРё/СЃРЅР° ----
+  // ---- импорт соматики/сна ----
   function parseSomaticCsv(text) {
     text = String(text || "").replace(/^\uFEFF/, "");
     var rows = CSV.parse(text);
@@ -1401,20 +1401,20 @@
   function importSomaticFile(file) {
     file.text().then(function (text) {
       var pts = parseSomaticCsv(text);
-      if (!pts.length) { toast("РќРµС‚ РґР°РЅРЅС‹С… РІ С„Р°Р№Р»Рµ"); return; }
-      DB.putSomaticBatch(pts).then(function () { toast("РЎРѕРјР°С‚РёРєР°: " + pts.length + " С‚РѕС‡РµРє"); });
-    }).catch(function (e) { toast("РћС€РёР±РєР°: " + e.message); });
+      if (!pts.length) { toast("Нет данных в файле"); return; }
+      DB.putSomaticBatch(pts).then(function () { toast("Соматика: " + pts.length + " точек"); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
   function importSleepFile(file) {
     file.text().then(function (text) {
       var rows = parseSleepCsv(text);
-      if (!rows.length) { toast("РќРµС‚ РґР°РЅРЅС‹С… РІ С„Р°Р№Р»Рµ"); return; }
-      DB.putSleepBatch(rows).then(function () { toast("РЎРѕРЅ: " + rows.length + " Р·Р°РїРёСЃРµР№"); });
-    }).catch(function (e) { toast("РћС€РёР±РєР°: " + e.message); });
+      if (!rows.length) { toast("Нет данных в файле"); return; }
+      DB.putSleepBatch(rows).then(function () { toast("Сон: " + rows.length + " записей"); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
-  // ---- РёРјРїРѕСЂС‚ Garmin (РґРёР°Р»РѕРі СЃ Р°РІС‚РѕРѕРїСЂРµРґРµР»РµРЅРёРµРј) ----
+  // ---- импорт Garmin (диалог с автоопределением) ----
   function parseUSDate(s) {
     var parts = String(s || "").trim().split("/");
     if (parts.length !== 3) return null;
@@ -1441,8 +1441,8 @@
   }
   function parseDurationRu(s) {
     var str = String(s || "").toLowerCase();
-    var hm = /(\d+)\s*С‡/.exec(str);
-    var mm = /(\d+)\s*РјРёРЅ/.exec(str);
+    var hm = /(\d+)\s*ч/.exec(str);
+    var mm = /(\d+)\s*мин/.exec(str);
     var h = hm ? parseInt(hm[1], 10) : 0;
     var m = mm ? parseInt(mm[1], 10) : 0;
     return h * 60 + m;
@@ -1480,7 +1480,7 @@
       var first = parsePart(parts[0], null);
       var second = parsePart(parts[1], first.month);
       if (!first.month || isNaN(first.day) || isNaN(second.day)) continue;
-      // Сѓ СЃС‚СЂРѕРє РїСЂРѕС€Р»РѕРіРѕ РіРѕРґР° Garmin РґРѕР±Р°РІР»СЏРµС‚ РєРѕР»РѕРЅРєСѓ СЃ РіРѕРґРѕРј: "Р”РµРє 25-31, 2025,76,..."
+      // у строк прошлого года Garmin добавляет колонку с годом: "Дек 25-31, 2025,76,..."
       var hasYear = /^\s*\d{4}\s*$/.test(String(row[1]));
       var year = hasYear ? parseInt(row[1], 10) : currentYear;
       var score = hasYear ? row[2] : row[1];
@@ -1505,9 +1505,9 @@
     var joined = header.join(" ").toLowerCase();
     if (header.indexOf("timestamp") !== -1 || header.indexOf("time") !== -1 || header.indexOf("t") !== -1 || header.indexOf("datetime") !== -1) return "somatic_minute";
     if (header.indexOf("date") !== -1 && (joined.indexOf("sleep") !== -1 || header.indexOf("sleep_score") !== -1 || header.indexOf("duration_min") !== -1 || header.indexOf("deep_min") !== -1)) return "sleep_daily";
-    if (header[0] === "РґР°С‚Р°" && (joined.indexOf("СЃСЂРµРґ") !== -1 || joined.indexOf("РєР°С‡РµСЃС‚РІ") !== -1 || joined.indexOf("СЂРµР·") !== -1)) return "sleep_weekly";
-    if (joined.indexOf("СЃС‚СЂРµСЃСЃ") !== -1) return "stress_weekly";
-    if (joined.indexOf("РїРѕРєРѕР№") !== -1 || joined.indexOf("РїСѓР»СЊСЃР°") !== -1) return "resting_weekly";
+    if (header[0] === "дата" && (joined.indexOf("сред") !== -1 || joined.indexOf("качеств") !== -1 || joined.indexOf("рез") !== -1)) return "sleep_weekly";
+    if (joined.indexOf("стресс") !== -1) return "stress_weekly";
+    if (joined.indexOf("покой") !== -1 || joined.indexOf("пульса") !== -1) return "resting_weekly";
     return null;
   }
 
@@ -1536,19 +1536,19 @@
     file.text().then(function (text) {
       var rows = CSV.parse(String(text || "").replace(/^\uFEFF/, ""));
       var type = detectImportType(rows);
-      if (!type) { toast("Р¤РѕСЂРјР°С‚ РЅРµ СЂР°СЃРїРѕР·РЅР°РЅ"); return; }
+      if (!type) { toast("Формат не распознан"); return; }
       var items, label;
-      if (type === "stress_weekly") { items = parseGarminTwoCol(text, "stress"); label = "РќРµРґРµР»СЊРЅС‹Р№ СЃС‚СЂРµСЃСЃ"; }
-      else if (type === "resting_weekly") { items = parseGarminTwoCol(text, "resting_hr"); label = "РџСѓР»СЊСЃ РїРѕРєРѕСЏ (РЅРµРґРµР»Рё)"; }
-      else if (type === "sleep_weekly") { items = parseSleepWeekly(text); label = "РЎРѕРЅ (РЅРµРґРµР»Рё)"; }
-      else if (type === "somatic_minute") { items = parseSomaticCsv(text); label = "РЎРѕРјР°С‚РёРєР° (РјРёРЅСѓС‚С‹)"; }
-      else if (type === "sleep_daily") { items = parseSleepCsv(text); label = "РЎРѕРЅ (РґРЅРё)"; }
-      if (!items.length) { toast("РќРµС‚ РґР°РЅРЅС‹С… РІ С„Р°Р№Р»Рµ"); return; }
+      if (type === "stress_weekly") { items = parseGarminTwoCol(text, "stress"); label = "Недельный стресс"; }
+      else if (type === "resting_weekly") { items = parseGarminTwoCol(text, "resting_hr"); label = "Пульс покоя (недели)"; }
+      else if (type === "sleep_weekly") { items = parseSleepWeekly(text); label = "Сон (недели)"; }
+      else if (type === "somatic_minute") { items = parseSomaticCsv(text); label = "Соматика (минуты)"; }
+      else if (type === "sleep_daily") { items = parseSleepCsv(text); label = "Сон (дни)"; }
+      if (!items.length) { toast("Нет данных в файле"); return; }
       pendingImport = { type: type, items: items };
-      $("import-type").textContent = label + " В· " + items.length + " Р·Р°РїРёСЃРµР№";
+      $("import-type").textContent = label + " · " + items.length + " записей";
       $("import-preview").textContent = JSON.stringify(items.slice(0, 3));
       $("import-result").classList.remove("hidden");
-    }).catch(function (e) { toast("РћС€РёР±РєР°: " + e.message); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
   function applyImport() {
@@ -1561,17 +1561,17 @@
     else if (t === "somatic_minute") p = DB.putSomaticBatch(items);
     else if (t === "sleep_daily") p = DB.putSleepBatch(items);
     p.then(function () {
-      toast("РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ: " + items.length);
+      toast("Импортировано: " + items.length);
       pendingImport = null;
       $("import-result").classList.add("hidden");
-    }).catch(function (e) { toast("РћС€РёР±РєР°: " + e.message); });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
-  // ---- С‚СЂРµРЅРґС‹ ----
+  // ---- тренды ----
   function fmtDur(min) {
     if (min == null) return "";
     var m = min % 60, h = Math.floor(min / 60);
-    return (h ? h + "С‡ " : "") + (m ? m + "РјРёРЅ" : (h ? "" : "0РјРёРЅ"));
+    return (h ? h + "ч " : "") + (m ? m + "мин" : (h ? "" : "0мин"));
   }
 
   function openTrends() { showView("trends"); renderTrends(); }
@@ -1606,20 +1606,20 @@
       if (trendMetric === "sleep") {
         var pts = sleep.filter(function (s) { return s.score != null; }).map(function (s) { return { t: s.end, val: s.score }; });
         drawWeeklyChart(canvas, pts, TREND_META.sleep.color);
-        $("trend-stats").textContent = sleep.length ? "РќРµРґРµР»СЊ: " + sleep.length : "";
+        $("trend-stats").textContent = sleep.length ? "Недель: " + sleep.length : "";
         sleep.forEach(function (s) {
           var row = document.createElement("div");
           row.className = "sleep-card";
           row.innerHTML =
             '<div class="sleep-title">' + esc(s.label) + "</div>" +
-            '<div class="sleep-line">РћС†РµРЅРєР°: <b>' + (s.score != null ? s.score : "вЂ”") + "</b> В· " + esc(s.quality || "") + " В· " + fmtDur(s.durationMin) + "</div>";
+            '<div class="sleep-line">Оценка: <b>' + (s.score != null ? s.score : "—") + "</b> · " + esc(s.quality || "") + " · " + fmtDur(s.durationMin) + "</div>";
           list.appendChild(row);
         });
       } else {
         var field = TREND_META[trendMetric].field;
         var pts2 = weekly.filter(function (w) { return w[field] != null; }).map(function (w) { return { t: w.date, val: w[field] }; });
         drawWeeklyChart(canvas, pts2, TREND_META[trendMetric].color);
-        $("trend-stats").textContent = pts2.length ? "РќРµРґРµР»СЊ: " + pts2.length : "";
+        $("trend-stats").textContent = pts2.length ? "Недель: " + pts2.length : "";
       }
     });
   }
@@ -1640,7 +1640,7 @@
       ctx.fillStyle = "#a49db4";
       ctx.font = "14px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("РќРµС‚ РґР°РЅРЅС‹С…", cssW / 2, cssH / 2);
+      ctx.fillText("Нет данных", cssW / 2, cssH / 2);
       return;
     }
 
@@ -1673,8 +1673,7 @@
     ctx.textAlign = "center"; ctx.fillText(pts[Math.floor(pts.length / 2)].t.slice(2), cssW / 2, cssH - 4);
     ctx.textAlign = "right"; ctx.fillText(pts[pts.length - 1].t.slice(2), cssW - 4, cssH - 4);
   }
-
-  // ---- РєРѕСЂСЂРµР»СЏС†РёРё ----
+  // ---- корреляции ----
   function pearson(xs, ys) {
     var n = xs.length;
     if (n < 3) return null;
@@ -1699,7 +1698,7 @@
       var summary = $("corr-summary");
       var table = $("corr-table");
       if (records.length < 3) {
-        summary.textContent = "РќСѓР¶РЅРѕ С…РѕС‚СЏ Р±С‹ 3 Р·Р°РїРёСЃРё.";
+        summary.textContent = "Нужно хотя бы 3 записи.";
         table.innerHTML = "";
         return;
       }
@@ -1725,17 +1724,17 @@
         });
       });
       Promise.all(tasks).then(function (rows) {
-        var html = '<table class="corr-table"><thead><tr><th>Р”Р°С‚Р°</th><th>РњРёРЅ</th><th>РћСЂРі</th><th>РџСѓР»СЊСЃ</th><th>РњР°РєСЃ</th><th>BB О”</th><th>РЎРѕРЅ</th><th>РЎС‚СЂРµСЃСЃ</th></tr></thead><tbody>';
+        var html = '<table class="corr-table"><thead><tr><th>Дата</th><th>Мин</th><th>Орг</th><th>Пульс</th><th>Макс</th><th>BB Δ</th><th>Сон</th><th>Стресс</th></tr></thead><tbody>';
         rows.forEach(function (x) {
           var org = (x.r.orgasmsMe || 0) + (x.r.orgasmsPartner || 0);
           html += "<tr><td>" + esc(String(x.r.startedAt || "").slice(0, 10)) + "</td>" +
             "<td>" + (x.r.durationMin || 0) + "</td>" +
             "<td>" + org + "</td>" +
-            "<td>" + (x.avgHr != null ? Math.round(x.avgHr) : "вЂ”") + "</td>" +
-            "<td>" + (x.maxHr != null ? x.maxHr : "вЂ”") + "</td>" +
-            "<td>" + (x.bbDrop != null ? x.bbDrop : "вЂ”") + "</td>" +
-            "<td>" + (x.sleepScore != null ? x.sleepScore : "вЂ”") + "</td>" +
-            "<td>" + (x.stress != null ? x.stress : "вЂ”") + "</td></tr>";
+            "<td>" + (x.avgHr != null ? Math.round(x.avgHr) : "—") + "</td>" +
+            "<td>" + (x.maxHr != null ? x.maxHr : "—") + "</td>" +
+            "<td>" + (x.bbDrop != null ? x.bbDrop : "—") + "</td>" +
+            "<td>" + (x.sleepScore != null ? x.sleepScore : "—") + "</td>" +
+            "<td>" + (x.stress != null ? x.stress : "—") + "</td></tr>";
         });
         html += "</tbody></table>";
         table.innerHTML = html;
@@ -1747,13 +1746,13 @@
           var c = pearson(arr.map(function (x) { return x.r.durationMin || 0; }), arr.map(function (x) { return x[field]; }));
           if (c != null) coefs.push({ label: label, c: c, n: arr.length });
         }
-        addCoef("avgHr", "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ в†” РїСѓР»СЊСЃ СЃСЂ");
-        addCoef("maxHr", "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ в†” РїСѓР»СЊСЃ РјР°РєСЃ");
-        addCoef("stress", "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ в†” СЃС‚СЂРµСЃСЃ Р·Р° РґРµРЅСЊ");
-        addCoef("sleepScore", "Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ в†” РѕС†РµРЅРєР° СЃРЅР°");
+        addCoef("avgHr", "Длительность ↔ пульс ср");
+        addCoef("maxHr", "Длительность ↔ пульс макс");
+        addCoef("stress", "Длительность ↔ стресс за день");
+        addCoef("sleepScore", "Длительность ↔ оценка сна");
 
         if (!coefs.length) {
-          summary.textContent = "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РґР°РЅРЅС‹С… РґР»СЏ РєРѕСЌС„С„РёС†РёРµРЅС‚РѕРІ.";
+          summary.textContent = "Недостаточно данных для коэффициентов.";
           return;
         }
         summary.innerHTML = coefs.map(function (x) {
@@ -1842,33 +1841,33 @@
       a.click();
       a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-      toast("Р­РєСЃРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ РІ CSV");
+      toast("Экспортировано в CSV");
     });
   }
 
   function importCsvFile(file) {
     file.text().then(function (text) {
       var records = csvToRecords(text);
-      if (!records.length) { toast("CSV РїСѓСЃС‚ РёР»Рё РЅРµ СЂР°СЃРїРѕР·РЅР°РЅ"); return; }
+      if (!records.length) { toast("CSV пуст или не распознан"); return; }
       var chain = Promise.resolve();
       records.forEach(function (rec) { chain = chain.then(function () { return DB.putRecord(rec); }); });
       chain.then(function () {
-        toast("РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ Р·Р°РїРёСЃРµР№: " + records.length);
+        toast("Импортировано записей: " + records.length);
         renderJournal();
       });
-    }).catch(function (e) { toast("РћС€РёР±РєР° РёРјРїРѕСЂС‚Р°: " + e.message); });
+    }).catch(function (e) { toast("Ошибка импорта: " + e.message); });
   }
 
-  // ---- РњРёРіСЂР°С†РёСЏ IndexedDB в†’ Р±СЌРєРµРЅРґ (FE-003) ----
+  // ---- Миграция IndexedDB → бэкенд (FE-003) ----
   var migrating = false;
   function forEachSeq(list, fn) {
     return list.reduce(function (p, item) { return p.then(function () { return fn(item); }); }, Promise.resolve());
   }
   function migrateData() {
-    if (migrating) { toast("РњРёРіСЂР°С†РёСЏ СѓР¶Рµ РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ"); return; }
-    if (!window.confirm("РџРµСЂРµРЅРµСЃС‚Рё Р»РѕРєР°Р»СЊРЅС‹Рµ РґР°РЅРЅС‹Рµ (Р¶СѓСЂРЅР°Р»/РїР°СЂС‚РЅС‘СЂС‹/РєР°С‚Р°Р»РѕРі) РІ Р±СЌРєРµРЅРґ? РџРѕРІС‚РѕСЂРЅС‹Р№ Р·Р°РїСѓСЃРє РїСЂРѕРїСѓСЃС‚РёС‚ РґСѓР±Р»Рё.")) return;
+    if (migrating) { toast("Миграция уже выполняется"); return; }
+    if (!window.confirm("Перенести локальные данные (журнал/партнёры/каталог) в бэкенд? Повторный запуск пропустит дубли.")) return;
     migrating = true;
-    toast("РњРёРіСЂР°С†РёСЏ РЅР°С‡Р°С‚Р°вЂ¦");
+    toast("Миграция начата…");
     var nameToId = {};
     var n = { partners: 0, catalog: 0, records: 0, skipped: 0 };
 
@@ -1905,20 +1904,20 @@
       })
       .then(function () {
         migrating = false;
-        toast("РњРёРіСЂР°С†РёСЏ: РїР°СЂС‚РЅС‘СЂРѕРІ " + n.partners + ", РєР°С‚Р°Р»РѕРіР° " + n.catalog + ", Р·Р°РїРёСЃРµР№ " + n.records + " (РїСЂРѕРїСѓС‰РµРЅРѕ " + n.skipped + ")");
+        toast("Миграция: партнёров " + n.partners + ", каталога " + n.catalog + ", записей " + n.records + " (пропущено " + n.skipped + ")");
         renderJournal(); renderPartners(); renderCatalog();
       })
       .catch(function (e) {
         migrating = false;
-        toast("РћС€РёР±РєР° РјРёРіСЂР°С†РёРё: " + e.message);
+        toast("Ошибка миграции: " + e.message);
       });
   }
 
-  // ---- PIN (РґРёР°Р»РѕРі) ----
+  // ---- PIN (диалог) ----
   function refreshPinStatus() {
     Pin.hasPin().then(function (has) {
-      $("pin-status").textContent = has ? "PIN-РєРѕРґ СѓСЃС‚Р°РЅРѕРІР»РµРЅ" : "PIN-РєРѕРґ РЅРµ СѓСЃС‚Р°РЅРѕРІР»РµРЅ";
-      $("btn-pin-open").textContent = has ? "РЎРјРµРЅРёС‚СЊ PIN" : "РЈСЃС‚Р°РЅРѕРІРёС‚СЊ PIN";
+      $("pin-status").textContent = has ? "PIN-код установлен" : "PIN-код не установлен";
+      $("btn-pin-open").textContent = has ? "Сменить PIN" : "Установить PIN";
     });
   }
   function openPinDialog() {
@@ -1940,17 +1939,17 @@
       var proceed = Promise.resolve(true);
       if (has) {
         proceed = Pin.verifyPin(cur).then(function (ok) {
-          if (!ok) { toast("РўРµРєСѓС‰РёР№ PIN РЅРµРІРµСЂРµРЅ"); return false; }
+          if (!ok) { toast("Текущий PIN неверен"); return false; }
           return true;
         });
       }
       proceed.then(function (ok) {
         if (!ok) return;
-        if (!Pin.isValidPin(nw)) { toast("РќРѕРІС‹Р№ PIN: 4вЂ“8 С†РёС„СЂ"); return; }
-        if (nw !== cf) { toast("PIN РЅРµ СЃРѕРІРїР°РґР°СЋС‚"); return; }
+        if (!Pin.isValidPin(nw)) { toast("Новый PIN: 4–8 цифр"); return; }
+        if (nw !== cf) { toast("PIN не совпадают"); return; }
         Pin.setPin(nw).then(function () {
           Api.privacy.setPin(nw).catch(function () {});
-          toast("PIN СЃРѕС…СЂР°РЅС‘РЅ");
+          toast("PIN сохранён");
           $("pin-modal").classList.add("hidden");
           refreshPinStatus();
         });
@@ -1958,32 +1957,32 @@
     });
   }
   function removePinNow() {
-    confirmDialog("РЈРґР°Р»РёС‚СЊ PIN-РєРѕРґ?").then(function (ok) {
+    confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
       Pin.removePin().then(function () {
         Api.auth.logout();
         Api.privacy.removePin().catch(function () {});
-        toast("PIN СѓРґР°Р»С‘РЅ");
+        toast("PIN удалён");
         $("pin-modal").classList.add("hidden");
         refreshPinStatus();
       });
     });
   }
 
-  // ---- РїРѕР»РЅР°СЏ РѕС‡РёСЃС‚РєР° ----
+  // ---- полная очистка ----
   function wipeAll() {
-    confirmDialog("РЎС‚РµСЂРµС‚СЊ РІСЃРµ РґР°РЅРЅС‹Рµ (Р·Р°РїРёСЃРё, СЃРѕРјР°С‚РёРєСѓ, СЃРѕРЅ, С‚СЂРµРЅРґС‹) Рё PIN-РєРѕРґ? Р­С‚Рѕ РЅРµРѕР±СЂР°С‚РёРјРѕ.").then(function (ok) {
+    confirmDialog("Стереть все данные (записи, соматику, сон, тренды) и PIN-код? Это необратимо.").then(function (ok) {
       if (!ok) return;
       Promise.all([DB.clearRecords(), DB.clearSomatic(), DB.clearSleep(), DB.clearWeekly(), DB.clearSleepWeekly(), Pin.removePin()]).then(function () {
         Api.auth.logout();
-        toast("Р’СЃРµ РґР°РЅРЅС‹Рµ СѓРґР°Р»РµРЅС‹");
+        toast("Все данные удалены");
         renderJournal();
         refreshPinStatus();
       });
     });
   }
 
-  // ---- РёРЅРёС†РёР°Р»РёР·Р°С†РёСЏ ----
+  // ---- инициализация ----
   function init() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(function () {});
@@ -2015,10 +2014,10 @@
       fileToResizedDataUrl(f, 512).then(function (dataUrl) {
         partnerEditPhotoData = dataUrl;
         $("pe-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + dataUrl + '" alt="">';
-      }).catch(function () { toast("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕС‚Рѕ"); });
+      }).catch(function () { toast("Не удалось загрузить фото"); });
     });
 
-    // РєР°С‚Р°Р»РѕРі
+    // каталог
     $("btn-catalog-add").addEventListener("click", function () { catalogEditReturn = "catalog"; openCatalogEdit(null, catalogKind); });
     $("catalog-tabs").querySelectorAll("button").forEach(function (b) {
       b.addEventListener("click", function () {
@@ -2039,13 +2038,13 @@
       fileToResizedDataUrl(f, 512).then(function (dataUrl) {
         catalogEditPhotoData = dataUrl;
         $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + dataUrl + '" alt="">';
-      }).catch(function () { toast("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕС‚Рѕ"); });
+      }).catch(function () { toast("Не удалось загрузить фото"); });
     });
     $("ce-brand").addEventListener("input", function (e) { catalogEditBrand = e.target.value.trim(); });
     $("ce-partner").addEventListener("change", function (e) { catalogEditPartner = e.target.value; });
     $("ce-archive").addEventListener("click", function () {
       catalogEditArchived = !catalogEditArchived;
-      $("ce-archive").textContent = catalogEditArchived ? "Р’РµСЂРЅСѓС‚СЊ РёР· Р°СЂС…РёРІР°" : "Р’ Р°СЂС…РёРІ";
+      $("ce-archive").textContent = catalogEditArchived ? "Вернуть из архива" : "В архив";
     });
 
     $("btn-detail-back").addEventListener("click", function () { showView("journal"); });
@@ -2063,7 +2062,7 @@
     $("btn-wizard-close").addEventListener("click", function () { showView("journal"); });
     $("btn-wizard-prev").addEventListener("click", function () { if (wizardStep > 0) { wizardStep--; renderWizard(); } });
     $("btn-wizard-next").addEventListener("click", function () {
-      if (wizardStep === 0 && !draft.startedAt) { toast("РЈРєР°Р¶РёС‚Рµ РґР°С‚Сѓ Рё РІСЂРµРјСЏ"); return; }
+      if (wizardStep === 0 && !draft.startedAt) { toast("Укажите дату и время"); return; }
       if (wizardStep < STEPS.length - 1) { wizardStep++; renderWizard(); }
     });
     $("btn-wizard-save").addEventListener("click", saveWizard);
@@ -2095,9 +2094,9 @@
     if ($("api-base")) $("api-base").value = apiBase;
     $("api-base").addEventListener("change", function () {
       Api.config.setBase($("api-base").value.trim());
-      toast("РђРґСЂРµСЃ API СЃРѕС…СЂР°РЅС‘РЅ");
+      toast("Адрес API сохранён");
     });
-    // Р°РІС‚РѕР±Р»РѕРєРёСЂРѕРІРєР° РїРѕСЃР»Рµ РґРѕР»РіРѕРіРѕ СЃРєСЂС‹С‚РёСЏ РїСЂРёР»РѕР¶РµРЅРёСЏ
+    // автоблокировка после долгого скрытия приложения
     var hiddenAt = 0;
     document.addEventListener("visibilitychange", function () {
       if (document.hidden) hiddenAt = Date.now();
