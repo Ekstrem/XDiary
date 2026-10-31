@@ -1,7 +1,7 @@
 // RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
 //
-// Диагностика: на падении печатаем `::error::` с шагом, ошибкой и снимком DOM —
-// GitHub превращает это в аннотацию, читаемую без токена.
+// Диагностика: на падении печатаем `::error::` с шагом, ошибкой, снимком DOM и
+// журналом мок-вызовов — GitHub превращает это в аннотацию, читаемую без токена.
 const { test, expect } = require('@playwright/test');
 
 let lastStep = 'init';
@@ -15,6 +15,7 @@ test('Добавить партнёра: сохранение и появлен�
   await page.addInitScript(() => {
     const partners = [];
     window.__partners = partners;
+    window.__calls = [];
     const json = (body) => new Response(JSON.stringify(body), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -25,6 +26,8 @@ test('Добавить партнёра: сохранение и появлен�
       const url = String(typeof input === 'string' ? input : (input && input.url) || '');
       const method = String(opts.method || 'GET').toUpperCase();
       const path = url.replace(/^[a-z]+:\/\/[^/]+/i, '');
+      window.__calls.push(method + ' ' + path);
+
       if (path === '/api/v1/privacy/pin/has') return Promise.resolve(json(false));
       if (path === '/api/v1/privacy/token') return Promise.resolve(json({ accessToken: 't', refreshToken: 'r' }));
       if (path === '/api/v1/partners' && method === 'GET') return Promise.resolve(json(partners));
@@ -46,7 +49,6 @@ test('Добавить партнёра: сохранение и появлен�
   await page.goto('/');
   mark('loaded');
 
-  // Ждём появления таббара: его показывает showView("journal") из lock()/init().
   await expect(page.locator('#tabbar')).toBeVisible();
   mark('tabbar-visible');
 
@@ -91,16 +93,14 @@ test.afterEach(async ({ page }, testInfo) => {
         journal: vis('view-journal'),
         partners: vis('view-partners'),
         tabbar: vis('tabbar'),
-        pin: typeof window.Pin,
-        db: typeof window.DB,
-        api: typeof window.Api,
-        apiBase: localStorage.getItem('xdiary.apiBase'),
-        bodyClass: document.body.className,
+        partnersLen: (window.__partners || []).length,
+        calls: (window.__calls || []).slice(0, 20),
+        listHtml: (document.getElementById('partners-list') || {}).innerHTML,
       };
     });
   } catch (e) {
     snap = { evalError: String(e && e.message) };
   }
   const payload = { step: lastStep, error: err, dom: snap, errors: errors.slice(0, 6) };
-  console.log('::error::' + JSON.stringify(payload).replace(/[\r\n]+/g, ' ').slice(0, 900));
+  console.log('::error::' + JSON.stringify(payload).replace(/[\r\n]+/g, ' ').slice(0, 1200));
 });
