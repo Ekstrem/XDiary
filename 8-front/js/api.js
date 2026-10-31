@@ -58,8 +58,6 @@
 
   function get(p) { return request("GET", p); }
   function post(p, b) { return request("POST", p, b); }
-  function put(p, b) { return request("PUT", p, b); }
-  function del(p) { return request("DELETE", p); }
 
   window.Api = {
     config: {
@@ -86,7 +84,7 @@
       hasPin: function () { return get("/api/v1/privacy/pin/has"); },
       setPin: function (pin) { return post("/api/v1/privacy/pin/set", { pin: pin }); },
       verifyPin: function (pin) { return post("/api/v1/privacy/pin/verify", { pin: pin }); },
-      removePin: function () { return del("/api/v1/privacy/pin"); },
+      removePin: function () { return post("/api/v1/privacy/pin/remove"); },
       token: function (pin) { return post("/api/v1/privacy/token", { pin: pin }); }
     },
     somatic: {
@@ -104,7 +102,7 @@
       startFromGarmin: function (d) { return post("/api/v1/journal/records/from-garmin", d); },
       when: function (id, startedAt) { return post("/api/v1/journal/records/" + id + "/when", { startedAt: startedAt }); },
       addPartner: function (id, partnerId) { return post("/api/v1/journal/records/" + id + "/partners", { partnerId: partnerId }); },
-      removePartner: function (id, partnerId) { return del("/api/v1/journal/records/" + id + "/partners/" + partnerId); },
+      removePartner: function (id, partnerId) { return post("/api/v1/journal/records/" + id + "/partners/" + partnerId + "/remove"); },
       place: function (id, place) { return post("/api/v1/journal/records/" + id + "/place", { place: place }); },
       positions: function (id, positions) { return post("/api/v1/journal/records/" + id + "/positions", { positions: positions }); },
       accessories: function (id, d) { return post("/api/v1/journal/records/" + id + "/accessories", d); },
@@ -112,27 +110,27 @@
       duration: function (id, durationMin) { return post("/api/v1/journal/records/" + id + "/duration", { durationMin: durationMin }); },
       orgasms: function (id, orgasms) { return post("/api/v1/journal/records/" + id + "/orgasms", { orgasms: orgasms }); },
       complete: function (id) { return post("/api/v1/journal/records/" + id + "/complete"); },
-      remove: function (id) { return del("/api/v1/journal/records/" + id); }
+      remove: function (id) { return post("/api/v1/journal/records/" + id + "/delete"); }
     },
 
     partners: {
       list: function () { return get("/api/v1/partners"); },
       get: function (id) { return get("/api/v1/partners/" + id); },
       register: function (name) { return post("/api/v1/partners", { name: name }); },
-      rename: function (id, name) { return put("/api/v1/partners/" + id + "/name", { name: name }); },
-      profile: function (id, d) { return put("/api/v1/partners/" + id + "/profile", d); },
-      remove: function (id) { return del("/api/v1/partners/" + id); }
+      rename: function (id, name) { return post("/api/v1/partners/" + id + "/name", { name: name }); },
+      profile: function (id, d) { return post("/api/v1/partners/" + id + "/profile", d); },
+      remove: function (id) { return post("/api/v1/partners/" + id + "/remove"); }
     },
 
     catalog: {
       list: function () { return get("/api/v1/catalog"); },
       get: function (id) { return get("/api/v1/catalog/" + id); },
       add: function (kind, name) { return post("/api/v1/catalog", { kind: kind, name: name }); },
-      rename: function (id, name) { return put("/api/v1/catalog/" + id + "/name", { name: name }); },
-      details: function (id, d) { return put("/api/v1/catalog/" + id + "/details", d); },
+      rename: function (id, name) { return post("/api/v1/catalog/" + id + "/name", { name: name }); },
+      details: function (id, d) { return post("/api/v1/catalog/" + id + "/details", d); },
       archive: function (id) { return post("/api/v1/catalog/" + id + "/archive"); },
       restore: function (id) { return post("/api/v1/catalog/" + id + "/restore"); },
-      remove: function (id) { return del("/api/v1/catalog/" + id); }
+      remove: function (id) { return post("/api/v1/catalog/" + id + "/remove"); }
     }
   };
 })();
