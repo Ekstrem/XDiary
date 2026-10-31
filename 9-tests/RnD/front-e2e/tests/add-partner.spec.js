@@ -1,13 +1,22 @@
 // RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
 //
-// Почему стаб fetch, а не page.route:
-//  - приложение по умолчанию ходит на кросс-доменный https://...ts.net;
-//  - PWA регистрирует sw.js, а service worker может перехватывать fetch ДО page.route.
-// Стаб window.fetch через addInitScript убирает сеть/CORS/SW из уравнения: тест
-// проверяет именно UI-логику (кнопки, роутинг видов, рендер списка).
+// Диагностика: на падении печатаем GitHub workflow-команду `::error::…` — она
+// превращается в аннотацию check-run, которую можно прочитать без токена.
 const { test, expect } = require('@playwright/test');
 
+let lastStep = 'init';
+
+test.afterEach(async ({}, testInfo) => {
+  if (testInfo.status !== testInfo.expectedStatus) {
+    const err = testInfo.error ? String(testInfo.error.message || testInfo.error) : 'unknown error';
+    const msg = ('front-e2e FAILED at [' + lastStep + '] :: ' + err).replace(/[\r\n]+/g, ' ').slice(0, 900);
+    console.log('::error::' + msg);
+  }
+});
+
 test('Добавить партнёра: сохранение и появление в списке', async ({ page }) => {
+  const mark = (s) => { lastStep = s; console.log('== ' + s + ' =='); };
+
   page.on('console', (m) => console.log('[console]', m.type(), m.text()));
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
@@ -42,31 +51,32 @@ test('Добавить партнёра: сохранение и появлен�
     };
   });
 
-  console.log('== goto ==');
+  mark('goto');
   await page.goto('/');
-  console.log('== loaded, title:', await page.title());
+  mark('loaded:' + (await page.title()));
 
   await expect(page.locator('#view-journal')).toBeVisible();
-  console.log('== journal visible ==');
+  mark('journal-visible');
 
   await page.click('#tab-partners');
   await expect(page.locator('#view-partners')).toBeVisible();
-  console.log('== partners visible ==');
+  mark('partners-visible');
 
   await page.click('#btn-partner-add');
   await expect(page.locator('#view-partner-edit')).toBeVisible();
-  console.log('== partner-edit visible ==');
+  mark('partner-edit-visible');
 
   await page.fill('#pe-name', 'Аня');
   await page.click('#btn-partner-save');
-  console.log('== save clicked ==');
+  mark('save-clicked');
 
   await expect(page.locator('#view-partners')).toBeVisible();
-  console.log('== back to partners ==');
+  mark('back-to-partners');
 
   await expect(page.locator('#partners-list')).toContainText('Аня');
-  console.log('== partner in list ==');
+  mark('partner-in-list');
 
   const names = await page.evaluate(() => (window.__partners || []).map((p) => p.name));
   expect(names).toContain('Аня');
+  mark('done');
 });
