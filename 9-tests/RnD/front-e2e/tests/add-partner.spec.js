@@ -1,19 +1,16 @@
 // RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
 //
-// Мок максимально повторяет реальный контракт бэкенда:
-//   POST /api/v1/partners {name}            -> создаёт (Register), отдаёт {id,name}
-//   PUT  /api/v1/partners/{id}/name {name}  -> 404, если партнёра нет (Rename: "Partner not found.")
-//   PUT  /api/v1/partners/{id}/profile {...}-> 404, если партнёра нет
-// Диагностика падения — `::error::` с шагом, DOM и журналом вызовов (читается без токена).
+// Контракт BE-018: Command API — POST-only. Мок повторяет реальные маршруты:
+//   POST /api/v1/partners                    {name}  -> создаёт (Register)
+//   POST /api/v1/partners/{id}/name          {name}  -> 404, если нет (Rename)
+//   POST /api/v1/partners/{id}/profile       {...}   -> 404, если нет
+//   POST /api/v1/partners/{id}/remove        —       -> удаляет
+//   PUT/DELETE к Command API -> 405 (контракт больше не поддерживает)
+// Диагностика падения — `::error::` с шагом, DOM и журналом вызовов.
 const { test, expect } = require('@playwright/test');
 
 let lastStep = 'init';
 const errors = [];
-
-const jsonResp = (body, status = 200) => new Response(JSON.stringify(body), {
-  status,
-  headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-});
 
 test('Добавить партнёра: сохранение и появление в списке', async ({ page }) => {
   const mark = (s) => { lastStep = s; };
@@ -31,6 +28,7 @@ test('Добавить партнёра: сохранение и появлен�
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
     const notFound = () => json({ error: 'Partner not found.' }, 404);
+    const notAllowed = () => json({ error: 'Method Not Allowed' }, 405);
 
     window.fetch = function (input, init) {
       const opts = init || {};
@@ -51,18 +49,23 @@ test('Добавить партнёра: сохранение и появлен�
         return Promise.resolve(json(created));
       }
 
-      const m = path.match(/^\/api\/v1\/partners\/([^/]+)\/(name|profile)$/);
-      if (m && method === 'PUT') {
+      const m = path.match(/^\/api\/v1\/partners\/([^/]+)\/(name|profile|remove)$/);
+      if (m && method === 'POST') {
         const p = partners.find((x) => x.id === m[1]);
         if (!p) return Promise.resolve(notFound());
         if (m[2] === 'name') p.name = body.name || p.name;
-        else {
+        else if (m[2] === 'profile') {
           if (body.photo !== undefined) p.photo = body.photo;
           if (body.gender !== undefined) p.gender = body.gender;
           if (body.notes !== undefined) p.notes = body.notes;
+        } else {
+          partners.splice(partners.indexOf(p), 1);
         }
         return Promise.resolve(json(p));
       }
+
+      // BE-018: Command API больше не принимает PUT/DELETE.
+      if (method === 'PUT' || method === 'DELETE') return Promise.resolve(notAllowed());
 
       if (path === '/api/v1/journal/records') return Promise.resolve(json([]));
       if (path.indexOf('/local/') === 0 || path.indexOf('/activities') === 0) return Promise.resolve(json([]));
