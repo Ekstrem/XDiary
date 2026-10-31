@@ -1,11 +1,19 @@
 // RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
 //
-// Диагностика: на падении печатаем `::error::` с шагом, ошибкой, снимком DOM и
-// журналом мок-вызовов — GitHub превращает это в аннотацию, читаемую без токена.
+// Мок максимально повторяет реальный контракт бэкенда:
+//   POST /api/v1/partners {name}            -> создаёт (Register), отдаёт {id,name}
+//   PUT  /api/v1/partners/{id}/name {name}  -> 404, если партнёра нет (Rename: "Partner not found.")
+//   PUT  /api/v1/partners/{id}/profile {...}-> 404, если партнёра нет
+// Диагностика падения — `::error::` с шагом, DOM и журналом вызовов (читается без токена).
 const { test, expect } = require('@playwright/test');
 
 let lastStep = 'init';
 const errors = [];
+
+const jsonResp = (body, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+});
 
 test('Добавить партнёра: сохранение и появление в списке', async ({ page }) => {
   const mark = (s) => { lastStep = s; };
@@ -14,12 +22,15 @@ test('Добавить партнёра: сохранение и появлен�
 
   await page.addInitScript(() => {
     const partners = [];
+    let seq = 0;
     window.__partners = partners;
     window.__calls = [];
-    const json = (body) => new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
+
+    const json = (body, status = 200) => new Response(JSON.stringify(body), {
+      status,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
+    const notFound = () => json({ error: 'Partner not found.' }, 404);
 
     window.fetch = function (input, init) {
       const opts = init || {};
@@ -28,17 +39,31 @@ test('Добавить партнёра: сохранение и появлен�
       const path = url.replace(/^[a-z]+:\/\/[^/]+/i, '');
       window.__calls.push(method + ' ' + path);
 
+      let body = {};
+      try { body = JSON.parse(opts.body || '{}'); } catch (e) { body = {}; }
+
       if (path === '/api/v1/privacy/pin/has') return Promise.resolve(json(false));
       if (path === '/api/v1/privacy/token') return Promise.resolve(json({ accessToken: 't', refreshToken: 'r' }));
       if (path === '/api/v1/partners' && method === 'GET') return Promise.resolve(json(partners));
       if (path === '/api/v1/partners' && method === 'POST') {
-        let body = {};
-        try { body = JSON.parse(opts.body || '{}'); } catch (e) { body = {}; }
-        const created = { id: 'p' + (partners.length + 1), name: body.name || '', photo: '', gender: 'female', notes: '' };
+        const created = { id: 'srv-' + (++seq), name: body.name || '', photo: '', gender: 'female', notes: '' };
         partners.push(created);
         return Promise.resolve(json(created));
       }
-      if (path.indexOf('/api/v1/partners/') === 0 && method === 'PUT') return Promise.resolve(json({}));
+
+      const m = path.match(/^\/api\/v1\/partners\/([^/]+)\/(name|profile)$/);
+      if (m && method === 'PUT') {
+        const p = partners.find((x) => x.id === m[1]);
+        if (!p) return Promise.resolve(notFound());
+        if (m[2] === 'name') p.name = body.name || p.name;
+        else {
+          if (body.photo !== undefined) p.photo = body.photo;
+          if (body.gender !== undefined) p.gender = body.gender;
+          if (body.notes !== undefined) p.notes = body.notes;
+        }
+        return Promise.resolve(json(p));
+      }
+
       if (path === '/api/v1/journal/records') return Promise.resolve(json([]));
       if (path.indexOf('/local/') === 0 || path.indexOf('/activities') === 0) return Promise.resolve(json([]));
       return Promise.resolve(json({}));
@@ -92,6 +117,7 @@ test.afterEach(async ({ page }, testInfo) => {
         lock: vis('view-lock'),
         journal: vis('view-journal'),
         partners: vis('view-partners'),
+        partnerEdit: vis('view-partner-edit'),
         tabbar: vis('tabbar'),
         partnersLen: (window.__partners || []).length,
         calls: (window.__calls || []).slice(0, 20),
