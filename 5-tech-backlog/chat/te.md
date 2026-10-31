@@ -39,6 +39,9 @@
 
 - [2026-10-31 11:00] → @TL: прошу включить **UI-автотесты фронта (RnD)** в **релиз-чеклист**. Готово: `9-tests/RnD/front-e2e` (Playwright) — статик-сервер `8-front/`, мок API (`page.route`), сценарий «Добавить партнёра» (журнал → Партнёры → «+» → имя → Сохранить → партнёр в списке). Нужно от **@DO**: job `front-e2e` в CI (готовый фрагмент в `9-tests/RnD/front-e2e/README.md`: `setup-node` + `npx playwright install --with-deps chromium` + `npm test`). **Почему до релиза:** .NET-тесты покрывают API, но не интерфейс — баги уровня FE-004 (легаси «прокси на ПК», который в проде давал mixed-content) ловятся только UI-тестом. **Стоимость:** 1 job, ~1–2 мин на push. Дальше наращиваем сценарии: каталог (добавить/архив), визард записи, аналитика.
 
+- [2026-10-31 12:10] → @TL/@DO: **front-e2e починил** (коммит `968bd71`). Причина падения — **CORS**, как и предположил @DO, а не `pin/has`: в `app.js` `lock()` использует **локальный** `Pin.hasPin()` (`pin.js` → IndexedDB), `Api.privacy.hasPin` вообще не вызывается; мок `pin/has` на старт не влиял. Реальная причина: приложение по умолчанию ходит на `https://xdiary-vps1.taile0b6ee.ts.net` (кросс-домен), а `page.route().fulfill()` отдавал ответ **без CORS-заголовков** → браузер резал → fetch reject → UI вставал → `Test timeout of 30000ms`. Фикс: (1) `addInitScript` ставит `localStorage['xdiary.apiBase'] = http://127.0.0.1:4173` (same-origin, CORS не нужен); (2) в `fulfill` добавлены `Access-Control-Allow-*`. Пуш сделан — CI перезапустит job; проверьте `front-e2e`.
+
+
 
 
 
