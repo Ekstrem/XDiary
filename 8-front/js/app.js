@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.42"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.43"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -130,7 +130,7 @@
 
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
-    ["lock", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"].forEach(function (v) {
+    ["lock", "onboarding", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"].forEach(function (v) {
       $("view-" + v).classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
@@ -195,13 +195,45 @@
     showView("journal");
     renderJournal();
   }
+  // FE-018: после токена — если «я» не выбран, онбординг «кто ты», иначе журнал
+  function afterAuth() {
+    Api.partners.list().then(function (partners) {
+      var self = (partners || []).filter(function (p) { return p.self; })[0];
+      if (self) openJournal();
+      else openOnboarding(partners || []);
+    }).catch(function () { openJournal(); });
+  }
+  function openOnboarding(partners) {
+    showView("onboarding");
+    var list = $("onboarding-list");
+    list.innerHTML = "";
+    (partners || []).forEach(function (p) {
+      var c = document.createElement("button");
+      c.type = "button";
+      c.className = "partner-card";
+      c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
+      c.addEventListener("click", function () {
+        Api.partners.setSelf(p.id, true).then(function () {
+          toast("Это ты: " + p.name);
+          openJournal();
+        }, function (e) { toast("Ошибка: " + e.message); });
+      });
+      list.appendChild(c);
+    });
+  }
+  function renderSelfStatus() {
+    Api.partners.list().then(function (partners) {
+      var self = (partners || []).filter(function (p) { return p.self; })[0];
+      if ($("self-status")) $("self-status").textContent = self ? ("это " + self.name) : "не выбрано";
+    }).catch(function () {});
+  }
   function lock() {
     Pin.hasPin().then(function (hasPin) {
       if (!hasPin) {
         // FE-006/007: без локального PIN пробуем device-токен; если на стенде PIN (401) — просим PIN
-        Api.auth.login("").then(function () { openJournal(); }, function (err) {
+        Api.auth.login("").then(function () { afterAuth(); }, function (err) {
           if (err && err.status === 401) { showLockScreen(); return; }
-          openJournal();
+          afterAuth();
         });
         return;
       }
@@ -217,7 +249,7 @@
           $("pin-error").classList.add("hidden");
           $("pin-input").value = "";
           Pin.setPin(pin).catch(function () {});
-          openJournal();
+          afterAuth();
         }).catch(function () {
           $("pin-error").classList.remove("hidden");
           $("pin-input").value = "";
@@ -229,7 +261,7 @@
         if (ok) {
           $("pin-error").classList.add("hidden");
           $("pin-input").value = "";
-          ensureToken(pin).then(function () { openJournal(); }, function () { openJournal(); });
+          ensureToken(pin).then(function () { afterAuth(); }, function () { afterAuth(); });
         } else {
           $("pin-error").classList.remove("hidden");
           $("pin-input").value = "";
@@ -970,6 +1002,8 @@
       if (partnerEditReturn === "wizard") {
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
         reopenWizard();
+      } else if (partnerEditReturn === "onboarding") {
+        afterAuth();
       } else {
         showView("partners");
         renderPartners();
@@ -2042,7 +2076,7 @@
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });
     $("tab-catalog").addEventListener("click", function () { renderCatalog(); showView("catalog"); });
     $("tab-trends").addEventListener("click", function () { openTrends(); });
-    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); showView("settings"); });
+    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderSelfStatus(); showView("settings"); });
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
     $("btn-partner-edit-back").addEventListener("click", function () {
@@ -2091,6 +2125,19 @@
     });
 
     $("btn-detail-back").addEventListener("click", function () { showView("journal"); });
+    // FE-018: онбординг «кто ты» + «это я» в настройках
+    $("btn-onboarding-add").addEventListener("click", function () { partnerEditReturn = "onboarding"; openPartnerEdit(null); });
+    $("btn-onboarding-skip").addEventListener("click", function () { openJournal(); });
+    $("btn-self-change").addEventListener("click", function () {
+      Api.partners.list().then(function (l) { openOnboarding(l || []); });
+    });
+    $("btn-self-clear").addEventListener("click", function () {
+      Api.partners.list().then(function (l) {
+        var self = (l || []).filter(function (p) { return p.self; })[0];
+        if (!self) return;
+        Api.partners.setSelf(self.id, false).then(function () { toast("«я» снят"); renderSelfStatus(); }, function (e) { toast("Ошибка: " + e.message); });
+      });
+    });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
     $("btn-import-open").addEventListener("click", openImport);
     $("btn-import-back").addEventListener("click", function () { showView("settings"); });

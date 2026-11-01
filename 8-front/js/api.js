@@ -122,6 +122,7 @@
       register: function (name) { return post("/api/v1/partners", { name: name }); },
       rename: function (id, name) { return post("/api/v1/partners/" + id + "/name", { name: name }); },
       profile: function (id, d) { return post("/api/v1/partners/" + id + "/profile", d); },
+      setSelf: function (id, self) { return post("/api/v1/partners/" + id + "/self", { self: self }); },
       remove: function (id) { return post("/api/v1/partners/" + id + "/remove"); }
     },
 

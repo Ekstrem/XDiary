@@ -25,6 +25,21 @@
     </div>
   </section>
 
+  <!-- Онбординг: кто ты -->
+  <section id="view-onboarding" class="view hidden">
+    <header class="appbar">
+      <h1>Sex Diary</h1>
+      <div class="appbar-actions"><span class="hearts" aria-label="XDiary">❤️🖤</span></div>
+    </header>
+    <main class="content">
+      <div class="step-label">Кто ты?</div>
+      <p class="muted">Выбери себя среди партнёров или создай нового. Сменить можно в Настройках.</p>
+      <div id="onboarding-list" class="partner-grid"></div>
+      <button type="button" class="btn full" id="btn-onboarding-add">Создать партнёра</button>
+      <button type="button" class="btn full" id="btn-onboarding-skip">Пропустить</button>
+    </main>
+  </section>
+
   <!-- Журнал -->
   <section id="view-journal" class="view">
     <header class="appbar">
@@ -96,6 +111,13 @@
         <div class="btn-row" id="my-gender-row">
           <button type="button" class="btn gender-btn" id="my-gender-male">Мужской</button>
           <button type="button" class="btn gender-btn" id="my-gender-female">Женский</button>
+        </div>
+
+        <h2>Это я</h2>
+        <p id="self-status" class="muted">…</p>
+        <div class="btn-row">
+          <button class="btn" id="btn-self-change">Сменить «я»</button>
+          <button class="btn" id="btn-self-clear">Снять «я»</button>
         </div>
 
         <h2>Сервер (API)</h2>
