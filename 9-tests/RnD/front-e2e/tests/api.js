@@ -1,6 +1,8 @@
 // Хелпер настоящих E2E: живой API + реальный вход по PIN (как пользователь).
 // Стенд берётся из XDIARY_E2E_BASE_URL (в CI — VPS-2), PIN — из XDIARY_E2E_PIN.
-const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps1.taile0b6ee.ts.net').replace(/\/+$/, '');
+// ВАЖНО: дефолт — ТЕСТОВЫЙ стенд (VPS-2). Прод (VPS-1) — реальный дневник владельца;
+// случайный локальный прогон без env не должен в него писать.
+const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps2.taile0b6ee.ts.net').replace(/\/+$/, '');
 const PIN = process.env.XDIARY_E2E_PIN || '1234';
 
 // Приложение по умолчанию ходит на DEFAULT_BASE (VPS-1) — переключаем его на тестовый
