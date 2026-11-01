@@ -7,6 +7,17 @@ const { API_BASE, PIN } = require('./api');
 const RESIDUALS = ['5678', '0000', '1111', '4321', '12345678'];
 
 module.exports = async function globalSetup() {
+  try {
+    await checkPin();
+  } catch (e) {
+    // ошибка глобального сетапа не попадает в onTestEnd — печатаем ::error:: сами,
+    // иначе job падает «пустым» (как прогон 8efbc80: 56с, ни одной аннотации по тесту)
+    console.log('::error::' + JSON.stringify({ title: 'globalSetup', error: String((e && e.message) || e) }));
+    throw e;
+  }
+};
+
+async function checkPin() {
   const ctx = await request.newContext();
   const tokenStatus = async (pin) =>
     (await ctx.post(API_BASE + '/api/v1/privacy/token', { data: { pin } })).status();
@@ -29,4 +40,4 @@ module.exports = async function globalSetup() {
     );
   }
   console.log('PIN стенда проверен: ' + PIN);
-};
+}
