@@ -1,5 +1,4 @@
 namespace Analytics.Api.Precompute;
-using Analytics.Application;
 using Analytics.Domain.Models;
 public sealed class AnalyticsSnapshot
 {
@@ -7,18 +6,13 @@ public sealed class AnalyticsSnapshot
     public SummaryCards Summary30 { get; private set; } = new() { Period = "30" };
     public SummaryCards Summary90 { get; private set; } = new() { Period = "90" };
     public SummaryCards SummaryAll { get; private set; } = new() { Period = "all" };
+    public List<CorrelationResult> Correlations { get; private set; } = new();
+    public TopLists Tops { get; private set; } = new();
+    public Distribution Distribution { get; private set; } = new();
     public DateTime UpdatedAt { get; private set; }
 
-    public void Update(IReadOnlyList<RecordInput> records)
-    {
-        lock (_lock)
-        {
-            Summary30 = SummaryCalculator.Calculate("30", records);
-            Summary90 = SummaryCalculator.Calculate("90", records);
-            SummaryAll = SummaryCalculator.Calculate("all", records);
-            UpdatedAt = DateTime.UtcNow;
-        }
-    }
+    public void Update(SummaryCards s30, SummaryCards s90, SummaryCards sAll, List<CorrelationResult> corr, TopLists tops, Distribution dist)
+    { lock (_lock) { Summary30 = s30; Summary90 = s90; SummaryAll = sAll; Correlations = corr; Tops = tops; Distribution = dist; UpdatedAt = DateTime.UtcNow; } }
 
-    public SummaryCards Get(string period) => period switch { "30" => Summary30, "90" => Summary90, _ => SummaryAll };
+    public SummaryCards GetSummary(string period) => period switch { "30" => Summary30, "90" => Summary90, _ => SummaryAll };
 }
