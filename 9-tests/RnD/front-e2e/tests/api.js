@@ -1,19 +1,33 @@
-// Хелпер настоящих E2E: работаем с ЖИВЫМ API (без заглушек).
-// Уборка: созданные тестом сущности удаляем через API, чтобы не мусорить в базе.
+// Хелпер настоящих E2E: живой API + реальный вход по PIN (как пользователь).
+// На стенде PIN задан (по умолчанию 1234, переопределяется XDIARY_E2E_PIN) —
+// тем же PIN ходят API-E2E, поэтому UI-тест логинится так же.
 const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps1.taile0b6ee.ts.net').replace(/\/+$/, '');
+const PIN = process.env.XDIARY_E2E_PIN || '1234';
 
 async function waitToken(page) {
-  // без PIN приложение берёт device-токен (FE-006/BE-019); без него все запросы 401
-  const failed = [];
-  page.on('requestfailed', (r) => {
-    const f = r.failure();
-    failed.push(r.url() + ' :: ' + ((f && f.errorText) || 'failed'));
-  });
   try {
     await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 30000 });
   } catch (e) {
-    throw new Error('device-токен не получен. Сетевые ошибки: ' + JSON.stringify(failed.slice(0, 5)));
+    const failed = [];
+    page.on('requestfailed', (r) => {
+      const f = r.failure();
+      failed.push(r.url() + ' :: ' + ((f && f.errorText) || 'failed'));
+    });
+    throw new Error('JWT не получен. Сетевые ошибки: ' + JSON.stringify(failed.slice(0, 5)));
   }
+}
+
+// Реальный вход: ставим локальный PIN (как в Настройках), перезагружаемся,
+// на экране блокировки вводим PIN → приложение берёт JWT (ensureToken → login).
+async function loginWithPin(page, pin) {
+  const p = pin || PIN;
+  await page.goto('/');
+  await page.evaluate((v) => window.Pin.setPin(v), p);
+  await page.goto('/');
+  await page.waitForSelector('#view-lock:not(.hidden)', { timeout: 20000 });
+  await page.fill('#pin-input', p);
+  await page.click('#pin-submit');
+  await waitToken(page);
 }
 
 async function removeByName(page, kind, name) {
@@ -38,4 +52,4 @@ async function removeByName(page, kind, name) {
   }
 }
 
-module.exports = { API_BASE, waitToken, removeByName };
+module.exports = { API_BASE, PIN, waitToken, loginWithPin, removeByName };

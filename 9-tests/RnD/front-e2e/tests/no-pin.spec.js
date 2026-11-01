@@ -1,9 +1,13 @@
-// E2E (настоящий): без PIN приложение получает device-токен (FE-006/BE-019)
-// и открывает журнал — на ЖИВОМ шлюзе, без заглушек.
+// E2E: сценарий «без PIN» (FE-006/BE-019) — только для стенда БЕЗ PIN.
+// Если на стенде PIN задан, приложение без локального PIN получает 401 на login("") —
+// это отдельный продуктовый дефект (клиент не предлагает ввести PIN с другого устройства).
 const { test, expect } = require('@playwright/test');
-const { waitToken } = require('./api');
+const { API_BASE, waitToken } = require('./api');
 
-test('E2E: без PIN приложение получает device-токен и открывает журнал', async ({ page }) => {
+test('E2E: без PIN приложение получает device-токен и открывает журнал', async ({ page, request }) => {
+  const probe = await request.post(API_BASE + '/api/v1/privacy/token', { data: { pin: '' } });
+  test.skip(probe.status() !== 200, 'на стенде задан PIN — сценарий «без PIN» требует чистого стенда (без PIN)');
+
   await page.goto('/');
   await expect(page.locator('#tabbar')).toBeVisible();
   await waitToken(page);

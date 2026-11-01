@@ -1,17 +1,14 @@
 // E2E (настоящий): живое приложение + живой шлюз, без заглушек.
-// Сквозной путь: приложение без PIN берёт device-токен → POST /api/v1/partners →
-// партнёр реально сохраняется и появляется в списке → тест удаляет его за собой.
+// Вход по PIN (как пользователь) → POST /api/v1/partners реально уходит →
+// партнёр появляется в списке из бэкенда → тест удаляет его за собой.
 const { test, expect } = require('@playwright/test');
-const { waitToken, removeByName } = require('./api');
+const { loginWithPin, removeByName } = require('./api');
 
 test('E2E: партнёр — добавить в приложении, увидеть в списке, удалить', async ({ page }) => {
   const name = 'TE-' + Date.now();
   try {
-    await page.goto('/');
-    await expect(page.locator('#tabbar')).toBeVisible();
-
-    // FE-006/BE-019: без PIN приложение получает device-токен, иначе все запросы 401
-    await waitToken(page);
+    await loginWithPin(page);
+    await expect(page.locator('#view-journal')).toBeVisible();
 
     await page.click('#tab-partners');
     await expect(page.locator('#view-partners')).toBeVisible();

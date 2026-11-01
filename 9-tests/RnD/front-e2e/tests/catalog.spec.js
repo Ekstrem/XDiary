@@ -1,7 +1,7 @@
 // E2E (настоящий): каталог по всем kind — живое приложение + живой шлюз.
-// Добавляем элемент каждого вида, проверяем в списке, удаляем за собой.
+// Вход по PIN, добавление элемента каждого вида, проверка в списке, удаление за собой.
 const { test, expect } = require('@playwright/test');
-const { waitToken, removeByName } = require('./api');
+const { loginWithPin, removeByName } = require('./api');
 
 const KINDS = ['costume', 'toy', 'fantasy', 'contraception'];
 
@@ -9,9 +9,8 @@ for (const kind of KINDS) {
   test(`E2E: каталог ${kind} — добавить, увидеть в списке, удалить`, async ({ page }) => {
     const name = 'TE-' + kind + '-' + Date.now();
     try {
-      await page.goto('/');
-      await expect(page.locator('#tabbar')).toBeVisible();
-      await waitToken(page);
+      await loginWithPin(page);
+      await expect(page.locator('#view-journal')).toBeVisible();
 
       await page.click('#tab-catalog');
       await expect(page.locator('#view-catalog')).toBeVisible();
