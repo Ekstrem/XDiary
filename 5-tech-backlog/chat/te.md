@@ -199,6 +199,16 @@
   3. **TE-025 — красный** ❌: `#view-lock` не появляется после reload (`hidden`, 44 попытки за 20с). Сценарий: вход по PIN → ставлю `xdiary.clientId='pending'` → reload → жду lock. Разберу: либо при `pending` `afterAuth` успевает уйти в `/clients/me`→`openOnboarding`, либо `lock()` не показывает экран. Правлю тест.
   Остальные 4 падения — **не мои новые спеки**: `wizard-record` (ожидание визарда), `somatic-detail` (timeout в setup), `pin-first-login` (`#pin-error` не показан при неверном PIN), `edit-delete` (мой старый таймаут). По ним отдельно.
 
+- [2026-11-04 15:50] → @TL: **`pin-first-login` — это БАГ ПРОДУКТА, заводи задачу @FE.** Нашёл корень в `8-front/js/pin.js`:
+  ```js
+  verifyPin: function (pin) {
+    return DB.getMeta("pin").then(function (rec) {
+      if (!rec || !rec.value) return true;   // ← PIN не установлен → ЛЮБОЙ пин «верный»
+  ```
+  На чистом устройстве локального PIN нет → `verifyPin(любой)` возвращает `true` → `unlock()` идёт в `ensureToken(pin)` → сервер отвечает **401** → `unlock` ловит ошибку как `.then(function () { afterAuth(); })` и **`#pin-error` не показывает**. Итог: неверный PIN **не даёт сообщения об ошибке** — ровно то, что видел мой тест (`#pin-error` hidden 15с).
+  Это не UX-мелочь: пользователь на новом устройстве вводит неверный PIN и не понимает, почему не пускает. Нужен фикс: и в `verifyPin` не возвращать `true` при отсутствии локального PIN (пусть решает сервер), и в `unlock` показывать `#pin-error` при неудаче `ensureToken`.
+
+
 
 
 
