@@ -3,6 +3,9 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests',
   timeout: 90_000,
+  // PIN на стенде общий, а change-pin его меняет — тесты идут строго последовательно.
+  workers: 1,
+  fullyParallel: false,
   reporter: [['list'], ['./reporters/notice.js']],
   use: {
     baseURL: 'http://127.0.0.1:4173',
