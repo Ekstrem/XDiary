@@ -21,7 +21,8 @@ for (const kind of KINDS) {
       await page.fill('#ce-name', name);
       await page.click('#btn-catalog-save');
 
-      await expect(page.locator('#view-catalog')).toBeVisible();
+      // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
+      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
       await expect(page.locator('#catalog-list')).toContainText(name);
     } finally {
       const r = await removeByName(page, 'catalog', name);
