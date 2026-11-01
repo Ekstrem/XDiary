@@ -17,7 +17,12 @@ public sealed class PrivacyController : ControllerBase
     private IActionResult Respond(AggregateResult<IPrivacy, IPinCredentialAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
     [HttpPost("pin/set")]
-    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct)
+    {
+        var r = await _mediator.Send(c, ct);
+        if (r.IsSuccess()) return Ok(r.Model());
+        return r.ErrorMessage().Contains("Текущий PIN") ? Unauthorized() : BadRequest(r.ErrorMessage());
+    }
     [HttpPost("pin/change")]
     public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpPost("pin/remove")]

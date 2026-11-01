@@ -34,8 +34,16 @@ app.Use(async (context, next) =>
 {
     var path = context.Request.Path.Value ?? string.Empty;
 
-    if (path == "/health"
-        || path.StartsWith("/api/v1/privacy/", StringComparison.OrdinalIgnoreCase))
+    // BE-020: анонимны только health + auth-эндпоинты.
+    // pin/set пропускаем сюда (первичная установка) — проверку текущего PIN делает сервис.
+    var anonymous =
+        path == "/health"
+        || path.Equals("/api/v1/privacy/token", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("/api/v1/privacy/verify-token", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("/api/v1/privacy/pin/has", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("/api/v1/privacy/pin/set", StringComparison.OrdinalIgnoreCase);
+
+    if (anonymous)
     {
         await next();
         return;

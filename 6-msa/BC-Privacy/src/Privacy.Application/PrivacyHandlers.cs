@@ -16,8 +16,13 @@ public sealed class SetPinHandler : IRequestHandler<SetPinCommand, AggregateResu
     public async Task<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> Handle(SetPinCommand r, CancellationToken ct)
     {
         var v = new PinFormatValidator(); if (!v.IsSatisfiedBy(r.Pin)) return PrivacyResults.Fail(v.Reason);
-        var (salt, hash, iter) = PinHasher.Hash(r.Pin);
         var m = await _repo.GetBySourceIdAsync("pin", ct) ?? new AnemicModel();
+        if (m.Root is not null && !string.IsNullOrEmpty(m.Root.Hash))
+        {
+            if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, m.Root.Salt, m.Root.Hash, m.Root.Iterations))
+                return PrivacyResults.Fail("Текущий PIN неверен");
+        }
+        var (salt, hash, iter) = PinHasher.Hash(r.Pin);
         var res = Aggregate.CreateInstance(m).SetPin(salt, hash, iter);
         if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res;
     }
