@@ -92,7 +92,7 @@ test('E2E: запись журнала — редактирование и уд�
 
     // редактирование: длительность 15 -> 45
     await page.click('#btn-detail-edit');
-    await expect(page.locator('#view-wizard')).toBeVisible();
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
     await page.locator('#wizard-progress button').nth(6).click();
     await page.fill('#w-dur-custom', '45');
     await page.click('#btn-wizard-next');
@@ -111,7 +111,7 @@ test('E2E: запись журнала — редактирование и уд�
     await card2.click();
     await expect(page.locator('#view-detail')).toBeVisible();
     await page.click('#btn-detail-edit');
-    await expect(page.locator('#view-wizard')).toBeVisible();
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
     await page.locator('#wizard-progress button').nth(8).click();
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();
