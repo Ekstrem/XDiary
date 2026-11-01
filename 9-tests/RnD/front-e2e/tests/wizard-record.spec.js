@@ -1,7 +1,7 @@
 // E2E (настоящий) — TE-014: создание записи журнала через визард.
 // Живое приложение + живой шлюз (dev, VPS-2), вход по PIN.
-// Диагностика: журнал API-ответов (метод/статус/путь) + все тосты — по ним видно,
-// на каком шаге цепочки saveWizard падает.
+// `saveWizard` делает ~10 последовательных запросов, поэтому после «Сохранить» ЖДЁМ
+// переключения вида (а не снимаем снимок сразу). Диагностика при падении: тосты + API-лог.
 const { test, expect } = require('@playwright/test');
 const { API_BASE, loginWithPin } = require('./api');
 
@@ -56,7 +56,6 @@ test('E2E: запись через визард — создаётся и вид
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible();
 
-    // ловим все тосты (в них приложение пишет причину ошибки)
     await page.evaluate(() => {
       window.__toasts = [];
       const t = document.getElementById('toast');
@@ -78,16 +77,21 @@ test('E2E: запись через визард — создаётся и вид
     await page.click('#btn-wizard-next');  // 7 -> 8
 
     await page.click('#btn-wizard-save');
-    await page.waitForTimeout(1500);
 
-    const toasts = await page.evaluate(() => window.__toasts || []);
-    const vis = await viewState(page);
-    const tail = apiLog.slice(-10).join(' | ');
-    expect(vis['view-journal'], 'ТОСТЫ: ' + JSON.stringify(toasts) + ' ;; API: ' + tail).toBe(true);
+    // ждём переключения на журнал (цепочка из ~10 запросов)
+    try {
+      await expect(page.locator('#view-journal')).toBeVisible({ timeout: 30000 });
+    } catch (e) {
+      const toasts = await page.evaluate(() => window.__toasts || []);
+      const vis = await viewState(page);
+      throw new Error('ТОСТЫ: ' + JSON.stringify(toasts) +
+        ' ;; API: ' + apiLog.slice(-12).join(' | ') +
+        ' ;; ВИДЫ: ' + JSON.stringify(vis));
+    }
 
     const found = await findRecord(page, WHEN);
-    expect(found.ok, 'GET /api/v1/journal/records → ' + tail).toBe(true);
-    expect(found.found, 'запись ' + WHEN + ' не найдена; API: ' + tail).toBe(true);
+    expect(found.ok, 'GET /api/v1/journal/records → ' + apiLog.slice(-5).join(' | ')).toBe(true);
+    expect(found.found, 'запись ' + WHEN + ' не найдена; API: ' + apiLog.slice(-8).join(' | ')).toBe(true);
     id = found.id;
   } finally {
     if (id) {
