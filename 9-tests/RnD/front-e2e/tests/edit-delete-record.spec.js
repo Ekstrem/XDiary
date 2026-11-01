@@ -1,9 +1,9 @@
 // E2E (настоящий) — TE-015: редактирование и удаление записи журнала.
 // Запись создаём через живой API (быстрый setup), дальше всё делаем ЧЕРЕЗ UI:
-// карточка → карточка записи → «Редактировать» → меняем длительность → «Сохранить»,
-// затем удаляем через «Удалить» + подтверждение. Результат каждого шага проверяем API.
+// карточка записи → «Редактировать» → меняем длительность → «Сохранить»,
+// затем удаляем через «Удалить» + подтверждение. Результат каждого шага — через API.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin } = require('./api');
+const { API_BASE, loginWithPin, unlockIfLocked } = require('./api');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 const NOW = new Date();
@@ -52,6 +52,14 @@ async function apiDelete(page, id) {
 }
 
 test('E2E: запись журнала — редактирование и удаление через UI', async ({ page }) => {
+  const apiLog = [];
+  page.on('response', (r) => {
+    const u = r.url();
+    if (u.indexOf('/api/v1/') !== -1) {
+      apiLog.push(r.status() + ' ' + r.request().method() + ' ' + u.replace(/^https?:\/\/[^/]+/, ''));
+    }
+  });
+
   let id = null;
   try {
     await loginWithPin(page);
@@ -59,31 +67,32 @@ test('E2E: запись журнала — редактирование и уд�
     // setup: запись через живой API (уникальное место = маркер)
     id = await apiCreate(page);
     const created = await apiRecord(page, id);
-    expect(created.ok, 'запись создана через API').toBe(true);
+    expect(created.ok, 'запись создана через API: ' + apiLog.slice(-4).join(' | ')).toBe(true);
     expect(created.rec.durationMin, 'стартовая длительность').toBe(15);
 
-    // журнал → карточка нашей записи → детали → редактировать
+    // перезагрузка → экран блокировки → разблокируем → журнал со свежими данными
     await page.reload();
-    await expect(page.locator('#view-journal')).toBeVisible();
+    await unlockIfLocked(page);
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+
     const card = page.locator('#journal-list .record-card').filter({ hasText: MARK });
-    await expect(card, 'карточка записи с местом ' + MARK).toHaveCount(1);
+    await expect(card, 'карточка записи с местом ' + MARK + ' ;; API: ' + apiLog.slice(-6).join(' | ')).toHaveCount(1);
     await card.click();
     await expect(page.locator('#view-detail')).toBeVisible();
 
+    // редактирование: длительность 15 -> 45
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible();
-
-    // переходим на шаг длительности (7-я точка прогресса) и меняем 15 -> 45
     await page.locator('#wizard-progress button').nth(6).click();
     await page.fill('#w-dur-custom', '45');
-    await page.click('#btn-wizard-next');  // 6 -> 7
-    await page.click('#btn-wizard-next');  // 7 -> 8
+    await page.click('#btn-wizard-next');
+    await page.click('#btn-wizard-next');
     await page.click('#btn-wizard-save');
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 30000 });
 
     const edited = await apiRecord(page, id);
     expect(edited.ok).toBe(true);
-    expect(edited.rec.durationMin, 'длительность после редактирования (через API)').toBe(45);
+    expect(edited.rec.durationMin, 'длительность после редактирования (API)').toBe(45);
     expect(edited.rec.place, 'место не изменилось').toBe(MARK);
 
     // удаление через UI: та же запись → редактировать → «Удалить» → «Да»
@@ -97,10 +106,10 @@ test('E2E: запись журнала — редактирование и уд�
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-yes');
-    await expect(page.locator('#view-journal')).toBeVisible();
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
 
     const gone = await apiRecord(page, id);
-    expect(gone.ok, 'после удаления GET записи должен быть 404').toBe(false);
+    expect(gone.ok, 'после удаления GET записи должен быть 404 (status ' + gone.status + ')').toBe(false);
     id = null;
   } finally {
     if (id) {

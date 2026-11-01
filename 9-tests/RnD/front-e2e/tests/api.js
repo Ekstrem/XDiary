@@ -41,6 +41,16 @@ async function loginWithPin(page, pin) {
   await waitToken(page);
 }
 
+// После reload локальный PIN уже стоит → приложение показывает экран блокировки.
+// Разблокируем, чтобы попасть в журнал.
+async function unlockIfLocked(page, pin) {
+  const p = pin || PIN;
+  if (!(await page.locator('#view-lock').isVisible())) return;
+  await page.fill('#pin-input', p);
+  await page.click('#pin-submit');
+  await waitToken(page);
+}
+
 async function removeByName(page, kind, name) {
   try {
     return await page.evaluate(async ({ base, kind, name }) => {
@@ -63,4 +73,4 @@ async function removeByName(page, kind, name) {
   }
 }
 
-module.exports = { API_BASE, PIN, installBase, waitToken, loginWithPin, removeByName };
+module.exports = { API_BASE, PIN, installBase, waitToken, loginWithPin, unlockIfLocked, removeByName };
