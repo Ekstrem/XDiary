@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.31"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.32"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1727,12 +1727,15 @@
   }
 
   function renderCorrelations() {
-    Promise.all([DB.getAllRecords(), DB.getAllWeekly(), DB.getAllSleep()]).then(function (res) {
+    function dayKey(offset) {
+      var d = new Date(); d.setDate(d.getDate() + offset);
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+    // FE-012: корреляции — из серверных daily-metrics + somatic-series (не локальных weekly/sleep)
+    Promise.all([DB.getAllRecords(), Api.daily.series(dayKey(-90), dayKey(0)).catch(function () { return []; })]).then(function (res) {
       var records = res[0].slice().sort(function (a, b) { return (a.startedAt || "") < (b.startedAt || "") ? -1 : 1; });
-      var weekly = {};
-      res[1].forEach(function (w) { weekly[w.date] = w; });
-      var sleepByDate = {};
-      res[2].forEach(function (s) { sleepByDate[s.date] = s; });
+      var daily = {};
+      (res[1] || []).forEach(function (d) { daily[d.date] = d; });
       var summary = $("corr-summary");
       var table = $("corr-table");
       if (records.length < 3) {
@@ -1744,20 +1747,20 @@
         var startMs = new Date(r.startedAt).getTime();
         var rs = minuteKeyFromDate(new Date(startMs - 10 * 60000));
         var re = minuteKeyFromDate(new Date(startMs + ((r.durationMin || 0) + 10) * 60000));
-        return DB.getSomaticRange(rs, re).then(function (points) {
+        return Api.somatic.slice(rs, re).catch(function () { return []; }).then(function (points) {
+          points = points || [];
           var hr = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
-          var bb = points.filter(function (p) { return p.body_battery != null; })
+          var bb = points.filter(function (p) { return p.bodyBattery != null; })
             .sort(function (a, b) { return a.t < b.t ? -1 : 1; });
           var day = String(r.startedAt || "").slice(0, 10);
-          var w = weekly[day] || {};
-          var sl = sleepByDate[day] || {};
+          var d = daily[day] || {};
           return {
             r: r,
             avgHr: hr.length ? hr.reduce(function (a, b) { return a + b; }, 0) / hr.length : null,
             maxHr: hr.length ? Math.max.apply(null, hr) : null,
-            bbDrop: bb.length >= 2 ? bb[bb.length - 1].body_battery - bb[0].body_battery : null,
-            stress: w.stress != null ? w.stress : null,
-            sleepScore: sl.score != null ? sl.score : null
+            bbDrop: bb.length >= 2 ? bb[bb.length - 1].bodyBattery - bb[0].bodyBattery : null,
+            stress: d.stress != null ? d.stress : null,
+            sleepScore: d.sleepScore != null ? d.sleepScore : null
           };
         });
       });
