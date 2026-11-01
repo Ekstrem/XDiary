@@ -1,15 +1,12 @@
-// RnD: сценарий «без PIN» — FE-006 (P0) / BE-019.
+// RnD: сценарий «без PIN» — FE-006 / BE-019.
 //
-// Продуктовое правило: PIN — возможность, а не правило. BE-019 уже умеет выдавать
-// device-токен при `!HasPin`; FE-006 должен в ветке `lock()` → `!hasPin` запросить
-// токен (`POST /api/v1/privacy/token`, pin: "") и только потом открывать журнал.
-//
-// Пока FE-006 не сделан — тест помечен `fixme`, чтобы не держать CI красным.
-// После фикса: убрать `.fixme` → тест станет гейтом.
+// Продуктовое правило: PIN — возможность, а не правило. BE-019 выдаёт device-токен
+// при `!HasPin`; FE-006 в ветке `lock()` → `!hasPin` запрашивает токен
+// (`POST /api/v1/privacy/token`, pin: "") и только потом открывает журнал.
 const { test, expect } = require('@playwright/test');
 const { installApiMock } = require('./mock');
 
-test.fixme('Без PIN: приложение берёт device-токен и сохраняет партнёра', async ({ page }) => {
+test('Без PIN: приложение берёт device-токен и сохраняет партнёра', async ({ page }) => {
   await installApiMock(page);
 
   await page.goto('/');
