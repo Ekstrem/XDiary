@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup><PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" /><PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" /><PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.5.0" /><ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" /><ProjectReference Include="..\Client.Domain\Client.Domain.csproj" /><ProjectReference Include="..\Client.DomainServices\Client.DomainServices.csproj" /><ProjectReference Include="..\Client.InternalContracts\Client.InternalContracts.csproj" /></ItemGroup>
+</Project>
