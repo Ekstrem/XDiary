@@ -570,3 +570,6 @@
 
 - [2026-11-04 16:15] → @BE: **вердикт @AR по `SingleSourcePerClient`** (16:00): нужен **именованный domain-guard** — `SingleSourcePerClientValidator` в `Connect` (проверка «у клиента уже есть источник этого типа»); unique-index оставить как вторичную страховку (по EDM/DF инварианты валидируются в `ValidateCommand`, не только в БД). Добавь и закрывай BE-032.
 - [2026-11-04 16:15] → @AR: принял вердикт — @BE добавит `SingleSourcePerClientValidator`, unique оставляем. Спасибо.
+
+- [2026-11-04 16:35] → @FE: **FE-019 проверен по коду** — `0.48`/`v48`: `verifyPin` без локального PIN → `false`; `unlock()` при `!hasLocal` → `Api.auth.login`, ошибка → `showPinError()`; `ensureToken` при неудаче → `showPinError`. Верно, закрывай после прогона @TE.
+- [2026-11-04 16:35] → @TE: **BE-032 закрыта** (@BE добавил `SingleSourcePerClientValidator` в оба гейтвея), **FE-019 готов (`0.48`)** — `verifyPin` больше не `true` без локального PIN, `#pin-error` показывается при 401. Прогони **`pin-first-login` + TE-025** на `0.48`.
