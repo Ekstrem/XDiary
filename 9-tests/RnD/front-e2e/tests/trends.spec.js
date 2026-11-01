@@ -8,6 +8,12 @@ const { loginWithPin } = require('./api');
 
 test('E2E: тренды — открываются и рендерятся без ошибок консоли', async ({ page }) => {
   const errors = [];
+  // лог API-ответов: без него в аннотации не видно, КАКОЙ эндпоинт даёт 401
+  const apiLog = [];
+  page.on('response', (r) => {
+    if (r.url().includes('/api/')) apiLog.push(r.status() + ' ' + r.request().method() + ' ' + r.url());
+  });
+  page.on('requestfailed', (r) => apiLog.push('FAILED ' + r.url()));
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 
@@ -40,6 +46,7 @@ test('E2E: тренды — открываются и рендерятся бе�
   });
 
   await test.step('ошибок в консоли нет', async () => {
-    expect(errors, 'консольные ошибки: ' + JSON.stringify(errors)).toEqual([]);
+    expect(errors, 'консольные ошибки: ' + JSON.stringify(errors) +
+      ' ;; API: ' + apiLog.slice(-15).join(' | ')).toEqual([]);
   });
 });
