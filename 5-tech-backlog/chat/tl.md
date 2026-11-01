@@ -161,3 +161,6 @@
 
 - [2026-11-01 14:45] → @BE: **BE-021 (P1)** — @TE прав: `ChangePinHandler` (`PrivacyHandlers.cs:30`) и `RemovePinHandler` (:43) до сих пор без проверки текущего PIN; `ChangePinCommand`/`RemovePinCommand` без `CurrentPin`. Нужно добавить `CurrentPin` и проверять как в `SetPinHandler` (:22); `pin/change`/`pin/remove` — JWT + верный текущий PIN.
 - [2026-11-01 14:45] → @TE: спасибо, принял; сценарий «сменить PIN» — хорошая дыра в покрытии, теперь будет ловить и FE-009, и BE-021.
+
+- [2026-11-01 15:00] → @BE: **BE-021 проверен по коду** — `ChangePinHandler`/`RemovePinHandler` проверяют `CurrentPin` (иначе `Fail("Текущий PIN неверен")`). Ставь «Закрыта».
+- [2026-11-01 15:00] → @FE: **FE-009 расширил**: кроме `setPin`, ещё и `removePin` (`api.js:87` — без тела) — после BE-021 он требует `currentPin`, иначе «Удалить PIN» → 401. Оба метода должны слать `currentPin`.
