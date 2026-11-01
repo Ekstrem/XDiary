@@ -1,6 +1,7 @@
 # Command API: Шлюз Apple Health (AppleHealthGateway)
 
 > Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**.
+> **Per-client:** `clientId` из JWT (`sub = clientId`) — каждый клиент импортирует свой Apple Health (ADR-021).
 
 ## Команды
 | Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |

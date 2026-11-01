@@ -14,7 +14,8 @@
 - Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
 
 **Сущность (Entity — корень агрегата):**
-- **AppleImport** — совокупность признаков, идентифицирующих источник:
+- **AppleImport** — совокупность признаков, идентифицирующих источник у конкретного клиента:
+  - `clientId` (uuid) — чей Apple Health (клиент, ADR-021)
   - `sourceId` (string) — «apple»
 
 **Объект-значения (Value Objects):**
@@ -31,7 +32,7 @@ Configured → [ImportFile] → Configured (обновляет LastImport)
 ## 4. Enforced Invariants
 | Инвариант | Описание |
 |---|---|
-| SingleSource | один экземпляр на источник |
+| SingleSourcePerClient | один экземпляр на (клиент, источник) |
 | IdempotentFile | файл не импортируется дважды (по имени) |
 
 ## 5. Corrective Policies
