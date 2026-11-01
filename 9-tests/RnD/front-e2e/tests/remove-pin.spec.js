@@ -27,7 +27,7 @@ test('E2E: снятие PIN — без currentPin 401, с currentPin снима�
       expect(await hasPin(request), 'PIN на месте после неудачного снятия').toBe(true);
     });
 
-    await test.step('UI: открыть модалку PIN в настройках', async () => {
+    await test.step('UI: открыть настройки и модалку PIN', async () => {
       await page.click('#tab-settings');
       await expect(page.locator('#view-settings')).toBeVisible();
       await page.click('#btn-pin-open');
@@ -35,11 +35,19 @@ test('E2E: снятие PIN — без currentPin 401, с currentPin снима�
       await page.fill('#pin-current', PIN);
     });
 
-    await test.step('UI: «Удалить PIN» + подтверждение', async () => {
-      await page.click('#btn-pin-remove');
-      await expect(page.locator('#confirm-modal')).toBeVisible();
-      await page.click('#confirm-yes');
-      await page.waitForTimeout(1500);
+    await test.step('UI: кнопка «Удалить PIN» видна и PIN введён', async () => {
+      await expect(page.locator('#btn-pin-remove')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('#pin-current')).toHaveValue(PIN);
+    });
+
+    await test.step('UI: клик «Удалить PIN»', async () => {
+      await page.click('#btn-pin-remove', { timeout: 10000 });
+    });
+
+    await test.step('UI: подтвердить удаление', async () => {
+      await expect(page.locator('#confirm-modal')).toBeVisible({ timeout: 10000 });
+      await page.click('#confirm-yes', { timeout: 10000 });
+      await page.waitForTimeout(2000);
     });
 
     await test.step('проверка: pin/has=false, старый PIN 401, device-токен 200', async () => {
