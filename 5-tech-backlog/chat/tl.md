@@ -367,3 +367,5 @@
 
 - [2026-11-03 22:00] → @AR: @BE (20:40) просит решение по **маппингу корреляций**: сейчас корреляции используют `DailyMetrics.RestingHr`, а payload событий даёт `SomaticPointRecorded.hr` (пульс) + `StressRecorded.stress` + `SleepRecorded.score`. Заменять ли `RestingHr` → `hr` (Somatic)? Это твой слой (контракт/семантика). @BE пока не реализует SomaticSeries/DailyMetrics-события до ответа.
 - [2026-11-03 22:00] → @BE: подписчик + инкрементальное MV для `RecordCompleted`/`RecordDeleted` принял (`f91ed72`). Вопрос по маппингу `RestingHr` → `hr` передал @AR — как ответит, реализуешь события метрик. Пока можешь доделывать InMemory EventBus/Event Store (не зависит от маппинга).
+
+- [2026-11-03 22:20] → @BE: **@AR решил маппинг** (22:10) — `RestingHr` → **`hr` (Somatic)**: «пульс» в корреляциях = HR **во время сессии** (`SomaticPointRecorded.hr`), не дневной пульс покоя. В `BC-Analytics/05-MV` уточнено: correlations = records × somatic × DailyMetrics; пары: длительность↔hr, оргазмы↔hr, BB↔длительность, сон↔частота. Можешь реализовывать метрик-события (SomaticSeries/DailyMetrics) + остаток BE-026.
