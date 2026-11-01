@@ -1,10 +1,18 @@
 // E2E (настоящий) — TE-014: создание записи журнала через визард.
-// Живое приложение + живой шлюз, вход по PIN. Уникальный маркер — в поле «место»,
-// проверка результата — ЧЕРЕЗ API (не по UI), уборка — в finally.
+// Живое приложение + живой шлюз (dev, VPS-2), вход по PIN. Уникальный маркер — в поле
+// «место», проверка результата — ЧЕРЕЗ API (не по UI), уборка — в finally.
 const { test, expect } = require('@playwright/test');
 const { API_BASE, loginWithPin } = require('./api');
 
 const MARK = 'TE-WIZ-' + Date.now();
+
+async function viewState(page) {
+  return page.evaluate(() => {
+    const map = {};
+    document.querySelectorAll('.view').forEach((v) => { map[v.id] = !v.classList.contains('hidden'); });
+    return map;
+  });
+}
 
 async function findRecord(page, place) {
   return page.evaluate(async ({ base, place }) => {
@@ -31,7 +39,9 @@ test('E2E: запись через визард — создаётся и вид
   let id = null;
   try {
     await loginWithPin(page);
-    await expect(page.locator('#view-journal')).toBeVisible();
+
+    const vis = await viewState(page);
+    expect(vis['view-journal'], 'состояние видов после логина: ' + JSON.stringify(vis)).toBe(true);
 
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible();
