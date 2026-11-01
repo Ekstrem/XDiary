@@ -1,8 +1,7 @@
 // E2E (настоящий) — TE-014: создание записи журнала через визард.
 // Живое приложение + живой шлюз (dev, VPS-2), вход по PIN.
-// Уникальный маркер — дата-время записи (шаг «Когда?» рендерится синхронно; шаг «Где?»
-// на dev асинхронный и в этом прогоне не отрисовался — это отдельная находка).
-// Проверка результата — ЧЕРЕЗ API, уборка — в finally.
+// Диагностика: журнал API-ответов (метод/статус/путь) + все тосты — по ним видно,
+// на каком шаге цепочки saveWizard падает.
 const { test, expect } = require('@playwright/test');
 const { API_BASE, loginWithPin } = require('./api');
 
@@ -14,7 +13,7 @@ async function viewState(page) {
   return page.evaluate(() => {
     const map = {};
     document.querySelectorAll('.view').forEach((v) => { map[v.id] = !v.classList.contains('hidden'); });
-    return { views: map, step: window.wizardStep === undefined ? 'n/a' : window.wizardStep };
+    return map;
   });
 }
 
@@ -40,33 +39,55 @@ async function deleteRecord(page, id) {
 }
 
 test('E2E: запись через визард — создаётся и видна через API', async ({ page }) => {
+  const apiLog = [];
+  page.on('response', (r) => {
+    const u = r.url();
+    if (u.indexOf('/api/v1/') !== -1) {
+      apiLog.push(r.status() + ' ' + r.request().method() + ' ' + u.replace(/^https?:\/\/[^/]+/, ''));
+    }
+  });
+
   let id = null;
   try {
     await loginWithPin(page);
-    const vis = await viewState(page);
-    expect(vis.views['view-journal'], 'виды после логина: ' + JSON.stringify(vis)).toBe(true);
+    const vis0 = await viewState(page);
+    expect(vis0['view-journal'], 'виды после логина: ' + JSON.stringify(vis0)).toBe(true);
 
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible();
 
-    // шаг 0 «Когда?» — синхронный, ставим уникальный маркер
+    // ловим все тосты (в них приложение пишет причину ошибки)
+    await page.evaluate(() => {
+      window.__toasts = [];
+      const t = document.getElementById('toast');
+      if (t) {
+        new MutationObserver(() => { if (t.textContent) window.__toasts.push(t.textContent); })
+          .observe(t, { childList: true, characterData: true, subtree: true });
+      }
+    });
+
     await page.fill('#w-startedAt', WHEN);
-    await page.click('#btn-wizard-next');  // 0 -> 1 партнёр
-    await page.click('#btn-wizard-next');  // 1 -> 2 место
-    await page.click('#btn-wizard-next');  // 2 -> 3 позы
-    await page.click('#btn-wizard-next');  // 3 -> 4 отметки
-    await page.click('#btn-wizard-next');  // 4 -> 5 контрацепция
-    await page.click('#btn-wizard-next');  // 5 -> 6 длительность
+    await page.click('#btn-wizard-next');  // 0 -> 1
+    await page.click('#btn-wizard-next');  // 1 -> 2
+    await page.click('#btn-wizard-next');  // 2 -> 3
+    await page.click('#btn-wizard-next');  // 3 -> 4
+    await page.click('#btn-wizard-next');  // 4 -> 5
+    await page.click('#btn-wizard-next');  // 5 -> 6
     await page.fill('#w-dur-custom', '30');
-    await page.click('#btn-wizard-next');  // 6 -> 7 оргазмы
-    await page.click('#btn-wizard-next');  // 7 -> 8 итог
+    await page.click('#btn-wizard-next');  // 6 -> 7
+    await page.click('#btn-wizard-next');  // 7 -> 8
 
     await page.click('#btn-wizard-save');
-    await expect(page.locator('#view-journal')).toBeVisible();
+    await page.waitForTimeout(1500);
+
+    const toasts = await page.evaluate(() => window.__toasts || []);
+    const vis = await viewState(page);
+    const tail = apiLog.slice(-10).join(' | ');
+    expect(vis['view-journal'], 'ТОСТЫ: ' + JSON.stringify(toasts) + ' ;; API: ' + tail).toBe(true);
 
     const found = await findRecord(page, WHEN);
-    expect(found.ok, 'GET /api/v1/journal/records должен отвечать 200').toBe(true);
-    expect(found.found, 'запись с датой ' + WHEN + ' должна быть в журнале (проверка через API)').toBe(true);
+    expect(found.ok, 'GET /api/v1/journal/records → ' + tail).toBe(true);
+    expect(found.found, 'запись ' + WHEN + ' не найдена; API: ' + tail).toBe(true);
     id = found.id;
   } finally {
     if (id) {
