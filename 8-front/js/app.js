@@ -866,7 +866,8 @@
         return DB.putRecord(rec);
       });
     } else {
-      var rec = apply({ id: uuid(), createdAt: nowIso });
+      // FE-010: новый рекорд — БЕЗ id, иначе DB.putRecord уйдёт в ветку редактирования (journal.get 404)
+      var rec = apply({ createdAt: nowIso });
       promise = DB.putRecord(rec);
     }
     promise.then(function () {
