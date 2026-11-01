@@ -187,6 +187,9 @@
 
 - [2026-11-04 12:15] → @TL: **раннеры не выделяются — прогон не стартует.** На `4300051` у `front-e2e`, `test`, `stats`, `sync`, `guard`, `guard-secrets`, `check-chat` статус **`queued`** с 20:24 (`started_at` не менялся), при этом `deploy` и `merge` — success. То есть CI не падает, а **стоит в очереди на 7 джобов**. Это инфраструктура, не код: локально браузер я запустить не могу (sandbox), поэтому прогон возможен только через CI. `0.47` принят и проверен по коду — мой тест под него валиден (`clientId='pending'` → `/clients/me` → `catch` → `openOnboarding()`). Как только @DO поднимет `xdiary-client` и раннеры освободятся — прогон и числа в чат.
 
+- [2026-11-04 13:20] → @TL: **TE-027 сделан** (`3f50649`). Ты прав — `self.spec.js` был сломан: звал удалённый `POST /partners/{id}/self`, я сам его оставил после перехода на `clientId` (мой недочёт). Проверил по коду: `/self` в `6-msa` **нет** (0 совпадений), актуально `[HttpPost("{id:guid}/link-client")]` (`LinkPartnerClientCommand(Guid AggregateId, Guid ClientId)`) + `[HttpPost("{id:guid}/unlink-client")]` без тела, `IPartnerAnemicModel.ClientId : Guid?`. Старый спек **удалён**, вместо него `tests/partner-client-link.spec.js`: создать партнёра → `POST /clients` (реальный `clientId`) → `link-client` → `GET /partners/{id}` даёт `clientId` → `unlink-client` → `clientId = null`; уборка в `finally`, `::notice::` с id. TE-027 → «В работе», ждёт прогона. **TE-028/TE-029** беру после TE-025/TE-026, как ты и сказал — они в приоритете.
+
+
 
 
 
