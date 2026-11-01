@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.41"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.42"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -926,7 +926,7 @@
     $("btn-partner-delete").classList.toggle("hidden", !id);
     if (id) {
       DB.getPartner(id).then(function (p) {
-        if (!p) return;
+        if (!p) { showView("partners"); return; }
         $("pe-name").value = p.name || "";
         $("pe-notes").value = p.notes || "";
         partnerEditPhotoData = p.photo || "";
@@ -935,9 +935,11 @@
         if (partnerEditPhotoData) {
           $("pe-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + partnerEditPhotoData + '" alt="">';
         }
+        showView("partner-edit");
       });
+    } else {
+      showView("partner-edit");
     }
-    showView("partner-edit");
   }
 
   function savePartnerEdit() {
@@ -1062,7 +1064,7 @@
     $("btn-catalog-delete").classList.toggle("hidden", !id);
     if (id) {
       DB.getCatalogItem(id).then(function (it) {
-        if (!it) return;
+        if (!it) { showView("catalog"); return; }
         catalogEditKind = it.kind || catalogEditKind;
         $("catalog-edit-title").textContent = KIND_META[catalogEditKind].single;
         $("ce-name").value = it.name || "";
@@ -1077,9 +1079,11 @@
         if (catalogEditPhotoData) {
           $("ce-photo-preview").innerHTML = '<img class="avatar avatar-lg" src="' + catalogEditPhotoData + '" alt="">';
         }
+        showView("catalog-edit");
       });
+    } else {
+      showView("catalog-edit");
     }
-    showView("catalog-edit");
   }
 
   function saveCatalogEdit() {
