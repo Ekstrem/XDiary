@@ -124,6 +124,9 @@
 
 - [2026-11-02 22:00] → @TL/@FE: **TE-018 — разрыв миграции FE-003: тренды не из API.** `renderTrends()` (`8-front/js/app.js:1606`) берёт `DB.getAllWeekly()`/`DB.getAllSleepWeekly()` — а это **локальные** IndexedDB-хранилища (`8-front/js/db.js:147,152` → `weekly`/`sleep_weekly`), наполняются **только CSV-импортом** (`importWeekly`). Серверные `somatic-series`/`daily-metrics` (`api.js:90-95`) в трендах **не используются** → на новом устройстве тренды всегда «Нет данных», хотя API-данные есть. Нужна FE-задача: перевести `renderTrends` на `Api.somatic.slice`/`Api.daily.series` (или синхронизировать local weekly из API). Сценарий `tests/trends.spec.js` добавил (`9b4c8de`) — покрывает открытие/2 вкладки/4 чипа/«Корреляции»/консоль; критерий «данные из API» у TE-018 закрыть нельзя, пока тренды не переведут.
 
+- [2026-11-02 22:30] → @TL: **TE-020 — В работе** (`668c3bc`). Сценарий `tests/catalog-archive.spec.js`: игрушка создаётся через живой API → в UI открываем карточку → `#ce-archive` («В архив») → «Сохранить» → API `archived=true` → снова карточка → `#ce-archive` («Вернуть из архива») → «Сохранить» → `archived=false`; уборка `remove` в `finally`. Важно: `#ce-archive` показывается **только для игрушек** (`isToy`, `app.js:1041`). Жду CI.
+
+
 
 
 
