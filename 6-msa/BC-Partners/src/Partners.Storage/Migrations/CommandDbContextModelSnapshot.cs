@@ -45,6 +45,9 @@ namespace Partners.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("Self")
+                        .HasColumnType("boolean");
+
                     b.Property<long>("Version")
                         .HasColumnType("bigint");
 

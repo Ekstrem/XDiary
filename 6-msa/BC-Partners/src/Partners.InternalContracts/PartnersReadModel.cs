@@ -7,4 +7,5 @@ public sealed class PartnersReadModel : IReadModel<Partners.Domain.IPartners>
     public string Photo { get; set; } = string.Empty;
     public string Gender { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
+    public bool Self { get; set; }
 }

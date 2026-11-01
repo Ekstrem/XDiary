@@ -44,6 +44,7 @@ public sealed class Aggregate
         if (!gv.IsSatisfiedBy(gender)) return Fail(gv.Reason);
         var m = Clone(); m.Photo = photo; m.Gender = gender; m.Notes = notes; return Success(m);
     }
+    public AggregateResult<IPartners, IPartnerAnemicModel> SetSelf(bool self) { var m = Clone(); m.Self = self; return Success(m); }
     public AggregateResult<IPartners, IPartnerAnemicModel> Remove() => Success(Clone());
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes };
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes, Self = Model.Self };
 }

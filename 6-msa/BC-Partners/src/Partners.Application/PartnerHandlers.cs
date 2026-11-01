@@ -34,3 +34,10 @@ public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand,
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(RemovePartnerCommand r, CancellationToken ct)
     { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return PartnersResults.Fail("Partner not found."); var res = Aggregate.CreateInstance(m).Remove(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
+public sealed class SetPartnerSelfHandler : IRequestHandler<SetPartnerSelfCommand, AggregateResult<IPartners, IPartnerAnemicModel>>
+{
+    private readonly IRepository<IPartners, IPartnerAnemicModel> _repo;
+    public SetPartnerSelfHandler(IRepository<IPartners, IPartnerAnemicModel> repo) => _repo = repo;
+    public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(SetPartnerSelfCommand r, CancellationToken ct)
+    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return PartnersResults.Fail("Partner not found."); var res = Aggregate.CreateInstance(m).SetSelf(r.Self); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+}

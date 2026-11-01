@@ -6,4 +6,5 @@ public interface IPartnerAnemicModel : IAnemicModel<IPartners>
     string Photo { get; }
     string Gender { get; }
     string Notes { get; }
+    bool Self { get; }
 }

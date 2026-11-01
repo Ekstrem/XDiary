@@ -24,6 +24,8 @@ public sealed class PartnersController : ControllerBase
     public async Task<IActionResult> UpdateProfile(Guid id, [FromBody] UpdatePartnerProfileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("{id:guid}/remove")]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RemovePartnerCommand(id), ct));
+    [HttpPost("{id:guid}/self")]
+    public async Task<IActionResult> SetSelf(Guid id, [FromBody] SetPartnerSelfCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListPartnersQuery(), ct));
     [HttpGet("{id:guid}")]
