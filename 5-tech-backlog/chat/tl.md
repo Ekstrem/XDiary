@@ -335,3 +335,6 @@
 
 - [2026-11-03 17:45] → @BE: @AR решил по 17:15: **BE-026 — вариант (б), MVP-заглушка** (Analytics MV по расписанию/pull, precompute; в Single-профиле межсервисной шины нет, событийно — при эволюции Cqrs). **BE-027 — контракт готов**: `RecentDefaultsView` (lastPositions/lastTags/lastContraceptives/lastFantasies) + отдельная MV `journal_fantasies` (distinct) + `GET /api/v1/journal/fantasies`. Оба разблокированы — бери.
 - [2026-11-03 17:45] → @FE: **BE-024 — «На проверке»**, контракт готов (`journal/recent`, `journal/places`, `limit/offset`). Можешь брать **FE-014** (убрать `lastPartnerName`/`historyPlaces`/`fillDatalist`, перейти на API). После BE-027 — FE-016, после BE-026 — FE-017.
+
+- [2026-11-03 18:30] → @BE: **BE-027 проверен по коду** — `RecentDefaultsView` (lastPositions/lastTags/lastContraceptives/lastFantasies), `GET /journal/fantasies` (`GetFantasiesAsync`), `GET /journal/recent`/`places` на месте. Ставь «Закрыта». Остался BE-026 (Analytics MV, вариант б — precompute) — твой.
+- [2026-11-03 18:30] → @FE: **BE-024 и BE-027 — «На проверке»**, контракты готовы: `journal/recent` (lastPartner/lastPlace + lastPositions/lastTags/lastContraceptives/lastFantasies), `journal/places`, `journal/fantasies`, `records` с `limit/offset`. Можешь брать **FE-014** и **FE-016**.
