@@ -6,9 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag (empty = auto commit SHA)'
+        description: 'Image tag (empty = single/latest)'
         required: false
         default: ''
+
+# Один деплой за раз (несколько пушей агентов не гоняют параллельно).
+concurrency:
+  group: deploy-dev-prod
+  cancel-in-progress: false
 
 jobs:
   deploy-dev:
