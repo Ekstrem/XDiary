@@ -1975,7 +1975,7 @@
         if (nw !== cf) { toast("PIN не совпадают"); return; }
         Pin.setPin(nw).then(function () {
           // FE-008: синхронизируем PIN на сервере с текущим JWT (первичная установка — анонимно)
-          Api.privacy.setPin(nw).then(function () {
+          Api.privacy.setPin(nw, has ? cur : null).then(function () {
             toast("PIN сохранён");
           }, function (e) {
             toast("PIN сохранён локально, но сервер ответил: " + e.message);
@@ -1987,10 +1987,12 @@
     });
   }
   function removePinNow() {
+    var cur = $("pin-current").value;
+    if (!cur) { toast("Введите текущий PIN"); return; }
     confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
-      // FE-008: снимаем PIN на сервере С ТОКЕНОМ (до logout), затем локально
-      Api.privacy.removePin().then(function () {
+      // FE-008/009: снимаем PIN на сервере С ТОКЕНОМ и currentPin (до logout), затем локально
+      Api.privacy.removePin(cur).then(function () {
         toast("PIN удалён");
       }, function (e) {
         toast("PIN удалён локально, но сервер ответил: " + e.message);

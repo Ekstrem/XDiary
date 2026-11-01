@@ -82,9 +82,9 @@
     },
     privacy: {
       hasPin: function () { return get("/api/v1/privacy/pin/has"); },
-      setPin: function (pin) { return post("/api/v1/privacy/pin/set", { pin: pin }); },
+      setPin: function (pin, currentPin) { return post("/api/v1/privacy/pin/set", { pin: pin, currentPin: currentPin }); },
       verifyPin: function (pin) { return post("/api/v1/privacy/pin/verify", { pin: pin }); },
-      removePin: function () { return post("/api/v1/privacy/pin/remove"); },
+      removePin: function (currentPin) { return post("/api/v1/privacy/pin/remove", { currentPin: currentPin }); },
       token: function (pin) { return post("/api/v1/privacy/token", { pin: pin }); }
     },
     somatic: {
