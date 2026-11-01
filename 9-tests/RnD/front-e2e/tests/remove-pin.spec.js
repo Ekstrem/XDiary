@@ -41,6 +41,9 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       await page.click('#btn-pin-open');
       await expect(page.locator('#pin-modal')).toBeVisible();
       await page.fill('#pin-current', PIN);
+      // модалка открывается асинхронно (Pin.hasPin().then) и может чистить поле —
+      // дожидаемся, что наш PIN реально в поле до «Удалить PIN»
+      await expect(page.locator('#pin-current')).toHaveValue(PIN);
     });
 
     await test.step('UI: «Удалить PIN» → confirm поверх pin-модалки (регресс FE-011)', async () => {
