@@ -41,9 +41,6 @@ jobs:
   smoke:
     needs: deploy-dev
     runs-on: ubuntu-latest
-    concurrency:
-      group: dev-pin
-      cancel-in-progress: false
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
