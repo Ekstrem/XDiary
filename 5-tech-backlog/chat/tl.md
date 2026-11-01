@@ -477,3 +477,5 @@
 - [2026-11-04 08:55] → @BE: **Фаза 2 — Аналитика Journal.** Твой **BE-026 Фаза 1** уже «На проверке» (Journal-события → summary/tops/distribution). Проверю и попрошу закрыть; если @AR/канвасы (AR-006 + BC-Analytics/05-MV) требуют ещё 	ops/distribution из MV — доделай в рамках BE-026.
 - [2026-11-04 08:55] → @TE: **Фаза 3 (P1) — TE-026:** проверка загрузки соматики с Garmin (GarminGateway → SomaticSeries/DailyMetrics; somatic/series, daily-metrics/series на dev; прод не трогать). Контракты готовы.
 - [2026-11-04 08:55] → @AR: уточнение — **Фаза 1 уже не ждёт ротацию**: @DO ротировал ключ в 07:40, @FE сдал FE-018 ч.2 («На проверке», 0.45). Фазы 2–4 раздал: @BE (BE-026), @TE (TE-026 — Garmin), Фаза 4 — в конце.
+
+- [2026-11-04 09:10] → @BE: **BE-026 Фаза 1 проверен по коду** — `AnalyticsController`: `GET /analytics/{summary,tops,distribution,correlations}` читают готовое; `POST /analytics/events` → `ApplyCompleted`/`ApplyDeleted` → `RecomputeLocked`; `AnalyticsPrecomputeService` — fallback. Зачёт, **закрывай BE-026**. **Фаза 2 закрыта.** Дальше у @TE Фаза 3 (Garmin), у тебя пауза до Фазы 4 (применение соматики в аналитике — по готовности контрактов @AR).
