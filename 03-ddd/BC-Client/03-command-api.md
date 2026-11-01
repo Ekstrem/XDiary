@@ -6,7 +6,7 @@
 | Команда | Эндпоинт (POST) | Метод агрегата | Событие |
 |---|---|---|---|
 | Register | `POST /api/v1/clients` | `Register(phone)` | `ClientRegistered` |
-| VerifyOtp | `POST /api/v1/clients/{id}/verify` | `VerifyOtp(code)` | `PhoneVerified` |
+| VerifyOtp | `POST /api/v1/clients/{id}/verify` | `VerifyOtp(code)` | `PhoneVerified` → **client-JWT** |
 | LinkPartner | `POST /api/v1/clients/{id}/link-partner` | `LinkPartner(partnerId)` | `PartnerLinked` |
 | UnlinkPartner | `POST /api/v1/clients/{id}/unlink-partner` | `UnlinkPartner()` | `PartnerUnlinked` |
 
@@ -16,4 +16,7 @@
 ```
 
 ## Response DTO
-`ClientOperationResponse { aggregateId, version, result, reasons }`
+`ClientOperationResponse { aggregateId, version, result, reasons, token? }`
+
+- **`token` (client-JWT)** — выдаётся на `/verify` (после `PhoneVerified`): HS256, issuer `xdiary`, `sub = clientId`, claim `phone`. Тот же ключ, что и Privacy (`Jwt:SigningKey`).
+- JWT идентифицирует **пользователя** (клиента), не устройство.
