@@ -45,6 +45,13 @@ jobs:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
     steps:
+      - name: Reset dev PIN to 1234
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
       - name: Check dev /health
         run: |
           for i in $(seq 1 12); do

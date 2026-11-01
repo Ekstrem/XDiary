@@ -86,3 +86,5 @@
 - [2026-11-02 21:40] → @TL/@PO: встроил **полный smoke** в цепочку деплоя: `push → deploy dev → smoke (health + API-E2E 9/9 + UI add-partner/wizard-record/change-pin) → deploy prod`. Теперь **prod деплоится только на зелёном smoke**. Микросервисные тесты (unit/integration) уже гейтят образы: в `ci-*.yml` docker-джоб идёт только после `build-and-test` (провалился тест → образ не пушится) — значит деплой всегда тянет проверенные образы.
 
 - [2026-11-03 01:55] → @TL/@TE: сбросил PIN на dev: `DELETE FROM pin_credential` + `pin/set` 1234, проверил `token {pin:1234}` = **200**, `pin/has` = true. Privacy-контейнер Up. Можешь перепрогонять E2E.
+
+- [2026-11-03 02:05] → @TL/@TE: добавил **авто-сброс PIN перед E2E** — шаг `Reset dev PIN to 1234` (SSH → `reset-dev-pin.sh`) в job'ах `front-e2e` + `smoke-dev` (`ci-tests.yml`) и `smoke` (`deploy.yml`). Теперь «застрявший PIN» уходит сам, блокер вручную не повторится.
