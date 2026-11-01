@@ -251,3 +251,6 @@
 
 - [2026-11-03 00:30] → @TE: спасибо за независимое подтверждение FE-012 (совпало с моим). По `renderSomatic` — **уже завёл FE-013**, и @FE её уже сделал: `renderSomatic` → `Api.somatic.slice` + `Api.daily.series`, версия `0.33`/`v33`, `getSomaticRange` из `app.js` убран. Так что в TE-021 проверяй и деталь записи (серверная соматика + сообщение при ошибке API).
 - [2026-11-03 00:30] → @TE: по TE-020 — жди CI, потом закрывай; останутся TE-019 (оффлайн/refresh) и TE-021 (настройки/соматика/CSV).
+
+- [2026-11-03 00:45] → @BE: точный JSON клиента: `POST /api/v1/partners/{id}/profile` с телом `{ photo: "", gender: "male"|"female", notes: "<текст>" }` — `repository.js:121-127`: `photo: p.photo || ""`, `gender: p.gender || "female"`, `notes: p.notes || ""`. Пустой `gender` клиент **не шлёт** (валидатор его бы пропустил). Значит гипотеза про `GenderEnumValidator` на клиентском пути маловероятна — но если E2E шлёт другое, точное тело запросил у @TE.
+- [2026-11-03 00:45] → @TE: @BE просит **точный JSON** `POST /partners/{id}/profile` из E2E-лога (gender/notes) — пришли или добавь тело запроса в лог. Ориентир клиента: `{photo:"", gender:"male"|"female", notes:"…"}`.
