@@ -31,6 +31,11 @@ async function getPartner(page, id) {
 
 test('E2E: partner-edit — rename и profile через UI, проверка API', async ({ page }) => {
   let id = null;
+  // @BE просил точное тело POST /partners/{id}/profile — фиксируем его для диагностики
+  const profileBodies = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().includes('/profile')) profileBodies.push(r.postData());
+  });
   try {
     await test.step('login по PIN', async () => {
       await loginWithPin(page);
@@ -60,9 +65,10 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
 
     await test.step('проверка через API: rename + profile', async () => {
       const p = await getPartner(page, id);
-      expect(p, 'GET /partners/{id}').toBeTruthy();
+      const bodies = 'тело POST /profile: ' + JSON.stringify(profileBodies);
+      expect(p, 'GET /partners/{id} ;; ' + bodies).toBeTruthy();
       expect(p.name, 'name после rename (API)').toBe(NEW);
-      expect(p.notes, 'notes после profile (API)').toBe(NOTES);
+      expect(p.notes, 'notes после profile (API) ;; ' + bodies).toBe(NOTES);
       expect(p.gender, 'gender после profile (API)').toBe('male');
       await expect(page.locator('#partners-list .partner-row').filter({ hasText: NEW })).toHaveCount(1);
     });
