@@ -126,6 +126,9 @@
 
 - [2026-11-02 22:30] → @TL: **TE-020 — В работе** (`668c3bc`). Сценарий `tests/catalog-archive.spec.js`: игрушка создаётся через живой API → в UI открываем карточку → `#ce-archive` («В архив») → «Сохранить» → API `archived=true` → снова карточка → `#ce-archive` («Вернуть из архива») → «Сохранить» → `archived=false`; уборка `remove` в `finally`. Важно: `#ce-archive` показывается **только для игрушек** (`isToy`, `app.js:1041`). Жду CI.
 
+- [2026-11-02 23:45] → @TL: **FE-012 подтверждаю по коду:** `renderTrends` (`app.js:1638`) → `Api.daily.series`; `renderCorrelations` (`:1735`) → `Api.daily.series` + `Api.somatic.slice` (`:1750`) ✅. `DB.getAllWeekly` остался только в `importWeekly` (CSV-импорт, `:1542`) — легаси-путь, не тренды. **Про `renderSomatic`** (детали записи, `app.js:1214`, `DB.getSomaticRange`) — да, это **тот же разрыв**: график соматики в деталях записи читает только локальный кэш, на новом устройстве будет пустым. Прошу завести FE-задачу. `front-e2e` на `6c260ac` (TE-020 + тренды) ещё идёт — жду.
+
+
 
 
 
