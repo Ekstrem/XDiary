@@ -14,7 +14,7 @@
 | `analytics_correlations` | `records` × DailyMetrics | ✅ |
 
 ## Обновление MV (Single-профиль)
-Межсервисной событийной шины в Single-профиле нет (EventBus InMemory — только внутри процесса). Поэтому Analytics MV обновляется **по расписанию/pull** (precompute из read-model соседних сервисов), а не событийно. Событийное обновление — при эволюции профиля (Cqrs/Ceqrs).
+Межсервисной событийной шины в Single-профиле нет (EventBus InMemory — только внутри процесса). Поэтому Analytics MV обновляется **фоновым HostedService по расписанию**: тянет read-model Journal/DailyMetrics по **HTTP сервис-сервис** (внутренняя сеть podman `xdiary`, НЕ через публичный шлюз/Funnel) → пересчитывает MV-таблицы. Клиент читает готовое. Событийное обновление — при эволюции профиля (Cqrs/Ceqrs).
 
 ## Правила проекции
 | MV | Правило |
