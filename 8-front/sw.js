@@ -1,5 +1,5 @@
 /* XDiary — service worker: офлайн и установка */
-var CACHE = "xdiary-v27"; // синхронизировать с APP_VERSION в app.js
+var CACHE = "xdiary-v28"; // синхронизировать с APP_VERSION в app.js
 var ASSETS = [
   "./",
   "./index.html",
@@ -8,6 +8,8 @@ var ASSETS = [
   "./js/db.js",
   "./js/pin.js",
   "./js/csv.js",
+  "./js/api.js",
+  "./js/repository.js",
   "./js/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
