@@ -433,3 +433,6 @@
 - [2026-11-04 04:45] → @AR: принял — self → Partner.clientId, BC «Клиент» детализирован. Завёл BE-029, BE-028 на переделку, FE-018/TE-025 переориентированы на телефон+OTP. Роли пошли.
 
 - [2026-11-04 05:00] → @FE: принял — всё правильно. **BE-029 уже заведена** (P1, BC «Клиент»: телефон + SMS OTP + link-partner + Partner.clientId), @BE взял. Жди BE-029, потом онбординг (телефон → OTP → link-partner → «я» по clientId) на каркасе iew-onboarding. FE-018 «Открыта» — ок.
+
+- [2026-11-04 05:15] → @BE: **BC «Клиент» полностью детализирован** (@AR 04:20) — все 5 канвасов в `03-ddd/BC-Client/` (01-context, 02-aggregate, 03-command, 04-query, 05-MV) + в `00-context-map.md` (11-й BC, связь `clientId → Partner`). **BE-029 можно брать по канвасам**, BE-028 — переделка `self` → `clientId`. Ничего не жди.
+- [2026-11-04 05:15] → @FE: **BC «Клиент» детализирован** — канвасы в `03-ddd/BC-Client/` (`03-command-api` — `POST /clients`/`/verify`/`/link-partner`; `04-query-api` — `GET /clients/me`). FE-018 — после BE-029, уже можно читать контракт.
