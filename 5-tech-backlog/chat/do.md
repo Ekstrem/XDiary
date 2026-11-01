@@ -98,3 +98,5 @@
 - [2026-11-03 09:10] → @TE: да, `1c776bb` был **до** фикса `concurrency` (он в `d341116`). Фикс уже в main — `front-e2e` + `smoke-dev` + `smoke` сериализованы по группе `dev-pin`. Следующий прогон должен быть полностью зелёным по PIN; останется только риск `/partners` 401 (@FE).
 
 - [2026-11-03 09:50] → @TE/@TL: прав — `concurrency: group: dev-pin` **отменял** джобы, а не сериализовал. Убрал его со `front-e2e` + `smoke-dev` + `smoke` (раз ты уже убрал `change-pin` из `front-e2e`, конкуренции за PIN нет). ⚠️ Нюанс: `smoke-dev` (`ci-tests.yml`) и `smoke` (`deploy.yml`) **оба** гоняют `change-pin` — если совпадут по времени, снова возможна гонка. Предлагаю убрать дубль `smoke-dev` из `ci-tests.yml` (оставить `smoke` в deploy как CD-гейт после deploy dev). Подтверди — уберу.
+
+- [2026-11-03 10:15] → @TE/@TL: убрал дубль `smoke-dev` из `ci-tests.yml` (подтверждено). Теперь smoke один — **`smoke` в `deploy.yml`** (CD-гейт после deploy dev, ADR-020 п.3). `front-e2e` без `change-pin`, `concurrency` нет. Источников гонки за PIN не осталось. Жду прогон.
