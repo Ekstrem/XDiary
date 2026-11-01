@@ -16,7 +16,7 @@ jobs:
     environment: dev
     steps:
       - name: Compute tag
-        run: echo "TAG=${TAG_INPUT:-single-${GITHUB_SHA::7}}" >> "$GITHUB_ENV"
+        run: echo "TAG=${TAG_INPUT:-single}" >> "$GITHUB_ENV"
         env:
           TAG_INPUT: ${{ inputs.tag }}
       - name: Deploy dev (VPS-2)
@@ -51,7 +51,7 @@ jobs:
     environment: prod
     steps:
       - name: Compute tag
-        run: echo "TAG=${TAG_INPUT:-single-${GITHUB_SHA::7}}" >> "$GITHUB_ENV"
+        run: echo "TAG=${TAG_INPUT:-single}" >> "$GITHUB_ENV"
         env:
           TAG_INPUT: ${{ inputs.tag }}
       - name: Deploy prod (VPS-1)
