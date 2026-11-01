@@ -1,4 +1,4 @@
-name: Test (9-tests)
+﻿name: Test (9-tests)
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 env:
-  # Движки проверок живут в LoopMaker (один источник правды), проект держит только
-  # loop.config.json. Пин на тег, когда LoopMaker стабилизируется: ref: v0.2.0
+  # Р”РІРёР¶РєРё РїСЂРѕРІРµСЂРѕРє Р¶РёРІСѓС‚ РІ LoopMaker (РѕРґРёРЅ РёСЃС‚РѕС‡РЅРёРє РїСЂР°РІРґС‹), РїСЂРѕРµРєС‚ РґРµСЂР¶РёС‚ С‚РѕР»СЊРєРѕ
+  # loop.config.json. РџРёРЅ РЅР° С‚РµРі, РєРѕРіРґР° LoopMaker СЃС‚Р°Р±РёР»РёР·РёСЂСѓРµС‚СЃСЏ: ref: v0.2.0
   LOOPMAKER_REF: main
   LOOPMAKER_REPO: Ekstrem/LoopMaker
 
@@ -18,36 +18,38 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout LoopMaker (линтер формата чата)
+      - name: Checkout LoopMaker (Р»РёРЅС‚РµСЂ С„РѕСЂРјР°С‚Р° С‡Р°С‚Р°)
         uses: actions/checkout@v4
         with:
           repository: ${{ env.LOOPMAKER_REPO }}
           ref: ${{ env.LOOPMAKER_REF }}
+          token: ${{ secrets.PROJECT_PAT }}
           path: .loopmaker
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Check chat format (нет молча потерянных сообщений)
+      - name: Check chat format (РЅРµС‚ РјРѕР»С‡Р° РїРѕС‚РµСЂСЏРЅРЅС‹С… СЃРѕРѕР±С‰РµРЅРёР№)
         run: python .loopmaker/tools/chat_lint.py --config loop.config.json --check
 
   guard-secrets:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout проекта (нужна история для --range)
+      - name: Checkout РїСЂРѕРµРєС‚Р° (РЅСѓР¶РЅР° РёСЃС‚РѕСЂРёСЏ РґР»СЏ --range)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Checkout LoopMaker (движок проверки секретов)
+      - name: Checkout LoopMaker (РґРІРёР¶РѕРє РїСЂРѕРІРµСЂРєРё СЃРµРєСЂРµС‚РѕРІ)
         uses: actions/checkout@v4
         with:
           repository: ${{ env.LOOPMAKER_REPO }}
           ref: ${{ env.LOOPMAKER_REF }}
+          token: ${{ secrets.PROJECT_PAT }}
           path: .loopmaker
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Проверить секреты и их фрагменты в пушимом диапазоне
+      - name: РџСЂРѕРІРµСЂРёС‚СЊ СЃРµРєСЂРµС‚С‹ Рё РёС… С„СЂР°РіРјРµРЅС‚С‹ РІ РїСѓС€РёРјРѕРј РґРёР°РїР°Р·РѕРЅРµ
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
@@ -57,13 +59,13 @@ jobs:
           head="${AFTER:-HEAD}"
           git cat-file -e "${head}^{commit}" 2>/dev/null || head=HEAD
           if [ -n "${PR_BASE:-}" ] && git cat-file -e "${PR_BASE}^{commit}" 2>/dev/null; then
-            range="${PR_BASE}..${head}"          # pull_request: база PR -> голова
+            range="${PR_BASE}..${head}"          # pull_request: Р±Р°Р·Р° PR -> РіРѕР»РѕРІР°
           elif [ -n "${BEFORE:-}" ] \
                && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
                && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            range="${BEFORE}..${head}"           # push: что именно прилетело
+            range="${BEFORE}..${head}"           # push: С‡С‚Рѕ РёРјРµРЅРЅРѕ РїСЂРёР»РµС‚РµР»Рѕ
           else
-            range="${head}~1..${head}"           # ручной запуск
+            range="${head}~1..${head}"           # СЂСѓС‡РЅРѕР№ Р·Р°РїСѓСЃРє
           fi
           echo "range: ${range}"
           python .loopmaker/tools/check_secrets.py --config loop.config.json --range "$range"
@@ -87,8 +89,8 @@ jobs:
   front-e2e:
     runs-on: ubuntu-latest
     env:
-      # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
-      # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
+      # Р–РёРІС‹Рµ E2E (change-pin Рё С‚.Рї.) РіРѕРЅСЏРµРј РїСЂРѕС‚РёРІ С‚РµСЃС‚РѕРІРѕРіРѕ СЃС‚РµРЅРґР° VPS-2 (ADR-019),
+      # С‡С‚РѕР±С‹ РґРµСЃС‚СЂСѓРєС‚РёРІРЅС‹Рµ PIN-СЃС†РµРЅР°СЂРёРё РЅРµ С‚СЂРѕРіР°Р»Рё РїСЂРѕРґ VPS-1.
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
     steps:
