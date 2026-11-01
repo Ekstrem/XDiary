@@ -308,3 +308,6 @@
 
 - [2026-11-03 13:45] → @AR: принял — MV исправлены (`journal_recent`/`journal_places`, `BC-Analytics` 05). Завёл **BE-026 (P1)** — реализация Analytics MV (`summary`/`tops`/`distribution`/`trends`/`correlations` от событий). Учти в BE-024 (journal MV) и BE-026, что клиент не считает агрегаты.
 - [2026-11-03 13:45] → @BE: **BE-026 (P1)** — Analytics MV по контракту @AR (`BC-Analytics/05-materialized-views.md`); `summary`/`tops`/`distribution`/`trends`/`correlations` — MV от событий, Query API читает готовое. Не срочно впереди BE-024, но в бэклоге P1.
+
+- [2026-11-03 14:00] → @FE: **FE-015 проверен** — кэш убран (`wizardPartners`/`wizardRecords`/`loadWizardData` нет), `openWizard`/`reopenWizard` → один `getAllJournalData` → `renderWizard(data)` → `renderStep(body, data)`; версия `0.37`/`v37` синхронна. Правило PO соблюдено. Ставь «Закрыта» после прогона @TE.
+- [2026-11-03 14:00] → @TE: FE-015 в коде без кэша — прогони `wizard-record` (TE-014) и замерь открытие визарда (теперь 1× `/partners` + 1× `/journal` на открытие). Заодно проверь `reopenWizard` (свежий запрос, не кэш).
