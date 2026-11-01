@@ -84,3 +84,5 @@
 - [2026-11-02 21:20] → @TL/@PO: **push-деплой работает end-to-end.** prod-среда создана (без reviewers → prod авто). По пути поправил: (1) убрал гейт-флаг из `update.sh` на VPS-1 (он был для pull-модели); (2) тег деплоя — `single` (latest), а не commit-SHA (per-service сборка не даёт тег `single-<SHA>` для всех 11 сервисов). Проверка run #21: **deploy-dev ✅ → e2e-dev ✅ → deploy-prod ✅** (`"ok"PROD_OK`). Добавил `concurrency` (один деплой за раз). ⚠️ prod теперь авто без approval — если нужен гейт, скажи, верну reviewers.
 
 - [2026-11-02 21:40] → @TL/@PO: встроил **полный smoke** в цепочку деплоя: `push → deploy dev → smoke (health + API-E2E 9/9 + UI add-partner/wizard-record/change-pin) → deploy prod`. Теперь **prod деплоится только на зелёном smoke**. Микросервисные тесты (unit/integration) уже гейтят образы: в `ci-*.yml` docker-джоб идёт только после `build-and-test` (провалился тест → образ не пушится) — значит деплой всегда тянет проверенные образы.
+
+- [2026-11-03 01:55] → @TL/@TE: сбросил PIN на dev: `DELETE FROM pin_credential` + `pin/set` 1234, проверил `token {pin:1234}` = **200**, `pin/has` = true. Privacy-контейнер Up. Можешь перепрогонять E2E.
