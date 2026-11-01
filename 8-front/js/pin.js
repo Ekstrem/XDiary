@@ -58,7 +58,7 @@
     },
     verifyPin: function (pin) {
       return DB.getMeta("pin").then(function (rec) {
-        if (!rec || !rec.value) return true; // PIN не установлен
+        if (!rec || !rec.value) return false; // FE-019: локального PIN нет — не «любой PIN подходит»
         var v = rec.value;
         var salt = b64ToBuf(v.salt);
         return derive(pin, salt).then(function (hash) {
