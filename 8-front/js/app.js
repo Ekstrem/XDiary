@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.45"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.46"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -199,6 +199,8 @@
   // FE-018 ч.2: клиент-идентификация — телефон → SMS OTP → client-JWT → link-partner
   var onbClientId = "";
   function afterAuth() {
+    // FE-018: клиентский онбординг включаем только после его прохождения (флаг clientId); иначе — legacy device/PIN-токен
+    if (!localStorage.getItem("xdiary.clientId")) { openJournal(); return; }
     if (!Api.config.token()) { openOnboarding(); return; }
     Api.clients.me().then(function (c) {
       if (c && c.verified && c.linkedPartnerId) openJournal();
@@ -280,21 +282,28 @@
   function lock() {
     Pin.hasPin().then(function (hasPin) {
       if (hasPin) { showLockScreen(); return; }
-      afterAuth();
+      if (Api.config.token()) { afterAuth(); return; }
+      // FE-007: без локального PIN получаем device-токен (иначе /partners и /journal уйдут 401)
+      Api.auth.login("").then(function () { afterAuth(); }, function (err) {
+        if (err && err.status === 401) { showLockScreen(); return; }
+        afterAuth();
+      });
     });
   }
   function unlock() {
     var pin = $("pin-input").value;
     Pin.verifyPin(pin).then(function (ok) {
-      if (ok) {
-        $("pin-error").classList.add("hidden");
-        $("pin-input").value = "";
-        afterAuth();
-      } else {
+      if (!ok) {
         $("pin-error").classList.remove("hidden");
         $("pin-input").value = "";
         $("pin-input").focus();
+        return;
       }
+      $("pin-error").classList.add("hidden");
+      $("pin-input").value = "";
+      // FE-007: с локальным PIN нужен токен для API; при пройденном онбординге client-JWT уже есть
+      if (localStorage.getItem("xdiary.clientId") && Api.config.token()) { afterAuth(); return; }
+      ensureToken(pin).then(function () { afterAuth(); }, function () { afterAuth(); });
     });
   }
 
