@@ -26,9 +26,6 @@
   var draft = null;
   var wizardStep = 0;
   var editingId = null;
-  // FE-015: кэш журнала/партнёров на время визарда (не ходим в API на каждый шаг)
-  var wizardPartners = null;
-  var wizardRecords = null;
   var editingPartnerId = null;
   var partnerEditReturn = "partners";
   var partnerEditPhotoData = "";
@@ -65,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.36"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.37"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -315,23 +312,19 @@
     };
   }
 
-  function loadWizardData() {
-    if (wizardPartners && wizardRecords) return Promise.resolve({ partners: wizardPartners, records: wizardRecords });
-    return DB.getAllJournalData().then(function (data) {
-      wizardPartners = data.partners;
-      wizardRecords = data.records;
-      return data;
-    });
+  // FE-015: НЕ кэшируем (правило PO) — один getAllJournalData на открытие, данные идут в шаги параметром
+  // FE-015: вернуться в визард после формы — данные грузим заново (без кэша)
+  function reopenWizard() {
+    DB.getAllJournalData().then(function (data) { showView("wizard"); renderWizard(data); });
   }
-  function clearWizardData() { wizardPartners = null; wizardRecords = null; }
 
   function openWizard(id) {
-    clearWizardData();
     editingId = id || null;
     wizardStep = id ? STEPS.length - 1 : 0;
-    if (id) {
-      DB.getRecord(id).then(function (r) {
-        if (!r) return;
+    DB.getAllJournalData().then(function (data) {
+      var r = id ? data.records.filter(function (x) { return x.id === id; })[0] : null;
+      if (id && !r) return;
+      if (id) {
         draft = {
           startedAt: r.startedAt || toInputValue(new Date()),
           partner: r.partner || "", place: r.place || "",
@@ -346,21 +339,17 @@
           contraceptives: (r.contraceptives || []).slice(), contraceptiveCount: r.contraceptiveCount || 0,
           partnerTouched: true, garmin: !!r.garmin, garminId: r.garminId || ""
         };
-        showView("wizard");
-        renderWizard();
-      });
-    } else {
-      loadWizardData().then(function (data) {
+      } else {
         draft = newDraft();
         draft.partner = lastPartnerName(data.records);
         draft.place = historyPlaces(data.records)[0] || "";
-        showView("wizard");
-        renderWizard();
-      });
-    }
+      }
+      showView("wizard");
+      renderWizard(data);
+    });
   }
 
-  function renderWizard() {
+  function renderWizard(data) {
     $("wizard-title").textContent = editingId ? "Запись" : "Новая запись";
 
     var prog = $("wizard-progress");
@@ -371,30 +360,39 @@
       d.className = "progress-dot" + (i === wizardStep ? " active" : "") + (i < wizardStep ? " done" : "");
       d.title = s;
       (function (idx) {
-        d.addEventListener("click", function () { wizardStep = idx; renderWizard(); });
+        d.addEventListener("click", function () { wizardStep = idx; renderWizard(data); });
       })(i);
       prog.appendChild(d);
     });
 
     var body = $("wizard-body");
     body.innerHTML = "";
-    renderStep(body);
+    renderStep(body, data);
 
     var isLast = wizardStep === STEPS.length - 1;
     $("btn-wizard-prev").classList.toggle("hidden", wizardStep === 0);
     $("btn-wizard-next").classList.toggle("hidden", isLast);
     $("btn-wizard-save").classList.toggle("hidden", !isLast);
     $("btn-wizard-delete").classList.toggle("hidden", !(isLast && editingId));
+
+    // FE-015: кнопки визарда держат актуальные данные (без хранения между перерисовками)
+    $("btn-wizard-prev").onclick = function () { if (wizardStep > 0) { wizardStep--; renderWizard(data); } };
+    $("btn-wizard-next").onclick = function () {
+      if (wizardStep === 0 && !draft.startedAt) { toast("Укажите дату и время"); return; }
+      if (wizardStep < STEPS.length - 1) { wizardStep++; renderWizard(data); }
+    };
+    $("btn-wizard-save").onclick = function () { saveWizard(data); };
+    $("btn-wizard-delete").onclick = function () { deleteFromWizard(data); };
   }
 
-  function renderStep(body) {
+  function renderStep(body, data) {
     switch (wizardStep) {
       case 0: stepDate(body); break;
-      case 1: stepPartner(body); break;
-      case 2: stepPlace(body); break;
-      case 3: stepPositions(body); break;
-      case 4: stepMarks(body); break;
-      case 5: stepContraception(body); break;
+      case 1: stepPartner(body, data); break;
+      case 2: stepPlace(body, data); break;
+      case 3: stepPositions(body, data); break;
+      case 4: stepMarks(body, data); break;
+      case 5: stepContraception(body, data); break;
       case 6: stepDuration(body); break;
       case 7: stepOrgasms(body); break;
       case 8: stepSummary(body); break;
@@ -408,55 +406,53 @@
     $("w-startedAt").addEventListener("input", function (e) { draft.startedAt = e.target.value; });
   }
 
-  function stepPartner(body) {
-    loadWizardData().then(function (data) {
-      var partners = data.partners, records = data.records;
-        body.innerHTML =
-          '<div class="step-label">С кем?</div>' +
-          '<div class="partner-grid" id="w-partner-grid"></div>' +
-          '<div class="field">' +
-            '<input type="text" id="w-partner-custom" list="partner-suggest" placeholder="Или введите имя" autocomplete="off">' +
-          "</div>" +
-          '<button type="button" class="btn" id="w-partner-none">Без партнёра</button>';
+  function stepPartner(body, data) {
+    var partners = data.partners, records = data.records;
+    body.innerHTML =
+      '<div class="step-label">С кем?</div>' +
+      '<div class="partner-grid" id="w-partner-grid"></div>' +
+      '<div class="field">' +
+        '<input type="text" id="w-partner-custom" list="partner-suggest" placeholder="Или введите имя" autocomplete="off">' +
+      "</div>" +
+      '<button type="button" class="btn" id="w-partner-none">Без партнёра</button>';
 
-        var grid = $("w-partner-grid");
-        partners.forEach(function (p) {
-          var c = document.createElement("button");
-          c.type = "button";
-          c.className = "partner-card" + (p.name === draft.partner ? " selected" : "");
-          c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
-          c.addEventListener("click", function () {
-            draft.partner = p.name;
-            draft.partnerTouched = true;
-            stepPartner(body);
-          });
-          grid.appendChild(c);
-        });
-        var add = document.createElement("button");
-        add.type = "button";
-        add.className = "partner-card partner-card-add";
-        add.innerHTML = '<span class="avatar avatar-initial">＋</span><span>Добавить</span>';
-        add.addEventListener("click", function () { partnerEditReturn = "wizard"; openPartnerEdit(null); });
-        grid.appendChild(add);
-
-        var inCatalog = partners.some(function (p) { return p.name === draft.partner; });
-        var custom = $("w-partner-custom");
-        custom.value = (draft.partner && !inCatalog) ? draft.partner : "";
-        custom.addEventListener("input", function (e) {
-          draft.partner = e.target.value.trim();
-          draft.partnerTouched = true;
-        });
-        $("w-partner-none").addEventListener("click", function () {
-          draft.partner = "";
-          draft.partnerTouched = true;
-          stepPartner(body);
-        });
-
-        var names = new Set();
-        partners.forEach(function (p) { names.add(p.name); });
-        records.forEach(function (r) { if (r.partner) names.add(r.partner); });
-        fillDatalist("partner-suggest", names);
+    var grid = $("w-partner-grid");
+    partners.forEach(function (p) {
+      var c = document.createElement("button");
+      c.type = "button";
+      c.className = "partner-card" + (p.name === draft.partner ? " selected" : "");
+      c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
+      c.addEventListener("click", function () {
+        draft.partner = p.name;
+        draft.partnerTouched = true;
+        stepPartner(body, data);
+      });
+      grid.appendChild(c);
     });
+    var add = document.createElement("button");
+    add.type = "button";
+    add.className = "partner-card partner-card-add";
+    add.innerHTML = '<span class="avatar avatar-initial">＋</span><span>Добавить</span>';
+    add.addEventListener("click", function () { partnerEditReturn = "wizard"; openPartnerEdit(null); });
+    grid.appendChild(add);
+
+    var inCatalog = partners.some(function (p) { return p.name === draft.partner; });
+    var custom = $("w-partner-custom");
+    custom.value = (draft.partner && !inCatalog) ? draft.partner : "";
+    custom.addEventListener("input", function (e) {
+      draft.partner = e.target.value.trim();
+      draft.partnerTouched = true;
+    });
+    $("w-partner-none").addEventListener("click", function () {
+      draft.partner = "";
+      draft.partnerTouched = true;
+      stepPartner(body, data);
+    });
+
+    var names = new Set();
+    partners.forEach(function (p) { names.add(p.name); });
+    records.forEach(function (r) { if (r.partner) names.add(r.partner); });
+    fillDatalist("partner-suggest", names);
   }
 
   function historyPlaces(records) {
@@ -466,39 +462,37 @@
     return out;
   }
 
-  function stepPlace(body) {
-    loadWizardData().then(function (data) {
-      var places = historyPlaces(data.records);
-      body.innerHTML =
-        '<div class="step-label">Где?</div>' +
-        '<div class="chips-grid" id="w-place-grid"></div>' +
-        '<div class="field" style="margin-top:16px">' +
-          '<input type="text" id="w-place" list="place-suggest" placeholder="Своё место" autocomplete="off">' +
-        "</div>";
+  function stepPlace(body, data) {
+    var places = historyPlaces(data.records);
+    body.innerHTML =
+      '<div class="step-label">Где?</div>' +
+      '<div class="chips-grid" id="w-place-grid"></div>' +
+      '<div class="field" style="margin-top:16px">' +
+        '<input type="text" id="w-place" list="place-suggest" placeholder="Своё место" autocomplete="off">' +
+      "</div>";
 
-      var grid = $("w-place-grid");
-      places.forEach(function (p) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "chip-toggle" + (draft.place === p ? " on" : "");
-        b.textContent = p;
-        b.addEventListener("click", function () {
-          draft.place = (draft.place === p) ? "" : p;
-          stepPlace(body);
-        });
-        grid.appendChild(b);
+    var grid = $("w-place-grid");
+    places.forEach(function (p) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip-toggle" + (draft.place === p ? " on" : "");
+      b.textContent = p;
+      b.addEventListener("click", function () {
+        draft.place = (draft.place === p) ? "" : p;
+        stepPlace(body, data);
       });
+      grid.appendChild(b);
+    });
 
-      var input = $("w-place");
-      input.value = draft.place;
-      input.addEventListener("input", function (e) { draft.place = e.target.value.trim(); });
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          var v = input.value.trim();
-          if (v) { draft.place = v; stepPlace(body); }
-        }
-      });
+    var input = $("w-place");
+    input.value = draft.place;
+    input.addEventListener("input", function (e) { draft.place = e.target.value.trim(); });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var v = input.value.trim();
+        if (v) { draft.place = v; stepPlace(body, data); }
+      }
     });
   }
 
@@ -511,45 +505,43 @@
     return out.filter(function (p) { return POSITIONS.indexOf(p) === -1; });
   }
 
-  function stepPositions(body) {
-    loadWizardData().then(function (data) {
-      var all = POSITIONS.concat(historyPositions(data.records));
-      body.innerHTML =
-        '<div class="step-label">Позы</div>' +
-        '<div class="chips-grid" id="w-pos-grid"></div>' +
-        '<div class="field" style="margin-top:16px">' +
-          '<input type="text" id="w-pos-custom" placeholder="Своя поза" autocomplete="off">' +
-        "</div>";
+  function stepPositions(body, data) {
+    var all = POSITIONS.concat(historyPositions(data.records));
+    body.innerHTML =
+      '<div class="step-label">Позы</div>' +
+      '<div class="chips-grid" id="w-pos-grid"></div>' +
+      '<div class="field" style="margin-top:16px">' +
+        '<input type="text" id="w-pos-custom" placeholder="Своя поза" autocomplete="off">' +
+      "</div>";
 
-      var grid = $("w-pos-grid");
-      all.forEach(function (p) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "chip-toggle" + (draft.positions.indexOf(p) !== -1 ? " on" : "");
-        b.textContent = p;
-        b.addEventListener("click", function () {
-          var i = draft.positions.indexOf(p);
-          if (i !== -1) draft.positions.splice(i, 1); else draft.positions.push(p);
-          stepPositions(body);
-        });
-        grid.appendChild(b);
+    var grid = $("w-pos-grid");
+    all.forEach(function (p) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip-toggle" + (draft.positions.indexOf(p) !== -1 ? " on" : "");
+      b.textContent = p;
+      b.addEventListener("click", function () {
+        var i = draft.positions.indexOf(p);
+        if (i !== -1) draft.positions.splice(i, 1); else draft.positions.push(p);
+        stepPositions(body, data);
       });
+      grid.appendChild(b);
+    });
 
-      var custom = $("w-pos-custom");
-      custom.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          var v = custom.value.trim();
-          if (v && draft.positions.indexOf(v) === -1) draft.positions.push(v);
-          custom.value = "";
-          stepPositions(body);
-        }
-      });
+    var custom = $("w-pos-custom");
+    custom.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        var v = custom.value.trim();
+        if (v && draft.positions.indexOf(v) === -1) draft.positions.push(v);
+        custom.value = "";
+        stepPositions(body, data);
+      }
     });
   }
 
   // ---- аксессуары (костюмы / игрушки / фантазии / теги) ----
-  function stepMarks(body) {
+  function stepMarks(body, data) {
     DB.getAllCatalog().then(function (items) {
       body.innerHTML = '<div class="step-label">Аксессуары</div>';
 
@@ -579,7 +571,7 @@
             var arr = draft[field];
             var i = arr.indexOf(it.name);
             if (i !== -1) arr.splice(i, 1); else arr.push(it.name);
-            stepMarks(body);
+            stepMarks(body, data);
           });
           grid.appendChild(b);
         });
@@ -604,41 +596,39 @@
         '<input type="text" id="w-tag-custom" placeholder="Свой тег" autocomplete="off">';
       body.appendChild(tags);
 
-      loadWizardData().then(function (data) {
-        var records = data.records, set = [];
-        records.forEach(function (r) {
-          (r.tags || []).forEach(function (t) { if (set.indexOf(t) === -1) set.push(t); });
+      var records = data.records, set = [];
+      records.forEach(function (r) {
+        (r.tags || []).forEach(function (t) { if (set.indexOf(t) === -1) set.push(t); });
+      });
+      var grid = $("w-tag-grid");
+      set.forEach(function (t) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "chip-toggle" + (draft.tags.indexOf(t) !== -1 ? " on" : "");
+        b.textContent = "#" + t;
+        b.addEventListener("click", function () {
+          var i = draft.tags.indexOf(t);
+          if (i !== -1) draft.tags.splice(i, 1); else draft.tags.push(t);
+          stepMarks(body, data);
         });
-        var grid = $("w-tag-grid");
-        set.forEach(function (t) {
-          var b = document.createElement("button");
-          b.type = "button";
-          b.className = "chip-toggle" + (draft.tags.indexOf(t) !== -1 ? " on" : "");
-          b.textContent = "#" + t;
-          b.addEventListener("click", function () {
-            var i = draft.tags.indexOf(t);
-            if (i !== -1) draft.tags.splice(i, 1); else draft.tags.push(t);
-            stepMarks(body);
-          });
-          grid.appendChild(b);
-        });
-        var custom = $("w-tag-custom");
-        custom.addEventListener("keydown", function (e) {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            var v = custom.value.trim();
-            if (v && draft.tags.indexOf(v) === -1) draft.tags.push(v);
-            custom.value = "";
-            stepMarks(body);
-          }
-        });
+        grid.appendChild(b);
+      });
+      var custom = $("w-tag-custom");
+      custom.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          var v = custom.value.trim();
+          if (v && draft.tags.indexOf(v) === -1) draft.tags.push(v);
+          custom.value = "";
+          stepMarks(body, data);
+        }
       });
     });
   }
 
-  function stepContraception(body) {
-    Promise.all([DB.getAllCatalog(), loadWizardData()]).then(function (res) {
-      var items = res[0], records = res[1].records;
+  function stepContraception(body, data) {
+    DB.getAllCatalog().then(function (items) {
+      var records = data.records;
       var used = [];
       records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); }).forEach(function (r) {
         (r.contraceptives || []).forEach(function (c) { if (used.indexOf(c) === -1) used.push(c); });
@@ -849,9 +839,9 @@
       "</div>";
   }
 
-  function saveWizard() {
-    if (!draft.startedAt) { toast("Укажите дату и время"); wizardStep = 0; renderWizard(); return; }
-    if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 6; renderWizard(); return; }
+  function saveWizard(data) {
+    if (!draft.startedAt) { toast("Укажите дату и время"); wizardStep = 0; renderWizard(data); return; }
+    if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 6; renderWizard(data); return; }
     var nowIso = new Date().toISOString();
     function apply(rec) {
       rec.startedAt = draft.startedAt;
@@ -889,19 +879,17 @@
       promise = DB.putRecord(rec);
     }
     promise.then(function () {
-      clearWizardData();
       toast("Сохранено");
       showView("journal");
       renderJournal();
     }).catch(function (e) { toast("Ошибка: " + e.message); });
   }
 
-  function deleteFromWizard() {
+  function deleteFromWizard(data) {
     if (!editingId) return;
     confirmDialog("Удалить эту запись?").then(function (ok) {
       if (!ok) return;
       DB.deleteRecord(editingId).then(function () {
-        clearWizardData();
         toast("Удалено");
         showView("journal");
         renderJournal();
@@ -996,12 +984,10 @@
       });
     }
     promise.then(function () {
-      clearWizardData();
       toast("Сохранено");
       if (partnerEditReturn === "wizard") {
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
-        showView("wizard");
-        renderWizard();
+        reopenWizard();
       } else {
         showView("partners");
         renderPartners();
@@ -1014,9 +1000,8 @@
     confirmDialog("Удалить партнёра?").then(function (ok) {
       if (!ok) return;
       DB.deletePartner(editingPartnerId).then(function () {
-        clearWizardData();
         toast("Удалено");
-        if (partnerEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+        if (partnerEditReturn === "wizard") { reopenWizard(); }
         else { showView("partners"); renderPartners(); }
       }).catch(function (e) { toast("Ошибка удаления: " + e.message); });
     });
@@ -1154,8 +1139,7 @@
           var field = KIND_FIELD[catalogEditKind];
           if (field && draft && draft[field].indexOf(name) === -1) draft[field].push(name);
         }
-        showView("wizard");
-        renderWizard();
+        reopenWizard();
       } else {
         showView("catalog");
         renderCatalog();
@@ -1169,7 +1153,7 @@
       if (!ok) return;
       DB.deleteCatalogItem(editingCatalogId).then(function () {
         toast("Удалено");
-        if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+        if (catalogEditReturn === "wizard") { reopenWizard(); }
         else { showView("catalog"); renderCatalog(); }
       }).catch(function (e) { toast("Ошибка удаления: " + e.message); });
     });
@@ -2079,7 +2063,7 @@
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
     $("btn-partner-edit-back").addEventListener("click", function () {
-      if (partnerEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+      if (partnerEditReturn === "wizard") { reopenWizard(); }
       else { showView("partners"); renderPartners(); }
     });
     $("btn-partner-save").addEventListener("click", savePartnerEdit);
@@ -2103,7 +2087,7 @@
       });
     });
     $("btn-catalog-edit-back").addEventListener("click", function () {
-      if (catalogEditReturn === "wizard") { showView("wizard"); renderWizard(); }
+      if (catalogEditReturn === "wizard") { reopenWizard(); }
       else { showView("catalog"); renderCatalog(); }
     });
     $("btn-catalog-save").addEventListener("click", saveCatalogEdit);
@@ -2135,14 +2119,7 @@
     });
     $("btn-import-apply").addEventListener("click", applyImport);
 
-    $("btn-wizard-close").addEventListener("click", function () { clearWizardData(); showView("journal"); });
-    $("btn-wizard-prev").addEventListener("click", function () { if (wizardStep > 0) { wizardStep--; renderWizard(); } });
-    $("btn-wizard-next").addEventListener("click", function () {
-      if (wizardStep === 0 && !draft.startedAt) { toast("Укажите дату и время"); return; }
-      if (wizardStep < STEPS.length - 1) { wizardStep++; renderWizard(); }
-    });
-    $("btn-wizard-save").addEventListener("click", saveWizard);
-    $("btn-wizard-delete").addEventListener("click", deleteFromWizard);
+    $("btn-wizard-close").addEventListener("click", function () { showView("journal"); });
 
     $("btn-pin-open").addEventListener("click", openPinDialog);
     $("btn-pin-set").addEventListener("click", applyPin);
