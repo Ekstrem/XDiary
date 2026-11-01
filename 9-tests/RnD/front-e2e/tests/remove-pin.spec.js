@@ -50,11 +50,14 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       await page.waitForTimeout(2000);
     });
 
-    await test.step('проверка: pin/has=false, старый PIN 401, device-токен 200', async () => {
+    await test.step('проверка: pin/has=false и device-токен работает', async () => {
+      // При отсутствии PIN сервер выдаёт device-токен (BE-019) на любой pin,
+      // поэтому «старый PIN → 401» здесь неверно. Проверяем наблюдаемое:
+      // PIN снят + device-токен выдаётся.
       expect(await hasPin(request), 'после снятия pin/has = false').toBe(false);
-      expect(await tokenStatus(request, PIN), 'старый PIN больше не выдаёт токен').toBe(401);
       removed = true;
       expect(await tokenStatus(request, ''), 'device-токен без PIN работает').toBe(200);
+      expect(await tokenStatus(request, PIN), 'снятый PIN не мешает device-токену').toBe(200);
     });
   } finally {
     if (removed) {
