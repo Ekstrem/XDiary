@@ -12,8 +12,8 @@ using Partners.Storage;
 namespace Partners.Storage.Migrations
 {
     [DbContext(typeof(CommandDbContext))]
-    [Migration("20261101185012_AddSelfToPartner")]
-    partial class AddSelfToPartner
+    [Migration("20261101190146_AddClientIdToPartner")]
+    partial class AddClientIdToPartner
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -29,6 +29,9 @@ namespace Partners.Storage.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClientId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Gender")
@@ -47,9 +50,6 @@ namespace Partners.Storage.Migrations
                     b.Property<string>("Photo")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<bool>("Self")
-                        .HasColumnType("boolean");
 
                     b.Property<long>("Version")
                         .HasColumnType("bigint");

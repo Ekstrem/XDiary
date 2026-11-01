@@ -28,6 +28,9 @@ namespace Partners.Storage.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Gender")
                         .IsRequired()
                         .HasColumnType("text");
@@ -44,9 +47,6 @@ namespace Partners.Storage.Migrations
                     b.Property<string>("Photo")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<bool>("Self")
-                        .HasColumnType("boolean");
 
                     b.Property<long>("Version")
                         .HasColumnType("bigint");

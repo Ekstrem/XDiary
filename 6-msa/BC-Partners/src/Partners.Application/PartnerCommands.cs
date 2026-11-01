@@ -7,4 +7,5 @@ public sealed record RegisterPartnerCommand(string Name) : IRequest<AggregateRes
 public sealed record RenamePartnerCommand(Guid AggregateId, string Name) : IRequest<AggregateResult<IPartners, IPartnerAnemicModel>>;
 public sealed record UpdatePartnerProfileCommand(Guid AggregateId, string Photo, string Gender, string Notes) : IRequest<AggregateResult<IPartners, IPartnerAnemicModel>>;
 public sealed record RemovePartnerCommand(Guid AggregateId) : IRequest<AggregateResult<IPartners, IPartnerAnemicModel>>;
-public sealed record SetPartnerSelfCommand(Guid AggregateId, bool Self) : IRequest<AggregateResult<IPartners, IPartnerAnemicModel>>;
+public sealed record LinkPartnerClientCommand(Guid AggregateId, Guid ClientId) : IRequest<AggregateResult<IPartners, IPartnerAnemicModel>>;
+public sealed record UnlinkPartnerClientCommand(Guid AggregateId) : IRequest<AggregateResult<IPartners, IPartnerAnemicModel>>;
