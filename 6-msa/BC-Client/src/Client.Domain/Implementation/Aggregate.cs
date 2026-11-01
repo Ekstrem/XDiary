@@ -22,12 +22,12 @@ public sealed class Aggregate
         return new AggregateResultException<IClients, IClientAnemicModel>(data, new FailedSpecification<IClients, IClientAnemicModel>(e));
     }
 
-    public AggregateResult<IClients, IClientAnemicModel> Register(string phone)
+    public AggregateResult<IClients, IClientAnemicModel> Register(string phone, string otp)
     {
         var v = new PhoneRequiredValidator();
         var probe = new AnemicModel { Id = Model.Id, Root = ClientRoot.CreateInstance(phone) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
-        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = ClientRoot.CreateInstance(phone), OtpCode = NewOtp() };
+        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = ClientRoot.CreateInstance(phone), OtpCode = otp };
         return Success(m);
     }
     public AggregateResult<IClients, IClientAnemicModel> VerifyOtp(string code)
@@ -44,5 +44,4 @@ public sealed class Aggregate
         var m = Clone(); m.LinkedPartnerId = null; return Success(m);
     }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, Verified = Model.Verified, LinkedPartnerId = Model.LinkedPartnerId };
-    private static string NewOtp() => Random.Shared.Next(100000, 1000000).ToString();
 }

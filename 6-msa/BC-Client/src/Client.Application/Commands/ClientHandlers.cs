@@ -1,4 +1,5 @@
 namespace Client.Application.Commands;
+using Microsoft.Extensions.Configuration;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Client.Domain;
@@ -9,9 +10,10 @@ using XDiary.Contracts;
 public sealed class RegisterClientHandler : IRequestHandler<RegisterClientCommand, AggregateResult<IClients, IClientAnemicModel>>
 {
     private readonly IRepository<IClients, IClientAnemicModel> _repo;
-    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo) => _repo = repo;
+    private readonly string? _testOtp;
+    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IConfiguration config) { _repo = repo; _testOtp = config["Clients:TestOtp"]; }
     public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(RegisterClientCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString(); var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class VerifyClientOtpHandler : IRequestHandler<VerifyClientOtpCommand, AggregateResult<IClients, IClientAnemicModel>>
 {
