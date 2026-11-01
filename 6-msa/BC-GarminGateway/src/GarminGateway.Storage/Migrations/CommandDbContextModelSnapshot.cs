@@ -32,6 +32,9 @@ namespace GarminGateway.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("LastSync")
                         .IsRequired()
                         .HasColumnType("text");
@@ -61,7 +64,7 @@ namespace GarminGateway.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SourceId")
+                    b.HasIndex("ClientId", "SourceId")
                         .IsUnique();
 
                     b.ToTable("garmin_sync", (string)null);

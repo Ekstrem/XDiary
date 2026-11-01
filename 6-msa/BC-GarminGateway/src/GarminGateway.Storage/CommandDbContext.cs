@@ -5,5 +5,5 @@ public sealed class CommandDbContext : DbContext
     public CommandDbContext(DbContextOptions<CommandDbContext> options) : base(options) { }
     public DbSet<GarminSyncEntity> Sync => Set<GarminSyncEntity>();
     protected override void OnModelCreating(ModelBuilder b)
-    { b.Entity<GarminSyncEntity>(e => { e.ToTable("garmin_sync"); e.HasKey(x => x.Id); e.HasIndex(x => x.SourceId).IsUnique(); e.Property(x => x.SourceId).HasMaxLength(32).IsRequired(); }); }
+    { b.Entity<GarminSyncEntity>(e => { e.ToTable("garmin_sync"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.ClientId, x.SourceId }).IsUnique(); e.Property(x => x.SourceId).HasMaxLength(32).IsRequired(); }); }
 }

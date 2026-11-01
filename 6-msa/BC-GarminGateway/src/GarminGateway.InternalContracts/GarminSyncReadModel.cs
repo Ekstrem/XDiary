@@ -3,6 +3,7 @@ using XDiary.Contracts;
 public sealed class GarminSyncReadModel : IReadModel<GarminGateway.Domain.IGarminGateway>
 {
     public Guid Id { get; set; }
+    public Guid ClientId { get; set; }
     public string SourceId { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
     public string OauthToken { get; set; } = string.Empty;

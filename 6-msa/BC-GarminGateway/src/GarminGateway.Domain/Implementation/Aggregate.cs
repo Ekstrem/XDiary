@@ -18,11 +18,11 @@ public sealed class Aggregate
     { var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, Model); return new AggregateResultException<IGarminGateway, IGarminGatewayAnemicModel>(d, new FailedSpecification<IGarminGateway, IGarminGatewayAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Credentials = Model.Credentials, SyncConfig = Model.SyncConfig, LastSync = Model.LastSync };
 
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(ICredentials credentials)
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials)
     {
         var v = new CredentialsValidator();
         if (!v.IsSatisfiedBy(credentials)) return Fail(v.Reason);
-        var m = Clone(); m.Root = GarminSyncRoot.CreateInstance("garmin"); m.Credentials = credentials; return Success(m);
+        var m = Clone(); m.Root = GarminSyncRoot.CreateInstance(clientId, "garmin"); m.Credentials = credentials; return Success(m);
     }
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config)
     {
