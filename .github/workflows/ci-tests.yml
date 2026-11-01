@@ -25,6 +25,11 @@ jobs:
 
   front-e2e:
     runs-on: ubuntu-latest
+    env:
+      # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
+      # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_PIN: "1234"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
