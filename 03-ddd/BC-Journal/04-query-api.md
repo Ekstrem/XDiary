@@ -5,7 +5,7 @@
 ## Запросы (чтение)
 | Запрос | Эндпоинт | Response | Источник |
 |---|---|---|---|
-| Журнал (список) | `GET /api/v1/journal?filter=...` | JournalView | ReadModel `records` |
+| Журнал (список) | `GET /api/v1/journal?limit=&offset=&filter=...` | JournalView | ReadModel `records` |
 | Деталь записи | `GET /api/v1/journal/{id}` | RecordDetailView | ReadModel + соматика |
 | Черновик | `GET /api/v1/journal/draft/{id}` | RecordDraft | Draft (не проекция) |
 | Последние (визард) | `GET /api/v1/journal/recent` | RecentDefaultsView | ReadModel `records` (latest по `startedAt`) |
