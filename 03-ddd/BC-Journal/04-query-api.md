@@ -8,8 +8,8 @@
 | Журнал (список) | `GET /api/v1/journal?limit=&offset=&filter=...` | JournalView | ReadModel `records` |
 | Деталь записи | `GET /api/v1/journal/{id}` | RecordDetailView | ReadModel + соматика |
 | Черновик | `GET /api/v1/journal/draft/{id}` | RecordDraft | Draft (не проекция) |
-| Последние (визард) | `GET /api/v1/journal/recent` | RecentDefaultsView | ReadModel `records` (latest по `startedAt`) |
-| Места (подсказки) | `GET /api/v1/journal/places` | `string[]` | ReadModel `records` (DISTINCT `place`) |
+| Последние (визард) | `GET /api/v1/journal/recent` | RecentDefaultsView | MV `journal_recent` |
+| Места (подсказки) | `GET /api/v1/journal/places` | `string[]` | MV `journal_places` |
 
 ## Response DTO
 ### JournalView

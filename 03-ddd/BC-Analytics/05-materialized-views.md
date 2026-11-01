@@ -1,26 +1,26 @@
 # Materialized Views: Аналитика (Analytics)
 
-## Проекции (computed, на лету)
-Постоянных хранилищ нет — проекции вычисляются из ReadModel соседних сервисов.
+## Проекции (MV — прекомпьют от событий соседних сервисов)
+Постоянные MV — обновляются инкрементально от событий; Query API читает **готовое** (не считает на лету и не на клиенте).
 
-| Проекция | Источник | Статус |
+| MV | Источник событий | Статус |
 |---|---|---|
-| Сводка | `records` (агрегация) | ⬜ |
-| Физиопрофиль | `somatic` (срезы) | ⬜ |
-| Топ-списки | `records` (счётчики) | ⬜ |
-| Распределение | `records.startedAt` | ⬜ |
-| Пороги | `somatic` | ⬜ |
-| Тренд | `weekly` + `sleep` | ✅ |
-| Корреляции | `records` × `weekly`/`sleep` | ✅ |
+| `analytics_summary` | `RecordCompleted` (Journal) | ⬜ |
+| `analytics_physio` | `RecordCompleted` + `SomaticPointRecorded` | ⬜ |
+| `analytics_tops` | `RecordCompleted` | ⬜ |
+| `analytics_distribution` | `RecordCompleted` | ⬜ |
+| `analytics_thresholds` | `SomaticPointRecorded` | ⬜ |
+| `analytics_trends` | `StressRecorded`/`SleepRecorded` (DailyMetrics) | ✅ |
+| `analytics_correlations` | `RecordCompleted` × DailyMetrics | ✅ |
 
-## Правила вычисления
-| Проекция | Правило |
+## Правила проекции (событие → MV)
+| MV | Правило |
 |---|---|
-| Сводка | count, sum(durationMin), avg, **sum(оргазмы по участникам)**, avg(rating), streak |
-| Физиопрофиль | усреднённый профиль пульса/BB ±30 мин вокруг startedAt |
-| Топ-списки | group by поле (позы/игрушки/костюмы/фантазии/места/партнёры) → count |
-| Распределение | group by день недели и час startedAt |
-| Корреляции | pearson(…) при n ≥ 3 |
+| `analytics_summary` | count, sum(durationMin), avg, **sum(оргазмы по участникам)**, avg(rating), streak |
+| `analytics_physio` | усреднённый профиль пульса/BB ±30 мин вокруг startedAt |
+| `analytics_tops` | group by поле (позы/игрушки/костюмы/фантазии/места/партнёры) → count |
+| `analytics_distribution` | group by день недели и час startedAt |
+| `analytics_correlations` | pearson(…) при n ≥ 3 |
 
 ## Перспектива
 - ST-01 (сводка), ST-05..ST-08 — не реализованы.

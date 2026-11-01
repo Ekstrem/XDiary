@@ -4,6 +4,8 @@
 | Store | Тип | Обслуживает |
 |---|---|---|
 | `records` | ReadModel (keyPath `id`) | JournalView, RecordDetailView |
+| `journal_recent` | MV (последние значения) | RecentDefaultsView (`recent`) |
+| `journal_places` | MV (уникальные места) | подсказки мест (`places`) |
 
 ## Store: records
 | Поле | Тип | Источник |
@@ -25,15 +27,26 @@
 | garminId | string | VO |
 | createdAt / updatedAt | string | системное |
 
-## Проекционные правила (событие → действие)
-| Событие | Действие |
-|---|---|
-| `RecordCompleted` | INSERT / upsert |
-| `RecordDeleted` | DELETE |
+## MV: journal_recent (дефолты визарда)
+| Поле | Тип | Источник |
+|---|---|---|
+| lastPartnerId | uuid\|null | `RecordCompleted` (первый партнёр последней записи) |
+| lastPartnerName | string\|null | проекция из `Partner` |
+| lastPlace | string\|null | `RecordCompleted` |
 
-> `recent` (latest по `startedAt`) и `places` (DISTINCT `place`) — **запросы по read-model `records`**, отдельной проекции не требуют.
+## MV: journal_places (уникальные места)
+| Поле | Тип |
+|---|---|
+| place | string (key) |
+| lastUsedAt | string |
+
+## Проекционные правила (событие → действие)
+| Событие | `records` | `journal_recent` | `journal_places` |
+|---|---|---|---|
+| `RecordCompleted` | INSERT / upsert | upsert (latest по `startedAt`) | upsert `place` + `lastUsedAt` |
+| `RecordDeleted` | DELETE | пересчёт latest | очистка (если `place` больше не используется) |
 
 ## Индексы
-- `startedAt` — сортировка журнала по убыванию (+ `recent`).
-- `partners` — фильтр по партнёру.
-- `place` — DISTINCT для подсказок мест.
+- `records.startedAt` — сортировка журнала (по убыванию).
+- `records.partners` — фильтр по партнёру.
+- `journal_places.lastUsedAt` — сортировка подсказок по свежести.
