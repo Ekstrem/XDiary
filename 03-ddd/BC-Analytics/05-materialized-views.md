@@ -13,8 +13,10 @@
 | `analytics_trends` | `weekly` + `sleep` (DailyMetrics) | ✅ |
 | `analytics_correlations` | `records` × DailyMetrics | ✅ |
 
-## Обновление MV (Single-профиль)
-Межсервисной событийной шины в Single-профиле нет (EventBus InMemory — только внутри процесса). Поэтому Analytics MV обновляется **фоновым HostedService по расписанию**: тянет read-model Journal/DailyMetrics по **HTTP сервис-сервис** (внутренняя сеть podman `xdiary`, НЕ через публичный шлюз/Funnel) → пересчитывает MV-таблицы. Клиент читает готовое. Событийное обновление — при эволюции профиля (Cqrs/Ceqrs).
+## Обновление MV
+**Целевое — event-driven** (директива PO): MV обновляется инкрементально от событий `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded` через outbox → подписчик.
+
+**Текущая заглушка (техдолг AR-006):** в Single-профиле межсервисной шины нет (EventBus InMemory — внутри процесса), поэтому пока — `HostedService` по расписанию (HTTP pull, 2 мин) как **fallback**. Расписание — временная заглушка, не основной механизм; переход к event-driven — AR-006.
 
 ## Правила проекции
 | MV | Правило |
