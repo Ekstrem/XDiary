@@ -23,6 +23,21 @@ test('E2E: настройки — пол сохраняется после пе�
   });
 
   await test.step('после перезагрузки выбранный пол сохранился', async () => {
+    // setMyGender пишет в IndexedDB асинхронно (DB.setMeta без await) — даём
+    // записи зафиксироваться, иначе reload теряет настройку (не баг, а гонка теста)
+    await page.waitForFunction(() => new Promise((res) => {
+      try {
+        const r = indexedDB.open('xdiary');
+        r.onsuccess = () => {
+          const db = r.result;
+          const tx = db.transaction('meta', 'readonly');
+          const g = tx.objectStore('meta').get('myGender');
+          g.onsuccess = () => res((g.result && (g.result.value || g.result)) === 'female');
+          g.onerror = () => res(false);
+        };
+        r.onerror = () => res(false);
+      } catch (e) { res(false); }
+    }), null, { timeout: 10000 });
     await page.reload();
     await unlockIfLocked(page);
     await page.click('#tab-settings');

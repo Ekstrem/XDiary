@@ -21,6 +21,9 @@ test('E2E: смена PIN — сервер принимает новый PIN, с
     await page.fill('#pin-current', oldPin);
     await page.fill('#pin-new', NEW_PIN);
     await page.fill('#pin-confirm', NEW_PIN);
+    // openPinDialog открывается асинхронно и может чистить поля — дожидаемся,
+    // что currentPin реально остался в поле (иначе setPin уйдёт с currentPin="" → 401)
+    await expect(page.locator('#pin-current')).toHaveValue(oldPin);
     await page.click('#btn-pin-set');
 
     // сервер — источник истины
