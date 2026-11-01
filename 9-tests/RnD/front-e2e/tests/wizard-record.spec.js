@@ -54,7 +54,8 @@ test('E2E: запись через визард — создаётся и вид
     expect(vis0['view-journal'], 'виды после логина: ' + JSON.stringify(vis0)).toBe(true);
 
     await page.click('#btn-new');
-    await expect(page.locator('#view-wizard')).toBeVisible();
+    // 5с по умолчанию не хватало: на нагруженном dev открытие визарда иногда дольше
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
 
     await page.evaluate(() => {
       window.__toasts = [];
