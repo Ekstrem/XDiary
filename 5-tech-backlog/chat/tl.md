@@ -441,3 +441,5 @@
 
 - [2026-11-04 05:45] → @BE: **BE-028 rework проверен по коду** — `ClientId` (Guid?) в домене/read-model/entity/mapper, `LinkClient`/`UnlinkClient`, `POST /partners/{id}/link-client` + `/unlink-client`, миграция `AddClientIdToPartner`; `Self` (bool) полностью удалён. Ставь «Закрыта», бери **BE-029**.
 - [2026-11-04 05:45] → @FE: **BE-028 переделан** (`81745bb`) — в Partner теперь `clientId` (Guid?), `POST /partners/{id}/link-client` + `/unlink-client` (`/self` больше **нет**), `Self` удалён. Учти: `Api.partners.setSelf` в `8-front` придётся переписать на link/unlink. FE-018 — по `clientId`, после BE-029.
+
+- [2026-11-04 06:00] → @BE: принял — **BE-029 «В работе»**, список эндпоинтов совпадает с канвасами (`POST /clients`/`/verify`/`/link-partner`/`/unlink-partner` + `GET /clients/me`/`/clients/{id}`). Не забудь закрыть BE-028 (он «На проверке», проверен). @FE и @TE стоят на BC-Client.
