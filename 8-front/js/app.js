@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.37"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.38"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -292,14 +292,6 @@
     });
   }
 
-  function lastPartnerName(records) {
-    var sorted = records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
-    for (var i = 0; i < sorted.length; i++) {
-      if (sorted[i].partner) return sorted[i].partner;
-    }
-    return "";
-  }
-
   // ---- визард ----
   function newDraft() {
     return {
@@ -313,15 +305,24 @@
   }
 
   // FE-015: НЕ кэшируем (правило PO) — один getAllJournalData на открытие, данные идут в шаги параметром
-  // FE-015: вернуться в визард после формы — данные грузим заново (без кэша)
+  // FE-014/015: данные визарда — партнёры+журнал (шаги), recent/places — лёгкие MV вместо клиентского скана
+  function loadWizardData() {
+    return Promise.all([
+      DB.getAllJournalData(),
+      Api.journal.recent().catch(function () { return null; }),
+      Api.journal.places().catch(function () { return []; })
+    ]).then(function (res) {
+      return { partners: res[0].partners, records: res[0].records, recent: res[1] || {}, places: res[2] || [] };
+    });
+  }
   function reopenWizard() {
-    DB.getAllJournalData().then(function (data) { showView("wizard"); renderWizard(data); });
+    loadWizardData().then(function (data) { showView("wizard"); renderWizard(data); });
   }
 
   function openWizard(id) {
     editingId = id || null;
     wizardStep = id ? STEPS.length - 1 : 0;
-    DB.getAllJournalData().then(function (data) {
+    loadWizardData().then(function (data) {
       var r = id ? data.records.filter(function (x) { return x.id === id; })[0] : null;
       if (id && !r) return;
       if (id) {
@@ -341,8 +342,8 @@
         };
       } else {
         draft = newDraft();
-        draft.partner = lastPartnerName(data.records);
-        draft.place = historyPlaces(data.records)[0] || "";
+        draft.partner = (data.recent.lastPartner && data.recent.lastPartner.name) || "";
+        draft.place = data.recent.lastPlace || "";
       }
       showView("wizard");
       renderWizard(data);
@@ -451,19 +452,12 @@
 
     var names = new Set();
     partners.forEach(function (p) { names.add(p.name); });
-    records.forEach(function (r) { if (r.partner) names.add(r.partner); });
+    if (data.recent && data.recent.lastPartner && data.recent.lastPartner.name) names.add(data.recent.lastPartner.name);
     fillDatalist("partner-suggest", names);
   }
 
-  function historyPlaces(records) {
-    var out = [];
-    var sorted = records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
-    sorted.forEach(function (r) { if (r.place && out.indexOf(r.place) === -1) out.push(r.place); });
-    return out;
-  }
-
   function stepPlace(body, data) {
-    var places = historyPlaces(data.records);
+    var places = data.places || [];
     body.innerHTML =
       '<div class="step-label">Где?</div>' +
       '<div class="chips-grid" id="w-place-grid"></div>' +

@@ -97,6 +97,8 @@
     // Журнал: цепочка команд (StartManualEntry → Specify* → Complete)
     journal: {
       list: function () { return get("/api/v1/journal/records"); },
+      recent: function () { return get("/api/v1/journal/recent"); },
+      places: function () { return get("/api/v1/journal/places"); },
       get: function (id) { return get("/api/v1/journal/records/" + id); },
       start: function () { return post("/api/v1/journal/records"); },
       startFromGarmin: function (d) { return post("/api/v1/journal/records/from-garmin", d); },
