@@ -3,7 +3,7 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests',
   timeout: 90_000,
-  reporter: 'list',
+  reporter: [['list'], ['./reporters/notice.js']],
   use: {
     baseURL: 'http://127.0.0.1:4173',
     headless: true,

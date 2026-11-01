@@ -4,7 +4,16 @@ const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps1.taile0
 
 async function waitToken(page) {
   // без PIN приложение берёт device-токен (FE-006/BE-019); без него все запросы 401
-  await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
+  const failed = [];
+  page.on('requestfailed', (r) => {
+    const f = r.failure();
+    failed.push(r.url() + ' :: ' + ((f && f.errorText) || 'failed'));
+  });
+  try {
+    await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 30000 });
+  } catch (e) {
+    throw new Error('device-токен не получен. Сетевые ошибки: ' + JSON.stringify(failed.slice(0, 5)));
+  }
 }
 
 async function removeByName(page, kind, name) {
