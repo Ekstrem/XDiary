@@ -10,13 +10,13 @@ public static class AppleHealthGatewayMapper
     public static IAppleHealthGatewayAnemicModel MapToModel(AppleImportEntity e)
     {
         var m = new AnemicModel { Id = e.Id, Version = e.Version };
-        m.Root = AppleImportRoot.CreateInstance(e.SourceId);
+        m.Root = AppleImportRoot.CreateInstance(e.ClientId, e.SourceId);
         m.ImportConfig = ImportConfig.CreateInstance(ToList(e.MetricsJson));
         m.LastImport = e.LastImport;
         m.ProcessedFiles = ToList(e.ProcessedFilesJson);
         return m;
     }
     public static void MapToEntity(IAppleHealthGatewayAnemicModel m, AppleImportEntity e)
-    { e.Id = m.Id; e.Version = m.Version; e.SourceId = m.Root.SourceId; e.MetricsJson = ToJson(m.ImportConfig.Metrics); e.LastImport = m.LastImport; e.ProcessedFilesJson = ToJson(m.ProcessedFiles); }
-    public static AppleImportReadModel MapToReadModel(AppleImportEntity e) => new AppleImportReadModel { Id = e.Id, SourceId = e.SourceId, Metrics = ToList(e.MetricsJson), LastImport = e.LastImport, ProcessedFiles = ToList(e.ProcessedFilesJson) };
+    { e.Id = m.Id; e.Version = m.Version; e.ClientId = m.Root.ClientId; e.SourceId = m.Root.SourceId; e.MetricsJson = ToJson(m.ImportConfig.Metrics); e.LastImport = m.LastImport; e.ProcessedFilesJson = ToJson(m.ProcessedFiles); }
+    public static AppleImportReadModel MapToReadModel(AppleImportEntity e) => new AppleImportReadModel { Id = e.Id, ClientId = e.ClientId, SourceId = e.SourceId, Metrics = ToList(e.MetricsJson), LastImport = e.LastImport, ProcessedFiles = ToList(e.ProcessedFilesJson) };
 }

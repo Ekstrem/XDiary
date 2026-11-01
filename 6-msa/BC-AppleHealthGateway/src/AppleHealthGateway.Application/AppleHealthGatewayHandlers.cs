@@ -12,12 +12,12 @@ public sealed class ConfigureHandler : IRequestHandler<ConfigureCommand, Aggrega
     private readonly IAppleHealthGatewayRepository _repo;
     public ConfigureHandler(IAppleHealthGatewayRepository repo) => _repo = repo;
     public async Task<AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>> Handle(ConfigureCommand r, CancellationToken ct)
-    { var m = await _repo.GetBySourceIdAsync("apple", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).Configure(r.Metrics); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "apple", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).Configure(r.ClientId, r.Metrics); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class ImportFileHandler : IRequestHandler<ImportFileCommand, AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>>
 {
     private readonly IAppleHealthGatewayRepository _repo;
     public ImportFileHandler(IAppleHealthGatewayRepository repo) => _repo = repo;
     public async Task<AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>> Handle(ImportFileCommand r, CancellationToken ct)
-    { var m = await _repo.GetBySourceIdAsync("apple", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).ImportFile(r.FileName); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "apple", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).ImportFile(r.FileName); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }

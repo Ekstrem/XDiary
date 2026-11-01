@@ -7,4 +7,6 @@ public sealed class AppleHealthGatewayReadRepository : IAppleHealthGatewayQueryR
     public AppleHealthGatewayReadRepository(ReadDbContext db) => _db = db;
     public async Task<AppleImportReadModel?> GetBySourceIdAsync(string sourceId, CancellationToken ct = default)
     { var e = await _db.Import.FirstOrDefaultAsync(x => x.SourceId == sourceId, ct); return e is null ? null : AppleHealthGatewayMapper.MapToReadModel(e); }
+    public async Task<AppleImportReadModel?> GetByClientIdSourceIdAsync(Guid clientId, string sourceId, CancellationToken ct = default)
+    { var e = await _db.Import.FirstOrDefaultAsync(x => x.ClientId == clientId && x.SourceId == sourceId, ct); return e is null ? null : AppleHealthGatewayMapper.MapToReadModel(e); }
 }

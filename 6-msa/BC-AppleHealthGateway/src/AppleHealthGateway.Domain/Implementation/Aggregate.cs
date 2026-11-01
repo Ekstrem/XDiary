@@ -17,9 +17,9 @@ public sealed class Aggregate
     { var d = BusinessOperationData<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>.Commit<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(Model, Model); return new AggregateResultException<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(d, new FailedSpecification<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, ImportConfig = Model.ImportConfig, LastImport = Model.LastImport, ProcessedFiles = Model.ProcessedFiles };
 
-    public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(IEnumerable<string> metrics)
+    public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics)
     {
-        var m = Clone(); m.Root = AppleImportRoot.CreateInstance("apple"); m.ImportConfig = ImportConfig.CreateInstance(metrics); return Success(m);
+        var m = Clone(); m.Root = AppleImportRoot.CreateInstance(clientId, "apple"); m.ImportConfig = ImportConfig.CreateInstance(metrics); return Success(m);
     }
     public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName)
     {

@@ -28,6 +28,9 @@ namespace AppleHealthGateway.Storage.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("LastImport")
                         .IsRequired()
                         .HasColumnType("text");
@@ -50,7 +53,7 @@ namespace AppleHealthGateway.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SourceId")
+                    b.HasIndex("ClientId", "SourceId")
                         .IsUnique();
 
                     b.ToTable("apple_import", (string)null);

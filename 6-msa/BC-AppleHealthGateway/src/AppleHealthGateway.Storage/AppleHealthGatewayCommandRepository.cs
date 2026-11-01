@@ -13,10 +13,12 @@ public sealed class AppleHealthGatewayCommandRepository : IAppleHealthGatewayRep
     { var e = await _db.Import.FirstOrDefaultAsync(x => x.Id == id, ct); return e is null ? null : AppleHealthGatewayMapper.MapToModel(e); }
     public async Task<IAppleHealthGatewayAnemicModel?> GetBySourceIdAsync(string sourceId, CancellationToken ct = default)
     { var e = await _db.Import.FirstOrDefaultAsync(x => x.SourceId == sourceId, ct); return e is null ? null : AppleHealthGatewayMapper.MapToModel(e); }
+    public async Task<IAppleHealthGatewayAnemicModel?> GetByClientIdSourceIdAsync(Guid clientId, string sourceId, CancellationToken ct = default)
+    { var e = await _db.Import.FirstOrDefaultAsync(x => x.ClientId == clientId && x.SourceId == sourceId, ct); return e is null ? null : AppleHealthGatewayMapper.MapToModel(e); }
     public async Task SaveAsync(AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> result, CancellationToken ct = default)
     {
         var m = result.Model();
-        var e = await _db.Import.FirstOrDefaultAsync(x => x.SourceId == m.Root.SourceId, ct);
+        var e = await _db.Import.FirstOrDefaultAsync(x => x.ClientId == m.Root.ClientId && x.SourceId == m.Root.SourceId, ct);
         if (e is null) { e = new AppleImportEntity { Id = m.Id }; _db.Import.Add(e); }
         AppleHealthGatewayMapper.MapToEntity(m, e);
         await _db.SaveChangesAsync(ct);

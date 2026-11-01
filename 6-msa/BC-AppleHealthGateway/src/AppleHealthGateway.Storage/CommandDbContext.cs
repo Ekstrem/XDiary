@@ -5,5 +5,5 @@ public sealed class CommandDbContext : DbContext
     public CommandDbContext(DbContextOptions<CommandDbContext> options) : base(options) { }
     public DbSet<AppleImportEntity> Import => Set<AppleImportEntity>();
     protected override void OnModelCreating(ModelBuilder b)
-    { b.Entity<AppleImportEntity>(e => { e.ToTable("apple_import"); e.HasKey(x => x.Id); e.HasIndex(x => x.SourceId).IsUnique(); e.Property(x => x.SourceId).HasMaxLength(32).IsRequired(); }); }
+    { b.Entity<AppleImportEntity>(e => { e.ToTable("apple_import"); e.HasKey(x => x.Id); e.HasIndex(x => new { x.ClientId, x.SourceId }).IsUnique(); e.Property(x => x.SourceId).HasMaxLength(32).IsRequired(); }); }
 }
