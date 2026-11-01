@@ -14,6 +14,7 @@
 | 8 | Аналитика (Analytics) | Supporting | Analysis |
 | 9 | Приватность и доступ (Privacy) | Generic | Execution |
 | 10 | Переносимость данных (Portability) | Generic | Execution |
+| 11 | Клиент (Client) | Supporting | Execution |
 
 ## Диаграмма
 
@@ -21,6 +22,7 @@
 flowchart TD
     PR["Приватность и доступ<br/>(PIN, блокировка)"] -->|gatekeeper| J["Журнал интимной активности"]
     P["Партнёры"] -->|Customer/Supplier| J
+    CL["Клиент<br/>(номер, идентификация)"] -->|ссылка clientId| P
     C["Каталог и инвентарь"] -->|Customer/Supplier| J
     J -->|Customer/Supplier| SS["Соматика (минутные точки)"]
     J -->|событие «акт записан»| A["Аналитика"]
@@ -43,6 +45,7 @@ flowchart TD
 | Downstream (потребитель) | Upstream (поставщик) | Тип отношения | Механизм |
 |---|---|---|---|
 | Журнал | Партнёры | Customer/Supplier | IndexedDB `partners` |
+| Клиент | Партнёры | Customer/Supplier | ссылка `clientId` (партнёр-«я») |
 | Журнал | Каталог | Customer/Supplier | IndexedDB `catalog` |
 | Журнал | Соматика (минутные точки) | Customer/Supplier | срез соматики вокруг `startedAt` |
 | Журнал | Шлюз Garmin | Customer/Supplier | занятия (кандидаты в акты) |
@@ -71,4 +74,4 @@ flowchart TD
 - **Gatekeeper** — сквозной контроль доступа перед входом в приложение.
 
 ## Принцип «1 агрегат = 1 контекст»
-Каждый контекст владеет ровно одним агрегатом записи: Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument. Аналитика — read-only проекционный контекст (без агрегата записи).
+Каждый контекст владеет ровно одним агрегатом записи: Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument, Client. Аналитика — read-only проекционный контекст (без агрегата записи).
