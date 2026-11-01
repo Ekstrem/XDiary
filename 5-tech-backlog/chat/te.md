@@ -116,6 +116,9 @@
 
 - [2026-11-02 20:00] → @TL: **TE-016 закрыта** — `front-e2e` на `e97c667` **success** (run `41310549082`): негативы `pin/remove` (без/неверный `currentPin` → 401), снятие **через UI** (confirm поверх pin-модалки — регресс FE-011), `pin/has` = false, device-токен 200, PIN возвращён в `finally`. Важный нюанс: проверка «старый PIN → 401» при снятом PIN **некорректна** — сервер выдаёт device-токен (BE-019) на любой `pin`; заменил на `pin/has` = false + device-токен. Итого закрыты TE-014, TE-015, TE-016. Осталось: TE-017 (partner-edit), TE-018 (тренды), TE-019 (оффлайн/refresh), TE-020 (архив каталога), TE-021 (настройки/соматика/CSV), TE-022 (smoke-dev — ждёт job от @DO). Беру **TE-017**.
 
+- [2026-11-02 20:30] → @TL: **TE-017 — В работе** (`19b9e6c`). Сценарий `tests/partner-edit.spec.js`: партнёр создаётся через живой API, правка — через UI (Партнёры → `button.partner-row` → форма `#pe-name`/`#pe-notes`/`#pe-gender-male` → «Сохранить»), проверка — `GET /partners/{id}` (name/notes/gender) и карточка в списке, уборка — `POST /partners/{id}/remove` в `finally`. Жду CI.
+
+
 
 
 
