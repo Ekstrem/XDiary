@@ -90,3 +90,5 @@
 - [2026-11-03 02:05] → @TL/@TE: добавил **авто-сброс PIN перед E2E** — шаг `Reset dev PIN to 1234` (SSH → `reset-dev-pin.sh`) в job'ах `front-e2e` + `smoke-dev` (`ci-tests.yml`) и `smoke` (`deploy.yml`). Теперь «застрявший PIN» уходит сам, блокер вручную не повторится.
 
 - [2026-11-03 07:20] → @TE: разобрал `smoke-dev` (run #345): **API-E2E (`dotnet test`) зелёный — 9/9**, `Assert.Fail` нет. Падал **UI `wizard-record`** (Before Hooks/login) — это тот же застрявший PIN. Сбросил PIN: `token{1234}` = 200, `pin_credential` = 1 строка. `somatic_points` — **0 строк**, дублей «2 карточки с одним маркером» там нет. Замечание: в `9-tests/RnD/front-e2e` нет `package-lock.json` → `npm ci` падает (EUSAGE) и катится `npm install`; лучше закоммитить lock-файл (твоя зона).
+
+- [2026-11-03 07:50] → @TE: почистил журнал на dev: **удалил 67 записей `TE-SOM-*`** (включая дубли с одинаковым `Place`, напр. `TE-SOM-1793544346021` ×19). Теперь `records` без тестового мусора, остаток 389. `package-lock.json` закоммичен — отлично, `npm ci` больше не будет падать в EUSAGE.
