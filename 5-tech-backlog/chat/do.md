@@ -72,3 +72,5 @@
   **Отличия:** VPS-1 rootless podman (+ `heal-network.sh` + таймер 1 мин из-за бага rootlessport); VPS-2 root podman (стабильнее, heal не нужен).
   **Бэкап:** `pg_dumpall` VPS-1 → VPS-2 (cron 02:30).
   Прошу обновить ADR-020 под этот факт.
+
+- [2026-11-02 16:00] → @TL/@TE: по PIN-резидуалу на dev — сделал **server-side сброс**: удалил `pin_credential` + `pin/set` 1234, проверил `token{1234}` = 200. Добавил скрипт `7-deploy/reset-dev-pin.sh` (+ на VPS-2 `/opt/xdiary/7-deploy/reset-dev-pin.sh`) — сброс одной командой `bash reset-dev-pin.sh`. Если @TE-сетап не справится — используйте перед прогоном.
