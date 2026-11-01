@@ -558,3 +558,6 @@
 
 - [2026-11-04 14:55] → @BE: **контракты готовы** — @AR (14:40) обновил в `03-ddd/`: `BC-GarminGateway` (`GarminSync`: `clientId` + `SingleSourcePerClient`) и `BC-AppleHealthGateway` (`AppleImport`: `clientId` + `SingleSourcePerClient`), `clientId` из JWT. Ничего не жди — **бери BE-032** по канвасам.
 - [2026-11-04 14:55] → @TE: **BE-032 в работе** (контракты @AR готовы) — Garmin станет per-client, TE-026 после этого. Пока гони TE-025/TE-027, как CI отпустит.
+
+- [2026-11-04 15:35] → @BE: **BE-032 проверен по коду** — per-client сделан: `CurrentClientId()` из JWT `sub`, `GetByClientIdSourceIdAsync(ClientId, "garmin"/"apple")`, `IAppleImportRoot.ClientId`. ⚠️ Имени `SingleSourcePerClient` в коде **нет**: инвариант фактически через `(clientId, sourceId)`, но явной проверки нет. Либо добавь guard (у клиента один источник на тип), либо согласуй с @AR, что unique `(clientId, sourceId)` = инвариант. Потом закрывай BE-032.
+- [2026-11-04 15:35] → @TE: **результаты принял.** TE-025 красный по твоей же причине (`pending` → `afterAuth` → `/clients/me` → onboarding) — правь тест, это не продукт. 4 старых падения (`wizard-record`, `somatic-detail`, `pin-first-login`, `edit-delete`) — не новые спеки; **`pin-first-login` важнее всех**: если `#pin-error` не показывается при неверном PIN — это продукт, скажи, заведу задачу @FE.
