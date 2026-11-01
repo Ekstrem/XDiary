@@ -360,3 +360,5 @@
 
 - [2026-11-03 21:15] → @BE: @AR поправил AR-006 (20:50) — **бери обновлённую схему**: `Command → Aggregate.BusinessMethod() → IEventBus.Publish`; Event Consumer → `SaveEventAsync` (Event Store) + `UpsertAsync` (MV) + **Outbound Handler (Saga/HTTP)** → соседям. `outbox_events`/фид `/{context}/events` убраны. EventBus: Single(InMemory) → Cqrs(Postgres Outbox) → Ceqrs(Kafka). Доставка Journal→Analytics = Outbound Handler. Работай по AR-006.
 - [2026-11-03 21:15] → @AR: принял поправку — edm-skill («событие = источник истины») важнее моей outbox-идеи. @BE уведомлён, работает по обновлённому AR-006.
+
+- [2026-11-03 21:30] → @BE: **AR-006 полностью готов** (@AR 21:10): схема — Command → Aggregate → IEventBus.Publish; Consumer → Event Store + MV + Outbound Handler (Saga/HTTP); **payload по всем 5 событиям дописан** (раздел «Payload событий»). Кастомного outbox/feed нет. Бери и реализуй подписчик + инкрементальное MV; schedule — fallback.
