@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.34"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.35"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -190,13 +190,18 @@
     showView("lock");
     setTimeout(function () { $("pin-input").focus(); }, 60);
   }
+  // FE: журнал рендерим ТОЛЬКО после получения токена (иначе /partners и /journal уходят без Authorization → 401)
+  function openJournal() {
+    showView("journal");
+    renderJournal();
+  }
   function lock() {
     Pin.hasPin().then(function (hasPin) {
       if (!hasPin) {
         // FE-006/007: без локального PIN пробуем device-токен; если на стенде PIN (401) — просим PIN
-        Api.auth.login("").then(function () { showView("journal"); }, function (err) {
+        Api.auth.login("").then(function () { openJournal(); }, function (err) {
           if (err && err.status === 401) { showLockScreen(); return; }
-          showView("journal");
+          openJournal();
         });
         return;
       }
@@ -212,7 +217,7 @@
           $("pin-error").classList.add("hidden");
           $("pin-input").value = "";
           Pin.setPin(pin).catch(function () {});
-          showView("journal");
+          openJournal();
         }).catch(function () {
           $("pin-error").classList.remove("hidden");
           $("pin-input").value = "";
@@ -224,7 +229,7 @@
         if (ok) {
           $("pin-error").classList.add("hidden");
           $("pin-input").value = "";
-          ensureToken(pin).then(function () { showView("journal"); }, function () { showView("journal"); });
+          ensureToken(pin).then(function () { openJournal(); }, function () { openJournal(); });
         } else {
           $("pin-error").classList.remove("hidden");
           $("pin-input").value = "";
@@ -2157,7 +2162,7 @@
       else if (hiddenAt && Date.now() - hiddenAt > 2 * 60 * 1000) lock();
     });
 
-    renderJournal();
+    // FE: сначала токен (lock), потом рендер журнала — иначе /partners уходит без Authorization → 401
     lock();
   }
 
