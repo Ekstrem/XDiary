@@ -1,16 +1,19 @@
 # RnD: UI-автотесты фронта (Playwright)
 
 Проверка «с фронта»: поднимаем `8-front/` статикой, подменяем API (стаб `window.fetch`)
-и проходим пользовательский сценарий. Первый сценарий — **«Добавить партнёра»**.
+и проходим пользовательские сценарии. Сейчас: **партнёры** и **каталог** (все kind).
 
 ## Состав
 - `serve.js` — мини-статик-сервер для `8-front/` (0 зависимостей), порт 4173.
 - `playwright.config.js` — Playwright, `baseURL http://127.0.0.1:4173`, авто-запуск `serve.js`,
   `serviceWorkers: 'block'` (иначе SW перехватывает `fetch` до стаба).
-- `tests/add-partner.spec.js` — сценарий: журнал → Партнёры → «+» → имя → Сохранить → партнёр в списке.
-- API подменяется стабом `window.fetch` (через `addInitScript`) по контракту бэкенда
-  **BE-018 (POST-only)**: `POST /api/v1/partners`, `POST /api/v1/partners/{id}/name|profile|remove`;
+- `tests/mock.js` — общий стаб API (`window.fetch`) по контракту **BE-018 (POST-only)**:
+  `POST /api/v1/partners`, `POST /api/v1/partners/{id}/name|profile|remove`;
+  `POST /api/v1/catalog`, `POST /api/v1/catalog/{id}/name|details|archive|restore|remove`;
   `PUT`/`DELETE` → `405`. Живой бэкенд не нужен.
+- `tests/add-partner.spec.js` — партнёр: журнал → Партнёры → «+» → имя → Сохранить → в списке.
+- `tests/catalog.spec.js` — **каталог по всем kind**: костюм, игрушка, фантазия, контрацепция —
+  добавление и появление в списке.
 
 ## Диагностика падений
 На падении тест печатает `::error::<json>` (шаг, ошибка, снимок DOM, журнал вызовов) —
