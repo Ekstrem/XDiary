@@ -15,18 +15,14 @@ public sealed class PrivacyController : ControllerBase
     private readonly IMediator _mediator;
     public PrivacyController(IMediator mediator) => _mediator = mediator;
     private IActionResult Respond(AggregateResult<IPrivacy, IPinCredentialAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
+    private IActionResult RespondAuth(AggregateResult<IPrivacy, IPinCredentialAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : (r.ErrorMessage().Contains("Текущий PIN") ? Unauthorized() : BadRequest(r.ErrorMessage()));
 
     [HttpPost("pin/set")]
-    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct)
-    {
-        var r = await _mediator.Send(c, ct);
-        if (r.IsSuccess()) return Ok(r.Model());
-        return r.ErrorMessage().Contains("Текущий PIN") ? Unauthorized() : BadRequest(r.ErrorMessage());
-    }
+    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c, ct));
     [HttpPost("pin/change")]
-    public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c, ct));
     [HttpPost("pin/remove")]
-    public async Task<IActionResult> Remove(CancellationToken ct) => Respond(await _mediator.Send(new RemovePinCommand(), ct));
+    public async Task<IActionResult> Remove([FromBody] RemovePinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c, ct));
     [HttpPost("pin/lock")]
     public async Task<IActionResult> Lock(CancellationToken ct) => Respond(await _mediator.Send(new LockPinCommand(), ct));
     [HttpPost("pin/unlock")]
