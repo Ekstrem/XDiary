@@ -38,8 +38,10 @@ async function openDetail(page) {
   await page.click('#tab-journal');
   await expect(page.locator('#view-journal')).toBeVisible();
   const card = page.locator('#journal-list .record-card').filter({ hasText: MARK });
-  await expect(card, 'карточка ' + MARK).toHaveCount(1, { timeout: 20000 });
-  await card.click();
+  // карточек с одним маркером может быть несколько (дубль записи из повторного прогона
+  // или из бэкенда) — для детали достаточно первой
+  await expect(card.first(), 'карточка ' + MARK).toBeVisible({ timeout: 20000 });
+  await card.first().click();
   await expect(page.locator('#view-detail')).toBeVisible();
   await expect(page.locator('#somatic-canvas')).toBeVisible();
 }
