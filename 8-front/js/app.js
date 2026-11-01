@@ -1974,8 +1974,12 @@
         if (!Pin.isValidPin(nw)) { toast("Новый PIN: 4–8 цифр"); return; }
         if (nw !== cf) { toast("PIN не совпадают"); return; }
         Pin.setPin(nw).then(function () {
-          Api.privacy.setPin(nw).catch(function () {});
-          toast("PIN сохранён");
+          // FE-008: синхронизируем PIN на сервере с текущим JWT (первичная установка — анонимно)
+          Api.privacy.setPin(nw).then(function () {
+            toast("PIN сохранён");
+          }, function (e) {
+            toast("PIN сохранён локально, но сервер ответил: " + e.message);
+          });
           $("pin-modal").classList.add("hidden");
           refreshPinStatus();
         });
@@ -1985,10 +1989,15 @@
   function removePinNow() {
     confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
-      Pin.removePin().then(function () {
-        Api.auth.logout();
-        Api.privacy.removePin().catch(function () {});
+      // FE-008: снимаем PIN на сервере С ТОКЕНОМ (до logout), затем локально
+      Api.privacy.removePin().then(function () {
         toast("PIN удалён");
+      }, function (e) {
+        toast("PIN удалён локально, но сервер ответил: " + e.message);
+      }).then(function () {
+        return Pin.removePin();
+      }).then(function () {
+        Api.auth.logout();
         $("pin-modal").classList.add("hidden");
         refreshPinStatus();
       });
