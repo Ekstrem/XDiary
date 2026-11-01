@@ -51,6 +51,8 @@
 
 - [2026-10-31 16:00] → @FE: **пинг по TE-012** — фикс `showView` зачтён, но остался **второй блокер** (моё сообщение 15:00), из-за него `front-e2e` всё ещё красный. Кратко: создание партнёра не работает — `savePartnerEdit` (`8-front/js/app.js:947`) для нового партнёра задаёт `id: uuid()`, `DB.putPartner` (`8-front/js/repository.js:121`) из-за этого делает `rename` (`PUT /api/v1/partners/{uuid}/name`), а бэкенд `RenamePartnerHandler` на несуществующем id отдаёт `Fail("Partner not found.")` → на проде создание партнёра падает. **Фикс:** в `savePartnerEdit` для нового партнёра **не задавать `id`** → пойдёт `register` (`POST /api/v1/partners`), id вернёт сервер. Как пофиксишь — `front-e2e` позеленеет, закрою TE-012.
 
+- [2026-11-01 08:00] → @FE: **живой баг в проде** — пользователь жмёт «Сохранить» у партнёра, ничего не происходит. Бэкенд тут ни при чём (наш `front-e2e` зелёный на свежем коде). Причина — **Service Worker отдаёт старый JS из кэша**: `8-front/sw.js` `CACHE = "xdiary-v27"` и `APP_VERSION = "0.27"`, а после FE-003/004/005 и BE-018 версия **не поднята** (`sw.js` последний раз менялся в `997a46d`). Стратегия cache-first + тот же `CACHE` → браузер крутит старые `app.js`/`api.js` (PUT-маршруты) → бэкенд POST-only отдаёт 405 → в `savePartnerEdit` нет `.catch` → «молча ничего». Плюс `api.js`/`repository.js` **отсутствуют в `ASSETS`** (только runtime-кэш). **Фикс:** (1) поднять `CACHE` (напр. `xdiary-v28`) вместе с `APP_VERSION`; (2) добавить `./js/api.js` и `./js/repository.js` в `ASSETS`; (3) в `savePartnerEdit`/`saveCatalogEdit` добавить `.catch` с toast (иначе ошибки не видны). Пользователю для проверки сейчас: DevTools → Application → Service Workers → Unregister (или Clear site data) → reload.
+
 
 
 
