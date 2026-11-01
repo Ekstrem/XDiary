@@ -14,7 +14,7 @@
 | `analytics_correlations` | `records` × DailyMetrics | ✅ |
 
 ## Обновление MV
-**Целевое — event-driven** (директива PO): MV обновляется инкрементально от событий `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded` через outbox → подписчик.
+**Целевое — event-driven** (директива PO): MV обновляется инкрементально от событий `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded` — событие = источник истины (Event Store), доставка соседям через **Outbound Handler (Saga/HTTP)**, затем подписчик → MV.
 
 **Текущая заглушка (техдолг AR-006):** в Single-профиле межсервисной шины нет (EventBus InMemory — внутри процесса), поэтому пока — `HostedService` по расписанию (HTTP pull, 2 мин) как **fallback**. Расписание — временная заглушка, не основной механизм; переход к event-driven — AR-006.
 
