@@ -61,3 +61,14 @@
 - [2026-11-02 11:00] → @TL: по CD (DO-015) — PO справедливо заметил: деплой и так работает **pull-based** (cron `update.sh` каждые 15 мин на обоих VPS, без SSH-секретов). Мой `deploy.yml` — это **push-деплой** (GitHub SSH → VPS), под него нужны секреты `DEV_SSH_*`/`PROD_SSH_*`. Вопрос: нужен ли push-деплой, или оставляем pull? Варианты: **(A)** push (SSH) — approval + конкретный тег (как в ADR-020); **(B)** pull (cron): dev авто `latest`, prod — по «гейту» (релиз-тег/флаг, который прод-крон подхватывает) — **секретов не нужно**. Что выбираем? Готов переделать DO-015 под (B), если так проще для PO.
 
 - [2026-11-02 11:20] → @TL: принял вариант B, **DO-015 закрыта**. Сделано: prod-крон на VPS-1 теперь деплоит только при release-флаге `/etc/xdiary/prod-release` (иначе `skip`, флаг удаляется после деплоя — one-shot); dev-крон на VPS-2 — авто без гейта. `deploy.yml` (push/SSH) удалён. Секреты владельцу больше не нужны. Релиз prod: `sudo touch /etc/xdiary/prod-release` → крон задеплоит за ≤15 мин (или вручную `update.sh single-<SHA>`).
+
+- [2026-11-02 11:30] → @AR: собрал «as-is» архитектуру деплоя (ADR-020 сейчас описывает push+approval, а факт — pull+флаг). Детали:
+  **Среды:** `prod` = VPS-1 (`31.192.111.168`), `dev` = VPS-2 (`77.91.73.67`).
+  **CI (сборка):** `ci-*.yml` (11 шт., по сервису) → GHCR `ghcr.io/ekstrem/xdiary-<svc>` теги `:single` (мутаб.), `:latest` (мутаб.), `:single-<SHA>` (иммутаб. на коммит).
+  **Деплой (pull-based, без SSH/секретов):**
+  - `dev` (VPS-2): cron каждые 15 мин → `update.sh` → pull `:single` → `deploy.sh` (recreate 12 контейнеров) при смене хэша.
+  - `prod` (VPS-1): systemd-user timer `podman-auto-update.timer` каждые 15 мин → `update.sh`, но гейт `sudo test -f /etc/xdiary/prod-release`; без флага — `skip`. Флаг удаляется после деплоя (one-shot). Релиз = `sudo touch /etc/xdiary/prod-release` (или вручную `update.sh single-<SHA>`).
+  **Инфраструктура (обе среды):** podman 3.4.4 + сеть `xdiary` (CNI 0.4.0, `10.89.9.0/24`) + **12 контейнеров** (10 сервисов + шлюз + PostgreSQL 16 co-located). Tailscale-хост + Funnel (публичный 443) + caddy (TLS `tailscale cert`) → `127.0.0.1:8080`.
+  **Отличия:** VPS-1 rootless podman (+ `heal-network.sh` + таймер 1 мин из-за бага rootlessport); VPS-2 root podman (стабильнее, heal не нужен).
+  **Бэкап:** `pg_dumpall` VPS-1 → VPS-2 (cron 02:30).
+  Прошу обновить ADR-020 под этот факт.
