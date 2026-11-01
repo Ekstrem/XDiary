@@ -99,6 +99,7 @@
       list: function () { return get("/api/v1/journal/records"); },
       recent: function () { return get("/api/v1/journal/recent"); },
       places: function () { return get("/api/v1/journal/places"); },
+      fantasies: function () { return get("/api/v1/journal/fantasies"); },
       get: function (id) { return get("/api/v1/journal/records/" + id); },
       start: function () { return post("/api/v1/journal/records"); },
       startFromGarmin: function (d) { return post("/api/v1/journal/records/from-garmin", d); },

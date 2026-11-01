@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.38"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.39"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -308,11 +308,11 @@
   // FE-014/015: данные визарда — партнёры+журнал (шаги), recent/places — лёгкие MV вместо клиентского скана
   function loadWizardData() {
     return Promise.all([
-      DB.getAllJournalData(),
+      DB.getAllPartners(),
       Api.journal.recent().catch(function () { return null; }),
       Api.journal.places().catch(function () { return []; })
     ]).then(function (res) {
-      return { partners: res[0].partners, records: res[0].records, recent: res[1] || {}, places: res[2] || [] };
+      return { partners: res[0], recent: res[1] || {}, places: res[2] || [] };
     });
   }
   function reopenWizard() {
@@ -322,8 +322,8 @@
   function openWizard(id) {
     editingId = id || null;
     wizardStep = id ? STEPS.length - 1 : 0;
-    loadWizardData().then(function (data) {
-      var r = id ? data.records.filter(function (x) { return x.id === id; })[0] : null;
+    Promise.all([loadWizardData(), id ? DB.getRecord(id) : Promise.resolve(null)]).then(function (res) {
+      var data = res[0], r = res[1];
       if (id && !r) return;
       if (id) {
         draft = {
@@ -490,17 +490,8 @@
     });
   }
 
-  function historyPositions(records) {
-    var out = [];
-    var sorted = records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
-    sorted.forEach(function (r) {
-      (r.positions || []).forEach(function (p) { if (out.indexOf(p) === -1) out.push(p); });
-    });
-    return out.filter(function (p) { return POSITIONS.indexOf(p) === -1; });
-  }
-
   function stepPositions(body, data) {
-    var all = POSITIONS.concat(historyPositions(data.records));
+    var all = POSITIONS.concat((data.recent.lastPositions || []).filter(function (p) { return POSITIONS.indexOf(p) === -1; }));
     body.innerHTML =
       '<div class="step-label">Позы</div>' +
       '<div class="chips-grid" id="w-pos-grid"></div>' +
@@ -590,10 +581,7 @@
         '<input type="text" id="w-tag-custom" placeholder="Свой тег" autocomplete="off">';
       body.appendChild(tags);
 
-      var records = data.records, set = [];
-      records.forEach(function (r) {
-        (r.tags || []).forEach(function (t) { if (set.indexOf(t) === -1) set.push(t); });
-      });
+      var set = (data.recent.lastTags || []).slice();
       var grid = $("w-tag-grid");
       set.forEach(function (t) {
         var b = document.createElement("button");
@@ -622,11 +610,7 @@
 
   function stepContraception(body, data) {
     DB.getAllCatalog().then(function (items) {
-      var records = data.records;
-      var used = [];
-      records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); }).forEach(function (r) {
-        (r.contraceptives || []).forEach(function (c) { if (used.indexOf(c) === -1) used.push(c); });
-      });
+      var used = (data.recent.lastContraceptives || []).slice();
       var contra = items.filter(function (it) { return it.kind === "contraception" && !it.archived; });
       contra.sort(function (a, b) {
         var ia = used.indexOf(a.name), ib = used.indexOf(b.name);
@@ -1006,10 +990,9 @@
     DB.getAllCatalog().then(function (items) {
       var filtered = items.filter(function (it) { return it.kind === catalogKind; });
       filtered.sort(function (a, b) { return (a.archived ? 1 : 0) - (b.archived ? 1 : 0); });
-      var recPromise = catalogKind === "fantasy" ? DB.getAllRecords() : Promise.resolve([]);
-      recPromise.then(function (records) {
-        var realized = new Set();
-        records.forEach(function (r) { (r.fantasies || []).forEach(function (f) { realized.add(f); }); });
+      var recPromise = catalogKind === "fantasy" ? Api.journal.fantasies().catch(function () { return []; }) : Promise.resolve([]);
+      recPromise.then(function (names) {
+        var realized = new Set(names || []);
         var list = $("catalog-list");
         list.innerHTML = "";
         $("catalog-empty").classList.toggle("hidden", filtered.length > 0);
