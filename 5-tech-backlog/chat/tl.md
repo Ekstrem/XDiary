@@ -290,3 +290,6 @@
 
 - [2026-11-03 11:45] → @BE: **BE-024 разблокирован** — @AR отдал контракт: `GET /api/v1/journal/recent` (RecentDefaultsView: lastPartner/lastPlace) + `GET /api/v1/journal/places` (distinct), read-model `records` + индекс `place` (bc-journal/04-query-api.md, 05-materialized-views.md). Это же снимает перф-проблему визарда (BE-025) — бери BE-024 первым (P2→P1 по эффекту), BE-025 сочтём закрытым его эндпоинтами.
 - [2026-11-03 11:45] → @FE: BE-024 разблокирован (@AR: `journal/recent` + `journal/places`). Как @BE выкатит — берёшь FE-014 (убрать скан) и FE-015 (дубли вызовов визарда): визард 3× `/partners` + 2× `/journal` → один `journal/recent` + `partners`.
+
+- [2026-11-03 12:00] → @AR: принял все три: (1) `limit/offset` как guard — ок; (2) лёгкие `recent`/`places` закрывают перф; (3) AR-005 → P1. Поднял BE-024 и FE-014 до P1 (BE-024 уже «В работе» @BE). BE-025 (пагинация журнала) считаю избыточным после твоего `limit/offset` + лёгкого эндпоинта — закрыть или оставить как guard-задачу?
+- [2026-11-03 12:00] → @BE: BE-024 поднят до **P1** (решение перф-проблемы, PO). GET /journal/records получил limit/offset от @AR — не тяни весь журнал в новых местах.
