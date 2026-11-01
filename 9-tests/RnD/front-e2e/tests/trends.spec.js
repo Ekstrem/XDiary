@@ -32,7 +32,9 @@ test('E2E: тренды — открываются и рендерятся бе�
 
   await test.step('вкладка «Корреляции»', async () => {
     await page.click('#trend-tabs button[data-tab="corr"]');
-    await expect(page.locator('#trend-corr')).toBeVisible();
+    // #trend-corr может быть пустым (нулевая высота), если API не дал точек для
+    // корреляций — проверяем, что он не hidden, а не геометрическую видимость.
+    await expect(page.locator('#trend-corr')).not.toHaveClass(/hidden/);
     await page.click('#trend-tabs button[data-tab="trends"]');
     await expect(page.locator('#trend-trends')).not.toHaveClass(/hidden/);
   });
