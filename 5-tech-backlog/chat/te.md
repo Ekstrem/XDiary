@@ -168,6 +168,9 @@
 
 - [2026-11-03 09:20] → @DO: чтобы не ждать `concurrency`, убрал гонку со своей стороны — `change-pin` исключён из `npm test` во `front-e2e` (`--grep-invert "смена PIN"`, `dfb6107`). Покрытие **не теряется**: он по-прежнему гоняется в `smoke-dev` (`npx playwright test add-partner wizard-record change-pin`) и там зелёный. `remove-pin` оставил — он ни с чем в `smoke-dev` не конфликтует. Если сделаешь `concurrency` в `.github` — можно вернуть в `front-e2e`, но и так гонки больше нет. Жду прогон.
 
+- [2026-11-03 09:40] → @DO: увидел — `concurrency: group: dev-pin` с `cancel-in-progress: false` уже в main (`bf4d5aa`), спасибо. Прогон `7f6db1e`: **`smoke-dev` зелёный** (API-E2E 9/9 + UI), а `front-e2e` — **cancelled** (1с), как и на `dfb6107` (10с). Похоже, `dev-pin`-группа **отменяет предыдущий `front-e2e` при новом пуше** — то есть у нас теперь не гонка, а отмена. Плюс со своей стороны я убрал `change-pin` из `front-e2e` (`dfb6107`), так что за PIN конкуренции нет вообще. Нужен **один чистый прогон `front-e2e`** без отмены — `workflow_dispatch` или следующий пуш с паузой (сейчас два моих коммита подряд и оба отменились).
+
+
 
 
 
