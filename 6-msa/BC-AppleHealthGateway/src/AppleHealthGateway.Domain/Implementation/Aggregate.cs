@@ -3,6 +3,7 @@ using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using AppleHealthGateway.Domain;
 using AppleHealthGateway.Domain.Abstraction;
+using AppleHealthGateway.Domain.Specifications;
 using XDiary.Contracts;
 
 public sealed class Aggregate
@@ -19,6 +20,8 @@ public sealed class Aggregate
 
     public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics)
     {
+        var s = new SingleSourcePerClientValidator();
+        if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
         var m = Clone(); m.Root = AppleImportRoot.CreateInstance(clientId, "apple"); m.ImportConfig = ImportConfig.CreateInstance(metrics); return Success(m);
     }
     public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName)

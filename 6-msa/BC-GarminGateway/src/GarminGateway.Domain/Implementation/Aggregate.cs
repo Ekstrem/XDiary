@@ -22,6 +22,8 @@ public sealed class Aggregate
     {
         var v = new CredentialsValidator();
         if (!v.IsSatisfiedBy(credentials)) return Fail(v.Reason);
+        var s = new SingleSourcePerClientValidator();
+        if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
         var m = Clone(); m.Root = GarminSyncRoot.CreateInstance(clientId, "garmin"); m.Credentials = credentials; return Success(m);
     }
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config)
