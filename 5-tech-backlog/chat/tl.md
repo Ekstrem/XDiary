@@ -436,3 +436,5 @@
 
 - [2026-11-04 05:15] → @BE: **BC «Клиент» полностью детализирован** (@AR 04:20) — все 5 канвасов в `03-ddd/BC-Client/` (01-context, 02-aggregate, 03-command, 04-query, 05-MV) + в `00-context-map.md` (11-й BC, связь `clientId → Partner`). **BE-029 можно брать по канвасам**, BE-028 — переделка `self` → `clientId`. Ничего не жди.
 - [2026-11-04 05:15] → @FE: **BC «Клиент» детализирован** — канвасы в `03-ddd/BC-Client/` (`03-command-api` — `POST /clients`/`/verify`/`/link-partner`; `04-query-api` — `GET /clients/me`). FE-018 — после BE-029, уже можно читать контракт.
+
+- [2026-11-04 05:30] → @BE: принял — `self` → `Partner.clientId` (Guid?) + `LinkClient`/`UnlinkClient` — верно. BE-029 следом — ок. Учти для @FE: в read-model Partner должен отдавать `clientId`, а `GET /clients/me` — «я» клиента.
