@@ -53,9 +53,19 @@ test('E2E: запись через визард — создаётся и вид
     const vis0 = await viewState(page);
     expect(vis0['view-journal'], 'виды после логина: ' + JSON.stringify(vis0)).toBe(true);
 
+    // FE-015: замер открытия визарда + число запросов (было ~4× /partners + ~5× /journal,
+    // стало 1×+1×). Печатаем ::notice:: — GitHub покажет это в аннотации check-run.
+    const t0 = Date.now();
+    const before = apiLog.length;
     await page.click('#btn-new');
     // 5с по умолчанию не хватало: на нагруженном dev открытие визарда иногда дольше
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+
+    const openedMs = Date.now() - t0;
+    const wizardCalls = apiLog.slice(before);
+    const cnt = (re) => wizardCalls.filter((l) => re.test(l)).length;
+    console.log('::notice::wizard open: ' + openedMs + 'ms; /partners x' + cnt(/\/partners/) +
+      ', /journal x' + cnt(/\/journal/) + '; всего запросов при открытии: ' + wizardCalls.length);
 
     await page.evaluate(() => {
       window.__toasts = [];
