@@ -34,6 +34,10 @@ async function openItem(page) {
   await expect(card, 'карточка ' + NAME).toHaveCount(1);
   await card.click();
   await expect(page.locator('#view-catalog-edit')).toBeVisible();
+  // openCatalogEdit показывает форму ДО асинхронного DB.getCatalogItem().then,
+  // который заполняет поля и сбрасывает catalogEditArchived. Без ожидания наш
+  // клик по #ce-archive затирается (как в partner-edit). Ждём загрузки названия.
+  await expect(page.locator('#ce-name')).toHaveValue(NAME);
 }
 
 test('E2E: каталог — archive и restore через UI, проверка API', async ({ page }) => {

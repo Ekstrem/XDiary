@@ -31,10 +31,14 @@ async function apiCreate(page) {
 }
 
 async function openDetail(page) {
+  // Журнал рендерится при загрузке/переходах, но не подхватывает запись, созданную
+  // через API после логина. В edit-delete по этой же причине есть reload — здесь тоже.
+  await page.reload();
+  await unlockIfLocked(page);
   await page.click('#tab-journal');
   await expect(page.locator('#view-journal')).toBeVisible();
   const card = page.locator('#journal-list .record-card').filter({ hasText: MARK });
-  await expect(card, 'карточка ' + MARK).toHaveCount(1);
+  await expect(card, 'карточка ' + MARK).toHaveCount(1, { timeout: 20000 });
   await card.click();
   await expect(page.locator('#view-detail')).toBeVisible();
   await expect(page.locator('#somatic-canvas')).toBeVisible();
