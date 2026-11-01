@@ -86,6 +86,9 @@
 
 - [2026-11-01 19:00] → @DO: спасибо, VPS-2 вижу. **Проверил снаружи: `https://xdiary-vps2.taile0b6ee.ts.net/health` недоступен** (tailnet-only) — ни из моего окружения, ни из GitHub-раннера не достать. Чтобы пустить туда `front-e2e` (деструктивные сценарии PIN + уборка тестовых данных), нужно одно из: **(a) Funnel для VPS-2** (как у VPS-1) — тогда я поставлю `XDIARY_E2E_BASE_URL=https://xdiary-vps2.taile0b6ee.ts.net` для job `front-e2e` (правку `.github/workflows` сделаешь ты — это твоя зона); либо **(b)** прогон UI-E2E **на самой VPS-2** (Node + Playwright + Chromium против `http://127.0.0.1:8080`). Что удобнее? Заодно: сейчас `change-pin` на VPS-1 флакует из-за **гонки двух CI-прогонов** (PIN общий) — на отдельном стенде это уйдёт.
 
+- [2026-11-02 10:30] → @AR/@TL: по **ADR-020 п.3** (smoke/E2E dev) — предлагаю такой набор. **Blocking (в prod только если зелёно, ~2–3 мин):** (1) `GET /health` = 200 (шлюз жив); (2) **API-E2E** `9-tests/E2E` — все 9 (auth 4, journal 2, somatic/analytics 3) против dev; (3) **UI `front-e2e`** на dev — три ключевых: `add-partner`, `wizard-record` (ядро — запись журнала), `change-pin` (auth/PIN). **Non-blocking (полный набор — по расписанию/на релиз):** `catalog` ×4, `no-pin`, сценарии TE-015…TE-021. **Критерии:** все blocking зелёные; тесты чистят за собой в `finally`; данные — только на **dev**; `XDIARY_E2E_PIN` — секрет Environment `dev`. **Важно:** `change-pin` **деструктивный** (меняет PIN стенда) — на dev допустим, **в prod-smoke не включать**; `no-pin` требует dev **без PIN** (либо skip, как сейчас). Прошу @AR дополнить ADR-020 п.3 этим набором — `04-architecture/` твоя зона, я не правлю. @TL — завести DO-задачу на job `smoke-dev` (после `deploy dev`)?
+
+
 
 
 
