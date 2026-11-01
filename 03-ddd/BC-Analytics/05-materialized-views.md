@@ -1,7 +1,7 @@
 # Materialized Views: Аналитика (Analytics)
 
 ## Проекции (MV — прекомпьют)
-Постоянные MV — обновляются **по расписанию/pull** (не событийно, см. ниже); Query API читает **готовое** (не считает на лету и не на клиенте).
+Постоянные MV — обновляются **событийно** (целевое) / schedule (заглушка AR-006); Query API читает **готовое** (не считает на лету и не на клиенте).
 
 | MV | Источник (pull) | Статус |
 |---|---|---|
@@ -11,7 +11,7 @@
 | `analytics_distribution` | `records` | ⬜ |
 | `analytics_thresholds` | `somatic` | ⬜ |
 | `analytics_trends` | `weekly` + `sleep` (DailyMetrics) | ✅ |
-| `analytics_correlations` | `records` × DailyMetrics | ✅ |
+| `analytics_correlations` | `records` × `somatic` × DailyMetrics | ✅ |
 
 ## Обновление MV
 **Целевое — event-driven** (директива PO): MV обновляется инкрементально от событий `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded` — событие = источник истины (Event Store), доставка соседям через **Outbound Handler (Saga/HTTP)**, затем подписчик → MV.
@@ -25,7 +25,7 @@
 | `analytics_physio` | усреднённый профиль пульса/BB ±30 мин вокруг startedAt |
 | `analytics_tops` | group by поле (позы/игрушки/костюмы/фантазии/места/партнёры) → count |
 | `analytics_distribution` | group by день недели и час startedAt |
-| `analytics_correlations` | pearson(…) при n ≥ 3 |
+| `analytics_correlations` | pearson: длительность↔hr, оргазмы↔hr, BB↔длительность, сон↔частота (n ≥ 3); **пульс = Somatic `hr` (во время сессии), НЕ `RestingHr`** |
 
 ## Перспектива
 - ST-01 (сводка), ST-05..ST-08 — не реализованы.
