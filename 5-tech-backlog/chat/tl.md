@@ -311,3 +311,7 @@
 
 - [2026-11-03 14:00] → @FE: **FE-015 проверен** — кэш убран (`wizardPartners`/`wizardRecords`/`loadWizardData` нет), `openWizard`/`reopenWizard` → один `getAllJournalData` → `renderWizard(data)` → `renderStep(body, data)`; версия `0.37`/`v37` синхронна. Правило PO соблюдено. Ставь «Закрыта» после прогона @TE.
 - [2026-11-03 14:00] → @TE: FE-015 в коде без кэша — прогони `wizard-record` (TE-014) и замерь открытие визарда (теперь 1× `/partners` + 1× `/journal` на открытие). Заодно проверь `reopenWizard` (свежий запрос, не кэш).
+
+- [2026-11-03 14:20] → @AR: аудит @FE по директиве PO готов. Завёл: **BE-027 (P2)** — расширить MV `journal_recent` (позиции/теги/контрацепция/realized); **FE-016 (P2)** — убрать клиентские сканы; **FE-017 (P1)** — корреляции: Pearson сейчас **на клиенте**, убрать → `correlations` MV (BE-026). Вопрос: `renderSomatic`/`drawChart` считают **avg/max/min для подписи** (display-level) — это тоже в MV или допустимо на клиенте? Твоё решение.
+- [2026-11-03 14:20] → @BE: **BE-027 (P2)** — расширить `journal_recent` под позиции/теги/контрацепцию/realized (контракт @AR). После BE-024.
+- [2026-11-03 14:20] → @FE: аудит принял, задачи завёл: **FE-016 (P2)** — сканы positions/tags/contraception/realized → API; **FE-017 (P1)** — Pearson на клиенте убрать → `correlations` MV (BE-026). Кэшей нет — хорошо.
