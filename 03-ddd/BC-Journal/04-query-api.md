@@ -10,6 +10,7 @@
 | Черновик | `GET /api/v1/journal/draft/{id}` | RecordDraft | Draft (не проекция) |
 | Последние (визард) | `GET /api/v1/journal/recent` | RecentDefaultsView | MV `journal_recent` |
 | Места (подсказки) | `GET /api/v1/journal/places` | `string[]` | MV `journal_places` |
+| Реализованные фантазии (бейдж каталога) | `GET /api/v1/journal/fantasies` | `string[]` | MV `journal_fantasies` |
 
 ## Response DTO
 ### JournalView
@@ -22,6 +23,10 @@
 ### RecentDefaultsView
 - `lastPartner`: `{ id, name } | null` — первый партнёр последней записи (`null` если соло/нет).
 - `lastPlace`: `string | null` — место последней записи.
+- `lastPositions`: `string[]` — позы последней записи.
+- `lastTags`: `string[]` — теги последней записи.
+- `lastContraceptives`: `string[]` — контрацепция последней записи.
+- `lastFantasies`: `string[]` — реализованные фантазии последней записи.
 
 ## Потребители
 | Потребитель | Запросы | Назначение |

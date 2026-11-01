@@ -1,19 +1,22 @@
 # Materialized Views: Аналитика (Analytics)
 
-## Проекции (MV — прекомпьют от событий соседних сервисов)
-Постоянные MV — обновляются инкрементально от событий; Query API читает **готовое** (не считает на лету и не на клиенте).
+## Проекции (MV — прекомпьют)
+Постоянные MV — обновляются **по расписанию/pull** (не событийно, см. ниже); Query API читает **готовое** (не считает на лету и не на клиенте).
 
-| MV | Источник событий | Статус |
+| MV | Источник (pull) | Статус |
 |---|---|---|
-| `analytics_summary` | `RecordCompleted` (Journal) | ⬜ |
-| `analytics_physio` | `RecordCompleted` + `SomaticPointRecorded` | ⬜ |
-| `analytics_tops` | `RecordCompleted` | ⬜ |
-| `analytics_distribution` | `RecordCompleted` | ⬜ |
-| `analytics_thresholds` | `SomaticPointRecorded` | ⬜ |
-| `analytics_trends` | `StressRecorded`/`SleepRecorded` (DailyMetrics) | ✅ |
-| `analytics_correlations` | `RecordCompleted` × DailyMetrics | ✅ |
+| `analytics_summary` | read-model `records` (Journal) | ⬜ |
+| `analytics_physio` | `records` + `somatic` | ⬜ |
+| `analytics_tops` | `records` | ⬜ |
+| `analytics_distribution` | `records` | ⬜ |
+| `analytics_thresholds` | `somatic` | ⬜ |
+| `analytics_trends` | `weekly` + `sleep` (DailyMetrics) | ✅ |
+| `analytics_correlations` | `records` × DailyMetrics | ✅ |
 
-## Правила проекции (событие → MV)
+## Обновление MV (Single-профиль)
+Межсервисной событийной шины в Single-профиле нет (EventBus InMemory — только внутри процесса). Поэтому Analytics MV обновляется **по расписанию/pull** (precompute из read-model соседних сервисов), а не событийно. Событийное обновление — при эволюции профиля (Cqrs/Ceqrs).
+
+## Правила проекции
 | MV | Правило |
 |---|---|
 | `analytics_summary` | count, sum(durationMin), avg, **sum(оргазмы по участникам)**, avg(rating), streak |

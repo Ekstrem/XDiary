@@ -33,6 +33,10 @@
 | lastPartnerId | uuid\|null | `RecordCompleted` (первый партнёр последней записи) |
 | lastPartnerName | string\|null | проекция из `Partner` |
 | lastPlace | string\|null | `RecordCompleted` |
+| lastPositions | string[] | `RecordCompleted` |
+| lastTags | string[] | `RecordCompleted` |
+| lastContraceptives | string[] | `RecordCompleted` |
+| lastFantasies | string[] | `RecordCompleted` |
 
 ## MV: journal_places (уникальные места)
 | Поле | Тип |
@@ -40,11 +44,17 @@
 | place | string (key) |
 | lastUsedAt | string |
 
+## MV: journal_fantasies (реализованные фантазии)
+| Поле | Тип |
+|---|---|
+| fantasy | string (key) |
+| lastUsedAt | string |
+
 ## Проекционные правила (событие → действие)
-| Событие | `records` | `journal_recent` | `journal_places` |
-|---|---|---|---|
-| `RecordCompleted` | INSERT / upsert | upsert (latest по `startedAt`) | upsert `place` + `lastUsedAt` |
-| `RecordDeleted` | DELETE | пересчёт latest | очистка (если `place` больше не используется) |
+| Событие | `records` | `journal_recent` | `journal_places` | `journal_fantasies` |
+|---|---|---|---|---|
+| `RecordCompleted` | INSERT / upsert | upsert (latest по `startedAt`) | upsert `place` + `lastUsedAt` | upsert `fantasy` + `lastUsedAt` |
+| `RecordDeleted` | DELETE | пересчёт latest | очистка (если не используется) | очистка (если не используется) |
 
 ## Индексы
 - `records.startedAt` — сортировка журнала (по убыванию).
