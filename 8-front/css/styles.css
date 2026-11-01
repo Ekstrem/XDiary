@@ -40,7 +40,9 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .appbar h1 { flex: 1; margin: 0; font-size: 20px; font-weight: 600; }
-.appbar-actions { display: flex; gap: 6px; }
+.appbar-actions { display: flex; gap: 6px; align-items: center; }
+.app-version-inline { color: var(--muted); font-size: 12px; }
+.hearts { font-size: 17px; line-height: 1; letter-spacing: 1px; }
 
 .icon-btn {
   background: transparent; border: none; color: var(--text);
