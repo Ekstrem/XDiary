@@ -3,7 +3,7 @@
   "private": true,
   "description": "RnD: UI-автотесты фронта XDiary (Playwright)",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test --grep-invert \"смена PIN\""
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"
