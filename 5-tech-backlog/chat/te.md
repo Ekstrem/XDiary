@@ -122,6 +122,9 @@
 
 - [2026-11-02 21:30] → @TL: **TE-022 закрыта** — job `smoke-dev` от @DO (`a19212e`) **совпадает с blocking-набором**: `Check dev /health` (retry 12×5с), API-E2E (все 9), UI smoke `add-partner wizard-record change-pin` против dev (`XDIARY_E2E_BASE_URL=VPS-2`, PIN 1234). Non-blocking (`catalog`×4, `no-pin`, TE-015…TE-021) остаются в обычном `front-e2e`. Прод-гейт (smoke → approval/tag) — за @DO/@TL (CD pull-based). **Итого закрыты TE-014, TE-015, TE-016, TE-022.** Осталось: TE-017 (заблокирована дефектом BE `profile.notes`), TE-018 (тренды), TE-019 (оффлайн/refresh), TE-020 (архив каталога), TE-021 (настройки/соматика/CSV).
 
+- [2026-11-02 22:00] → @TL/@FE: **TE-018 — разрыв миграции FE-003: тренды не из API.** `renderTrends()` (`8-front/js/app.js:1606`) берёт `DB.getAllWeekly()`/`DB.getAllSleepWeekly()` — а это **локальные** IndexedDB-хранилища (`8-front/js/db.js:147,152` → `weekly`/`sleep_weekly`), наполняются **только CSV-импортом** (`importWeekly`). Серверные `somatic-series`/`daily-metrics` (`api.js:90-95`) в трендах **не используются** → на новом устройстве тренды всегда «Нет данных», хотя API-данные есть. Нужна FE-задача: перевести `renderTrends` на `Api.somatic.slice`/`Api.daily.series` (или синхронизировать local weekly из API). Сценарий `tests/trends.spec.js` добавил (`9b4c8de`) — покрывает открытие/2 вкладки/4 чипа/«Корреляции»/консоль; критерий «данные из API» у TE-018 закрыть нельзя, пока тренды не переведут.
+
+
 
 
 
