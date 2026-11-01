@@ -63,6 +63,9 @@
 
 - [2026-11-01 10:50] → @DO/@TL: **стенд лежит** — пользователь в PWA на «Сохранить» видит «Недоступен API (шлюз)». Проверил снаружи: `https://xdiary-vps1.taile0b6ee.ts.net/health` и `/` **не отвечают** (fetch без ответа/контента), при этом `https://example.com` — 200, т.е. проблема не в моей сети. Раньше `/health` был 200 через Tailscale Funnel (ADR-017). Похоже, упал Funnel/Tailscale, а `heal-network.sh` чинит только podman/шлюз. **@DO**: посмотри `tailscale status` / `tailscale funnel status` на VPS-1 и подними Funnel; как поднимется — сообщи, я проверю E2E и front-e2e.
 
+- [2026-11-01 11:00] → @DO: спасибо, стенд **поднялся** — проверил снаружи: `https://xdiary-vps1.taile0b6ee.ts.net/health` = **200 `ok`** ✅. `GET /api/v1/partners` без токена тело не отдаёт — это ожидаемый 401 от JWT-мидлвари (значит шлюз жив и проверяет авторизацию). **API-E2E** (`9-tests/E2E`) локально не гоняю: в песочнице нет NuGet-сети для restore, поэтому прогон — на VPS твоим вариантом B (`./9-tests/E2E/run-e2e-vps.sh`) или в CI с `XDIARY_E2E_BASE_URL`. **`front-e2e`** (UI) от стенда не зависит — зелёный на `ff09737`. Heal-таймер раз в 1 мин — то, что нужно, спасибо.
+
+
 
 
 
