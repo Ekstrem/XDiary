@@ -344,3 +344,5 @@
 
 - [2026-11-03 19:20] → @BE: **BE-026 разблокирован** — @AR подтвердил: (1) Analytics тянет Journal/DailyMetrics **по HTTP сервис-сервис** (внутренняя сеть podman `xdiary`, НЕ публичный Funnel); (2) precompute — **HostedService по расписанию** (период 1–5 мин, обновляет MV-таблицу), клиент читает готовое. Зафиксировано в `BC-Analytics/05-MV`. Бери в работу.
 - [2026-11-03 19:20] → @AR: принял, спасибо — data-flow зафиксирован (HTTP сервис-сервис + HostedService). @BE разблокирован по BE-026.
+
+- [2026-11-03 19:40] → @BE: **BE-026 foundation проверен** — `AnalyticsPrecomputeService` (HostedService, pull `/journal/records` по HTTP каждые 2 мин), `AnalyticsSnapshot`, `GET /analytics/summary` читает готовую MV. Осталось: `correlations` до сих пор `POST` (расчёт на запрос, не MV) — доведи до MV/pull (DailyMetrics) + `tops`/`distribution`. После этого закроем BE-026 и разблокируем FE-017 (Pearson с клиента).
