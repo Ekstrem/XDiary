@@ -23,4 +23,11 @@ public class AnalyticsController : ControllerBase
 
     [HttpGet("distribution")]
     public IActionResult Distribution() => Ok(_snapshot.Distribution);
+    [HttpPost("events")]
+    public IActionResult Events([FromBody] AnalyticsEvent e)
+    {
+        if (e.EventType == "RecordCompleted" && e.Record is not null) _snapshot.ApplyCompleted(e.Id, e.Record);
+        else if (e.EventType == "RecordDeleted") _snapshot.ApplyDeleted(e.Id);
+        return Ok();
+    }
 }

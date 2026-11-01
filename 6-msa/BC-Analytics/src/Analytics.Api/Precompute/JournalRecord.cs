@@ -1,6 +1,7 @@
 namespace Analytics.Api.Precompute;
 public sealed class JournalRecord
 {
+    public Guid Id { get; set; }
     public string StartedAt { get; set; } = string.Empty;
     public int DurationMin { get; set; }
     public List<OrgasmDto> Orgasms { get; set; } = new();
@@ -14,4 +15,10 @@ public sealed class OrgasmDto
     public string Participant { get; set; } = "me";
     public int Count { get; set; }
     public int Rating { get; set; }
+}
+public sealed class AnalyticsEvent
+{
+    public string EventType { get; set; } = string.Empty;
+    public Guid Id { get; set; }
+    public JournalRecord? Record { get; set; }
 }

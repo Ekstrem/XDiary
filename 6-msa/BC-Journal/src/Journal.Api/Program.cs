@@ -1,5 +1,6 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using Journal.Application;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.DomainServices;
@@ -7,6 +8,7 @@ using Journal.InternalContracts;
 using Journal.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Journal.Api.Events;
 using Journal.Api.HealthChecks;
 using XDiary.Contracts;
 
@@ -21,6 +23,8 @@ builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configu
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IRepository<IJournal, IJournalAnemicModel>, JournalCommandRepository>();
 builder.Services.AddScoped<IJournalQueryRepository, JournalReadRepository>();
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IJournalEventPublisher, HttpJournalEventPublisher>();
 
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();

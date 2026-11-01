@@ -2,6 +2,7 @@ namespace Journal.Application.Commands;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
+using Journal.Application;
 using Journal.Domain.Implementation;
 using MediatR;
 using XDiary.Contracts;
@@ -149,26 +150,28 @@ public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand,
 public sealed class CompleteHandler : IRequestHandler<CompleteCommand, AggregateResult<IJournal, IJournalAnemicModel>>
 {
     private readonly IRepository<IJournal, IJournalAnemicModel> _repo;
-    public CompleteHandler(IRepository<IJournal, IJournalAnemicModel> repo) => _repo = repo;
+    private readonly IJournalEventPublisher _publisher;
+    public CompleteHandler(IRepository<IJournal, IJournalAnemicModel> repo, IJournalEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(CompleteCommand r, CancellationToken ct)
     {
         var model = await _repo.GetByIdAsync(r.AggregateId, ct);
         if (model is null) return JournalResults.Fail("Record not found.");
         var result = Aggregate.CreateInstance(model).Complete();
-        if (result.IsSuccess()) await _repo.SaveAsync(result, ct);
+        if (result.IsSuccess()) { await _repo.SaveAsync(result, ct); await _publisher.PublishRecordCompletedAsync(result.Model(), ct); }
         return result;
     }
 }
 public sealed class DeleteRecordHandler : IRequestHandler<DeleteRecordCommand, AggregateResult<IJournal, IJournalAnemicModel>>
 {
     private readonly IRepository<IJournal, IJournalAnemicModel> _repo;
-    public DeleteRecordHandler(IRepository<IJournal, IJournalAnemicModel> repo) => _repo = repo;
+    private readonly IJournalEventPublisher _publisher;
+    public DeleteRecordHandler(IRepository<IJournal, IJournalAnemicModel> repo, IJournalEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(DeleteRecordCommand r, CancellationToken ct)
     {
         var model = await _repo.GetByIdAsync(r.AggregateId, ct);
         if (model is null) return JournalResults.Fail("Record not found.");
         var result = Aggregate.CreateInstance(model).Delete();
-        if (result.IsSuccess()) await _repo.SaveAsync(result, ct);
+        if (result.IsSuccess()) { await _repo.SaveAsync(result, ct); await _publisher.PublishRecordDeletedAsync(result.Model(), ct); }
         return result;
     }
 }
