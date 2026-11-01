@@ -53,6 +53,10 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await expect(card, 'карточка ' + OLD).toHaveCount(1);
       await card.click();
       await expect(page.locator('#view-partner-edit')).toBeVisible();
+      // ВАЖНО: openPartnerEdit показывает форму ДО асинхронного DB.getPartner().then,
+      // который перезаписывает поля. Без ожидания fill затирается — в тело уходит
+      // {gender:"female", notes:""} (нашёл по логу POST /profile).
+      await expect(page.locator('#pe-name')).toHaveValue(OLD);
     });
 
     await test.step('UI: изменить имя, notes и пол → Сохранить', async () => {
