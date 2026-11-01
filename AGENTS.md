@@ -96,11 +96,17 @@ outbox в чате, у BackEnd — заметки о пробелах фрейм
 значение, не сравнивай ключи по символам — только «ключи различаются, сверка/ротация
 через Secrets». Репозиторий **публичный**: закоммиченный фрагмент = утёк.
 
-Проверка: job `guard-secrets` в `ci-tests.yml` — движок `LoopMaker/tools/check_secrets.py`
+Проверка: job `guard-secrets` в `ci-tests.yml` — `tools/check_secrets.py`
 (в CI режим `--range`: сканируется только пушимое, включая строки, зачищенные потом
 в рабочем дереве), пути — из `loop.config.json`. Падает на находке; значения в лог
-не попадают. Локально: `python LoopMaker/tools/check_secrets.py --config loop.config.json`.
-Сравнение ключей без раскрытия — `python LoopMaker/tools/keycmp.py --a-env A --b-env B`
+не попадают. Локально: `python tools/check_secrets.py --config loop.config.json`.
+
+`tools/check_secrets.py`, `tools/keycmp.py`, `tools/chat_lint.py` — **копии** из
+`LoopMaker/tools/` (источник правды там, в шапке файла это указано). Правка — в обоих
+местах. Копии, а не чекаут LoopMaker в CI: репозиторий LoopMaker приватный, а
+`GITHUB_TOKEN` чужой репозиторий не читает — чекаут требует отдельного PAT.
+
+Сравнение ключей без раскрытия — `python tools/keycmp.py --a-env A --b-env B`
 («совпадают/нет» + `sha256[:8]`).
 
 При утечке: 1) зачистить в рабочем файле; 2) **ротация ключа** через @DO (Secrets +
