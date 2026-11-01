@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.40"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.41"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -381,6 +381,7 @@
     $("btn-wizard-prev").onclick = function () { if (wizardStep > 0) { wizardStep--; renderWizard(data); } };
     $("btn-wizard-next").onclick = function () {
       if (wizardStep === 0 && !draft.startedAt) { toast("Укажите дату и время"); return; }
+      if (wizardStep === 6 && (!draft.durationMin || draft.durationMin < 1)) { toast("Укажите длительность"); return; }
       if (wizardStep < STEPS.length - 1) { wizardStep++; renderWizard(data); }
     };
     $("btn-wizard-save").onclick = function () { saveWizard(data); };
@@ -396,7 +397,7 @@
       case 4: stepMarks(body, data); break;
       case 5: stepContraception(body, data); break;
       case 6: stepDuration(body); break;
-      case 7: stepOrgasms(body); break;
+      case 7: stepOrgasms(body, data); break;
       case 8: stepSummary(body); break;
     }
   }
@@ -717,8 +718,8 @@
     return '<div class="orgasm-stars">' + html + "</div>";
   }
 
-  function stepOrgasms(body) {
-    DB.getAllPartners().then(function (partners) {
+  function stepOrgasms(body, data) {
+    Promise.resolve(data.partners || []).then(function (partners) {
       var p = null;
       partners.forEach(function (x) { if (!p && x.name === draft.partner) p = x; });
       var partnerLabel = p
@@ -780,7 +781,7 @@
           var r = parseInt(b.getAttribute("data-orating"), 10);
           var prop = key === "me" ? "orgasmMeRating" : "orgasmPartnerRating";
           draft[prop] = (draft[prop] === r) ? 0 : r;
-          stepOrgasms(body);
+          stepOrgasms(body, data);
         });
       });
     });
