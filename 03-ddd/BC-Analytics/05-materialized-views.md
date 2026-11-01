@@ -14,8 +14,9 @@
 | `analytics_correlations` | `records` × `somatic` × DailyMetrics | ✅ |
 
 ## Объём (фазы, PO 2026-11-03)
-- **Сейчас:** `analytics_summary`/`tops`/`distribution` (Journal, `RecordCompleted`).
-- **Отложено (соматика):** `physio`/`thresholds`/`correlations`/`trends` (SomaticSeries/DailyMetrics). После идентификации/аутентификации + проверки загрузки Garmin.
+- **0. Простые просмотры** — журнал + партнёры (list/detail) работают.
+- **1. Аналитика Journal** — `analytics_summary`/`tops`/`distribution` (`RecordCompleted`).
+- **Отложено (соматика):** `physio`/`thresholds`/`correlations`/`trends` — после идентификации/аутентификации + проверки загрузки Garmin.
 
 ## Обновление MV
 **Целевое — event-driven** (директива PO): MV обновляется инкрементально от событий `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded` — событие = источник истины (Event Store), доставка соседям через **Outbound Handler (Saga/HTTP)**, затем подписчик → MV.
