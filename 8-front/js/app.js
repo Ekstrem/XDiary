@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.39"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.40"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -310,9 +310,10 @@
     return Promise.all([
       DB.getAllPartners(),
       Api.journal.recent().catch(function () { return null; }),
-      Api.journal.places().catch(function () { return []; })
+      Api.journal.places().catch(function () { return []; }),
+      DB.getAllCatalog().catch(function () { return []; })
     ]).then(function (res) {
-      return { partners: res[0], recent: res[1] || {}, places: res[2] || [] };
+      return { partners: res[0], recent: res[1] || {}, places: res[2] || [], catalog: res[3] || [] };
     });
   }
   function reopenWizard() {
@@ -527,7 +528,7 @@
 
   // ---- аксессуары (костюмы / игрушки / фантазии / теги) ----
   function stepMarks(body, data) {
-    DB.getAllCatalog().then(function (items) {
+    Promise.resolve(data.catalog || []).then(function (items) {
       body.innerHTML = '<div class="step-label">Аксессуары</div>';
 
       var kinds = [
@@ -609,7 +610,7 @@
   }
 
   function stepContraception(body, data) {
-    DB.getAllCatalog().then(function (items) {
+    Promise.resolve(data.catalog || []).then(function (items) {
       var used = (data.recent.lastContraceptives || []).slice();
       var contra = items.filter(function (it) { return it.kind === "contraception" && !it.archived; });
       contra.sort(function (a, b) {
