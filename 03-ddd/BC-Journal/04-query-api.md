@@ -8,6 +8,8 @@
 | Журнал (список) | `GET /api/v1/journal?filter=...` | JournalView | ReadModel `records` |
 | Деталь записи | `GET /api/v1/journal/{id}` | RecordDetailView | ReadModel + соматика |
 | Черновик | `GET /api/v1/journal/draft/{id}` | RecordDraft | Draft (не проекция) |
+| Последние (визард) | `GET /api/v1/journal/recent` | RecentDefaultsView | ReadModel `records` (latest по `startedAt`) |
+| Места (подсказки) | `GET /api/v1/journal/places` | `string[]` | ReadModel `records` (DISTINCT `place`) |
 
 ## Response DTO
 ### JournalView
@@ -16,6 +18,10 @@
 ### RecordDetailView
 - Мета: `startedAt`, `partners[]`, `place`, `durationMin`, `orgasms[]` (по участникам).
 - Соматика: пульс (ср/макс), Body Battery Δ, стресс, сон, HRV.
+
+### RecentDefaultsView
+- `lastPartner`: `{ id, name } | null` — первый партнёр последней записи (`null` если соло/нет).
+- `lastPlace`: `string | null` — место последней записи.
 
 ## Потребители
 | Потребитель | Запросы | Назначение |

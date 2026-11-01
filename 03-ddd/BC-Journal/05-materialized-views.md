@@ -31,6 +31,9 @@
 | `RecordCompleted` | INSERT / upsert |
 | `RecordDeleted` | DELETE |
 
+> `recent` (latest по `startedAt`) и `places` (DISTINCT `place`) — **запросы по read-model `records`**, отдельной проекции не требуют.
+
 ## Индексы
-- `startedAt` — сортировка журнала по убыванию.
+- `startedAt` — сортировка журнала по убыванию (+ `recent`).
 - `partners` — фильтр по партнёру.
+- `place` — DISTINCT для подсказок мест.
