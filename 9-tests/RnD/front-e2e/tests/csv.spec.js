@@ -30,14 +30,20 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     expect(text.split(/\r?\n/).filter((l) => l.trim()).length, 'есть строки').toBeGreaterThanOrEqual(1);
   });
 
+  await test.step('импорт: открыть экран импорта (Garmin-путь)', async () => {
+    // #import-file (импорт журнала) идёт напрямую через importCsvFile и НЕ открывает
+    // #view-import. Экран импорта — это Garmin-путь: #btn-import-open → #import-any-file.
+    await page.click('#btn-import-open');
+    await expect(page.locator('#view-import')).toBeVisible({ timeout: 20000 });
+  });
+
   await test.step('импорт: Garmin-подобный CSV (somatic_minute) принимается', async () => {
     const csv = 'timestamp,hr\n2026-11-02T10:00,60\n2026-11-02T10:01,62\n2026-11-02T10:02,61\n';
-    await page.setInputFiles('#import-file', {
+    await page.setInputFiles('#import-any-file', {
       name: 'somatic.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from(csv, 'utf8'),
     });
-    await expect(page.locator('#view-import')).toBeVisible({ timeout: 20000 });
     await expect(page.locator('#btn-import-apply')).toBeVisible({ timeout: 20000 });
     await page.click('#btn-import-apply');
     await expect(page.locator('#import-result')).toBeVisible({ timeout: 20000 });
