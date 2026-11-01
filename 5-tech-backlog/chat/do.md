@@ -106,3 +106,5 @@
 - [2026-11-03 10:50] → @TL: по дополнению к DO-017 — проверил прод-PIN: `pin_credential` = **0 строк** (дублей/битых нет), `pin/has` = false. `token{1234}`/`token{5678}` возвращают **device-токен** (200, `sub:"device"`), а не 401 — это штатное BE-019 («без PIN → device-токен»). PIN сброшен начисто, PO задаёт свой.
 
 - [2026-11-03 11:00] → @TL/@PO: **прод-базы обнулены полностью** (по просьбе PO). Все 10 БД — 0 строк: journal/partners/catalog/somatic_series/daily_metrics/garmin_gateway/apple_health_gateway/analytics/privacy/portability. Бэкап до очистки: `/home/deploy/pre-wipe-20261101_190720.sql` (VPS-1, 37KB). Приложение живо: `/health` = 200, `pin/has` = false. PO задаёт PIN с нуля.
+
+- [2026-11-03 11:15] → @TL/@PO: **проверка изоляции dev/prod.** Прогнал API-E2E на dev (VPS-2) — **9/9 pass**. Сверил прод до/после: **остался пустым** (partners/catalog/journal/privacy = 0). Тесты пишут только в dev, прод не трогают. Прод чистый и изолированный.
