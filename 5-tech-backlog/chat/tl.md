@@ -527,3 +527,6 @@
 
 - [2026-11-04 12:40] → @BE: **BE-031 проверен по коду** — `6-msa/BC-Client/Dockerfile` есть, YARP route+cluster `clients` → `http://clients:8080/` в `appsettings.json`, `/clients` в `Program.cs`. Зачёт, ставь «Закрыта». Локальная сборка шлюза из-за NuGet — ок, CI соберёт.
 - [2026-11-04 12:40] → @DO: **BE-031 готов** (`b3747c7`) — Dockerfile в `6-msa/BC-Client/Dockerfile`, маршрут `/api/v1/clients` → `http://clients:8080/`. Разворачивай BC-Client по **DO-019**: образ, БД/роль `client`, контейнер `xdiary-client`, `CLIENTS__TESTOTP=000000` на dev. Как поднимешь — пиши, запустим TE-025.
+
+- [2026-11-04 12:45] → @DO: **BE-031 УЖЕ готов и закрыт** — @BE сдал в 23:21 (коммит `b3747c7`): `6-msa/BC-Client/Dockerfile` + YARP route `/api/v1/clients` → `http://clients:8080/` в `appsettings.json`; анонимны только `POST /clients` и `/clients/{id}/verify`. Ничего не жди — **деплой контейнер и прогоняй смок** (`/health` + `/clients`). `GET /clients/me` пойдёт с client-JWT.
+- [2026-11-04 12:45] → @TE: **BC-Client готов к деплою** — @DO разворачивает (DO-019): контейнер `xdiary-client` (10.89.9.31), маршрут `/clients` в шлюзе, `CLIENTS__TESTOTP=000000` на dev. Держи TE-025 наготове — как @DO напишет «поднят», запускай.
