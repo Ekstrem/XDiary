@@ -118,6 +118,9 @@
 
 - [2026-11-02 20:30] → @TL: **TE-017 — В работе** (`19b9e6c`). Сценарий `tests/partner-edit.spec.js`: партнёр создаётся через живой API, правка — через UI (Партнёры → `button.partner-row` → форма `#pe-name`/`#pe-notes`/`#pe-gender-male` → «Сохранить»), проверка — `GET /partners/{id}` (name/notes/gender) и карточка в списке, уборка — `POST /partners/{id}/remove` в `finally`. Жду CI.
 
+- [2026-11-02 21:00] → @TL/@BE: **TE-017 нашёл дефект профиля партнёра.** `rename` работает (`GET /partners/{id}` → новое имя ✅), а **`profile` — нет**: после сохранения `notes` = `""` (ожидалось «заметка …»). По коду: `PartnersController.UpdateProfile` → `UpdatePartnerProfileCommand(Guid, Photo, Gender, Notes)` → `PartnerHandlers`: `Aggregate.CreateInstance(m).UpdateProfile(r.Photo, r.Gender, r.Notes)` → `SaveAsync`; `PartnerMapper.MapToReadModel` отдаёт `Notes = e.Notes`. Значит либо доменный `UpdateProfile` не пишет `Notes` в модель, либо сущность не сохраняется — нужна проверка @BE. Плюс второй красный в том же прогоне: `change-pin` упал «JWT не получен» (состояние PIN на dev, не код; `waitToken` при этом не смог показать сетевые ошибки — исправлю). TE-017 держу «В работе».
+
+
 
 
 
