@@ -184,31 +184,53 @@
       return Api.privacy.setPin(pin).then(function () { return Api.auth.login(pin); });
     });
   }
+  function showLockScreen() {
+    $("pin-input").value = "";
+    $("pin-error").classList.add("hidden");
+    showView("lock");
+    setTimeout(function () { $("pin-input").focus(); }, 60);
+  }
   function lock() {
     Pin.hasPin().then(function (hasPin) {
       if (!hasPin) {
-        // FE-006: без PIN получаем device-токен (BE-019), иначе запросы 401
-        Api.auth.login("").then(function () { showView("journal"); }, function () { showView("journal"); });
+        // FE-006/007: без локального PIN пробуем device-токен; если на стенде PIN (401) — просим PIN
+        Api.auth.login("").then(function () { showView("journal"); }, function (err) {
+          if (err && err.status === 401) { showLockScreen(); return; }
+          showView("journal");
+        });
         return;
       }
-      $("pin-input").value = "";
-      $("pin-error").classList.add("hidden");
-      showView("lock");
-      setTimeout(function () { $("pin-input").focus(); }, 60);
+      showLockScreen();
     });
   }
   function unlock() {
     var pin = $("pin-input").value;
-    Pin.verifyPin(pin).then(function (ok) {
-      if (ok) {
-        $("pin-error").classList.add("hidden");
-        $("pin-input").value = "";
-        ensureToken(pin).then(function () { showView("journal"); }, function () { showView("journal"); });
-      } else {
-        $("pin-error").classList.remove("hidden");
-        $("pin-input").value = "";
-        $("pin-input").focus();
+    Pin.hasPin().then(function (hasLocal) {
+      if (!hasLocal) {
+        // FE-007: локального PIN нет (стенд с PIN) — проверяем через бэкенд
+        Api.auth.login(pin).then(function () {
+          $("pin-error").classList.add("hidden");
+          $("pin-input").value = "";
+          Pin.setPin(pin).catch(function () {});
+          showView("journal");
+        }).catch(function () {
+          $("pin-error").classList.remove("hidden");
+          $("pin-input").value = "";
+          $("pin-input").focus();
+        });
+        return;
       }
+      Pin.verifyPin(pin).then(function (ok) {
+        if (ok) {
+          $("pin-error").classList.add("hidden");
+          $("pin-input").value = "";
+          ensureToken(pin).then(function () { showView("journal"); }, function () { showView("journal"); });
+        } else {
+          $("pin-error").classList.remove("hidden");
+          $("pin-input").value = "";
+          $("pin-input").focus();
+        }
+      });
     });
   }
 
