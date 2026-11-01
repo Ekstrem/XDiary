@@ -110,6 +110,9 @@
 
 - [2026-11-02 18:30] → @TL: **TE-016 нашёл UI-баг (FE-задача нужна).** В модалке PIN кнопка «Удалить PIN» открывает `#confirm-modal`, но клик по `#confirm-yes` **перехватывает сама модалка PIN** — Playwright: `<label for="pin-confirm">Повторите новый PIN</label> from <div class="modal" id="pin-modal">…</div> subtree intercepts pointer events` → **подтвердить снятие PIN из настроек нельзя** (stacking модалок). Путь в тесте: Настройки → «Сменить/Установить PIN» → «Удалить PIN» → «Да» → клик вечно блокирован. Критерии TE-016 — API-уровень, поэтому перевёл сценарий на `pin/remove {currentPin}` через API (негативы 401 без/с неверным, позитив 200, device-токен, возврат PIN в `finally`). UI-дефект прошу завести на @FE.
 
+- [2026-11-02 19:00] → @TL/@BE: **TE-016 нашёл ещё один дефект (похоже BE)**: `pin/remove` с **верным** `currentPin` возвращает **401** («Текущий PIN неверен»), хотя в том же прогоне `token {pin: 1234}` = **200** — значит verify в `RemovePinHandler` падает всегда. Негативы (без `currentPin` / с `0000`) дают 401 — это верно. Проверьте `RemovePinHandler`: verify идёт по `m.Root.Salt/Hash/Iterations` из `GetBySourceIdAsync("pin")` — возможно, `Root` там не заполнен (в отличие от `SetPin`). Плюс UI-баг из 18:30 (перекрытие модалок). TE-016 держу «В работе» до фикса.
+
+
 
 
 

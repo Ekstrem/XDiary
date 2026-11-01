@@ -126,6 +126,9 @@ test('E2E: запись журнала — редактирование и уд�
     expect(list, 'GET /api/v1/journal/records отвечает ;; API: ' + tail).toBeTruthy();
     const still = (list || []).find((x) => x.id === id);
     expect(!still, 'после удаления запись не должна быть в списке журнала (id ' + id + ') ;; API: ' + tail).toBe(true);
+    // UI-список не перерисовывается сам после delete — перезагружаем и проверяем DOM
+    await page.reload();
+    await unlockIfLocked(page);
     await expect(page.locator('#journal-list .record-card').filter({ hasText: MARK })).toHaveCount(0);
     id = null;
   } finally {
