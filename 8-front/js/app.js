@@ -408,7 +408,7 @@
   }
 
   function stepPartner(body, data) {
-    var partners = data.partners, records = data.records;
+    var partners = data.partners;
     body.innerHTML =
       '<div class="step-label">С кем?</div>' +
       '<div class="partner-grid" id="w-partner-grid"></div>' +
