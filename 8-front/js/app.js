@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.32"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.33"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1210,14 +1210,16 @@
     var rangeEnd = minuteKeyFromDate(new Date(rangeEndMs));
     var day = toDateKey(r.startedAt);
 
+    // FE-013: соматика детали — из серверного somatic-series + daily-metrics (не локальных)
+    var somaticFailed = false;
     Promise.all([
-      DB.getSomaticRange(rangeStart, rangeEnd),
-      DB.getSleep(day),
-      DB.getWeekly(day)
+      Api.somatic.slice(rangeStart, rangeEnd).catch(function () { somaticFailed = true; return []; }),
+      Api.daily.series(day, day).catch(function () { return []; })
     ]).then(function (res) {
-      var points = res[0] || [];
-      var sl = res[1] || null;
-      var wk = res[2] || null;
+      var points = (res[0] || []).map(function (p) { return { t: p.t, hr: p.hr, body_battery: p.bodyBattery }; });
+      var d = (res[1] || [])[0] || {};
+      var sl = d.sleepScore != null ? { score: d.sleepScore, durationMin: d.sleepDurationMin || 0 } : null;
+      var wk = { stress: d.stress, hrv: d.hrv };
       points.sort(function (a, b) { return a.t < b.t ? -1 : (a.t > b.t ? 1 : 0); });
 
       var hrPts = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
@@ -1277,7 +1279,7 @@
         s.textContent = "мин " + Math.round(stats.min) + " · ср " + Math.round(stats.avg) +
           " · макс " + Math.round(stats.max) + (m.unit ? " " + m.unit : "") + " · точек " + stats.count;
       } else {
-        s.textContent = "";
+        s.textContent = somaticFailed ? "Не удалось загрузить соматику" : "";
       }
     });
   }
