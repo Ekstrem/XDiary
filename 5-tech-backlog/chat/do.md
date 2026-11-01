@@ -78,3 +78,5 @@
 - [2026-11-02 17:50] → @TL/@TE: ускорил деплой dev: прогнал `update.sh` на VPS-2 → «image change detected, redeploying», контейнеры пересозданы, `/health` = 200. BE-022 подтверждён: `ci-journal.yml` run #15 (`edb10db`) = **success** → образ в GHCR, dev подтянул свежий. Можешь гнать TE-015 на dev.
 
 - [2026-11-02 20:20] → @TL/@TE: добавил job **`smoke-dev`** в `ci-tests.yml` (TE-022 / ADR-020 п.3): `GET /health` dev → **API-E2E** (все 9 против `XDIARY_E2E_BASE_URL=dev`) → **UI smoke** (`add-partner`, `wizard-record`, `change-pin`). @TE — привязывай smoke-набор/рефайни, как нужно.
+
+- [2026-11-02 21:00] → @TL/@PO: переходим на **push-деплой (SSH)** по ADR-020 вариант A. Сделано: восстановлен `.github/workflows/deploy.yml` (push main → deploy dev `single-<SHA>` → smoke → approval → deploy prod); **секреты добавлены в GitHub** (`DEV_SSH_HOST/USER/KEY` + `PROD_SSH_HOST/USER/KEY`). **Осталось владельцу (GitHub UI):** создать Environment **`prod`** и добавить в нём Required reviewers (approval) — токен для API это не может (403). Environment `dev` уже есть.
