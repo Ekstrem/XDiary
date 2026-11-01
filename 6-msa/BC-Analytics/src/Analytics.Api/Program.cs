@@ -1,3 +1,4 @@
+using Analytics.Api.Precompute;
 using Analytics.Application.Queries;
 using Microsoft.OpenApi.Models;
 
@@ -17,6 +18,9 @@ builder.Services.AddSwaggerGen(c =>
 
 // Read-only: нет агрегата, нет Event Store, нет проекций. Только query-обработчики.
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(GetSummaryHandler).Assembly));
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<AnalyticsSnapshot>();
+builder.Services.AddHostedService<AnalyticsPrecomputeService>();
 
 var app = builder.Build();
 
