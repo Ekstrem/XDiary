@@ -1,0 +1,36 @@
+{
+  "_comment": "Карта проекта для инструментов LoopMaker (tools/sweep.py и будущих). Правки — только здесь, скрипты проектных путей не знают.",
+
+  "backlog": "5-tech-backlog",
+  "chat": "5-tech-backlog/chat",
+  "coordinator": "tl",
+
+  "_comment_tz": "Время в строках чата — местное (MSK). GitHub-раннеры живут в UTC, поэтому нужен сдвиг.",
+  "time_zone_offset": 3,
+
+  "statuses": ["Открыта", "В работе", "На проверке", "Закрыта", "Отклонена"],
+
+  "role_titles": {
+    "po": "PO",
+    "ar": "Architect",
+    "tl": "TechLead",
+    "be": "BackEnd",
+    "fe": "FrontEnd",
+    "do": "DevOps",
+    "te": "TestEngineer"
+  },
+
+  "task_folders": [
+    { "folder": "back-end", "title": "back-end" },
+    { "folder": "devops", "title": "devops" },
+    { "folder": "front-end", "title": "front-end" },
+    { "folder": "tester", "title": "tester" },
+    { "folder": "arch", "title": "arch" }
+  ],
+
+  "sweep": {
+    "review_hours": 24,
+    "work_hours": 72,
+    "claim_hours": 0.5
+  }
+}

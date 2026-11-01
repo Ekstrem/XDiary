@@ -53,7 +53,9 @@ TL_ZONE = ["5-tech-backlog/README.md",
            "tools/*"]
 
 # зоны, доступные всем ролям (кроме самих outbox'ов чата)
-SHARED = ["README.md", "CHANGELOG.md", ".gitignore", ".gitattributes"]
+# loop.config.json — карта проекта для инструментов петли: её правят вместе с workflow.
+# AGENTS.md сюда НЕ входит: правила меняет человек (коммит без префикса роли).
+SHARED = ["README.md", "CHANGELOG.md", ".gitignore", ".gitattributes", "loop.config.json"]
 
 
 def zones_for(role, strict=False):
