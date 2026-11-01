@@ -1,38 +1,32 @@
-// RnD: UI-автотест каталога XDiary — игрушки, костюмы, фантазии, контрацепция.
-// Проверяет: вкладки по kind, создание элемента и появление его в списке.
+// E2E (настоящий): каталог по всем kind — живое приложение + живой шлюз.
+// Добавляем элемент каждого вида, проверяем в списке, удаляем за собой.
 const { test, expect } = require('@playwright/test');
-const { installApiMock } = require('./mock');
+const { waitToken, removeByName } = require('./api');
 
-const KINDS = [
-  { kind: 'costume', name: 'Костюм медсестры' },
-  { kind: 'toy', name: 'Вибратор LELO' },
-  { kind: 'fantasy', name: 'Ролевая игра' },
-  { kind: 'contraception', name: 'Презерватив Durex' },
-];
+const KINDS = ['costume', 'toy', 'fantasy', 'contraception'];
 
-for (const { kind, name } of KINDS) {
-  test(`Каталог (${kind}): добавить «${name}» и увидеть в списке`, async ({ page }) => {
-    await installApiMock(page);
+for (const kind of KINDS) {
+  test(`E2E: каталог ${kind} — добавить, увидеть в списке, удалить`, async ({ page }) => {
+    const name = 'TE-' + kind + '-' + Date.now();
+    try {
+      await page.goto('/');
+      await expect(page.locator('#tabbar')).toBeVisible();
+      await waitToken(page);
 
-    await page.goto('/');
-    await expect(page.locator('#tabbar')).toBeVisible();
+      await page.click('#tab-catalog');
+      await expect(page.locator('#view-catalog')).toBeVisible();
+      await page.click(`#catalog-tabs button[data-kind="${kind}"]`);
 
-    await page.click('#tab-catalog');
-    await expect(page.locator('#view-catalog')).toBeVisible();
+      await page.click('#btn-catalog-add');
+      await expect(page.locator('#view-catalog-edit')).toBeVisible();
+      await page.fill('#ce-name', name);
+      await page.click('#btn-catalog-save');
 
-    // выбираем вкладку kind
-    await page.click(`#catalog-tabs button[data-kind="${kind}"]`);
-    await page.click('#btn-catalog-add');
-    await expect(page.locator('#view-catalog-edit')).toBeVisible();
-
-    await page.fill('#ce-name', name);
-    await page.click('#btn-catalog-save');
-
-    // после сохранения — снова каталог, элемент в списке
-    await expect(page.locator('#view-catalog')).toBeVisible();
-    await expect(page.locator('#catalog-list')).toContainText(name);
-
-    const kinds = await page.evaluate(() => (window.__catalog || []).map((x) => x.kind + ':' + x.name));
-    expect(kinds).toContain(`${kind}:${name}`);
+      await expect(page.locator('#view-catalog')).toBeVisible();
+      await expect(page.locator('#catalog-list')).toContainText(name);
+    } finally {
+      const r = await removeByName(page, 'catalog', name);
+      console.log('cleanup catalog:', JSON.stringify(r));
+    }
   });
 }

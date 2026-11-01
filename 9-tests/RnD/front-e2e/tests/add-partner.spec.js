@@ -1,135 +1,30 @@
-// RnD: UI-автотест фронта (Playwright). Сценарий — «Добавить партнёра».
-//
-// Контракт BE-018: Command API — POST-only. Мок повторяет реальные маршруты:
-//   POST /api/v1/partners                    {name}  -> создаёт (Register)
-//   POST /api/v1/partners/{id}/name          {name}  -> 404, если нет (Rename)
-//   POST /api/v1/partners/{id}/profile       {...}   -> 404, если нет
-//   POST /api/v1/partners/{id}/remove        —       -> удаляет
-//   PUT/DELETE к Command API -> 405 (контракт больше не поддерживает)
-// Диагностика падения — `::error::` с шагом, DOM и журналом вызовов.
+// E2E (настоящий): живое приложение + живой шлюз, без заглушек.
+// Сквозной путь: приложение без PIN берёт device-токен → POST /api/v1/partners →
+// партнёр реально сохраняется и появляется в списке → тест удаляет его за собой.
 const { test, expect } = require('@playwright/test');
+const { waitToken, removeByName } = require('./api');
 
-let lastStep = 'init';
-const errors = [];
-
-test('Добавить партнёра: сохранение и появление в списке', async ({ page }) => {
-  const mark = (s) => { lastStep = s; };
-  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
-
-  await page.addInitScript(() => {
-    const partners = [];
-    let seq = 0;
-    window.__partners = partners;
-    window.__calls = [];
-
-    const json = (body, status = 200) => new Response(JSON.stringify(body), {
-      status,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
-    const notFound = () => json({ error: 'Partner not found.' }, 404);
-    const notAllowed = () => json({ error: 'Method Not Allowed' }, 405);
-
-    window.fetch = function (input, init) {
-      const opts = init || {};
-      const url = String(typeof input === 'string' ? input : (input && input.url) || '');
-      const method = String(opts.method || 'GET').toUpperCase();
-      const path = url.replace(/^[a-z]+:\/\/[^/]+/i, '');
-      window.__calls.push(method + ' ' + path);
-
-      let body = {};
-      try { body = JSON.parse(opts.body || '{}'); } catch (e) { body = {}; }
-
-      if (path === '/api/v1/privacy/pin/has') return Promise.resolve(json(false));
-      if (path === '/api/v1/privacy/token') return Promise.resolve(json({ accessToken: 't', refreshToken: 'r' }));
-      if (path === '/api/v1/partners' && method === 'GET') return Promise.resolve(json(partners));
-      if (path === '/api/v1/partners' && method === 'POST') {
-        const created = { id: 'srv-' + (++seq), name: body.name || '', photo: '', gender: 'female', notes: '' };
-        partners.push(created);
-        return Promise.resolve(json(created));
-      }
-
-      const m = path.match(/^\/api\/v1\/partners\/([^/]+)\/(name|profile|remove)$/);
-      if (m && method === 'POST') {
-        const p = partners.find((x) => x.id === m[1]);
-        if (!p) return Promise.resolve(notFound());
-        if (m[2] === 'name') p.name = body.name || p.name;
-        else if (m[2] === 'profile') {
-          if (body.photo !== undefined) p.photo = body.photo;
-          if (body.gender !== undefined) p.gender = body.gender;
-          if (body.notes !== undefined) p.notes = body.notes;
-        } else {
-          partners.splice(partners.indexOf(p), 1);
-        }
-        return Promise.resolve(json(p));
-      }
-
-      // BE-018: Command API больше не принимает PUT/DELETE.
-      if (method === 'PUT' || method === 'DELETE') return Promise.resolve(notAllowed());
-
-      if (path === '/api/v1/journal/records') return Promise.resolve(json([]));
-      if (path.indexOf('/local/') === 0 || path.indexOf('/activities') === 0) return Promise.resolve(json([]));
-      return Promise.resolve(json({}));
-    };
-  });
-
-  mark('goto');
-  await page.goto('/');
-  mark('loaded');
-
-  await expect(page.locator('#tabbar')).toBeVisible();
-  mark('tabbar-visible');
-
-  await expect(page.locator('#view-journal')).toBeVisible();
-  mark('journal-visible');
-
-  await page.click('#tab-partners');
-  await expect(page.locator('#view-partners')).toBeVisible();
-  mark('partners-visible');
-
-  await page.click('#btn-partner-add');
-  await expect(page.locator('#view-partner-edit')).toBeVisible();
-  mark('partner-edit-visible');
-
-  await page.fill('#pe-name', 'Аня');
-  await page.click('#btn-partner-save');
-  mark('save-clicked');
-
-  await expect(page.locator('#view-partners')).toBeVisible();
-  mark('back-to-partners');
-
-  await expect(page.locator('#partners-list')).toContainText('Аня');
-  mark('partner-in-list');
-
-  const names = await page.evaluate(() => (window.__partners || []).map((p) => p.name));
-  expect(names).toContain('Аня');
-  mark('done');
-});
-
-test.afterEach(async ({ page }, testInfo) => {
-  if (testInfo.status === testInfo.expectedStatus) return;
-  const err = testInfo.error ? String(testInfo.error.message || testInfo.error) : 'unknown';
-  let snap = null;
+test('E2E: партнёр — добавить в приложении, увидеть в списке, удалить', async ({ page }) => {
+  const name = 'TE-' + Date.now();
   try {
-    snap = await page.evaluate(() => {
-      const vis = (id) => {
-        const el = document.getElementById(id);
-        return el ? !el.classList.contains('hidden') : 'missing';
-      };
-      return {
-        lock: vis('view-lock'),
-        journal: vis('view-journal'),
-        partners: vis('view-partners'),
-        partnerEdit: vis('view-partner-edit'),
-        tabbar: vis('tabbar'),
-        partnersLen: (window.__partners || []).length,
-        calls: (window.__calls || []).slice(0, 20),
-        listHtml: (document.getElementById('partners-list') || {}).innerHTML,
-      };
-    });
-  } catch (e) {
-    snap = { evalError: String(e && e.message) };
+    await page.goto('/');
+    await expect(page.locator('#tabbar')).toBeVisible();
+
+    // FE-006/BE-019: без PIN приложение получает device-токен, иначе все запросы 401
+    await waitToken(page);
+
+    await page.click('#tab-partners');
+    await expect(page.locator('#view-partners')).toBeVisible();
+
+    await page.click('#btn-partner-add');
+    await expect(page.locator('#view-partner-edit')).toBeVisible();
+    await page.fill('#pe-name', name);
+    await page.click('#btn-partner-save');
+
+    await expect(page.locator('#view-partners')).toBeVisible();
+    await expect(page.locator('#partners-list')).toContainText(name);
+  } finally {
+    const r = await removeByName(page, 'partner', name);
+    console.log('cleanup partner:', JSON.stringify(r));
   }
-  const payload = { step: lastStep, error: err, dom: snap, errors: errors.slice(0, 6) };
-  console.log('::error::' + JSON.stringify(payload).replace(/[\r\n]+/g, ' ').slice(0, 1200));
 });

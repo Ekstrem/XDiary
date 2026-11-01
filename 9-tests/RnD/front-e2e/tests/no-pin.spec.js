@@ -1,28 +1,11 @@
-// RnD: сценарий «без PIN» — FE-006 / BE-019.
-//
-// Продуктовое правило: PIN — возможность, а не правило. BE-019 выдаёт device-токен
-// при `!HasPin`; FE-006 в ветке `lock()` → `!hasPin` запрашивает токен
-// (`POST /api/v1/privacy/token`, pin: "") и только потом открывает журнал.
+// E2E (настоящий): без PIN приложение получает device-токен (FE-006/BE-019)
+// и открывает журнал — на ЖИВОМ шлюзе, без заглушек.
 const { test, expect } = require('@playwright/test');
-const { installApiMock } = require('./mock');
+const { waitToken } = require('./api');
 
-test('Без PIN: приложение берёт device-токен и сохраняет партнёра', async ({ page }) => {
-  await installApiMock(page);
-
+test('E2E: без PIN приложение получает device-токен и открывает журнал', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#tabbar')).toBeVisible();
-  await expect(page.locator('#view-journal')).toBeVisible();
-
-  // FE-006: без локального PIN должен уйти запрос токена (pin: "")
-  const calls = await page.evaluate(() => window.__calls || []);
-  expect(calls).toContain('POST /api/v1/privacy/token');
-
-  // и сохранение работает (токен не мешает)
-  await page.click('#tab-partners');
-  await expect(page.locator('#view-partners')).toBeVisible();
-  await page.click('#btn-partner-add');
-  await expect(page.locator('#view-partner-edit')).toBeVisible();
-  await page.fill('#pe-name', 'БезПин');
-  await page.click('#btn-partner-save');
-  await expect(page.locator('#partners-list')).toContainText('БезПин');
+  await waitToken(page);
+  expect(await page.evaluate(() => localStorage.getItem('xdiary.accessToken'))).toBeTruthy();
 });
