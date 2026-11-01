@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.30"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.31"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1611,43 +1611,54 @@
       b.classList.toggle("active", b.getAttribute("data-tab") === trendTab);
     });
     if (isCorr) { renderCorrelations(); return; }
-    Promise.all([DB.getAllWeekly(), DB.getAllSleepWeekly()]).then(function (res) {
-      var weekly = res[0].slice().sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
-      var sleep = res[1].slice().sort(function (a, b) { return a.end < b.end ? -1 : (a.end > b.end ? 1 : 0); });
 
-      var cc = $("trend-chips");
-      cc.innerHTML = "";
-      ["stress", "resting_hr", "sleep", "hrv"].forEach(function (k) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "chip-toggle" + (trendMetric === k ? " on" : "");
-        b.textContent = TREND_META[k].label;
-        b.addEventListener("click", function () { trendMetric = k; renderTrends(); });
-        cc.appendChild(b);
-      });
+    var cc = $("trend-chips");
+    cc.innerHTML = "";
+    ["stress", "resting_hr", "sleep", "hrv"].forEach(function (k) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip-toggle" + (trendMetric === k ? " on" : "");
+      b.textContent = TREND_META[k].label;
+      b.addEventListener("click", function () { trendMetric = k; renderTrends(); });
+      cc.appendChild(b);
+    });
 
-      var canvas = $("trend-canvas");
-      var list = $("trend-list");
-      list.innerHTML = "";
+    var canvas = $("trend-canvas");
+    var list = $("trend-list");
+    list.innerHTML = "";
+
+    // FE-012: тренды — из серверного daily-metrics (локальный weekly наполнял только CSV-импорт)
+    function dayKey(offset) {
+      var d = new Date(); d.setDate(d.getDate() + offset);
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
+    var SERVER_FIELD = { stress: "stress", resting_hr: "restingHr", sleep: "sleepScore", hrv: "hrv" };
+    var sf = SERVER_FIELD[trendMetric];
+
+    Api.daily.series(dayKey(-90), dayKey(0)).then(function (items) {
+      items = (items || []).slice().sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; });
 
       if (trendMetric === "sleep") {
-        var pts = sleep.filter(function (s) { return s.score != null; }).map(function (s) { return { t: s.end, val: s.score }; });
+        var withSleep = items.filter(function (s) { return s.sleepScore != null; });
+        var pts = withSleep.map(function (s) { return { t: s.date, val: s.sleepScore }; });
         drawWeeklyChart(canvas, pts, TREND_META.sleep.color);
-        $("trend-stats").textContent = sleep.length ? "Недель: " + sleep.length : "";
-        sleep.forEach(function (s) {
+        $("trend-stats").textContent = withSleep.length ? "Дней: " + withSleep.length : "";
+        withSleep.slice(-14).reverse().forEach(function (s) {
           var row = document.createElement("div");
           row.className = "sleep-card";
           row.innerHTML =
-            '<div class="sleep-title">' + esc(s.label) + "</div>" +
-            '<div class="sleep-line">Оценка: <b>' + (s.score != null ? s.score : "—") + "</b> · " + esc(s.quality || "") + " · " + fmtDur(s.durationMin) + "</div>";
+            '<div class="sleep-title">' + esc(s.date) + "</div>" +
+            '<div class="sleep-line">Оценка: <b>' + s.sleepScore + "</b> · " + fmtDur(s.sleepDurationMin || 0) + "</div>";
           list.appendChild(row);
         });
       } else {
-        var field = TREND_META[trendMetric].field;
-        var pts2 = weekly.filter(function (w) { return w[field] != null; }).map(function (w) { return { t: w.date, val: w[field] }; });
+        var pts2 = items.filter(function (w) { return w[sf] != null; }).map(function (w) { return { t: w.date, val: w[sf] }; });
         drawWeeklyChart(canvas, pts2, TREND_META[trendMetric].color);
-        $("trend-stats").textContent = pts2.length ? "Недель: " + pts2.length : "";
+        $("trend-stats").textContent = pts2.length ? "Дней: " + pts2.length : "";
       }
+    }).catch(function () {
+      drawWeeklyChart(canvas, [], TREND_META[trendMetric].color);
+      $("trend-stats").textContent = "";
     });
   }
 
