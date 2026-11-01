@@ -2,6 +2,7 @@ namespace Client.Api.Controllers;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Client.Api.Security;
 using Client.Application.Commands;
 using Client.Application.Queries;
 using Client.Domain;
@@ -13,13 +14,21 @@ using XDiary.Contracts;
 public sealed class ClientsController : ControllerBase
 {
     private readonly IMediator _mediator;
-    public ClientsController(IMediator mediator) => _mediator = mediator;
+    private readonly ClientTokenService _tokens;
+    public ClientsController(IMediator mediator, ClientTokenService tokens) { _mediator = mediator; _tokens = tokens; }
     private IActionResult Respond(AggregateResult<IClients, IClientAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
     [HttpPost]
     public async Task<IActionResult> Register([FromBody] RegisterClientCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpPost("{id:guid}/verify")]
-    public async Task<IActionResult> Verify(Guid id, [FromBody] VerifyClientOtpCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    public async Task<IActionResult> Verify(Guid id, [FromBody] VerifyClientOtpCommand c, CancellationToken ct)
+    {
+        var result = await _mediator.Send(c with { AggregateId = id }, ct);
+        if (!result.IsSuccess()) return BadRequest(result.ErrorMessage());
+        var m = result.Model();
+        var token = _tokens.Issue(m.Id, m.Root.Phone);
+        return Ok(new { aggregateId = m.Id, version = m.Version, result = "Verified", token = token });
+    }
     [HttpPost("{id:guid}/link-partner")]
     public async Task<IActionResult> LinkPartner(Guid id, [FromBody] LinkClientPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("{id:guid}/unlink-partner")]

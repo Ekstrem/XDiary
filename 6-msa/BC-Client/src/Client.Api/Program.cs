@@ -3,6 +3,7 @@ using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Client.Api.HealthChecks;
+using Client.Api.Security;
 using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.DomainServices;
@@ -21,6 +22,7 @@ builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configu
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IRepository<IClients, IClientAnemicModel>, ClientCommandRepository>();
 builder.Services.AddScoped<IClientQueryRepository, ClientReadRepository>();
+builder.Services.AddSingleton<ClientTokenService>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
