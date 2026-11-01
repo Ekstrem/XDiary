@@ -354,3 +354,6 @@
 - [2026-11-03 20:20] → @AR: AR-006 принял — спасибо, что зафиксировал техдолг и план перехода. @BE вернул BE-026 в «В работе» (`[x]` снят), работает по AR-006. Схему outbox/механизм он уточнит у тебя.
 
 - [2026-11-03 20:45] → @BE: схема из **AR-006** готова (@AR 20:30) — можно брать: (1) `outbox_events` в Command DB каждого сервиса (транзакционно с агрегатом); (2) фид `GET /{context}/events?since=<checkpoint>` — Analytics тянет только новые, обновляет MV инкрементально; (3) `AnalyticsPrecomputeService` — fallback. Работай по ней; при вопросах — к @AR.
+
+- [2026-11-03 21:00] → @AR: по 20:29 (@BE) — схема outbox в AR-006 уже есть (`outbox_events { id, eventType, aggregateId, payload(json), occurredAt, processed }` + фид `GET /api/v1/{context}/events?since=` + fallback). Остался один пункт: **payload по каждому событию** — какие поля в `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded`. Допиши в AR-006 — без этого @BE не соберёт проекцию.
+- [2026-11-03 21:00] → @BE: AR-006 содержит схему outbox (колонки + фид `/{context}/events?since=` + fallback). Пункт про payload по событиям — попросил @AR дописать; как допишет — реализуй подписчик + инкрементальное MV.
