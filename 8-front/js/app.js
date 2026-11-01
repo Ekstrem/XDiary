@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.43"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.44"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -196,9 +196,17 @@
     renderJournal();
   }
   // FE-018: после токена — если «я» не выбран, онбординг «кто ты», иначе журнал
+  // FE-018: временный локальный clientId до BC «Клиент» (BE-029) — «я» = Partner.clientId
+  function localClientId() {
+    var k = "xdiary.clientId";
+    var id = "";
+    try { id = localStorage.getItem(k) || ""; } catch (e) {}
+    if (!id) { id = uuid(); try { localStorage.setItem(k, id); } catch (e) {} }
+    return id;
+  }
   function afterAuth() {
     Api.partners.list().then(function (partners) {
-      var self = (partners || []).filter(function (p) { return p.self; })[0];
+      var self = (partners || []).filter(function (p) { return p.clientId; })[0];
       if (self) openJournal();
       else openOnboarding(partners || []);
     }).catch(function () { openJournal(); });
@@ -213,7 +221,7 @@
       c.className = "partner-card";
       c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
       c.addEventListener("click", function () {
-        Api.partners.setSelf(p.id, true).then(function () {
+        Api.partners.linkClient(p.id, localClientId()).then(function () {
           toast("Это ты: " + p.name);
           openJournal();
         }, function (e) { toast("Ошибка: " + e.message); });
@@ -223,7 +231,7 @@
   }
   function renderSelfStatus() {
     Api.partners.list().then(function (partners) {
-      var self = (partners || []).filter(function (p) { return p.self; })[0];
+      var self = (partners || []).filter(function (p) { return p.clientId; })[0];
       if ($("self-status")) $("self-status").textContent = self ? ("это " + self.name) : "не выбрано";
     }).catch(function () {});
   }
@@ -2135,7 +2143,7 @@
       Api.partners.list().then(function (l) {
         var self = (l || []).filter(function (p) { return p.self; })[0];
         if (!self) return;
-        Api.partners.setSelf(self.id, false).then(function () { toast("«я» снят"); renderSelfStatus(); }, function (e) { toast("Ошибка: " + e.message); });
+        Api.partners.unlinkClient(self.id).then(function () { toast("«я» снят"); renderSelfStatus(); }, function (e) { toast("Ошибка: " + e.message); });
       });
     });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });

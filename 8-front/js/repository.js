@@ -52,7 +52,7 @@
   }
 
   function mapPartner(rm) {
-    return { id: rm.id, name: rm.name || "", photo: rm.photo || "", gender: rm.gender || "", notes: rm.notes || "", self: !!rm.self };
+    return { id: rm.id, name: rm.name || "", photo: rm.photo || "", gender: rm.gender || "", notes: rm.notes || "", clientId: rm.clientId || "" };
   }
 
   function mapCatalogItem(rm) {

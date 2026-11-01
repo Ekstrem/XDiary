@@ -122,7 +122,8 @@
       register: function (name) { return post("/api/v1/partners", { name: name }); },
       rename: function (id, name) { return post("/api/v1/partners/" + id + "/name", { name: name }); },
       profile: function (id, d) { return post("/api/v1/partners/" + id + "/profile", d); },
-      setSelf: function (id, self) { return post("/api/v1/partners/" + id + "/self", { self: self }); },
+      linkClient: function (id, clientId) { return post("/api/v1/partners/" + id + "/link-client", { clientId: clientId }); },
+      unlinkClient: function (id) { return post("/api/v1/partners/" + id + "/unlink-client"); },
       remove: function (id) { return post("/api/v1/partners/" + id + "/remove"); }
     },
 
