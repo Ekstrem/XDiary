@@ -122,9 +122,10 @@ test('E2E: запись журнала — редактирование и уд�
     // нет, поэтому GET /records/{id} может отдавать 200. Проверяем наблюдаемое: запись
     // должна исчезнуть из СПИСКА и из UI-журнала.
     const list = await apiList(page);
-    expect(list, 'GET /api/v1/journal/records отвечает').toBeTruthy();
+    const tail = apiLog.slice(-12).join(' | ');
+    expect(list, 'GET /api/v1/journal/records отвечает ;; API: ' + tail).toBeTruthy();
     const still = (list || []).find((x) => x.id === id);
-    expect(!still, 'после удаления запись не должна быть в списке журнала (id ' + id + ')').toBe(true);
+    expect(!still, 'после удаления запись не должна быть в списке журнала (id ' + id + ') ;; API: ' + tail).toBe(true);
     await expect(page.locator('#journal-list .record-card').filter({ hasText: MARK })).toHaveCount(0);
     id = null;
   } finally {

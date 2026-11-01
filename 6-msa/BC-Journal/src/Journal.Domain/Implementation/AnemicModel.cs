@@ -26,6 +26,7 @@ public sealed class AnemicModel : IJournalAnemicModel
     public string GarminId { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
+    public bool Deleted { get; set; }
 
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
 

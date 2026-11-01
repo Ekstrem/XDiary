@@ -50,7 +50,8 @@ public sealed class Aggregate
         Garmin = Model.Garmin,
         GarminId = Model.GarminId,
         CreatedAt = Model.CreatedAt,
-        UpdatedAt = Model.UpdatedAt
+        UpdatedAt = Model.UpdatedAt,
+        Deleted = Model.Deleted
     };
 
     public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry()
@@ -178,5 +179,9 @@ public sealed class Aggregate
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Delete()
-        => Success(Clone());
+    {
+        var anemic = Clone();
+        anemic.Deleted = true;
+        return Success(anemic);
+    }
 }

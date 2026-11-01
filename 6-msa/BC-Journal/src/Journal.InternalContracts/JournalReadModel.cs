@@ -21,6 +21,7 @@ public sealed class JournalReadModel : IReadModel<Journal.Domain.IJournal>
     public string GarminId { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
+    public bool Deleted { get; set; }
 }
 
 public sealed class OrgasmsReadModel

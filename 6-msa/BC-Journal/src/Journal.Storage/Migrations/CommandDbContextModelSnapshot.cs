@@ -43,6 +43,9 @@ namespace Journal.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("DurationMin")
                         .HasColumnType("integer");
 

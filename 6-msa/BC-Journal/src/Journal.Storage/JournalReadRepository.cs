@@ -8,9 +8,9 @@ public sealed class JournalReadRepository : IJournalQueryRepository
     public async Task<JournalReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var e = await _db.Records.FirstOrDefaultAsync(x => x.Id == id, ct);
-        return e is null ? null : JournalMapper.MapToReadModel(e);
+        return e is null || e.Deleted ? null : JournalMapper.MapToReadModel(e);
     }
     public async Task<IReadOnlyList<JournalReadModel>> ListAsync(CancellationToken ct = default)
-        => (await _db.Records.AsNoTracking().OrderByDescending(x => x.StartedAt).ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
+        => (await _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt).ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
     public async Task<int> CountAsync(CancellationToken ct = default) => await _db.Records.CountAsync(ct);
 }

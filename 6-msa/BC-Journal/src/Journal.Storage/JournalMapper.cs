@@ -19,7 +19,7 @@ public static class JournalMapper
         m.Costumes = ToList(e.CostumesJson); m.Toys = ToList(e.ToysJson); m.Fantasies = ToList(e.FantasiesJson);
         m.Contraceptives = ToList(e.ContraceptivesJson); m.ContraceptiveCount = e.ContraceptiveCount;
         m.Orgasms = OrgasmsToList(e.OrgasmsJson).Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList();
-        m.Garmin = e.Garmin; m.GarminId = e.GarminId; m.CreatedAt = e.CreatedAt; m.UpdatedAt = e.UpdatedAt;
+        m.Garmin = e.Garmin; m.GarminId = e.GarminId; m.CreatedAt = e.CreatedAt; m.UpdatedAt = e.UpdatedAt; m.Deleted = e.Deleted;
         return m;
     }
 
@@ -30,7 +30,7 @@ public static class JournalMapper
         e.PositionsJson = ToJson(m.Positions); e.TagsJson = ToJson(m.Tags); e.CostumesJson = ToJson(m.Costumes);
         e.ToysJson = ToJson(m.Toys); e.FantasiesJson = ToJson(m.Fantasies); e.ContraceptivesJson = ToJson(m.Contraceptives);
         e.ContraceptiveCount = m.ContraceptiveCount; e.OrgasmsJson = OrgasmsToJson(m.Orgasms);
-        e.Garmin = m.Garmin; e.GarminId = m.GarminId; e.CreatedAt = m.CreatedAt; e.UpdatedAt = m.UpdatedAt;
+        e.Garmin = m.Garmin; e.GarminId = m.GarminId; e.CreatedAt = m.CreatedAt; e.UpdatedAt = m.UpdatedAt; e.Deleted = m.Deleted;
     }
 
     public static JournalReadModel MapToReadModel(RecordEntity e) => new JournalReadModel
@@ -39,6 +39,6 @@ public static class JournalMapper
         Place = e.Place, Positions = ToList(e.PositionsJson), Tags = ToList(e.TagsJson), Costumes = ToList(e.CostumesJson),
         Toys = ToList(e.ToysJson), Fantasies = ToList(e.FantasiesJson), Contraceptives = ToList(e.ContraceptivesJson),
         ContraceptiveCount = e.ContraceptiveCount, Orgasms = OrgasmsToList(e.OrgasmsJson), Garmin = e.Garmin,
-        GarminId = e.GarminId, CreatedAt = e.CreatedAt, UpdatedAt = e.UpdatedAt
+        GarminId = e.GarminId, CreatedAt = e.CreatedAt, UpdatedAt = e.UpdatedAt, Deleted = e.Deleted
     };
 }
