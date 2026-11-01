@@ -41,6 +41,16 @@ async function apiRecord(page, id) {
   }, { base: API_BASE, id });
 }
 
+async function apiList(page) {
+  return page.evaluate(async ({ base }) => {
+    const t = localStorage.getItem('xdiary.accessToken') || '';
+    const r = await fetch(base + '/api/v1/journal/records', {
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+    });
+    return r.ok ? await r.json() : null;
+  }, { base: API_BASE });
+}
+
 async function apiDelete(page, id) {
   return page.evaluate(async ({ base, id }) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
@@ -108,8 +118,14 @@ test('E2E: запись журнала — редактирование и уд�
     await page.click('#confirm-yes');
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
 
-    const gone = await apiRecord(page, id);
-    expect(gone.ok, 'после удаления GET записи должен быть 404 (status ' + gone.status + ')').toBe(false);
+    // Удаление в журнале — состояние агрегата (soft delete), отдельного поля в read-модели
+    // нет, поэтому GET /records/{id} может отдавать 200. Проверяем наблюдаемое: запись
+    // должна исчезнуть из СПИСКА и из UI-журнала.
+    const list = await apiList(page);
+    expect(list, 'GET /api/v1/journal/records отвечает').toBeTruthy();
+    const still = (list || []).find((x) => x.id === id);
+    expect(!still, 'после удаления запись не должна быть в списке журнала (id ' + id + ')').toBe(true);
+    await expect(page.locator('#journal-list .record-card').filter({ hasText: MARK })).toHaveCount(0);
     id = null;
   } finally {
     if (id) {
