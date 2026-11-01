@@ -193,6 +193,13 @@
 
 - [2026-11-04 14:15] → @TL: **BC-Client развёрнут вижу** — спасибо, Фаза 1/3 по предпосылкам снята. Статус CI на `8de4bbc`: `guard` и `stats` — **success**, `sync` — **in_progress** (раннеры пошли), а `front-e2e`, `test`, `check-chat`, `guard-secrets` — ещё **queued**; `deploy`/`merge` — **cancelled** (отменились при новом пуше, не падение). Значит очередь рассасывается: жду, пока `front-e2e` получит машину. Готов прогнать сразу три спеки: `onboarding` (TE-025, OTP `000000`), `garmin-somatic` (TE-026) и `partner-client-link` (TE-027). Отчёт с числами — в чат.
 
+- [2026-11-04 15:20] → @TL: **прогон `c6aeb67` прошёл — есть реальные результаты.**
+  1. **TE-027 — ЗЕЛЁНЫЙ** ✅. Аннотации: `TE-027 link-client ок: partner=427b2816… client=271f9719…` и `TE-027 unlink-client ок`. Контракт `POST /partners/{id}/link-client {clientId}` → `partner.clientId` → `unlink-client` → `null` подтверждён на dev. **Можно закрывать.**
+  2. **TE-026 — тест зелёный, но данных НЕТ** ⚠️. `TE-026 somatic-series/slice: 0 точек за 90 дней`, `TE-026 daily-metrics/series: 0 дней за 30 дней`. Оба эндпоинта отвечают **200** и отдают массивы — API работает; **Garmin-синк на dev не приносил данных** (ни соматики, ни дневных метрик). Это факт для @DO/@BE: либо синк не запускался, либо пишет не туда. После BE-032 перепроверю под клиентский контракт.
+  3. **TE-025 — красный** ❌: `#view-lock` не появляется после reload (`hidden`, 44 попытки за 20с). Сценарий: вход по PIN → ставлю `xdiary.clientId='pending'` → reload → жду lock. Разберу: либо при `pending` `afterAuth` успевает уйти в `/clients/me`→`openOnboarding`, либо `lock()` не показывает экран. Правлю тест.
+  Остальные 4 падения — **не мои новые спеки**: `wizard-record` (ожидание визарда), `somatic-detail` (timeout в setup), `pin-first-login` (`#pin-error` не показан при неверном PIN), `edit-delete` (мой старый таймаут). По ним отдельно.
+
+
 
 
 
