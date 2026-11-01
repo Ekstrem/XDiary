@@ -1,7 +1,7 @@
-// E2E (настоящий) — TE-016: снятие PIN (BE-021: нужен currentPin).
-// Критерии задачи — API-уровень, поэтому снятие делаем через `pin/remove {currentPin}`.
-// UI-путь (Настройки → «Удалить PIN» → «Да») сейчас **сломан**: клик по `#confirm-yes`
-// перехватывает `#pin-modal` (stacking модалок) — зафиксировано отдельным дефектом.
+// E2E (настоящий) — TE-016: снятие PIN.
+// Негативы — через API (BE-021: без/с неверным currentPin → 401).
+// Позитив — ЧЕРЕЗ UI (Настройки → «Удалить PIN» → подтверждение поверх pin-модалки,
+// это регресс-защита FE-011: confirm должен быть кликабелен).
 // Безопасно для dev-стенда: в finally PIN возвращается через pin/set.
 const { test, expect } = require('@playwright/test');
 const { API_BASE, PIN, loginWithPin } = require('./api');
@@ -16,7 +16,7 @@ async function hasPin(request) {
   return r.ok() ? await r.json() : null;
 }
 
-test('E2E: снятие PIN — без currentPin 401, с currentPin снимает и device-токен работает', async ({ page, request }) => {
+test('E2E: снятие PIN — негативы по API, снятие через UI, device-токен', async ({ page, request }) => {
   let removed = false;
   try {
     await test.step('login по PIN', async () => {
@@ -35,15 +35,25 @@ test('E2E: снятие PIN — без currentPin 401, с currentPin снима�
       expect(await hasPin(request), 'PIN на месте после неверного currentPin').toBe(true);
     });
 
-    await test.step('позитив: pin/remove с currentPin → 200', async () => {
-      const ok = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: { currentPin: PIN } });
-      expect(ok.status(), 'pin/remove с верным currentPin').toBe(200);
-      removed = true;
+    await test.step('UI: открыть настройки и модалку PIN', async () => {
+      await page.click('#tab-settings');
+      await expect(page.locator('#view-settings')).toBeVisible();
+      await page.click('#btn-pin-open');
+      await expect(page.locator('#pin-modal')).toBeVisible();
+      await page.fill('#pin-current', PIN);
+    });
+
+    await test.step('UI: «Удалить PIN» → confirm поверх pin-модалки (регресс FE-011)', async () => {
+      await page.click('#btn-pin-remove', { timeout: 10000 });
+      await expect(page.locator('#confirm-modal')).toBeVisible({ timeout: 10000 });
+      await page.click('#confirm-yes', { timeout: 10000 });
+      await page.waitForTimeout(2000);
     });
 
     await test.step('проверка: pin/has=false, старый PIN 401, device-токен 200', async () => {
       expect(await hasPin(request), 'после снятия pin/has = false').toBe(false);
       expect(await tokenStatus(request, PIN), 'старый PIN больше не выдаёт токен').toBe(401);
+      removed = true;
       expect(await tokenStatus(request, ''), 'device-токен без PIN работает').toBe(200);
     });
   } finally {
