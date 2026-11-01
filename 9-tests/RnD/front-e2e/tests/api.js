@@ -1,8 +1,15 @@
 // Хелпер настоящих E2E: живой API + реальный вход по PIN (как пользователь).
-// На стенде PIN задан (по умолчанию 1234, переопределяется XDIARY_E2E_PIN) —
-// тем же PIN ходят API-E2E, поэтому UI-тест логинится так же.
+// Стенд берётся из XDIARY_E2E_BASE_URL (в CI — VPS-2), PIN — из XDIARY_E2E_PIN.
 const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps1.taile0b6ee.ts.net').replace(/\/+$/, '');
 const PIN = process.env.XDIARY_E2E_PIN || '1234';
+
+// Приложение по умолчанию ходит на DEFAULT_BASE (VPS-1) — переключаем его на тестовый
+// стенд, иначе UI-прогон будет наполовину против прода.
+async function installBase(page) {
+  await page.addInitScript((base) => {
+    try { localStorage.setItem('xdiary.apiBase', base); } catch (e) {}
+  }, API_BASE);
+}
 
 async function waitToken(page) {
   try {
@@ -21,8 +28,12 @@ async function waitToken(page) {
 // на экране блокировки вводим PIN → приложение берёт JWT (ensureToken → login).
 async function loginWithPin(page, pin) {
   const p = pin || PIN;
+  await installBase(page);
   await page.goto('/');
-  await page.evaluate((v) => window.Pin.setPin(v), p);
+  await page.evaluate(({ base, v }) => {
+    try { localStorage.setItem('xdiary.apiBase', base); } catch (e) {}
+    return window.Pin.setPin(v);
+  }, { base: API_BASE, v: p });
   await page.goto('/');
   await page.waitForSelector('#view-lock:not(.hidden)', { timeout: 20000 });
   await page.fill('#pin-input', p);
@@ -52,4 +63,4 @@ async function removeByName(page, kind, name) {
   }
 }
 
-module.exports = { API_BASE, PIN, waitToken, loginWithPin, removeByName };
+module.exports = { API_BASE, PIN, installBase, waitToken, loginWithPin, removeByName };
