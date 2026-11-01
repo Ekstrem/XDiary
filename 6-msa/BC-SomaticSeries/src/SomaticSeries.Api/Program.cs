@@ -2,10 +2,12 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using SomaticSeries.Api.Events;
 using SomaticSeries.Api.HealthChecks;
 using SomaticSeries.Domain;
 using SomaticSeries.Domain.Abstraction;
 using SomaticSeries.DomainServices;
+using SomaticSeries.Application;
 using SomaticSeries.InternalContracts;
 using SomaticSeries.Storage;
 using XDiary.Contracts;
@@ -21,6 +23,8 @@ builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configu
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesCommandRepository>();
 builder.Services.AddScoped<ISomaticSeriesQueryRepository, SomaticSeriesReadRepository>();
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<ISomaticSeriesEventPublisher, HttpSomaticSeriesEventPublisher>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 

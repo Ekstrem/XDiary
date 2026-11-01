@@ -24,4 +24,7 @@ public sealed class AnalyticsEvent
     public JournalRecord? Record { get; set; }
     public int Stress { get; set; }
     public int SleepScore { get; set; }
+    public string T { get; set; } = string.Empty;
+    public int Hr { get; set; }
+    public int BodyBattery { get; set; }
 }

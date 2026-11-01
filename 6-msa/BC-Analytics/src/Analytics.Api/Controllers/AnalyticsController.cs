@@ -29,6 +29,7 @@ public class AnalyticsController : ControllerBase
         if (e.EventType == "RecordCompleted" && e.Record is not null) _snapshot.ApplyCompleted(e.Id, e.Record);
         else if (e.EventType == "RecordDeleted") _snapshot.ApplyDeleted(e.Id);
         else if (e.EventType == "SleepRecorded") _snapshot.ApplySleep(e.Date, e.SleepScore);
+        else if (e.EventType == "SomaticPointRecorded") _snapshot.ApplySomatic(e.T, e.Hr, e.BodyBattery);
         return Ok();
     }
 }

@@ -6,6 +6,7 @@ public sealed class AnalyticsSnapshot
     private readonly object _lock = new();
     private readonly Dictionary<Guid, JournalRecord> _records = new();
     private List<MetricInput> _metrics = new();
+    private readonly Dictionary<string, (int Hr, int BodyBattery)> _somatic = new();
     public SummaryCards Summary30 { get; private set; } = new() { Period = "30" };
     public SummaryCards Summary90 { get; private set; } = new() { Period = "90" };
     public SummaryCards SummaryAll { get; private set; } = new() { Period = "all" };
@@ -20,6 +21,7 @@ public sealed class AnalyticsSnapshot
     public void ApplyCompleted(Guid id, JournalRecord r) { lock (_lock) { _records[id] = r; RecomputeLocked(); } }
     public void ApplyDeleted(Guid id) { lock (_lock) { if (_records.Remove(id)) RecomputeLocked(); } }
     public void ApplySleep(string date, int score) { lock (_lock) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, SleepScore = score }; _metrics.Add(m); } else m.SleepScore = score; RecomputeLocked(); } }
+    public void ApplySomatic(string t, int hr, int bodyBattery) { lock (_lock) { _somatic[t] = (hr, bodyBattery); RecomputeLocked(); } }
 
     public SummaryCards GetSummary(string period) => period switch { "30" => Summary30, "90" => Summary90, _ => SummaryAll };
 
