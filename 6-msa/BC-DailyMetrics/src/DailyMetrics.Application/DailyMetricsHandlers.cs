@@ -1,4 +1,5 @@
 namespace DailyMetrics.Application.Commands;
+using DailyMetrics.Application;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using DailyMetrics.Domain;
@@ -10,9 +11,10 @@ using DailyMetrics.InternalContracts;
 public sealed class RecordStressHandler : IRequestHandler<RecordStressCommand, AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>
 {
     private readonly IDailyMetricsRepository _repo;
-    public RecordStressHandler(IDailyMetricsRepository repo) => _repo = repo;
+    private readonly IDailyMetricsEventPublisher _publisher;
+    public RecordStressHandler(IDailyMetricsRepository repo, IDailyMetricsEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> Handle(RecordStressCommand r, CancellationToken ct)
-    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordStress(r.Date, r.Stress); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordStress(r.Date, r.Stress); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishStressAsync(r.Date, r.Stress, ct); } return res; }
 }
 public sealed class RecordRestingHrHandler : IRequestHandler<RecordRestingHrCommand, AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>
 {
@@ -31,7 +33,8 @@ public sealed class RecordHrvHandler : IRequestHandler<RecordHrvCommand, Aggrega
 public sealed class RecordSleepHandler : IRequestHandler<RecordSleepCommand, AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>
 {
     private readonly IDailyMetricsRepository _repo;
-    public RecordSleepHandler(IDailyMetricsRepository repo) => _repo = repo;
+    private readonly IDailyMetricsEventPublisher _publisher;
+    public RecordSleepHandler(IDailyMetricsRepository repo, IDailyMetricsEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> Handle(RecordSleepCommand r, CancellationToken ct)
-    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var sleep = Sleep.CreateInstance(r.Sleep.Score, r.Sleep.DurationMin, r.Sleep.DeepMin, r.Sleep.LightMin, r.Sleep.RemMin, r.Sleep.AwakeMin); var res = Aggregate.CreateInstance(m).RecordSleep(r.Date, sleep); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var sleep = Sleep.CreateInstance(r.Sleep.Score, r.Sleep.DurationMin, r.Sleep.DeepMin, r.Sleep.LightMin, r.Sleep.RemMin, r.Sleep.AwakeMin); var res = Aggregate.CreateInstance(m).RecordSleep(r.Date, sleep); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishSleepAsync(r.Date, r.Sleep.Score, ct); } return res; }
 }

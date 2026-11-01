@@ -20,5 +20,8 @@ public sealed class AnalyticsEvent
 {
     public string EventType { get; set; } = string.Empty;
     public Guid Id { get; set; }
+    public string Date { get; set; } = string.Empty;
     public JournalRecord? Record { get; set; }
+    public int Stress { get; set; }
+    public int SleepScore { get; set; }
 }

@@ -19,6 +19,7 @@ public sealed class AnalyticsSnapshot
 
     public void ApplyCompleted(Guid id, JournalRecord r) { lock (_lock) { _records[id] = r; RecomputeLocked(); } }
     public void ApplyDeleted(Guid id) { lock (_lock) { if (_records.Remove(id)) RecomputeLocked(); } }
+    public void ApplySleep(string date, int score) { lock (_lock) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, SleepScore = score }; _metrics.Add(m); } else m.SleepScore = score; RecomputeLocked(); } }
 
     public SummaryCards GetSummary(string period) => period switch { "30" => Summary30, "90" => Summary90, _ => SummaryAll };
 

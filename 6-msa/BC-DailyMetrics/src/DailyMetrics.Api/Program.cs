@@ -2,10 +2,12 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using DailyMetrics.Api.Events;
 using DailyMetrics.Api.HealthChecks;
 using DailyMetrics.Domain;
 using DailyMetrics.Domain.Abstraction;
 using DailyMetrics.DomainServices;
+using DailyMetrics.Application;
 using DailyMetrics.InternalContracts;
 using DailyMetrics.Storage;
 using XDiary.Contracts;
@@ -22,6 +24,8 @@ builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configurat
 builder.Services.AddScoped<IRepository<IDailyMetrics, IDailyMetricsAnemicModel>, DailyMetricsCommandRepository>();
 builder.Services.AddScoped<DailyMetricsCommandRepository>();
 builder.Services.AddScoped<IDailyMetricsQueryRepository, DailyMetricsReadRepository>();
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IDailyMetricsEventPublisher, HttpDailyMetricsEventPublisher>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
