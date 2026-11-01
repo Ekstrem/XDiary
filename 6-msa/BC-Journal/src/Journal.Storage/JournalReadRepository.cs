@@ -10,8 +10,13 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         var e = await _db.Records.FirstOrDefaultAsync(x => x.Id == id, ct);
         return e is null || e.Deleted ? null : JournalMapper.MapToReadModel(e);
     }
-    public async Task<IReadOnlyList<JournalReadModel>> ListAsync(CancellationToken ct = default)
-        => (await _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt).ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
+    public async Task<IReadOnlyList<JournalReadModel>> ListAsync(int? limit, int? offset, CancellationToken ct = default)
+    {
+        IQueryable<RecordEntity> q = _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt);
+        if (offset is > 0) q = q.Skip(offset.Value);
+        if (limit is > 0) q = q.Take(limit.Value);
+        return (await q.ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
+    }
     public async Task<int> CountAsync(CancellationToken ct = default) => await _db.Records.CountAsync(ct);
     public async Task<RecentDefaultsView?> GetRecentAsync(CancellationToken ct = default)
     {
