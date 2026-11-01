@@ -37,21 +37,43 @@ jobs:
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
 
-  e2e-dev:
+  # TE-022 / ADR-020 п.3 — блокирующий smoke (условие пропуска в prod).
+  smoke:
     needs: deploy-dev
     runs-on: ubuntu-latest
+    env:
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_PIN: "1234"
     steps:
-      - name: Smoke dev (public /health)
+      - name: Check dev /health
         run: |
-          for i in $(seq 1 24); do
+          for i in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/health || echo 000)
-            if [ "$code" = "200" ]; then echo "DEV_OK"; exit 0; fi
+            if [ "$code" = "200" ]; then echo "DEV_HEALTH_OK"; exit 0; fi
             sleep 5
           done
-          echo "DEV_FAILED"; exit 1
+          echo "DEV_HEALTH_FAILED"; exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: API-E2E (9-tests/E2E, все 9)
+        run: dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj --verbosity minimal
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: 9-tests/RnD/front-e2e
+        run: npm ci || npm install
+      - name: Install Playwright browsers
+        working-directory: 9-tests/RnD/front-e2e
+        run: npx playwright install --with-deps chromium
+      - name: UI smoke (add-partner, wizard-record, change-pin)
+        working-directory: 9-tests/RnD/front-e2e
+        run: npx playwright test add-partner wizard-record change-pin
 
   deploy-prod:
-    needs: e2e-dev
+    needs: smoke
     runs-on: ubuntu-latest
     environment: prod
     steps:
