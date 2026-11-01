@@ -1,4 +1,4 @@
--- XDiary: 10 ролей + 10 БД (профиль Single).
+-- XDiary: 11 ролей + 11 БД (профиль Single).
 -- ADR-001 (10 сервисов), ADR-003/004 (PostgreSQL, одна БД на сервис: event store + read-модель).
 --
 -- Пароли НЕ хранятся в этом файле (репозиторий публичный) — передаются через psql-переменные.
@@ -23,6 +23,7 @@ CREATE ROLE apple_health_gateway LOGIN PASSWORD :'pw_apple_health_gateway';
 CREATE ROLE analytics            LOGIN PASSWORD :'pw_analytics';
 CREATE ROLE privacy              LOGIN PASSWORD :'pw_privacy';
 CREATE ROLE portability          LOGIN PASSWORD :'pw_portability';
+CREATE ROLE client               LOGIN PASSWORD :'pw_client';
 
 -- 10 БД (owner = своя роль; права на public-схему своей БД даёт владение)
 CREATE DATABASE journal              OWNER journal;
@@ -35,5 +36,6 @@ CREATE DATABASE apple_health_gateway OWNER apple_health_gateway;
 CREATE DATABASE analytics            OWNER analytics;
 CREATE DATABASE privacy              OWNER privacy;
 CREATE DATABASE portability          OWNER portability;
+CREATE DATABASE client               OWNER client;
 
-\echo 'OK: 10 roles + 10 databases created'
+\echo 'OK: 11 roles + 11 databases created'

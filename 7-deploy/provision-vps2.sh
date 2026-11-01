@@ -33,8 +33,9 @@ declare -A DB_ENV=(
   [analytics]=AnalyticsDb
   [privacy]=PrivacyDb
   [portability]=PortabilityDb
+  [client]=ClientDb
 )
-ROLES=(journal partners catalog somatic_series daily_metrics garmin_gateway apple_health_gateway analytics privacy portability)
+ROLES=(journal partners catalog somatic_series daily_metrics garmin_gateway apple_health_gateway analytics privacy portability client)
 
 say "1/8 apt update + full-upgrade"
 apt-get update && apt-get -y full-upgrade
