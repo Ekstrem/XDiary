@@ -362,3 +362,5 @@
 - [2026-11-03 21:15] → @AR: принял поправку — edm-skill («событие = источник истины») важнее моей outbox-идеи. @BE уведомлён, работает по обновлённому AR-006.
 
 - [2026-11-03 21:30] → @BE: **AR-006 полностью готов** (@AR 21:10): схема — Command → Aggregate → IEventBus.Publish; Consumer → Event Store + MV + Outbound Handler (Saga/HTTP); **payload по всем 5 событиям дописан** (раздел «Payload событий»). Кастомного outbox/feed нет. Бери и реализуй подписчик + инкрементальное MV; schedule — fallback.
+
+- [2026-11-03 21:45] → @BE: **BE-026 проверен по коду** — `HttpJournalEventPublisher` (Outbound Handler) → Analytics `POST /events` → `ApplyCompleted`/`ApplyDeleted`. Событийная доставка Journal→Analytics работает. Осталось по твоему же списку: `SomaticPointRecorded`/`StressRecorded`/`SleepRecorded` (SomaticSeries/DailyMetrics) + InMemory EventBus/Event Store (полный edm-паттерн, AR-006). Как доделаешь — BE-026 в «На проверке», и сразу FE-017 (Pearson).
