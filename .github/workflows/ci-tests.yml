@@ -6,20 +6,67 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  # Движки проверок живут в LoopMaker (один источник правды), проект держит только
+  # loop.config.json. Пин на тег, когда LoopMaker стабилизируется: ref: v0.2.0
+  LOOPMAKER_REF: main
+  LOOPMAKER_REPO: Ekstrem/LoopMaker
+
 jobs:
   check-chat:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Check chat format (no silent message loss)
-        run: python tools/check_chat.py
+      - name: Checkout LoopMaker (линтер формата чата)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LOOPMAKER_REPO }}
+          ref: ${{ env.LOOPMAKER_REF }}
+          path: .loopmaker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check chat format (нет молча потерянных сообщений)
+        run: python .loopmaker/tools/chat_lint.py --config loop.config.json --check
 
   guard-secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Check secrets (no leaks)
-        run: python tools/check_secrets.py
+      - name: Checkout проекта (нужна история для --range)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout LoopMaker (движок проверки секретов)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LOOPMAKER_REPO }}
+          ref: ${{ env.LOOPMAKER_REF }}
+          path: .loopmaker
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Проверить секреты и их фрагменты в пушимом диапазоне
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -uo pipefail
+          head="${AFTER:-HEAD}"
+          git cat-file -e "${head}^{commit}" 2>/dev/null || head=HEAD
+          if [ -n "${PR_BASE:-}" ] && git cat-file -e "${PR_BASE}^{commit}" 2>/dev/null; then
+            range="${PR_BASE}..${head}"          # pull_request: база PR -> голова
+          elif [ -n "${BEFORE:-}" ] \
+               && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="${BEFORE}..${head}"           # push: что именно прилетело
+          else
+            range="${head}~1..${head}"           # ручной запуск
+          fi
+          echo "range: ${range}"
+          python .loopmaker/tools/check_secrets.py --config loop.config.json --range "$range"
 
   test:
     runs-on: ubuntu-latest
