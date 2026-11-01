@@ -186,7 +186,11 @@
   }
   function lock() {
     Pin.hasPin().then(function (hasPin) {
-      if (!hasPin) { showView("journal"); return; }
+      if (!hasPin) {
+        // FE-006: без PIN получаем device-токен (BE-019), иначе запросы 401
+        Api.auth.login("").then(function () { showView("journal"); }, function () { showView("journal"); });
+        return;
+      }
       $("pin-input").value = "";
       $("pin-error").classList.add("hidden");
       showView("lock");
