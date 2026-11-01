@@ -136,6 +136,16 @@
       archive: function (id) { return post("/api/v1/catalog/" + id + "/archive"); },
       restore: function (id) { return post("/api/v1/catalog/" + id + "/restore"); },
       remove: function (id) { return post("/api/v1/catalog/" + id + "/remove"); }
+    },
+
+    // FE-018: BC «Клиент» — телефон/SMS OTP, client-JWT, link-partner
+    clients: {
+      register: function (phone) { return post("/api/v1/clients", { phone: phone }); },
+      verify: function (id, code) { return post("/api/v1/clients/" + id + "/verify", { code: code }); },
+      linkPartner: function (id, partnerId) { return post("/api/v1/clients/" + id + "/link-partner", { partnerId: partnerId }); },
+      unlinkPartner: function (id) { return post("/api/v1/clients/" + id + "/unlink-partner"); },
+      me: function () { return get("/api/v1/clients/me"); },
+      get: function (id) { return get("/api/v1/clients/" + id); }
     }
   };
 })();

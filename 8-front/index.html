@@ -25,18 +25,36 @@
     </div>
   </section>
 
-  <!-- Онбординг: кто ты -->
+  <!-- Онбординг: телефон → SMS OTP → партнёр-я -->
   <section id="view-onboarding" class="view hidden">
     <header class="appbar">
       <h1>Sex Diary</h1>
       <div class="appbar-actions"><span class="hearts" aria-label="XDiary">❤️🖤</span></div>
     </header>
     <main class="content">
-      <div class="step-label">Кто ты?</div>
-      <p class="muted">Выбери себя среди партнёров или создай нового. Сменить можно в Настройках.</p>
-      <div id="onboarding-list" class="partner-grid"></div>
-      <button type="button" class="btn full" id="btn-onboarding-add">Создать партнёра</button>
-      <button type="button" class="btn full" id="btn-onboarding-skip">Пропустить</button>
+      <div id="onb-phone">
+        <div class="step-label">Твой номер телефона</div>
+        <p class="muted">На него придёт код подтверждения. Номер нужен, чтобы различать пользователей.</p>
+        <div class="field">
+          <input type="tel" id="onb-phone-input" placeholder="+7 900 000-00-00" autocomplete="tel">
+        </div>
+        <button type="button" class="btn primary full" id="btn-onb-phone">Получить код</button>
+      </div>
+      <div id="onb-otp" class="hidden">
+        <div class="step-label">Код из SMS</div>
+        <p class="muted" id="onb-otp-phone"></p>
+        <div class="field">
+          <input type="text" id="onb-otp-input" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+        </div>
+        <button type="button" class="btn primary full" id="btn-onb-otp">Подтвердить</button>
+      </div>
+      <div id="onb-link" class="hidden">
+        <div class="step-label">Кто ты?</div>
+        <p class="muted">Выбери себя среди партнёров или создай нового.</p>
+        <div id="onboarding-list" class="partner-grid"></div>
+        <button type="button" class="btn full" id="btn-onboarding-add">Создать партнёра</button>
+        <button type="button" class="btn full" id="btn-onboarding-skip">Пропустить</button>
+      </div>
     </main>
   </section>
 

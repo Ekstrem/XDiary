@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.44"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.45"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -190,92 +190,111 @@
     showView("lock");
     setTimeout(function () { $("pin-input").focus(); }, 60);
   }
-  // FE: журнал рендерим ТОЛЬКО после получения токена (иначе /partners и /journal уходят без Authorization → 401)
+  // FE: журнал рендерим ТОЛЬКО после получения токена
   function openJournal() {
     showView("journal");
     renderJournal();
   }
-  // FE-018: после токена — если «я» не выбран, онбординг «кто ты», иначе журнал
-  // FE-018: временный локальный clientId до BC «Клиент» (BE-029) — «я» = Partner.clientId
-  function localClientId() {
-    var k = "xdiary.clientId";
-    var id = "";
-    try { id = localStorage.getItem(k) || ""; } catch (e) {}
-    if (!id) { id = uuid(); try { localStorage.setItem(k, id); } catch (e) {} }
-    return id;
-  }
+
+  // FE-018 ч.2: клиент-идентификация — телефон → SMS OTP → client-JWT → link-partner
+  var onbClientId = "";
   function afterAuth() {
-    Api.partners.list().then(function (partners) {
-      var self = (partners || []).filter(function (p) { return p.clientId; })[0];
-      if (self) openJournal();
-      else openOnboarding(partners || []);
-    }).catch(function () { openJournal(); });
+    if (!Api.config.token()) { openOnboarding(); return; }
+    Api.clients.me().then(function (c) {
+      if (c && c.verified && c.linkedPartnerId) openJournal();
+      else openOnboarding();
+    }).catch(function () { openOnboarding(); });
   }
-  function openOnboarding(partners) {
+  function openOnboarding() {
+    onbClientId = "";
     showView("onboarding");
-    var list = $("onboarding-list");
-    list.innerHTML = "";
-    (partners || []).forEach(function (p) {
-      var c = document.createElement("button");
-      c.type = "button";
-      c.className = "partner-card";
-      c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
-      c.addEventListener("click", function () {
-        Api.partners.linkClient(p.id, localClientId()).then(function () {
-          toast("Это ты: " + p.name);
-          openJournal();
-        }, function (e) { toast("Ошибка: " + e.message); });
+    $("onb-phone").classList.remove("hidden");
+    $("onb-otp").classList.add("hidden");
+    $("onb-link").classList.add("hidden");
+    $("onb-phone-input").value = "";
+    $("onb-otp-input").value = "";
+    $("onb-otp-phone").textContent = "";
+  }
+  function showLinkStep() {
+    showView("onboarding");
+    $("onb-phone").classList.add("hidden");
+    $("onb-otp").classList.add("hidden");
+    $("onb-link").classList.remove("hidden");
+    renderLinkPartners();
+  }
+  function renderLinkPartners() {
+    Api.partners.list().then(function (partners) {
+      var list = $("onboarding-list");
+      list.innerHTML = "";
+      (partners || []).forEach(function (p) {
+        var c = document.createElement("button");
+        c.type = "button";
+        c.className = "partner-card";
+        c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
+        c.addEventListener("click", function () {
+          Api.clients.linkPartner(onbClientId, p.id).then(function () {
+            toast("Это ты: " + p.name);
+            openJournal();
+          }, function (e) { toast("Ошибка: " + e.message); });
+        });
+        list.appendChild(c);
       });
-      list.appendChild(c);
-    });
+    }).catch(function (e) { toast("Ошибка: " + e.message); });
+  }
+  function submitOnbPhone() {
+    var phone = $("onb-phone-input").value.trim();
+    if (!phone) { toast("Введите номер телефона"); return; }
+    Api.clients.register(phone).then(function (res) {
+      onbClientId = (res && (res.id || res.aggregateId)) || "";
+      if (!onbClientId) { toast("Ошибка: сервер не вернул id клиента"); return; }
+      $("onb-phone").classList.add("hidden");
+      $("onb-otp").classList.remove("hidden");
+      $("onb-otp-phone").textContent = phone;
+      $("onb-otp-input").value = "";
+      $("onb-otp-input").focus();
+    }, function (e) { toast("Ошибка: " + e.message); });
+  }
+  function submitOnbOtp() {
+    var code = $("onb-otp-input").value.trim();
+    if (!code) { toast("Введите код из SMS"); return; }
+    Api.clients.verify(onbClientId, code).then(function (res) {
+      var token = (res && res.token) || "";
+      if (!token) { toast("Ошибка: сервер не вернул токен"); return; }
+      Api.config.setToken(token);
+      Api.config.setRefresh("");
+      try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
+      showLinkStep();
+    }, function (e) { toast("Ошибка: " + e.message); });
   }
   function renderSelfStatus() {
-    Api.partners.list().then(function (partners) {
-      var self = (partners || []).filter(function (p) { return p.clientId; })[0];
-      if ($("self-status")) $("self-status").textContent = self ? ("это " + self.name) : "не выбрано";
-    }).catch(function () {});
+    if (!Api.config.token()) { if ($("self-status")) $("self-status").textContent = "не выбрано"; return; }
+    Api.clients.me().then(function (c) {
+      if (!$("self-status")) return;
+      if (c && c.linkedPartnerId) {
+        Api.partners.get(c.linkedPartnerId).then(function (p) {
+          if ($("self-status")) $("self-status").textContent = "это " + ((p && p.name) || "—");
+        }).catch(function () {});
+      } else $("self-status").textContent = "не выбрано";
+    }).catch(function () { if ($("self-status")) $("self-status").textContent = "—"; });
   }
   function lock() {
     Pin.hasPin().then(function (hasPin) {
-      if (!hasPin) {
-        // FE-006/007: без локального PIN пробуем device-токен; если на стенде PIN (401) — просим PIN
-        Api.auth.login("").then(function () { afterAuth(); }, function (err) {
-          if (err && err.status === 401) { showLockScreen(); return; }
-          afterAuth();
-        });
-        return;
-      }
-      showLockScreen();
+      if (hasPin) { showLockScreen(); return; }
+      afterAuth();
     });
   }
   function unlock() {
     var pin = $("pin-input").value;
-    Pin.hasPin().then(function (hasLocal) {
-      if (!hasLocal) {
-        // FE-007: локального PIN нет (стенд с PIN) — проверяем через бэкенд
-        Api.auth.login(pin).then(function () {
-          $("pin-error").classList.add("hidden");
-          $("pin-input").value = "";
-          Pin.setPin(pin).catch(function () {});
-          afterAuth();
-        }).catch(function () {
-          $("pin-error").classList.remove("hidden");
-          $("pin-input").value = "";
-          $("pin-input").focus();
-        });
-        return;
+    Pin.verifyPin(pin).then(function (ok) {
+      if (ok) {
+        $("pin-error").classList.add("hidden");
+        $("pin-input").value = "";
+        afterAuth();
+      } else {
+        $("pin-error").classList.remove("hidden");
+        $("pin-input").value = "";
+        $("pin-input").focus();
       }
-      Pin.verifyPin(pin).then(function (ok) {
-        if (ok) {
-          $("pin-error").classList.add("hidden");
-          $("pin-input").value = "";
-          ensureToken(pin).then(function () { afterAuth(); }, function () { afterAuth(); });
-        } else {
-          $("pin-error").classList.remove("hidden");
-          $("pin-input").value = "";
-          $("pin-input").focus();
-        }
-      });
     });
   }
 
@@ -1011,7 +1030,7 @@
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
         reopenWizard();
       } else if (partnerEditReturn === "onboarding") {
-        afterAuth();
+        showLinkStep();
       } else {
         showView("partners");
         renderPartners();
@@ -2133,17 +2152,20 @@
     });
 
     $("btn-detail-back").addEventListener("click", function () { showView("journal"); });
-    // FE-018: онбординг «кто ты» + «это я» в настройках
+    // FE-018 ч.2: телефон → SMS OTP → link-partner + «это я» в настройках
+    $("btn-onb-phone").addEventListener("click", submitOnbPhone);
+    $("btn-onb-otp").addEventListener("click", submitOnbOtp);
+    $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
+    $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
     $("btn-onboarding-add").addEventListener("click", function () { partnerEditReturn = "onboarding"; openPartnerEdit(null); });
     $("btn-onboarding-skip").addEventListener("click", function () { openJournal(); });
     $("btn-self-change").addEventListener("click", function () {
-      Api.partners.list().then(function (l) { openOnboarding(l || []); });
+      Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showLinkStep(); });
     });
     $("btn-self-clear").addEventListener("click", function () {
-      Api.partners.list().then(function (l) {
-        var self = (l || []).filter(function (p) { return p.self; })[0];
-        if (!self) return;
-        Api.partners.unlinkClient(self.id).then(function () { toast("«я» снят"); renderSelfStatus(); }, function (e) { toast("Ошибка: " + e.message); });
+      Api.clients.me().then(function (c) {
+        if (!c || !c.id) return;
+        Api.clients.unlinkPartner(c.id).then(function () { toast("«я» снят"); renderSelfStatus(); }, function (e) { toast("Ошибка: " + e.message); });
       });
     });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
