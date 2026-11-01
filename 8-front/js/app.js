@@ -26,6 +26,9 @@
   var draft = null;
   var wizardStep = 0;
   var editingId = null;
+  // FE-015: кэш журнала/партнёров на время визарда (не ходим в API на каждый шаг)
+  var wizardPartners = null;
+  var wizardRecords = null;
   var editingPartnerId = null;
   var partnerEditReturn = "partners";
   var partnerEditPhotoData = "";
@@ -62,7 +65,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.35"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.36"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -312,7 +315,18 @@
     };
   }
 
+  function loadWizardData() {
+    if (wizardPartners && wizardRecords) return Promise.resolve({ partners: wizardPartners, records: wizardRecords });
+    return DB.getAllJournalData().then(function (data) {
+      wizardPartners = data.partners;
+      wizardRecords = data.records;
+      return data;
+    });
+  }
+  function clearWizardData() { wizardPartners = null; wizardRecords = null; }
+
   function openWizard(id) {
+    clearWizardData();
     editingId = id || null;
     wizardStep = id ? STEPS.length - 1 : 0;
     if (id) {
@@ -336,10 +350,10 @@
         renderWizard();
       });
     } else {
-      DB.getAllRecords().then(function (records) {
+      loadWizardData().then(function (data) {
         draft = newDraft();
-        draft.partner = lastPartnerName(records);
-        draft.place = historyPlaces(records)[0] || "";
+        draft.partner = lastPartnerName(data.records);
+        draft.place = historyPlaces(data.records)[0] || "";
         showView("wizard");
         renderWizard();
       });
@@ -395,8 +409,8 @@
   }
 
   function stepPartner(body) {
-    DB.getAllPartners().then(function (partners) {
-      DB.getAllRecords().then(function (records) {
+    loadWizardData().then(function (data) {
+      var partners = data.partners, records = data.records;
         body.innerHTML =
           '<div class="step-label">С кем?</div>' +
           '<div class="partner-grid" id="w-partner-grid"></div>' +
@@ -442,7 +456,6 @@
         partners.forEach(function (p) { names.add(p.name); });
         records.forEach(function (r) { if (r.partner) names.add(r.partner); });
         fillDatalist("partner-suggest", names);
-      });
     });
   }
 
@@ -454,8 +467,8 @@
   }
 
   function stepPlace(body) {
-    DB.getAllRecords().then(function (records) {
-      var places = historyPlaces(records);
+    loadWizardData().then(function (data) {
+      var places = historyPlaces(data.records);
       body.innerHTML =
         '<div class="step-label">Где?</div>' +
         '<div class="chips-grid" id="w-place-grid"></div>' +
@@ -499,8 +512,8 @@
   }
 
   function stepPositions(body) {
-    DB.getAllRecords().then(function (records) {
-      var all = POSITIONS.concat(historyPositions(records));
+    loadWizardData().then(function (data) {
+      var all = POSITIONS.concat(historyPositions(data.records));
       body.innerHTML =
         '<div class="step-label">Позы</div>' +
         '<div class="chips-grid" id="w-pos-grid"></div>' +
@@ -591,8 +604,8 @@
         '<input type="text" id="w-tag-custom" placeholder="Свой тег" autocomplete="off">';
       body.appendChild(tags);
 
-      DB.getAllRecords().then(function (records) {
-        var set = [];
+      loadWizardData().then(function (data) {
+        var records = data.records, set = [];
         records.forEach(function (r) {
           (r.tags || []).forEach(function (t) { if (set.indexOf(t) === -1) set.push(t); });
         });
@@ -624,8 +637,8 @@
   }
 
   function stepContraception(body) {
-    Promise.all([DB.getAllCatalog(), DB.getAllRecords()]).then(function (res) {
-      var items = res[0], records = res[1];
+    Promise.all([DB.getAllCatalog(), loadWizardData()]).then(function (res) {
+      var items = res[0], records = res[1].records;
       var used = [];
       records.slice().sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); }).forEach(function (r) {
         (r.contraceptives || []).forEach(function (c) { if (used.indexOf(c) === -1) used.push(c); });
@@ -876,6 +889,7 @@
       promise = DB.putRecord(rec);
     }
     promise.then(function () {
+      clearWizardData();
       toast("Сохранено");
       showView("journal");
       renderJournal();
@@ -887,6 +901,7 @@
     confirmDialog("Удалить эту запись?").then(function (ok) {
       if (!ok) return;
       DB.deleteRecord(editingId).then(function () {
+        clearWizardData();
         toast("Удалено");
         showView("journal");
         renderJournal();
@@ -981,6 +996,7 @@
       });
     }
     promise.then(function () {
+      clearWizardData();
       toast("Сохранено");
       if (partnerEditReturn === "wizard") {
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
@@ -998,6 +1014,7 @@
     confirmDialog("Удалить партнёра?").then(function (ok) {
       if (!ok) return;
       DB.deletePartner(editingPartnerId).then(function () {
+        clearWizardData();
         toast("Удалено");
         if (partnerEditReturn === "wizard") { showView("wizard"); renderWizard(); }
         else { showView("partners"); renderPartners(); }
@@ -2118,7 +2135,7 @@
     });
     $("btn-import-apply").addEventListener("click", applyImport);
 
-    $("btn-wizard-close").addEventListener("click", function () { showView("journal"); });
+    $("btn-wizard-close").addEventListener("click", function () { clearWizardData(); showView("journal"); });
     $("btn-wizard-prev").addEventListener("click", function () { if (wizardStep > 0) { wizardStep--; renderWizard(); } });
     $("btn-wizard-next").addEventListener("click", function () {
       if (wizardStep === 0 && !draft.startedAt) { toast("Укажите дату и время"); return; }

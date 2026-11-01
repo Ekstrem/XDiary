@@ -69,6 +69,18 @@
       return Api.journal.list().then(function (list) { return (list || []).map(function (rm) { return mapRecord(rm, names); }); });
     });
   };
+  // FE-015: один запрос /partners + один /journal — визард не должен ходить в API на каждый шаг
+  DB.getAllJournalData = function () {
+    return Api.partners.list().then(function (partners) {
+      var names = nameMap(partners);
+      return Api.journal.list().then(function (list) {
+        return {
+          partners: (partners || []).map(mapPartner),
+          records: (list || []).map(function (rm) { return mapRecord(rm, names); })
+        };
+      });
+    });
+  };
   DB.getRecord = function (id) {
     return Api.partners.list().then(function (partners) {
       var names = nameMap(partners);
