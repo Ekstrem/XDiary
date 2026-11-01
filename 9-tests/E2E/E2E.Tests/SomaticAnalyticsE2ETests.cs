@@ -21,15 +21,19 @@ public class SomaticAnalyticsE2ETests
             "api/v1/somatic-series/slice?fromT=2026-10-29T20:00&toT=2026-10-29T22:00",
         };
 
-        var statuses = new List<int>();
+        // Диагностика: печатаем статус И тело каждого пути — иначе в аннотации CI
+        // видно только «не сработал», и причина (404 маршрута vs 401 vs 400 формата) неясна.
+        var diag = new List<string>();
         foreach (var p in paths)
         {
             var resp = await c.GetAsync(p);
-            statuses.Add((int)resp.StatusCode);
             if (resp.IsSuccessStatusCode) return;
+            var body = await resp.Content.ReadAsStringAsync();
+            if (body.Length > 300) body = body.Substring(0, 300);
+            diag.Add($"{p} -> {(int)resp.StatusCode}: {body.Replace("\n", " ")}");
         }
 
-        Assert.True(false, $"Ни один путь соматики не сработал: [{string.Join(", ", statuses)}]. Маршрут шлюза/контроллера не выровнен.");
+        Assert.Fail("Ни один путь соматики не сработал:\n" + string.Join("\n", diag));
     }
 
     [E2EFact]
