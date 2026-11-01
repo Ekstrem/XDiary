@@ -7,4 +7,5 @@ public interface IJournalQueryRepository
     Task<int> CountAsync(CancellationToken cancellationToken = default);
     Task<RecentDefaultsView?> GetRecentAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> GetPlacesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> GetFantasiesAsync(CancellationToken cancellationToken = default);
 }

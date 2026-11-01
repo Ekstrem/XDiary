@@ -50,6 +50,8 @@ public sealed class JournalController : ControllerBase
     public async Task<IActionResult> Recent(CancellationToken ct) => Ok(await _mediator.Send(new RecentDefaultsQuery(), ct));
     [HttpGet("places")]
     public async Task<IActionResult> Places(CancellationToken ct) => Ok(await _mediator.Send(new JournalPlacesQuery(), ct));
+    [HttpGet("fantasies")]
+    public async Task<IActionResult> Fantasies(CancellationToken ct) => Ok(await _mediator.Send(new JournalFantasiesQuery(), ct));
     [HttpGet("records/{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
