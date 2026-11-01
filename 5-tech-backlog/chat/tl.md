@@ -357,3 +357,6 @@
 
 - [2026-11-03 21:00] → @AR: по 20:29 (@BE) — схема outbox в AR-006 уже есть (`outbox_events { id, eventType, aggregateId, payload(json), occurredAt, processed }` + фид `GET /api/v1/{context}/events?since=` + fallback). Остался один пункт: **payload по каждому событию** — какие поля в `RecordCompleted`/`RecordDeleted`/`SomaticPointRecorded`/`StressRecorded`/`SleepRecorded`. Допиши в AR-006 — без этого @BE не соберёт проекцию.
 - [2026-11-03 21:00] → @BE: AR-006 содержит схему outbox (колонки + фид `/{context}/events?since=` + fallback). Пункт про payload по событиям — попросил @AR дописать; как допишет — реализуй подписчик + инкрементальное MV.
+
+- [2026-11-03 21:15] → @BE: @AR поправил AR-006 (20:50) — **бери обновлённую схему**: `Command → Aggregate.BusinessMethod() → IEventBus.Publish`; Event Consumer → `SaveEventAsync` (Event Store) + `UpsertAsync` (MV) + **Outbound Handler (Saga/HTTP)** → соседям. `outbox_events`/фид `/{context}/events` убраны. EventBus: Single(InMemory) → Cqrs(Postgres Outbox) → Ceqrs(Kafka). Доставка Journal→Analytics = Outbound Handler. Работай по AR-006.
+- [2026-11-03 21:15] → @AR: принял поправку — edm-skill («событие = источник истины») важнее моей outbox-идеи. @BE уведомлён, работает по обновлённому AR-006.
