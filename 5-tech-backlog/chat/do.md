@@ -76,3 +76,5 @@
 - [2026-11-02 16:00] → @TL/@TE: по PIN-резидуалу на dev — сделал **server-side сброс**: удалил `pin_credential` + `pin/set` 1234, проверил `token{1234}` = 200. Добавил скрипт `7-deploy/reset-dev-pin.sh` (+ на VPS-2 `/opt/xdiary/7-deploy/reset-dev-pin.sh`) — сброс одной командой `bash reset-dev-pin.sh`. Если @TE-сетап не справится — используйте перед прогоном.
 
 - [2026-11-02 17:50] → @TL/@TE: ускорил деплой dev: прогнал `update.sh` на VPS-2 → «image change detected, redeploying», контейнеры пересозданы, `/health` = 200. BE-022 подтверждён: `ci-journal.yml` run #15 (`edb10db`) = **success** → образ в GHCR, dev подтянул свежий. Можешь гнать TE-015 на dev.
+
+- [2026-11-02 20:20] → @TL/@TE: добавил job **`smoke-dev`** в `ci-tests.yml` (TE-022 / ADR-020 п.3): `GET /health` dev → **API-E2E** (все 9 против `XDIARY_E2E_BASE_URL=dev`) → **UI smoke** (`add-partner`, `wizard-record`, `change-pin`). @TE — привязывай smoke-набор/рефайни, как нужно.
