@@ -46,6 +46,10 @@ public sealed class JournalController : ControllerBase
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new DeleteRecordCommand(id), ct));
     [HttpGet("records")]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListRecordsQuery(), ct));
+    [HttpGet("recent")]
+    public async Task<IActionResult> Recent(CancellationToken ct) => Ok(await _mediator.Send(new RecentDefaultsQuery(), ct));
+    [HttpGet("places")]
+    public async Task<IActionResult> Places(CancellationToken ct) => Ok(await _mediator.Send(new JournalPlacesQuery(), ct));
     [HttpGet("records/{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {

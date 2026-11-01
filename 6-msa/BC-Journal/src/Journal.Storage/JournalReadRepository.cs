@@ -13,4 +13,17 @@ public sealed class JournalReadRepository : IJournalQueryRepository
     public async Task<IReadOnlyList<JournalReadModel>> ListAsync(CancellationToken ct = default)
         => (await _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt).ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
     public async Task<int> CountAsync(CancellationToken ct = default) => await _db.Records.CountAsync(ct);
+    public async Task<RecentDefaultsView?> GetRecentAsync(CancellationToken ct = default)
+    {
+        var e = await _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync(ct);
+        if (e is null) return null;
+        var partners = JournalMapper.ToList(e.PartnersJson);
+        return new RecentDefaultsView
+        {
+            LastPartner = partners.Count > 0 ? new PartnerRef { Id = partners[0], Name = partners[0] } : null,
+            LastPlace = string.IsNullOrWhiteSpace(e.Place) ? null : e.Place
+        };
+    }
+    public async Task<IReadOnlyList<string>> GetPlacesAsync(CancellationToken ct = default)
+        => (await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.Place != string.Empty).Select(x => x.Place).Distinct().OrderBy(x => x).ToListAsync(ct)).ToList();
 }
