@@ -17,7 +17,7 @@ public sealed class IssueTokenHandler : IRequestHandler<IssueTokenCommand, Token
     public async Task<TokenResponse?> Handle(IssueTokenCommand r, CancellationToken ct)
     {
         var m = await _repo.GetBySourceIdAsync("pin", ct);
-        if (m is null || !m.HasPin) return null;
+        if (m is null || !m.HasPin) return _tokens.IssueDevice();
         return PinHasher.Verify(r.Pin, m.Salt, m.Hash, m.Iterations) ? _tokens.Issue() : null;
     }
 }
