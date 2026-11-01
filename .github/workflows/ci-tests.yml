@@ -14,6 +14,13 @@ jobs:
       - name: Check chat format (no silent message loss)
         run: python tools/check_chat.py
 
+  guard-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check secrets (no leaks)
+        run: python tools/check_secrets.py
+
   test:
     runs-on: ubuntu-latest
     steps:
