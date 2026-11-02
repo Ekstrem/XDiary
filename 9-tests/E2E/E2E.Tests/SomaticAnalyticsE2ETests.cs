@@ -6,7 +6,7 @@ namespace XDiary.Tests.E2E;
 /// <summary>TE-009: E2E соматика + аналитика (срез, сводка, корреляции).</summary>
 public class SomaticAnalyticsE2ETests
 {
-    [E2EFact]
+    [E2EFactLegacy]
     public async Task SomaticSlice_ReturnsData()
     {
         var c = E2EInfra.Client();
@@ -36,7 +36,7 @@ public class SomaticAnalyticsE2ETests
         Assert.Fail("Ни один путь соматики не сработал:\n" + string.Join("\n", diag));
     }
 
-    [E2EFact]
+    [E2EFactLegacy]
     public async Task AnalyticsSummary_ReturnsCards()
     {
         var c = E2EInfra.Client();
@@ -52,7 +52,7 @@ public class SomaticAnalyticsE2ETests
         Assert.True(summary.TryGetProperty("orgasms", out _));
     }
 
-    [E2EFact]
+    [E2EFactLegacy]
     public async Task AnalyticsCorrelations_ReturnsList()
     {
         var c = E2EInfra.Client();

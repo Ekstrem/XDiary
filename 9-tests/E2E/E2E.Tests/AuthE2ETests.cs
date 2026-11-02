@@ -7,7 +7,7 @@ namespace XDiary.Tests.E2E;
 /// <summary>TE-007: E2E аутентификация (логин → JWT → refresh → logout).</summary>
 public class AuthE2ETests
 {
-    [E2EFact]
+    [E2EFactLegacy]
     public async Task Login_ReturnsAccessAndRefresh()
     {
         var c = E2EInfra.Client();
@@ -27,7 +27,7 @@ public class AuthE2ETests
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
-    [E2EFact]
+    [E2EFactLegacy]
     public async Task ValidToken_AllowsAccess()
     {
         var c = E2EInfra.Client();
@@ -38,7 +38,7 @@ public class AuthE2ETests
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
 
-    [E2EFact]
+    [E2EFactLegacy]
     public async Task Logout_ClearsTokens_ThenAnonymous401()
     {
         var c = E2EInfra.Client();

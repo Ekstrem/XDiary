@@ -64,3 +64,21 @@ public sealed class E2EFactAttribute : FactAttribute
             Skip = "XDIARY_E2E_BASE_URL не задан (нужен запущенный стек: локальный compose или Tailscale).";
     }
 }
+
+/// <summary>
+/// Fact для тестов, которые проверяют LEGACY-контур (<c>/privacy/token</c>, серверный PIN).
+///
+/// AR-009 / ADR-021 п.3: серверный PIN — legacy, в MVP не создаётся, контракт `/privacy/token`
+/// убран; он тянет за собой <see cref="E2EInfra.LoginAsync"/> и 8 из 9 тестов набора.
+/// Поэтому тесты пропускаются ВСЕГДА, но НЕ удаляются: это историческая регресс-защита.
+/// Вернуть их в гейт — TE-041: перевести <c>LoginAsync</c> на client-JWT
+/// (`POST /api/v1/clients` → `/verify` → `accessToken` + `refreshToken`).
+/// </summary>
+public sealed class E2EFactLegacyAttribute : FactAttribute
+{
+    public E2EFactLegacyAttribute()
+    {
+        Skip = "AR-009 / ADR-021 п.3: серверный PIN — legacy, /privacy/token вне MVP; " +
+               "миграция LoginAsync на client-JWT — TE-041.";
+    }
+}
