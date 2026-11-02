@@ -13,10 +13,12 @@ public sealed class PinCredentialCommandRepository : IPinCredentialRepository
     { var e = await _db.Credentials.FirstOrDefaultAsync(x => x.Id == id, ct); return e is null ? null : PrivacyMapper.MapToModel(e); }
     public async Task<IPinCredentialAnemicModel?> GetBySourceIdAsync(string sourceId, CancellationToken ct = default)
     { var e = await _db.Credentials.FirstOrDefaultAsync(x => x.SourceId == sourceId, ct); return e is null ? null : PrivacyMapper.MapToModel(e); }
+    public async Task<IPinCredentialAnemicModel?> GetByClientIdSourceIdAsync(Guid clientId, string sourceId, CancellationToken ct = default)
+    { var e = await _db.Credentials.FirstOrDefaultAsync(x => x.ClientId == clientId && x.SourceId == sourceId, ct); return e is null ? null : PrivacyMapper.MapToModel(e); }
     public async Task SaveAsync(AggregateResult<IPrivacy, IPinCredentialAnemicModel> result, CancellationToken ct = default)
     {
         var m = result.Model();
-        var e = await _db.Credentials.FirstOrDefaultAsync(x => x.SourceId == "pin", ct);
+        var e = await _db.Credentials.FirstOrDefaultAsync(x => x.ClientId == m.Root.ClientId && x.SourceId == "pin", ct);
         if (e is null) { e = new PinCredentialEntity { Id = m.Id }; _db.Credentials.Add(e); }
         PrivacyMapper.MapToEntity(m, e);
         await _db.SaveChangesAsync(ct);

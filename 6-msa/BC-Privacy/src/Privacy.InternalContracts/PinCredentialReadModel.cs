@@ -3,6 +3,7 @@ using XDiary.Contracts;
 public sealed class PinCredentialReadModel : IReadModel<Privacy.Domain.IPrivacy>
 {
     public Guid Id { get; set; }
+    public Guid ClientId { get; set; }
     public string SourceId { get; set; } = string.Empty;
     public string Salt { get; set; } = string.Empty;
     public string Hash { get; set; } = string.Empty;

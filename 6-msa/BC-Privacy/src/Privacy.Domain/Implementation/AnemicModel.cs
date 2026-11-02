@@ -8,7 +8,7 @@ public sealed class AnemicModel : IPinCredentialAnemicModel
     public string CommandName { get; set; } = string.Empty;
     public string SubjectName { get; set; } = string.Empty;
     public Guid CorrelationToken { get; set; } = Guid.NewGuid();
-    public IPinCredentialRoot Root { get; set; } = PinCredentialRoot.CreateInstance("", "", 0);
+    public IPinCredentialRoot Root { get; set; } = PinCredentialRoot.CreateInstance(Guid.Empty, "", "", 0);
     public bool Locked { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };

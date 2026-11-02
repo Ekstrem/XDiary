@@ -28,6 +28,9 @@ namespace Privacy.Storage.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Hash")
                         .IsRequired()
                         .HasColumnType("text");
@@ -52,7 +55,7 @@ namespace Privacy.Storage.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("SourceId")
+                    b.HasIndex("ClientId", "SourceId")
                         .IsUnique();
 
                     b.ToTable("pin_credential", (string)null);

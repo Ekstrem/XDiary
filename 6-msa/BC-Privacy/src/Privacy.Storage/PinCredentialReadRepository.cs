@@ -7,4 +7,6 @@ public sealed class PinCredentialReadRepository : IPinCredentialQueryRepository
     public PinCredentialReadRepository(ReadDbContext db) => _db = db;
     public async Task<PinCredentialReadModel?> GetBySourceIdAsync(string sourceId, CancellationToken ct = default)
     { var e = await _db.Credentials.FirstOrDefaultAsync(x => x.SourceId == sourceId, ct); return e is null ? null : PrivacyMapper.MapToReadModel(e); }
+    public async Task<PinCredentialReadModel?> GetByClientIdSourceIdAsync(Guid clientId, string sourceId, CancellationToken ct = default)
+    { var e = await _db.Credentials.FirstOrDefaultAsync(x => x.ClientId == clientId && x.SourceId == sourceId, ct); return e is null ? null : PrivacyMapper.MapToReadModel(e); }
 }

@@ -5,7 +5,7 @@ using Privacy.Application.Security;
 using Privacy.InternalContracts;
 
 public sealed record TokenResponse(string AccessToken, string RefreshToken);
-public sealed record IssueTokenCommand(string Pin) : IRequest<TokenResponse?>;
+public sealed record IssueTokenCommand(Guid ClientId, string Pin) : IRequest<TokenResponse?>;
 public sealed record VerifyTokenQuery(string Token) : IRequest<bool>;
 
 public sealed class IssueTokenHandler : IRequestHandler<IssueTokenCommand, TokenResponse?>
@@ -16,7 +16,7 @@ public sealed class IssueTokenHandler : IRequestHandler<IssueTokenCommand, Token
 
     public async Task<TokenResponse?> Handle(IssueTokenCommand r, CancellationToken ct)
     {
-        var m = await _repo.GetBySourceIdAsync("pin", ct);
+        var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "pin", ct);
         if (m is null || !m.HasPin) return _tokens.IssueDevice();
         return PinHasher.Verify(r.Pin, m.Salt, m.Hash, m.Iterations) ? _tokens.Issue() : null;
     }

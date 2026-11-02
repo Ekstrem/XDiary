@@ -3,6 +3,7 @@ using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Privacy.Domain;
 using Privacy.Domain.Abstraction;
+using Privacy.Domain.Specifications;
 using XDiary.Contracts;
 
 public sealed class Aggregate
@@ -17,18 +18,20 @@ public sealed class Aggregate
     { var d = BusinessOperationData<IPrivacy, IPinCredentialAnemicModel>.Commit<IPrivacy, IPinCredentialAnemicModel>(Model, Model); return new AggregateResultException<IPrivacy, IPinCredentialAnemicModel>(d, new FailedSpecification<IPrivacy, IPinCredentialAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Locked = Model.Locked };
 
-    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> SetPin(string salt, string hash, int iterations)
+    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> SetPin(Guid clientId, string salt, string hash, int iterations)
     {
         if (string.IsNullOrWhiteSpace(hash)) return Fail("Hash обязателен (NoPlaintext).");
-        var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(salt, hash, iterations); m.Locked = false; return Success(m);
+        var s = new SinglePinPerClientValidator();
+        if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
+        var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(clientId, salt, hash, iterations); m.Locked = false; return Success(m);
     }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> ChangePin(string salt, string hash, int iterations)
     {
         if (string.IsNullOrWhiteSpace(hash)) return Fail("Hash обязателен (NoPlaintext).");
-        var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(salt, hash, iterations); m.Locked = false; return Success(m);
+        var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(Model.Root.ClientId, salt, hash, iterations); m.Locked = false; return Success(m);
     }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Remove()
-    { var m = Clone(); m.Root = PinCredentialRoot.CreateInstance("", "", 0); m.Locked = false; return Success(m); }
+    { var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(Model.Root.ClientId, "", "", 0); m.Locked = false; return Success(m); }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Lock()
     { var m = Clone(); m.Locked = true; return Success(m); }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Unlock()

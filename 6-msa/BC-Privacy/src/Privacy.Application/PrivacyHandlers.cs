@@ -16,14 +16,14 @@ public sealed class SetPinHandler : IRequestHandler<SetPinCommand, AggregateResu
     public async Task<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> Handle(SetPinCommand r, CancellationToken ct)
     {
         var v = new PinFormatValidator(); if (!v.IsSatisfiedBy(r.Pin)) return PrivacyResults.Fail(v.Reason);
-        var m = await _repo.GetBySourceIdAsync("pin", ct) ?? new AnemicModel();
+        var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "pin", ct) ?? new AnemicModel();
         if (m.Root is not null && !string.IsNullOrEmpty(m.Root.Hash))
         {
             if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, m.Root.Salt, m.Root.Hash, m.Root.Iterations))
                 return PrivacyResults.Fail("Текущий PIN неверен");
         }
         var (salt, hash, iter) = PinHasher.Hash(r.Pin);
-        var res = Aggregate.CreateInstance(m).SetPin(salt, hash, iter);
+        var res = Aggregate.CreateInstance(m).SetPin(r.ClientId, salt, hash, iter);
         if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res;
     }
 }
@@ -34,7 +34,7 @@ public sealed class ChangePinHandler : IRequestHandler<ChangePinCommand, Aggrega
     public async Task<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> Handle(ChangePinCommand r, CancellationToken ct)
     {
         var v = new PinFormatValidator(); if (!v.IsSatisfiedBy(r.Pin)) return PrivacyResults.Fail(v.Reason);
-        var m = await _repo.GetBySourceIdAsync("pin", ct) ?? new AnemicModel();
+        var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "pin", ct) ?? new AnemicModel();
         if (m.Root is not null && !string.IsNullOrEmpty(m.Root.Hash))
         {
             if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, m.Root.Salt, m.Root.Hash, m.Root.Iterations))
@@ -51,7 +51,7 @@ public sealed class RemovePinHandler : IRequestHandler<RemovePinCommand, Aggrega
     public RemovePinHandler(IPinCredentialRepository repo) => _repo = repo;
     public async Task<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> Handle(RemovePinCommand r, CancellationToken ct)
     {
-        var m = await _repo.GetBySourceIdAsync("pin", ct) ?? new AnemicModel();
+        var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "pin", ct) ?? new AnemicModel();
         if (m.Root is not null && !string.IsNullOrEmpty(m.Root.Hash))
         {
             if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, m.Root.Salt, m.Root.Hash, m.Root.Iterations))
@@ -66,12 +66,12 @@ public sealed class LockPinHandler : IRequestHandler<LockPinCommand, AggregateRe
     private readonly IPinCredentialRepository _repo;
     public LockPinHandler(IPinCredentialRepository repo) => _repo = repo;
     public async Task<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> Handle(LockPinCommand r, CancellationToken ct)
-    { var m = await _repo.GetBySourceIdAsync("pin", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).Lock(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "pin", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).Lock(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class UnlockPinHandler : IRequestHandler<UnlockPinCommand, AggregateResult<IPrivacy, IPinCredentialAnemicModel>>
 {
     private readonly IPinCredentialRepository _repo;
     public UnlockPinHandler(IPinCredentialRepository repo) => _repo = repo;
     public async Task<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> Handle(UnlockPinCommand r, CancellationToken ct)
-    { var m = await _repo.GetBySourceIdAsync("pin", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).Unlock(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByClientIdSourceIdAsync(r.ClientId, "pin", ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).Unlock(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
