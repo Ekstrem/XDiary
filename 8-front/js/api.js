@@ -71,7 +71,6 @@
   window.Api = {
     config: {
       base: function () { return baseUrl(); },
-      setBase: function (u) { storeSet(BASE_KEY, u); },
       token: token,
       setToken: function (t) { storeSet(ACCESS_KEY, t); },
       refresh: function () { return storeGet(REFRESH_KEY); },
