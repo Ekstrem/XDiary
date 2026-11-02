@@ -49,7 +49,9 @@ public class AnalyticsTests
             new() { Date = "2026-10-02", RestingHr = 56 }
         };
 
-        Assert.Empty(CorrelationCalculator.Calculate(records, metrics));
+        // BE-033: у Calculate появился обязательный параметр somatic (hr/BB по времени).
+        // Для проверки «мало точек → пусто» соматика пустая.
+        Assert.Empty(CorrelationCalculator.Calculate(records, metrics, new Dictionary<string, (int Hr, int BodyBattery)>()));
     }
 
     [Fact]
@@ -68,7 +70,15 @@ public class AnalyticsTests
             new() { Date = "2026-10-03", RestingHr = 57 }
         };
 
-        var result = CorrelationCalculator.Calculate(records, metrics);
+        // BE-033: somatic обязателен; даём hr по тем же датам, что и записи.
+        var somatic = new Dictionary<string, (int Hr, int BodyBattery)>
+        {
+            ["2026-10-01T21:00"] = (70, 50),
+            ["2026-10-02T22:00"] = (72, 45),
+            ["2026-10-03T20:00"] = (74, 40),
+        };
+
+        var result = CorrelationCalculator.Calculate(records, metrics, somatic);
         Assert.Equal(2, result.Count);
         Assert.All(result, r => Assert.Equal(3, r.N));
         Assert.All(result, r => Assert.False(string.IsNullOrEmpty(r.Explanation)));
