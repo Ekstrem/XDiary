@@ -62,6 +62,9 @@ async function apiDelete(page, id) {
 }
 
 test('E2E: запись журнала — редактирование и удаление через UI', async ({ page }) => {
+  // В сценарии 4 ожидания по 20с (журнал/визард) + setup через API — это не влезает в
+  // дефолтные 90с теста, и тест падал «Test timeout of 90000ms exceeded» на последней проверке.
+  test.setTimeout(180_000);
   const apiLog = [];
   page.on('response', (r) => {
     const u = r.url();
