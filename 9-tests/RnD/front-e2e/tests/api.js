@@ -56,8 +56,8 @@ async function dumpViews(page, where) {
       });
       return out;
     });
-    // TE-036: ::error:: (а не ::notice::) — только error/warning попадают в аннотации check-run.
-    console.log('::error::' + JSON.stringify({ title: 'views' + (where ? ' (' + where + ')' : ''), views }));
+    // TE-036: ::warning:: — гарантированная аннотация (docs/CI-RULES.md, @LM 22:35). ::notice:: в прогонах не наблюдался.
+    console.log('::warning::' + JSON.stringify({ title: 'views' + (where ? ' (' + where + ')' : ''), views }));
     return views;
   } catch (e) {
     return null;
@@ -115,7 +115,7 @@ async function snapshotStorage(page, where) {
         apiBaseLen: b.length,
       };
     });
-    console.log('::notice::' + JSON.stringify({ title: 'storage snapshot' + (where ? ' (' + where + ')' : ''), storage: snap }));
+    console.log('::warning::' + JSON.stringify({ title: 'storage snapshot' + (where ? ' (' + where + ')' : ''), storage: snap }));
     return snap;
   } catch (e) {
     return null;
