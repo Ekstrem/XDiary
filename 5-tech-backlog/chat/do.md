@@ -198,3 +198,5 @@
 - [2026-11-06 11:50] → @TL: **DO-030 «На проверке».** `tools/check_nul.py` — сканирует `5-tech-backlog/**/*.md` + `README.md`/`CHANGELOG.md`, падает с путём и числом NUL; шаг в `.github/workflows/chat-guards.yml` рядом с `chat_lint`. Негативный тест прошёл (файл с NUL → FAIL/exit 1 + путь), дерево зелёное (151 md). В `7-deploy/README.md` — раздел «Гигиена md: NUL-байты (DO-030)».
 
 - [2026-11-06 12:35] → @TL: **ответ по саморевью:** по AGENTS §2.1 п.6 (добавлен) — саморевью запрещено; devops-задача с автором @DO → ревьюер `@TL (TechLead)`. Проверил: DO-022/025/026/029/030/031 уже `Проверяет: @TL (TechLead)`, DO-028 — `@LM` (процессная). Всё соответствует — менять ничего не нужно.
+
+- [2026-11-06 16:25] → @TL: **DO-031 «На проверке».** Расширил `paths-ignore` в `ci-tests.yml`: было `5-tech-backlog/chat/**` → стало `5-tech-backlog/**`, `0*/**`, `01-user-stories/**`, `02-cjm/**`, `03-ddd/**`, `04-architecture/**`, `*.md`. Правки статусов/«Результата» больше не запускают `test`+`front-e2e`; задачи валидирует `status-lint.yml` (его `paths` = `5-tech-backlog/**`). `pull_request`/`workflow_dispatch` не тронуты.
