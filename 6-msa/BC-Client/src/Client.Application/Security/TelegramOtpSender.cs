@@ -22,10 +22,16 @@ public sealed class TelegramOtpSender : IOtpSender
     {
         var token = _config["Otp:Telegram:BotToken"];
         var chatId = FindChatId(_config["Otp:Telegram:ChatIdMap"] ?? string.Empty, phone);
+        var text = $"Ваш код: {otp}";
+        if (string.IsNullOrWhiteSpace(chatId))
+        {
+            chatId = _config["Otp:Telegram:AdminChatId"];
+            text = $"Код для {phone} — {otp}";
+        }
         if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("Otp:Telegram:BotToken не задан.");
-        if (string.IsNullOrWhiteSpace(chatId)) throw new InvalidOperationException($"Номер {phone} не в Otp:Telegram:ChatIdMap — OTP не отправлен.");
+        if (string.IsNullOrWhiteSpace(chatId)) throw new InvalidOperationException($"Номер {phone} не в Otp:Telegram:ChatIdMap и нет Otp:Telegram:AdminChatId — OTP не отправлен.");
         using var http = new HttpClient();
-        await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString($"Ваш код: {otp}"), ct);
+        await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString(text), ct);
         _log.LogInformation("Telegram OTP отправлен на {Phone}.", phone);
     }
 }
