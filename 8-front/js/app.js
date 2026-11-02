@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.54"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.55"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -285,8 +285,18 @@
       showLinkStep();
     }, function (e) { toast("Ошибка: " + e.message); });
   }
-  function renderSelfStatus() {
-    if (!Api.config.token()) { if ($("self-status")) $("self-status").textContent = "не выбрано"; return; }
+  // FE-023: статус идентификации + вход/сброс устройства из Настроек
+  function renderIdentStatus() {
+    var st = $("ident-status");
+    if (!st) return;
+    if (!Api.config.token()) { st.textContent = "не пройдена (нет входа)"; return; }
+    Api.clients.me().then(function (c) {
+      st.textContent = (c && c.verified)
+        ? ("телефон " + (c.phone || "—") + ", подтверждён" + (c.linkedPartnerId ? ", «я» привязано" : ""))
+        : "не пройдена";
+    }, function () { st.textContent = "не пройдена"; });
+  }
+  function renderSelfStatus() {    if (!Api.config.token()) { if ($("self-status")) $("self-status").textContent = "не выбрано"; return; }
     Api.clients.me().then(function (c) {
       if (!$("self-status")) return;
       if (c && c.linkedPartnerId) {
@@ -2137,7 +2147,7 @@
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });
     $("tab-catalog").addEventListener("click", function () { renderCatalog(); showView("catalog"); });
     $("tab-trends").addEventListener("click", function () { openTrends(); });
-    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderSelfStatus(); showView("settings"); });
+    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderSelfStatus(); renderIdentStatus(); showView("settings"); });
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
     $("btn-partner-edit-back").addEventListener("click", function () {
@@ -2198,7 +2208,22 @@
       Api.auth.login("").then(function () { openJournal(); }, function () { openJournal(); });
     });
     $("btn-self-change").addEventListener("click", function () {
-      Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showLinkStep(); });
+      Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showLinkStep(); }, function () { openOnboarding(); });
+    });
+    // FE-023: вход в идентификацию из Настроек + сброс устройства (данные на сервере не трогаем)
+    $("btn-ident-start").addEventListener("click", function () { openOnboarding(); });
+    $("btn-ident-logout").addEventListener("click", function () {
+      confirmDialog("Сбросить устройство? Данные на сервере сохранятся.").then(function (ok) {
+        if (!ok) return;
+        try {
+          localStorage.removeItem("xdiary.clientId");
+          localStorage.removeItem("xdiary.legacy");
+        } catch (e) {}
+        Api.config.setToken("");
+        Api.config.setRefresh("");
+        toast("Устройство сброшено");
+        openOnboarding();
+      });
     });
     $("btn-self-clear").addEventListener("click", function () {
       Api.clients.me().then(function (c) {
