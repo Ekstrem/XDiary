@@ -39,30 +39,54 @@ public static class E2EInfra
     /// </summary>
     public static async Task<E2ESession> LoginAsync(HttpClient c)
     {
-        var phone = NewPhone();
+        // TE-044/TE-041: коллизия телефона не должна выглядеть как «сервер упал».
+        // Пока BE-046 не отдаёт 409/400, дубликат приходит как 409/400/500 с EF-стеком —
+        // в этих случаях берём НОВЫЙ телефон и пробуем снова (3 попытки), а если не вышло —
+        // бросаем с кодом и телом, а не с «http 500».
+        string? lastError = null;
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            var phone = NewPhone();
+            var reg = await c.PostAsJsonAsync("api/v1/clients", new { phone });
+            var regText = await reg.Content.ReadAsStringAsync();
+            if (!reg.IsSuccessStatusCode)
+            {
+                var code = (int)reg.StatusCode;
+                lastError = $"POST /clients -> {code}: {Truncate(regText)}";
+                if (attempt < 3 && IsPhoneCollision(code, regText)) continue;
+                throw new InvalidOperationException(lastError);
+            }
 
-        var reg = await c.PostAsJsonAsync("api/v1/clients", new { phone });
-        var regText = await reg.Content.ReadAsStringAsync();
-        if (!reg.IsSuccessStatusCode)
-            throw new InvalidOperationException($"POST /clients -> {(int)reg.StatusCode}: {regText}");
+            var regDoc = JsonSerializer.Deserialize<JsonElement>(regText);
+            if (!regDoc.TryGetProperty("id", out var idEl) || !Guid.TryParse(idEl.ToString(), out var clientId))
+                throw new InvalidOperationException("POST /clients: в ответе нет id: " + Truncate(regText));
 
-        var regDoc = JsonSerializer.Deserialize<JsonElement>(regText);
-        if (!regDoc.TryGetProperty("id", out var idEl) || !Guid.TryParse(idEl.ToString(), out var clientId))
-            throw new InvalidOperationException("POST /clients: в ответе нет id: " + regText);
+            var ver = await c.PostAsJsonAsync($"api/v1/clients/{clientId}/verify", new { code = Otp });
+            var verText = await ver.Content.ReadAsStringAsync();
+            if (!ver.IsSuccessStatusCode)
+                throw new InvalidOperationException($"POST /clients/{clientId}/verify -> {(int)ver.StatusCode}: {Truncate(verText)}");
 
-        var ver = await c.PostAsJsonAsync($"api/v1/clients/{clientId}/verify", new { code = Otp });
-        var verText = await ver.Content.ReadAsStringAsync();
-        if (!ver.IsSuccessStatusCode)
-            throw new InvalidOperationException($"POST /clients/{clientId}/verify -> {(int)ver.StatusCode}: {verText}");
+            var verDoc = JsonSerializer.Deserialize<JsonElement>(verText);
+            var access = verDoc.TryGetProperty("accessToken", out var a) ? a.GetString() : null;
+            var refresh = verDoc.TryGetProperty("refreshToken", out var r) ? r.GetString() : null;
+            if (string.IsNullOrWhiteSpace(access))
+                throw new InvalidOperationException("verify: accessToken пуст: " + Truncate(verText));
 
-        var verDoc = JsonSerializer.Deserialize<JsonElement>(verText);
-        var access = verDoc.TryGetProperty("accessToken", out var a) ? a.GetString() : null;
-        var refresh = verDoc.TryGetProperty("refreshToken", out var r) ? r.GetString() : null;
-        if (string.IsNullOrWhiteSpace(access))
-            throw new InvalidOperationException("verify: accessToken пуст: " + verText);
+            return new E2ESession(access!, refresh ?? string.Empty, clientId);
+        }
 
-        return new E2ESession(access!, refresh ?? string.Empty, clientId);
+        throw new InvalidOperationException("POST /clients: не удалось создать клиента после 3 попыток — " + lastError);
     }
+
+    /// <summary>Признак «телефон уже занят»: 409/400/500 и упоминание дубликата в теле.</summary>
+    private static bool IsPhoneCollision(int status, string body)
+        => status is 409 or 400 or 500
+           && (body.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+               || body.Contains("23505", StringComparison.Ordinal)
+               || body.Contains("already", StringComparison.OrdinalIgnoreCase));
+
+    private static string Truncate(string s) => s.Length <= 300 ? s : s.Substring(0, 300) + "…";
+
 
     /// <summary>Обновление пары токенов: <c>POST /api/v1/clients/refresh {refreshToken}</c>.</summary>
     public static async Task<(string AccessToken, string RefreshToken)> RefreshAsync(HttpClient c, string refreshToken)
