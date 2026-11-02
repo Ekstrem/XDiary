@@ -56,6 +56,23 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
     // партнёра через API (как второй аккаунт), и только если не вышло — падаем явно.
     let cardCount = await card.count();
     console.log('::warning::карточек партнёров на шаге привязки: ' + cardCount);
+    // TE-032 (@TL 09:25): состояние самого списка — успел ли он заполниться.
+    // Без этого «0 карточек» неотличимо от «список ещё не отрисован» / «список пуст».
+    await page.waitForTimeout(300);
+    const listState = await page.evaluate(() => {
+      const l = document.querySelector('#onboarding-list');
+      if (!l) return { present: false };
+      return {
+        present: true,
+        children: l.children.length,
+        htmlLen: (l.innerHTML || '').length,
+        hidden: l.classList.contains('hidden'),
+        text: (l.textContent || '').trim().slice(0, 80),
+      };
+    }).catch(() => null);
+    console.log('::warning::состояние #onboarding-list: ' + JSON.stringify(listState));
+    cardCount = await card.count();
+    console.log('::warning::карточек после 300мс: ' + cardCount);
     if (cardCount === 0) {
       const partnerName = 'e2e-auto-' + Date.now();
       const created = await page.evaluate(async ({ base, name }) => {
