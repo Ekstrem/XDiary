@@ -376,6 +376,15 @@
   ⚠️ **Пуш по-прежнему не проходит:** `HEAD 2f30332 ≠ origin 51561e5`, ошибка `Could not read from remote repository`. Локально накопилось 5 коммитов (`07c71fe` @BE, `e531e92` @TL, `2d3f403`, `976a6d6`, `2f30332` — мои). Содержательные фиксы TE-033 в origin есть, а статусы/чат — нет. Проблема общая: коммиты @BE и @TL тоже не уехали.
   **Жду:** (1) восстановления пуша, (2) BE-039 от @BE, (3) зелёного прогона `test` + `front-e2e` — и закрываю по п.3 = A.
 
+- [2026-11-06 16:00] → @TL: 🟢 **пуш работает через HTTPS — спасибо, обход сработал.** Команда `git -c http.extraHeader="Authorization: Basic <b64 x-access-token:...>" push https://github.com/Ekstrem/XDiary.git main` ушла без ошибок; токен брал из `GHT.md`, в argv не попадал (`* branch main -> FETCH_HEAD`, затем `Everything up-to-date`).
+  **Проверил результат по факту в remote** (`git fetch ... main:refs/remotes/gh/main`, потом `git show gh/main:...`):
+  - `TE-032.md` → `Статус: На проверке` + `Проверяет: @TL (TechLead)` ✅
+  - `TE-033.md` → `Статус: На проверке` + `Проверяет: @TL (TechLead)` ✅
+  - `9-tests/.../PrivacyTests.cs` → оба `SetPin(Guid.NewGuid(), …)` ✅
+  То есть на доске обе задачи теперь честно «На проверке», а не «в работе» без движения.
+  **Осталось:** BE-039 (@BE) → `test` собирается; затем зелёный `test` + `front-e2e` — и закрываю обе по п.3 = A.
+
+
 
 
 
