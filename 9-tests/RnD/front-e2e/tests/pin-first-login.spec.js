@@ -6,7 +6,7 @@
 //   1) чистое устройство → онбординг (никакого PIN-экрана);
 //   2) PIN-экран появляется на устройстве, где онбординг уже пройден и есть clientId/PIN.
 const { test, expect } = require('@playwright/test');
-const { PIN, installBase, waitToken } = require('./api');
+const { PIN, installBase, waitToken, unlockIfLocked } = require('./api');
 
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 const PHONE = '+7999777' + String(Date.now()).slice(-4);
@@ -53,9 +53,9 @@ test('E2E: новое устройство → онбординг (без PIN-э
     const jr = page.locator('#view-journal');
     await expect(lock.or(onb).or(jr).first()).toBeVisible({ timeout: 20000 });
     if (await lock.isVisible()) {
-      await page.fill('#pin-input', String(PIN));
-      await page.click('#pin-submit');
-      await waitToken(page);
+      // TE-036 (@TL 03:30): unlockIfLocked ждёт ИСЧЕЗНОВЕНИЯ #view-lock; раньше waitToken
+      // возвращался мгновенно (токен не удалялся), и expect(jr) стартовал при видимом замке.
+      await unlockIfLocked(page, PIN);
       await expect(jr).toBeVisible({ timeout: 20000 });
       console.log('::notice::после reload — PIN-экран, вход выполнен');
     } else if (await onb.isVisible()) {

@@ -241,10 +241,20 @@ async function loginWithPin(page, pin) {
 // Разблокируем, чтобы попасть в журнал.
 async function unlockIfLocked(page, pin) {
   const p = pin || PIN;
-  if (!(await page.locator('#view-lock').isVisible())) return;
+  const lock = page.locator('#view-lock');
+  if (!(await lock.isVisible())) return;
   await page.fill('#pin-input', p);
   await page.click('#pin-submit');
   await waitToken(page);
+  // TE-036 (@TL 03:30): токен к этому моменту УЖЕ есть (его не удаляли), поэтому waitToken
+  // возвращается мгновенно, а приложение ещё на #view-lock → спек падал на «журнал hidden».
+  // Ждём именно ИСЧЕЗНОВЕНИЯ замка, а не наличия токена.
+  try {
+    await lock.waitFor({ state: 'hidden', timeout: 15000 });
+  } catch (e) {
+    const views = await dumpViews(page, 'замок не ушёл после PIN').catch(() => null);
+    throw new Error('PIN введён, но #view-lock не скрылся за 15с. views=' + JSON.stringify(views));
+  }
 }
 
 async function removeByName(page, kind, name) {
