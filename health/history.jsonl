@@ -4,3 +4,4 @@
 {"ts": "2026-11-02T12:45:04Z", "lint_errors": 0, "lint_warnings": 0, "stale": 0, "gates_ok": 3, "gates_total": 3, "ci_p95": 157, "inbox": 0, "drift": 5, "drift_total": 12}
 {"ts": "2026-11-02T12:46:27Z", "lint_errors": 0, "lint_warnings": 0, "stale": 0, "gates_ok": 3, "gates_total": 3, "ci_p95": 157, "inbox": 0, "drift": 5, "drift_total": 12}
 {"ts": "2026-11-02T14:25:47Z", "lint_errors": 0, "lint_warnings": 0, "stale": 0, "gates_ok": 3, "gates_total": 3, "ci_p95": 157, "inbox": 0, "chat_skew": 0, "chat_order": 0, "review_ok": 16, "review_total": 27, "drift": 0, "drift_total": 13}
+{"ts": "2026-11-02T14:51:40Z", "lint_errors": 0, "lint_warnings": 0, "stale": 1, "gates_ok": 3, "gates_total": 3, "ci_p95": 157, "inbox": 0, "chat_skew": 0, "chat_order": 0, "review_ok": 31, "review_total": 31, "drift": 0, "drift_total": 16}

@@ -1,0 +1,32 @@
+name: Docs budget (инструкции не выпадают из контекста)
+
+# Все AGENTS.md грузятся вместе, лимит DSH — 64 КиБ. При переполнении файл МОЛЧА
+# перестаёт подхватываться (так правила проекта однажды выпали из контекста ролей).
+# Гейт ловит это до того, как кто-то заметит по последствиям.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - '**/AGENTS.md'
+      - 'RULES.md'
+      - 'loop.config.json'
+      - 'tools/check_docs_size.py'
+      - '.github/workflows/docs-budget.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-budget
+  cancel-in-progress: true
+
+jobs:
+  docs-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Сумма и размер каждого AGENTS.md
+        run: python tools/check_docs_size.py
