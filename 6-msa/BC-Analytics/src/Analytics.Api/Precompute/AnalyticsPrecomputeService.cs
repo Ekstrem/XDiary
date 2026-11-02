@@ -11,7 +11,7 @@ public sealed class AnalyticsPrecomputeService : BackgroundService
     private readonly string _metricsUrl;
 
     public AnalyticsPrecomputeService(IHttpClientFactory http, AnalyticsSnapshot snapshot, IConfiguration config, ILogger<AnalyticsPrecomputeService> logger)
-    { _http = http; _snapshot = snapshot; _logger = logger; _journalUrl = config["Services:Journal"] ?? "http://journal"; _metricsUrl = config["Services:DailyMetrics"] ?? "http://daily-metrics"; }
+    { _http = http; _snapshot = snapshot; _logger = logger; _journalUrl = config["Services:Journal"] ?? "http://journal:8080"; _metricsUrl = config["Services:DailyMetrics"] ?? "http://daily-metrics:8080"; }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
