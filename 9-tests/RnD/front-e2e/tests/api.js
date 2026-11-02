@@ -32,19 +32,73 @@ async function waitToken(page) {
 
 // Реальный вход: ставим локальный PIN (как в Настройках), перезагружаемся,
 // на экране блокировки вводим PIN → приложение берёт JWT (ensureToken → login).
-async function loginWithPin(page, pin) {
-  const p = pin || PIN;
+//
+// TE-032: после 0.59 `unlock()` больше не запрашивает бэкенд-токен по PIN (PIN = локальный
+// замок поверх client-JWT). Поэтому сессия засевается через онбординг: телефон → OTP →
+// client-JWT → link-partner. Без этого все спеки уходили в онбординг и падали «JWT не получен».
+const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
+
+async function seedSession(page) {
+  // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
+  //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
   await installBase(page);
   await page.goto('/');
-  await page.evaluate(({ base, v }) => {
-    try { localStorage.setItem('xdiary.apiBase', base); } catch (e) {}
-    return window.Pin.setPin(v);
-  }, { base: API_BASE, v: p });
+
+  const phone = '+7999' + String(Date.now()).slice(-7);
+  const partnerName = 'TE-SEED-' + Date.now();
+
+  const seeded = await page.evaluate(async ({ base, phone, otp, partnerName }) => {
+    const j = async (r) => ({ status: r.status, data: await r.json().catch(() => null) });
+    // клиент
+    const c = await j(await fetch(base + '/api/v1/clients', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    }));
+    if (!c.data || !c.data.id) return { ok: false, step: 'clients', status: c.status };
+    const clientId = c.data.id;
+    // верификация OTP → client-JWT
+    const v = await j(await fetch(base + '/api/v1/clients/' + clientId + '/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: otp }),
+    }));
+    const token = (v.data && v.data.token) || '';
+    if (!token) return { ok: false, step: 'verify', status: v.status };
+    // партнёр-«я» + привязка
+    const p = await j(await fetch(base + '/api/v1/partners', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ name: partnerName }),
+    }));
+    if (p.data && p.data.id) {
+      await fetch(base + '/api/v1/clients/' + clientId + '/link-partner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ partnerId: p.data.id }),
+      });
+    }
+    // сессия в localStorage (как после онбординга)
+    try {
+      localStorage.setItem('xdiary.clientId', clientId);
+      localStorage.setItem('xdiary.accessToken', token);
+      localStorage.setItem('xdiary.apiBase', base);
+    } catch (e) {}
+    return { ok: true, clientId, partnerId: p.data && p.data.id };
+  }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
+
+  if (!seeded.ok) {
+    throw new Error('seedSession: шаг ' + seeded.step + ' вернул ' + seeded.status);
+  }
   await page.goto('/');
-  await page.waitForSelector('#view-lock:not(.hidden)', { timeout: 20000 });
-  await page.fill('#pin-input', p);
-  await page.click('#pin-submit');
-  await waitToken(page);
+  await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
+  return seeded;
+}
+
+async function loginWithPin(page, pin) {
+  // TE-032: основной путь — seedSession (client-JWT). Локальный PIN остаётся вторым слоем
+  // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
+  await seedSession(page);
+  if (pin) {
+    try { await page.evaluate((v) => window.Pin.setPin(v), pin); } catch (e) {}
+  }
 }
 
 // После reload локальный PIN уже стоит → приложение показывает экран блокировки.
