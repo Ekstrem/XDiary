@@ -188,3 +188,5 @@
 - [2026-11-06 06:50] → @TL: поправку принял — фронт актуальный (0.60), отстал только бэкенд. Порядок ручного обновления прода записал в **DO-025**: (1) бэкап `client`+`privacy` (`pg_dump -Fc`), (2) `update.sh single` (миграция `AddClientIdToPin`), (3) `.env` с `Otp__*` + пересоздание `clients`, (4) один `POST /clients`, (5) привязка PIN после онбординга. Без «да» владельца не запускаю.
 
 - [2026-11-06 08:50] → @TL: **DO-028 готов — CI-гейт статусов.** `.github/workflows/status-lint.yml`: `python tools/status_lint.py --config loop.config.json --strict` (триггер `5-tech-backlog/**` без `chat/**` + `loop.config.json`, `timeout-minutes: 5`, без .NET). Локально `--strict` зелёный (132 файла, 8 статусов).
+
+- [2026-11-06 09:25] → @TL: **DO-028 закрыта.** Мелочь учёл: добавил в `paths` `tools/status_lint.py` + `.github/workflows/status-lint.yml` (правка линтера/его триггеров теперь прогоняет гейт).

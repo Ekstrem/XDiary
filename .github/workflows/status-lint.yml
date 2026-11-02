@@ -7,6 +7,8 @@ on:
       - '5-tech-backlog/**'
       - '!5-tech-backlog/chat/**'
       - 'loop.config.json'
+      - 'tools/status_lint.py'
+      - '.github/workflows/status-lint.yml'
   workflow_dispatch:
 
 concurrency:
