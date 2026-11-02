@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.67"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.68"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -277,8 +277,10 @@
         c.className = "partner-card";
         c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
         c.addEventListener("click", function () {
-          // FE-031: без clientId привязка уходит в 400/404 молча
-          if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); openOnboarding(); return; }
+          // FE-031: фактическое состояние в лог — иначе не видно, почему запрос не уходит
+          console.error("linkPartner: onbClientId=" + JSON.stringify(onbClientId) + ", partnerId=" + JSON.stringify(p && p.id));
+          // FE-031: остаёмся на шаге привязки с видимой ошибкой (openOnboarding() её стирал и уводил в «тихий» цикл)
+          if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); return; }
           if (!p || !p.id) { showOnbLinkError("Не удалось определить партнёра — обновите список."); return; }
           showOnbLinkError("");
           // FE-031: журнал только после успешного ответа link-partner
@@ -299,8 +301,10 @@
     var phone = $("onb-phone-input").value.trim();
     if (!phone) { toast("Введите номер телефона"); return; }
     Api.clients.register(phone).then(function (res) {
-      onbClientId = (res && (res.id || res.aggregateId)) || "";
+      console.error("register response keys: " + JSON.stringify(res && Object.keys(res)));
+      onbClientId = (res && (res.id || res.aggregateId || res.clientId)) || "";
       if (!onbClientId) { toast("Ошибка: сервер не вернул id клиента"); return; }
+      try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
       $("onb-phone").classList.add("hidden");
       $("onb-otp").classList.remove("hidden");
       $("onb-otp-phone").textContent = phone;
