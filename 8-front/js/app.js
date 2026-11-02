@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.64"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.65"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -232,8 +232,10 @@
     if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
     // FE-027: me() с таймаутом — иначе экран блокировки остаётся навсегда
     withTimeout(Api.clients.me(), 5000, null).then(function (c) {
-      if (c && c.verified && c.linkedPartnerId) openJournal();
-      else openOnboarding();
+      if (c && c.verified && c.linkedPartnerId) { openJournal(); return; }
+      // FE-029: клиент подтверждён, но «я» не привязано — показываем шаг привязки, а не телефон заново
+      if (c && c.verified && c.id) { onbClientId = c.id; showLinkStep(); return; }
+      openOnboarding();
     }).catch(function (e) { console.error("afterAuth/me:", e); openOnboarding(); });
   }
   function openOnboarding() {
