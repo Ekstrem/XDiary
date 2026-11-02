@@ -13,6 +13,9 @@ public sealed class AnalyticsSnapshot
     public List<CorrelationResult> Correlations { get; private set; } = new();
     public TopLists Tops { get; private set; } = new();
     public Distribution Distribution { get; private set; } = new();
+    public Thresholds Thresholds { get; private set; } = new();
+    public TrendsView Trends { get; private set; } = new();
+    public PhysioProfile Physio { get; private set; } = new();
     public DateTime UpdatedAt { get; private set; }
 
     public void Rebuild(IReadOnlyList<JournalRecord> records, IReadOnlyList<MetricInput> metrics)
@@ -22,6 +25,7 @@ public sealed class AnalyticsSnapshot
     public void ApplyDeleted(Guid id) { lock (_lock) { if (_records.Remove(id)) RecomputeLocked(); } }
     public void ApplySleep(string date, int score) { lock (_lock) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, SleepScore = score }; _metrics.Add(m); } else m.SleepScore = score; RecomputeLocked(); } }
     public void ApplySomatic(string t, int hr, int bodyBattery) { lock (_lock) { _somatic[t] = (hr, bodyBattery); RecomputeLocked(); } }
+    public void ApplyStress(string date, int stress) { lock (_lock) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, Stress = stress }; _metrics.Add(m); } else m.Stress = stress; RecomputeLocked(); } }
 
     public SummaryCards GetSummary(string period) => period switch { "30" => Summary30, "90" => Summary90, _ => SummaryAll };
 
@@ -31,7 +35,10 @@ public sealed class AnalyticsSnapshot
         Summary30 = SummaryCalculator.Calculate("30", inputs);
         Summary90 = SummaryCalculator.Calculate("90", inputs);
         SummaryAll = SummaryCalculator.Calculate("all", inputs);
-        Correlations = CorrelationCalculator.Calculate(inputs, _metrics);
+        Correlations = CorrelationCalculator.Calculate(inputs, _metrics, _somatic);
+        Thresholds = CalcThresholds();
+        Trends = CalcTrends();
+        Physio = CalcPhysio();
         Tops = CalcTops(_records.Values.ToList());
         Distribution = CalcDistribution(_records.Values.ToList());
         UpdatedAt = DateTime.UtcNow;
@@ -78,4 +85,22 @@ public sealed class AnalyticsSnapshot
 
     private static List<CountEntry> GroupCount(IEnumerable<string> items)
         => items.Where(x => !string.IsNullOrWhiteSpace(x)).GroupBy(x => x).Select(g => new CountEntry { Key = g.Key, Count = g.Count() }).OrderByDescending(x => x.Count).Take(10).ToList();
+
+    private Thresholds CalcThresholds()
+    {
+        var hrs = _somatic.Values.Where(s => s.Hr > 0).ToList();
+        var bbs = _somatic.Values.Where(s => s.BodyBattery > 0).ToList();
+        return new Thresholds { MaxHr = hrs.Count > 0 ? hrs.Max(s => s.Hr) : 0, MinBodyBattery = bbs.Count > 0 ? bbs.Min(s => s.BodyBattery) : 0 };
+    }
+    private TrendsView CalcTrends() => new()
+    {
+        Stress = _metrics.Where(m => m.Stress > 0).Select(m => new CountEntry { Key = m.Date, Count = m.Stress }).OrderBy(x => x.Key).ToList(),
+        Sleep = _metrics.Where(m => m.SleepScore > 0).Select(m => new CountEntry { Key = m.Date, Count = m.SleepScore }).OrderBy(x => x.Key).ToList()
+    };
+    private PhysioProfile CalcPhysio()
+    {
+        var pts = _somatic.Values.ToList();
+        if (pts.Count == 0) return new PhysioProfile();
+        return new PhysioProfile { AvgHr = Math.Round(pts.Average(s => s.Hr), 1), AvgBodyBattery = Math.Round(pts.Average(s => s.BodyBattery), 1), Samples = pts.Count };
+    }
 }

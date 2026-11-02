@@ -23,6 +23,12 @@ public class AnalyticsController : ControllerBase
 
     [HttpGet("distribution")]
     public IActionResult Distribution() => Ok(_snapshot.Distribution);
+    [HttpGet("thresholds")]
+    public IActionResult Thresholds() => Ok(_snapshot.Thresholds);
+    [HttpGet("trends")]
+    public IActionResult Trends() => Ok(_snapshot.Trends);
+    [HttpGet("physio")]
+    public IActionResult Physio() => Ok(_snapshot.Physio);
     [HttpPost("events")]
     public IActionResult Events([FromBody] AnalyticsEvent e)
     {
@@ -30,6 +36,7 @@ public class AnalyticsController : ControllerBase
         else if (e.EventType == "RecordDeleted") _snapshot.ApplyDeleted(e.Id);
         else if (e.EventType == "SleepRecorded") _snapshot.ApplySleep(e.Date, e.SleepScore);
         else if (e.EventType == "SomaticPointRecorded") _snapshot.ApplySomatic(e.T, e.Hr, e.BodyBattery);
+        else if (e.EventType == "StressRecorded") _snapshot.ApplyStress(e.Date, e.Stress);
         return Ok();
     }
 }

@@ -20,5 +20,6 @@ public class MetricInput
 {
     public string Date { get; set; } = string.Empty; // "YYYY-MM-DD"
     public int RestingHr { get; set; }
+    public int Stress { get; set; }
     public int SleepScore { get; set; }
 }
