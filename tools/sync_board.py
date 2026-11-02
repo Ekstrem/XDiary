@@ -53,13 +53,13 @@ ROLE_COLORS = {
     "AR": "5319e7",
 }
 
-# статус задачи -> опция поля Status в Projects (нужны опции Todo / In Progress / Review / Done)
+# статус задачи -> опция поля Status в Projects (опции доски: Todo / In Progress / Review / Paused / Done)
 STATUS_TO_OPTION = {
     "идея": "Todo",
     "на-проработке": "Todo",
     "todo": "Todo",
     "в-работе": "In Progress",
-    "в-паузе": "In Progress",
+    "в-паузе": "Paused",
     "на-проверке": "Review",
     "закрыта": "Done",
     "отклонена": "Done",
