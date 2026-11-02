@@ -15,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 builder.Host.ConfigureContainer<ContainerBuilder>(c => c.RegisterModule<RegisterDependencies>());
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Client.Application.Commands.RegisterClientCommand>());
@@ -23,7 +24,13 @@ builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configurat
 builder.Services.AddScoped<IRepository<IClients, IClientAnemicModel>, ClientCommandRepository>();
 builder.Services.AddScoped<IClientQueryRepository, ClientReadRepository>();
 builder.Services.AddSingleton<ClientTokenService>();
-builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.LogOtpSender>();
+var otpChannel = builder.Configuration["Otp:Channel"] ?? "log";
+switch (otpChannel)
+{
+    case "sms": builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.SmsOtpSender>(); break;
+    case "telegram": builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.TelegramOtpSender>(); break;
+    default: builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.LogOtpSender>(); break;
+}
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
