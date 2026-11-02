@@ -36,7 +36,9 @@ public sealed class PrivacyController : ControllerBase
     [HttpPost("token")]
     public async Task<IActionResult> Token([FromBody] IssueTokenCommand c, CancellationToken ct)
     {
-        var r = await _mediator.Send(c with { ClientId = CurrentClientId() }, ct);
+        var clientId = CurrentClientId();
+        if (clientId == Guid.Empty) return Unauthorized();
+        var r = await _mediator.Send(c with { ClientId = clientId }, ct);
         return r is null ? Unauthorized() : Ok(r);
     }
 
