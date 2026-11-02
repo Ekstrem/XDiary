@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.68"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.69"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -264,37 +264,51 @@
     if (msg) { el.textContent = msg; el.classList.remove("hidden"); }
     else { el.textContent = ""; el.classList.add("hidden"); }
   }
+  function linkPartnerClick(pid, pname) {
+    // FE-031: фактическое состояние в лог — по нему видно, дошёл ли клик
+    console.error("linkPartner: onbClientId=" + JSON.stringify(onbClientId) + ", partnerId=" + JSON.stringify(pid));
+    if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); return; }
+    if (!pid) { showOnbLinkError("Не удалось определить партнёра — обновите список."); return; }
+    showOnbLinkError("");
+    Api.clients.linkPartner(onbClientId, pid).then(function () {
+      toast("Это ты: " + (pname || ""));
+      openJournal();
+    }, function (e) {
+      console.error("linkPartner error:", e);
+      showOnbLinkError("Не удалось привязать «я»: " + (e && e.message ? e.message : "ошибка") + ". Попробуйте ещё раз.");
+      toast("Ошибка: " + (e && e.message ? e.message : "привязка"));
+    });
+  }
   function renderLinkPartners() {
     showOnbLinkError("");
     // FE-031: onbClientId мог сброситься (openOnboarding) — берём из localStorage
     onbClientId = onbClientId || storedClientId();
+    var list = $("onboarding-list");
+    if (!list) return;
+    // FE-031: делегирование — обработчик на контейнере переживает перерисовку,
+    // поэтому клик не уходит в отсоединённый узел
+    if (!list._fe031Delegated) {
+      list._fe031Delegated = true;
+      list.addEventListener("click", function (e) {
+        var card = e.target && e.target.closest ? e.target.closest(".partner-card") : null;
+        if (!card) return;
+        linkPartnerClick(card.getAttribute("data-partner-id"), card.getAttribute("data-partner-name"));
+      });
+    }
+    // FE-031: не перерисовываем список для того же клиента — элементы остаются теми же
+    if (list._fe031For === onbClientId && list.children.length > 0) return;
     Api.partners.list().then(function (partners) {
-      var list = $("onboarding-list");
       list.innerHTML = "";
       (partners || []).forEach(function (p) {
         var c = document.createElement("button");
         c.type = "button";
         c.className = "partner-card";
+        c.setAttribute("data-partner-id", (p && p.id) || "");
+        c.setAttribute("data-partner-name", (p && p.name) || "");
         c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
-        c.addEventListener("click", function () {
-          // FE-031: фактическое состояние в лог — иначе не видно, почему запрос не уходит
-          console.error("linkPartner: onbClientId=" + JSON.stringify(onbClientId) + ", partnerId=" + JSON.stringify(p && p.id));
-          // FE-031: остаёмся на шаге привязки с видимой ошибкой (openOnboarding() её стирал и уводил в «тихий» цикл)
-          if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); return; }
-          if (!p || !p.id) { showOnbLinkError("Не удалось определить партнёра — обновите список."); return; }
-          showOnbLinkError("");
-          // FE-031: журнал только после успешного ответа link-partner
-          Api.clients.linkPartner(onbClientId, p.id).then(function () {
-            toast("Это ты: " + p.name);
-            openJournal();
-          }, function (e) {
-            console.error("linkPartner:", e);
-            showOnbLinkError("Не удалось привязать «я»: " + (e && e.message ? e.message : "ошибка") + ". Попробуйте ещё раз.");
-            toast("Ошибка: " + (e && e.message ? e.message : "привязка"));
-          });
-        });
         list.appendChild(c);
       });
+      list._fe031For = onbClientId;
     }).catch(function (e) { showOnbLinkError("Не удалось загрузить партнёров: " + (e && e.message ? e.message : "ошибка")); });
   }
   function submitOnbPhone() {
