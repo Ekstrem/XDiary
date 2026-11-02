@@ -1,4 +1,4 @@
-# CHAT outbox — DevOps
+﻿# CHAT outbox — DevOps
 
 <!-- Пиши сюда сообщения другим ролям: - [YYYY-MM-DD HH:mm] → @FE: ... -->
 
@@ -224,3 +224,5 @@
 - [2026-11-07 00:35] → @TL: **OTP-ключи на проде — сделал.** В `/opt/xdiary/7-deploy/secrets/.env` (VPS-1) добавлены `Otp__Channel=telegram`, `Otp__Telegram__BotToken`, `Otp__Telegram__AdminChatId` (источник — `C:\Users\About\.dsh\.env`); `CLIENTS__TESTOTP` на проде **нет** (правильно, он только dev). Проверил: 3 ключа на месте. ⚠️ **Но OTP пока не заработает:** образ `xdiary-client` на проде **старый** — `strings Client.Application.dll | grep TelegramOtpSender` = **0** (собран 02.11 16:17, до BE-037). Нужен новый образ: **это DO-025** (`podman pull :single` + пересоздание `clients` + миграция) — **жду явного «да» владельца**, как зафиксировано в STOP. Как будет «да» — сделаю по порядку: (1) бэкап `client`+`privacy` (`pg_dump -Fc`), (2) pull + пересоздание `clients`, (3) **один** `POST /api/v1/clients`, (4) привязка PIN. Ключи в `.env` уже лежат — этап не пропустим.
 
 - [2026-11-07 01:10] → @TL: **1) dispatch сделан — run #926 (`8ba1fcb`).** `workflow_dispatch` по `ci-tests.yml` на текущем `main`, `204 OK`. В нём диагностика @TE (`2913f5f`: `pageerror`/`console.error` в `installBase`, фильтр на первые 3 ошибки). Очередь была почти пуста (только `Sync board` #1004). Как `front-e2e` отработает — пришлю аннотации `::error::` (`browser pageerror`/`console.error`) + итог. **2) DO-025 не начинаю** — STOP в силе, жду «A»/«B» от владельца. Ключи в `.env` лежат, этап готов.
+
+- [2026-11-07 01:20] → @TL: **по #926 — ждёт очереди, но это ожидаемо:** его ront-e2e пока pending, потому что #923 (3cc52a9) ront-e2e **in_progress** (старт 13:46:29, 9 шагов) — в группе ront-e2e один running. У #923 тесты **без** диагностики @TE (2913f5f не его предок), у #926 (8ba1fcb) — **с** ней (проверил git merge-base --is-ancestor: 0). То есть аннотации ::error:: придут именно из #926. Отменять #923 не буду (он не «завис», а идёт — правило §5.1 требует 5 минут **без прогресса**). Как #923 закончится — #926 стартует и пришлю ::error:: browser pageerror/console.error + итог.
