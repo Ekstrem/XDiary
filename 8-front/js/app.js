@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.62"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.63"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1665,23 +1665,33 @@
     showView("import");
   }
 
+  // FE-030: результат импорта виден всегда — и успех, и ошибка
+  function showImportMessage(text, isError) {
+    var box = $("import-result");
+    if (!box) return;
+    $("import-type").textContent = text;
+    $("import-preview").textContent = "";
+    $("btn-import-apply").classList.toggle("hidden", !!isError);
+    box.classList.remove("hidden");
+  }
   function handleImportAnyFile(file) {
     file.text().then(function (text) {
       var rows = CSV.parse(String(text || "").replace(/^\uFEFF/, ""));
       var type = detectImportType(rows);
-      if (!type) { toast("Формат не распознан"); return; }
+      if (!type) { showImportMessage("Формат не распознан — ожидается CSV Garmin", true); return; }
       var items, label;
       if (type === "stress_weekly") { items = parseGarminTwoCol(text, "stress"); label = "Недельный стресс"; }
       else if (type === "resting_weekly") { items = parseGarminTwoCol(text, "resting_hr"); label = "Пульс покоя (недели)"; }
       else if (type === "sleep_weekly") { items = parseSleepWeekly(text); label = "Сон (недели)"; }
       else if (type === "somatic_minute") { items = parseSomaticCsv(text); label = "Соматика (минуты)"; }
       else if (type === "sleep_daily") { items = parseSleepCsv(text); label = "Сон (дни)"; }
-      if (!items.length) { toast("Нет данных в файле"); return; }
+      if (!items || !items.length) { showImportMessage((label || "Файл") + ": нет данных", true); return; }
       pendingImport = { type: type, items: items };
-      $("import-type").textContent = label + " · " + items.length + " записей";
+      showImportMessage(label + " · " + items.length + " записей", false);
       $("import-preview").textContent = JSON.stringify(items.slice(0, 3));
-      $("import-result").classList.remove("hidden");
-    }).catch(function (e) { toast("Ошибка: " + e.message); });
+    }).catch(function (e) {
+      showImportMessage("Не удалось прочитать файл: " + e.message, true);
+    });
   }
 
   function applyImport() {
@@ -1694,10 +1704,14 @@
     else if (t === "somatic_minute") p = DB.putSomaticBatch(items);
     else if (t === "sleep_daily") p = DB.putSleepBatch(items);
     p.then(function () {
-      toast("Импортировано: " + items.length);
       pendingImport = null;
-      $("import-result").classList.add("hidden");
-    }).catch(function (e) { toast("Ошибка: " + e.message); });
+      showImportMessage("Импортировано: " + items.length, false);
+      $("btn-import-apply").classList.add("hidden");
+      toast("Импортировано: " + items.length);
+    }).catch(function (e) {
+      showImportMessage("Импорт не удался: " + e.message, true);
+      toast("Ошибка: " + e.message);
+    });
   }
 
   // ---- тренды ----
