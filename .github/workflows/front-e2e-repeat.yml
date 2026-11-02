@@ -59,78 +59,61 @@ jobs:
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright install --with-deps chromium
 
-      - name: Repeat run (json + list)
+      - name: Repeat run (list)
         working-directory: 9-tests/RnD/front-e2e
         continue-on-error: true
-        env:
-          # json-репортёр пишет в файл, list — в stdout.
-          # Без этого оба формата смешиваются в один файл и парсер падает.
-          PLAYWRIGHT_JSON_OUTPUT_NAME: /tmp/repeat.json
         run: |
           echo "спеки: $SPECS | repeat-each=$REPEAT | workers=$WORKERS"
+          # Пишем list-вывод в файл: json-репортёр в этой связке файла не создавал,
+          # и итоговый шаг молча выходил с кодом 0 без таблицы (02.11, #5).
           npx playwright test $SPECS --repeat-each=$REPEAT --workers=$WORKERS \
-            --reporter=list,json || true
+            --reporter=list 2>&1 | tee /tmp/repeat-list.txt || true
 
       - name: Итог по спекам
         if: always()
         run: |
           python3 - <<'PY'
-          import json, os, re, collections
-          path = '/tmp/repeat.json'
+          import collections, os, re, sys
+          path = '/tmp/repeat-list.txt'
           if not os.path.exists(path):
-              print('::error::json-отчёт не создан — смотри шаг выше'); raise SystemExit(0)
-          raw = open(path, encoding='utf-8', errors='replace').read()
-          i = raw.find('{')
-          data = json.loads(raw[i:]) if i >= 0 else {}
-          # TL 20:50: сетевые падения должны быть видны без чтения стека.
-          # «Ответа не было» отличается от «ответ был плохой» — это разные зоны.
-          NET_PAT = re.compile(r'Failed to fetch|ERR_FAILED|ERR_|ECONNRESET|ETIMEDOUT|net::|requestfailed', re.I)
+              print('::error title=[flaky] нет вывода list-репортёра::измерение не состоялось, это НЕ зелёный прогон')
+              sys.exit(1)
+          lines = open(path, encoding='utf-8', errors='replace').read().splitlines()
+          # маркеры playwright: ✓ passed, ✘ failed, - skipped; имя спека — в строке
           agg = collections.OrderedDict()
-          for suite in data.get('suites', []) or []:
-              stack = [suite]
-              while stack:
-                  s = stack.pop()
-                  for sp in s.get('specs', []) or []:
-                      f = s.get('file') or sp.get('file') or '?'
-                      st = collections.Counter()
-                      first_err = ''
-                      for t in sp.get('tests', []) or []:
-                          for r in t.get('results', []) or []:
-                              st[r.get('status', '?')] += 1
-                              if r.get('status') not in ('passed', 'skipped'):
-                                  err = (r.get('error') or {}).get('message') or ''
-                                  if NET_PAT.search(err):
-                                      st['net'] += 1
-                                  if not first_err:
-                                      first_err = ' '.join(err.split())[:110]
-                      a = agg.setdefault(f, {'passed': 0, 'failed': 0, 'timedOut': 0, 'skipped': 0, 'net': 0, 'err': ''})
-                      for k, v in st.items():
-                          if k in a:
-                              a[k] += v
-                      if not a['err'] and first_err:
-                          a['err'] = first_err
-                  stack.extend(s.get('suites', []) or [])
-          print('| спек | passed | failed | timedOut | skipped | **net** | первая ошибка |')
-          print('|---|---|---|---|---|---|---|')
+          pat = re.compile(r'^\s*([\u2713\u2717\u2718\u00d7\-\u00bb\u203a])\s+\d+\s+(tests/[\w./-]+\.spec\.js)')
+          for line in lines:
+              m = pat.search(line)
+              if not m:
+                  continue
+              mark, spec = m.group(1), m.group(2)
+              a = agg.setdefault(spec, collections.Counter())
+              if mark == '\u2713': a['passed'] += 1
+              elif mark in ('\u2717', '\u2718', '\u00d7'): a['failed'] += 1
+              else: a['skipped'] += 1
+          out = []
+          out.append('| спек | passed | failed | skipped | итого |')
+          out.append('|---|---|---|---|---|')
           total = collections.Counter()
-          for f, a in agg.items():
-              print(f"| `{f}` | {a['passed']} | {a['failed']} | {a['timedOut']} | {a['skipped']} | {a['net']} | {a['err'] or '—'} |")
-              for k in ('passed', 'failed', 'timedOut', 'skipped', 'net'):
-                  total[k] += a[k]
-          print(f"| **итого** | {total['passed']} | {total['failed']} | {total['timedOut']} | {total['skipped']} | **{total['net']}** | |")
-          if total['net']:
-              print()
-              print(f'⚠️ net={total["net"]} — часть падений сетевая (ответа не было). Это НЕ доказательство дефекта продукта и НЕ зелёный прогон.')
-          print()
-          print(f"repeat-each={os.environ.get('REPEAT')} workers={os.environ.get('WORKERS')}")
-          # Дефект измерения (02.11): шаг с `continue-on-error: true` + `|| true` делал прогон
-          # ЗЕЛЁНЫМ даже при падениях — «success» перестал что-либо значить (#5: 2 failed из 10,
-          # а джоба success). Теперь падения дают красный прогон и аннотацию.
-          if total['failed'] or total['timedOut'] or total['net']:
-              print(f"::error title=[flaky] измерение нашло падения::{total['failed']} failed, "
-                    f"{total['timedOut']} timedOut, {total['net']} net из "
-                    f"{total['passed'] + total['failed'] + total['timedOut'] + total['skipped']}")
-              raise SystemExit(1)
-          print(f"::notice::падений нет: {total['passed']} passed")
-          print('Напоминание: повтор без падений НЕ доказывает отсутствие флейкости — он лишь говорит, что повторы её не поймали.')
+          for spec, a in agg.items():
+              n = a['passed'] + a['failed'] + a['skipped']
+              out.append('| `%s` | %d | %d | %d | %d |' % (spec, a['passed'], a['failed'], a['skipped'], n))
+              for k in ('passed', 'failed', 'skipped'): total[k] += a[k]
+          out.append('| **итого** | **%d** | **%d** | **%d** | **%d** |' % (total['passed'], total['failed'], total['skipped'], total['passed'] + total['failed'] + total['skipped']))
+          out.append('')
+          out.append('repeat-each=%s workers=%s' % (os.environ.get('REPEAT'), os.environ.get('WORKERS')))
+          table = chr(10).join(out)
+          print(table)
+          summary = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary:
+              with open(summary, 'a', encoding='utf-8') as fh:
+                  fh.write('### front-e2e-repeat: ' + 'частоты падений' + chr(10) + chr(10) + table + chr(10))
+          if not agg:
+              print('::error title=[flaky] не разобрал ни одного результата::смотри шаг выше')
+              sys.exit(1)
+          if total['failed']:
+              print('::error title=[flaky] падения::%d failed из %d' % (total['failed'], total['passed'] + total['failed'] + total['skipped']))
+              sys.exit(1)
+          print('::notice::падений нет: %d passed из %d' % (total['passed'], total['passed'] + total['skipped']))
           PY
+
