@@ -144,7 +144,9 @@ async function seedSessionOnce(page) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: otp }),
     }));
-    const token = (v.data && v.data.token) || '';
+    // TE-036 (@TL 01:45): образ 17:35 отдаёт accessToken; старые — token. Обратная совместимость.
+    const token = (v.data && (v.data.accessToken || v.data.token)) || '';
+    const refreshToken = (v.data && v.data.refreshToken) || '';
     if (!token) return { ok: false, step: 'verify', status: v.status };
     // партнёр-«я» + привязка
     const p = await j(await fetch(base + '/api/v1/partners', {
@@ -162,9 +164,10 @@ async function seedSessionOnce(page) {
     try {
       localStorage.setItem('xdiary.clientId', clientId);
       localStorage.setItem('xdiary.accessToken', token);
+      if (refreshToken) localStorage.setItem('xdiary.refreshToken', refreshToken);
       localStorage.setItem('xdiary.apiBase', base);
     } catch (e) {}
-    return { ok: true, clientId, partnerId: p.data && p.data.id };
+    return { ok: true, clientId, partnerId: p.data && p.data.id, hasRefresh: !!refreshToken };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
 
   if (!seeded.ok) {
