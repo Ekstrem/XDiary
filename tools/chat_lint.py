@@ -36,6 +36,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 LINT_FILE = "_lint.md"
 STATE_FILE = ".lint-state.json"
+CI = os.environ.get("CI", "").lower() in ("1", "true", "yes")
 SKIP = {"readme.md", "_dialogue.md", LINT_FILE.lower()}
 
 # Канон и терпимость — как в lib/parse.js: скобки или время без скобок,
@@ -153,7 +154,7 @@ def count_tolerant(chat_dir, known_roles):
     return tolerant, total, slash
 
 
-def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0):
+def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use_clock=True):
     """Метки времени: в будущем (часы врут) и немонотонность внутри файла.
 
     Возвращает [(файл, метка, вид)], вид — "future" или "order".
@@ -161,6 +162,7 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0):
     поэтому по умолчанию это предупреждения (см. --strict-times).
     """
     future, order = [], []
+    collected = []
     for name in sorted(os.listdir(chat_dir)):
         if not name.endswith(".md") or name.lower() in SKIP:
             continue
@@ -187,13 +189,23 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0):
                     ts = datetime.datetime.strptime(raw, "%Y-%m-%d %H:%M")
                 except ValueError:
                     continue
-                expected = now + datetime.timedelta(hours=shift_hours)
-                if ts > expected + datetime.timedelta(minutes=tolerance_min):
-                    lag = ts - expected
-                    future.append((name, raw, int(lag.total_seconds() // 3600)))
                 if prev is not None and ts < prev:
                     order.append((name, raw, prev.strftime("%Y-%m-%d %H:%M")))
                 prev = ts
+                collected.append((name, raw, ts))
+    # PDR-21 (@TL 02:45): в CI часы раннера — UTC, а чат пишется в MSK(+3).
+    # Сравнивать с now() бессмысленно: любая местная метка выглядит «будущим».
+    # В CI шкала самосогласована: опорная точка — САМАЯ ПОЗДНЯЯ метка в чате,
+    # и флагуется только файл, уехавший вперёд относительно остальных
+    # (это ловит опечатку «+2 дня», но не наказывает за часовой пояс).
+    if use_clock:
+        reference = now + datetime.timedelta(hours=shift_hours)
+    else:
+        reference = max((ts for _, _, ts in collected), default=now)
+    for name, raw, ts in collected:
+        if ts > reference + datetime.timedelta(minutes=tolerance_min):
+            lag = ts - reference
+            future.append((name, raw, int(lag.total_seconds() // 3600)))
     return future, order
 
 
@@ -227,7 +239,9 @@ def main():
     if args.next_stamp:
         chat_dir0, _, cfg0 = load_config(args.config)
         shift0 = int((cfg0.get("chat_time") or {}).get("shift_hours", 0))
-        print((datetime.datetime.now() + datetime.timedelta(hours=shift0))
+        tz0 = int((cfg0.get("chat_time") or {}).get("tz_offset_hours", 3))
+        # метка = сейчас в TZ проекта + сдвиг шкалы (по умолчанию 0)
+        print((datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=tz0 + shift0))
               .strftime("%Y-%m-%d %H:%M"))
         return 0
 
@@ -248,8 +262,11 @@ def main():
 
     shift = int((cfg.get("chat_time") or {}).get("shift_hours", 0))
     tolerance = int((cfg.get("chat_time") or {}).get("tolerance_min", 120))
-    future, order = scan_times(chat_dir, set(titles.keys()), datetime.datetime.now(),
-                               tolerance, shift)
+    tz_offset = int((cfg.get("chat_time") or {}).get("tz_offset_hours", 3))
+    # Метки в чате — в TZ проекта (MSK). Раннер GitHub живёт в UTC, поэтому «сейчас»
+    # считаем как UTC + смещение проекта, иначе --strict-times краснеет на ровных метках.
+    now_project = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=tz_offset + shift))
+    future, order = scan_times(chat_dir, set(titles.keys()), now_project, tolerance, shift)
 
     if args.report or args.check:
         print("нераспознанных строк: %d (новых: %d)" % (len(problems), len(fresh)))
