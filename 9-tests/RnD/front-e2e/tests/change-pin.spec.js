@@ -1,3 +1,10 @@
+// ============================================================================
+// LEGACY (ADR-008 / ADR-021 п.3): этот спек проверяет СЕРВЕРНЫЙ PIN
+// (`/api/v1/privacy/token`, `/privacy/pin/set`). По канону MVP PIN — ЛОКАЛЬНЫЙ
+// (`window.Pin`, IndexedDB), серверный оставлен для device-токена и в MVP не
+// создаётся. Поэтому спек исключён из гейта через `describe.skip`, но НЕ удалён:
+// переписать под локальный PIN — задача TE-037 (P2).
+// ============================================================================
 // E2E (настоящий): смена PIN — живое приложение + живой шлюз.
 // Ловит FE-009: `applyPin` проверяет текущий PIN только локально и шлёт
 // `setPin(nw)` без `currentPin`; BE-020 на это отвечает 400 → локальный PIN меняется,
@@ -8,7 +15,8 @@ const { API_BASE, PIN, loginWithPin } = require('./api');
 
 const NEW_PIN = '5678';
 
-test('E2E: смена PIN — сервер принимает новый PIN, старый перестаёт работать', async ({ page, request }) => {
+test.describe.skip('legacy: серверный PIN (ADR-008, вне MVP) — переписать в TE-037', () => {
+  test('E2E: смена PIN — сервер принимает новый PIN, старый перестаёт работать', async ({ page, request }) => {
   const oldPin = PIN;
   try {
     await loginWithPin(page, oldPin);
@@ -38,4 +46,5 @@ test('E2E: смена PIN — сервер принимает новый PIN, с
     const r = await request.post(API_BASE + '/api/v1/privacy/pin/set', { data: { pin: oldPin, currentPin: NEW_PIN } });
     console.log('restore pin:', r.status());
   }
+});
 });
