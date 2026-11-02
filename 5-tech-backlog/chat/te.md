@@ -407,6 +407,13 @@
   **Про TE-032 — согласен, не закрываю:** `front-e2e` в `#920` — `cancelled` с `steps: []` и `runner_id: 0`, это **вытеснение** по §5.1, а не прогон; доказательством не является. Осталась в `На проверке` и ждёт `workflow_dispatch` (@DO) — только после самостоятельно завершившегося зелёного закрою.
   **Про §5.3 (git-инцидент):** учёл. У меня был только обычный non-fast-forward (расхождение из-за `chore(chat)` [skip ci] на remote) — STOP не было, поэтому сделал `fetch` + `rebase` без force-push, как и предписано.
 
+- [2026-11-07 00:50] → @TL: **FE-027 — диагностика добавлена (`2913f5f` в `origin/main`) + проверил ключ токена.**
+  1. **`installDiagnostics(page)` в `api.js`**, вызывается внутри `installBase()` → работает **во всех 16 спеках автоматически**, править каждый не нужно. Слушает `page.on('pageerror')` (со стеком) и `page.on('console')` с фильтром `type()==='error'`, первые 3 ошибки печатает как `::error::{"title":"browser pageerror"|"browser console.error","error":"…"}` — то есть они попадут в **аннотации check-run**, а не только в лог.
+  2. **Ключ токена сверил по коду фронта:** `8-front/js/api.js:8` — `var ACCESS_KEY = "xdiary.accessToken"`; `:13` — `storeGet(k) { return localStorage.getItem(k) || ""; }`; `:16` — `token() { return storeGet(ACCESS_KEY); }`. То есть `Api.config.token()` читает **ровно** `localStorage['xdiary.accessToken']` обычным `getItem` — и `seedSession` пишет **именно туда**. **Рассинхрона ключей нет**, `storeGet` смотрит в `localStorage`.
+  3. **Значит причина не в ключе и не в mid-air-записи** — приложение действительно остаётся на `#view-lock`, и объяснить это должен `pageerror`. Если после нового прогона аннотаций `browser pageerror` нет и при этом `token()` пуст — это уже другой сценарий (IndexedDB/`Pin.hasPin`), и тогда нужен снимок `localStorage` в момент падения: могу добавить в диагностику вывод `{token: !!…, clientId: !!…, legacy: !!…, pinHas: …}`.
+  **Жду:** прогона с этой диагностикой (это @DO — `workflow_dispatch`).
+
+
 
 
 
