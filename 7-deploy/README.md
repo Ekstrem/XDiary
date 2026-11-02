@@ -75,6 +75,16 @@ PWA (телефон) --HTTPS (Tailscale, xdiary.vps1.ts.net)--> VPS-1 (caddy -> 
 Проверка — `tools/check_workflow_paths.py` (в CI — джоб `guard-paths.yml`): падает,
 если появился workflow с `on.push` без фильтра (allowlist — только `guard-paths.yml`).
 
+### Гигиена md: NUL-байты (DO-030)
+
+⚠️ **Не пиши md через шелл-here-string / `Add-Content` в pwsh.** При склейке строк
+туда попадает `\x00` — git начинает считать файл **бинарным** (`Bin … bytes`), диффы
+нечитаемы, а `chat_lint`/`_dialogue.md` могут терять строки (NUL ломает разбор).
+Пиши файлы редактором/`write`-инструментом, а не «эхо-конвейером».
+
+Проверка — `tools/check_nul.py` (в CI — джоб `chat-guards.yml`): падает на любом
+`*.md` под `5-tech-backlog/**` (+ `README.md`/`CHANGELOG.md`) с NUL-байтами, печатает путь.
+
 ## Порядок развёртывания
 
 1. **VPS-2** (сначала — он отдаёт пароли БД):
