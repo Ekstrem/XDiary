@@ -9,7 +9,7 @@ public class AppleHealthGatewayIntegrationTest
     [Fact]
     public void Configure_Then_Import()
     {
-        var cfg = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr", "hrv" });
+        var cfg = Aggregate.CreateInstance(new AnemicModel()).Configure(Guid.NewGuid(), new[] { "hr", "hrv" });
         Assert.Equal(DomainOperationResultEnum.Success, cfg.Result);
         var imp = Aggregate.CreateInstance(cfg.Model()).ImportFile("export.xml");
         Assert.Equal(DomainOperationResultEnum.Success, imp.Result);

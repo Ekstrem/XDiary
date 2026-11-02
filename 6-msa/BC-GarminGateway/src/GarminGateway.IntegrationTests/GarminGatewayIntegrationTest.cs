@@ -9,7 +9,7 @@ public class GarminGatewayIntegrationTest
     [Fact]
     public void Connect_Then_Query()
     {
-        var connect = Aggregate.CreateInstance(new AnemicModel()).Connect(Credentials.CreateInstance("key", "token", "2026-10-30T00:00"));
+        var connect = Aggregate.CreateInstance(new AnemicModel()).Connect(Guid.NewGuid(), Credentials.CreateInstance("key", "token", "2026-10-30T00:00"));
         Assert.Equal(DomainOperationResultEnum.Success, connect.Result);
         var sync = Aggregate.CreateInstance(connect.Model()).Sync(SyncConfig.CreateInstance(new[] { "hr", "bb" }, 30));
         Assert.Equal(DomainOperationResultEnum.Success, sync.Result);
