@@ -173,6 +173,7 @@ async function seedSession(page) {
   await page.goto('/');
   await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
   await snapshotStorage(page, 'после seedSession');
+  await dumpViews(page, 'после seedSession');
   return seeded;
 }
 
