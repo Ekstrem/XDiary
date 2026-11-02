@@ -10,6 +10,8 @@ using Client.Domain;
 using Client.Domain.Abstraction;
 using XDiary.Contracts;
 
+public sealed record RefreshClientTokenCommand(string RefreshToken);
+
 [ApiController]
 [Route("api/v1/clients")]
 public sealed class ClientsController : ControllerBase
@@ -29,8 +31,17 @@ public sealed class ClientsController : ControllerBase
         var result = await _mediator.Send(c with { AggregateId = id }, ct);
         if (!result.IsSuccess()) return BadRequest(result.ErrorMessage());
         var m = result.Model();
-        var token = _tokens.Issue(m.Id, m.Root.Phone);
-        return Ok(new { aggregateId = m.Id, version = m.Version, result = "Verified", token = token });
+        var pair = _tokens.Issue(m.Id, m.Root.Phone);
+        return Ok(new { aggregateId = m.Id, version = m.Version, result = "Verified", accessToken = pair.AccessToken, refreshToken = pair.RefreshToken, expiresAt = pair.ExpiresAt });
+    }
+    [HttpPost("refresh")]
+    [AllowAnonymous]
+    public IActionResult Refresh([FromBody] RefreshClientTokenCommand c)
+    {
+        if (!_tokens.TryValidateRefresh(c.RefreshToken, out var clientId, out var phone))
+            return Unauthorized();
+        var pair = _tokens.Issue(clientId, phone ?? string.Empty);
+        return Ok(new { accessToken = pair.AccessToken, refreshToken = pair.RefreshToken, expiresAt = pair.ExpiresAt });
     }
     [HttpPost("{id:guid}/link-partner")]
     public async Task<IActionResult> LinkPartner(Guid id, [FromBody] LinkClientPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
