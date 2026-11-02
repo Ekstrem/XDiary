@@ -78,12 +78,19 @@ public static class E2EInfra
         throw new InvalidOperationException("POST /clients: не удалось создать клиента после 3 попыток — " + lastError);
     }
 
-    /// <summary>Признак «телефон уже занят»: 409/400/500 и упоминание дубликата в теле.</summary>
+    /// <summary>Признак «телефон уже занят»: 409/400/500 и маркер дубликата в теле.</summary>
+    /// <remarks>
+    /// BE-046 (@TL 20:06) просит машинно-читаемый маркер — поддерживаем `phone_taken`
+    /// и человеческий русский текст, а старые формы (`duplicate`/`23505`/`already`)
+    /// оставляем, чтобы retry работал и до и после правки @BE.
+    /// </remarks>
     private static bool IsPhoneCollision(int status, string body)
         => status is 409 or 400 or 500
-           && (body.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+           && (body.Contains("phone_taken", StringComparison.OrdinalIgnoreCase)
+               || body.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
                || body.Contains("23505", StringComparison.Ordinal)
-               || body.Contains("already", StringComparison.OrdinalIgnoreCase));
+               || body.Contains("already", StringComparison.OrdinalIgnoreCase)
+               || body.Contains("уже зарегистрирован", StringComparison.OrdinalIgnoreCase));
 
     private static string Truncate(string s) => s.Length <= 300 ? s : s.Substring(0, 300) + "…";
 
