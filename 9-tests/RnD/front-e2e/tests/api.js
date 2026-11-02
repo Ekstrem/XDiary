@@ -181,9 +181,15 @@ async function loginWithPin(page, pin) {
   // TE-032: основной путь — seedSession (client-JWT). Локальный PIN остаётся вторым слоем
   // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
   await seedSession(page);
+  const p = pin || PIN;
   if (pin) {
     try { await page.evaluate((v) => window.Pin.setPin(v), pin); } catch (e) {}
   }
+  // TE-036: `seedSession` + локальный PIN = законный замок при загрузке. Спеки, которые
+  // не проверяют сам замок, обязаны его снять, иначе `#view-journal`/`#view-catalog` hidden
+  // 20–90 с. Делаем это здесь, а не в каждом спеке: забыть вызов — типовая ошибка
+  // (именно так падали `catalog`, `csv`, `remove-pin`, `wizard-record`).
+  await unlockIfLocked(page, p);
 }
 
 // После reload локальный PIN уже стоит → приложение показывает экран блокировки.

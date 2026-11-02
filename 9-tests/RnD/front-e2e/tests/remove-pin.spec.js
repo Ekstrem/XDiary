@@ -14,7 +14,7 @@ async function tokenStatus(request, pin) {
 // ВАЖНО (@TL 08:50): pin/has скоупится по УСТРОЙСТВУ. Голый `request.get` идёт без
 // device-токена и всегда отдаёт false — это был баг спека, а не продукта (BE-034 отклонена).
 // Поэтому проверяем через страницу, где device-токен есть.
-async function hasPin(page) {
+async function hasPinServer(page) {
   return page.evaluate(async (base) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
     const r = await fetch(base + '/api/v1/privacy/pin/has', {
@@ -24,6 +24,10 @@ async function hasPin(page) {
     const j = await r.json();
     return typeof j === 'boolean' ? j : !!(j && (j.hasPin !== undefined ? j.hasPin : j.value));
   }, API_BASE);
+}
+
+async function hasPinLocal(page) {
+  return page.evaluate(() => window.Pin.hasPin());
 }
 
 test('E2E: снятие PIN — негативы по API, снятие через UI, device-токен', async ({ page, request }) => {
@@ -36,13 +40,14 @@ test('E2E: снятие PIN — негативы по API, снятие чере
     await test.step('негатив: pin/remove без currentPin → 401', async () => {
       const bad = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: {} });
       expect(bad.status(), 'pin/remove без currentPin должен быть 401').toBe(401);
-      expect(await hasPin(page), 'PIN на месте после неудачного снятия').toBe(true);
+      expect(await hasPinLocal(page), 'локальный замок стоит после loginWithPin').toBe(true);
+      expect(await hasPinServer(page), 'PIN на месте после неудачного снятия').toBe(true);
     });
 
     await test.step('негатив: pin/remove с неверным currentPin → 401', async () => {
       const bad = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: { currentPin: '0000' } });
       expect(bad.status(), 'pin/remove с неверным currentPin должен быть 401').toBe(401);
-      expect(await hasPin(page), 'PIN на месте после неверного currentPin').toBe(true);
+      expect(await hasPinServer(page), 'PIN на месте после неверного currentPin').toBe(true);
     });
 
     await test.step('UI: открыть настройки и модалку PIN', async () => {
@@ -67,7 +72,7 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       // При отсутствии PIN сервер выдаёт device-токен (BE-019) на любой pin,
       // поэтому «старый PIN → 401» здесь неверно. Проверяем наблюдаемое:
       // PIN снят + device-токен выдаётся.
-      expect(await hasPin(request), 'после снятия pin/has = false').toBe(false);
+      expect(await hasPinServer(request), 'после снятия pin/has = false').toBe(false);
       removed = true;
       expect(await tokenStatus(request, ''), 'device-токен без PIN работает').toBe(200);
       expect(await tokenStatus(request, PIN), 'снятый PIN не мешает device-токену').toBe(200);
@@ -77,7 +82,7 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       await test.step('finally: вернуть PIN', async () => {
         const r = await request.post(API_BASE + '/api/v1/privacy/pin/set', { data: { pin: PIN } });
         console.log('restore pin:', r.status());
-        expect(await hasPin(request), 'PIN восстановлен в finally').toBe(true);
+        expect(await hasPinServer(request), 'PIN восстановлен в finally').toBe(true);
       });
     }
   }
