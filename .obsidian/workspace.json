@@ -185,6 +185,7 @@
   },
   "active": "ef1d7f4524873a8d",
   "lastOpenFiles": [
+    "tools/tmp_incident_verdict.py",
     "tools/tmp_do037_verdict.py",
     "msg8.txt",
     "5-tech-backlog/devops/DO-037.md",
@@ -197,7 +198,6 @@
     "msg7.txt",
     "tools/__pycache__/health.cpython-312.pyc",
     "tools/tmp_release_all.py",
-    "tools/tmp_fix_ann.py",
     "5-tech-backlog/tester/TE-036.md",
     "docs/CI-RULES.md",
     "5-tech-backlog/chat/archive/tl/2026-10-30..2026-11-05.md",
