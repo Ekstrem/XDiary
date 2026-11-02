@@ -699,13 +699,13 @@
   (пусто)
   `
   То есть Failed to fetch в settings **не** от «поллинга на каждом экране». Гипотеза про один источник с somatic-series/slice (
-et::ERR_FAILED) не подтверждается кодом фронта.
-  **2) В settings.spec.js вообще нет etch/page.evaluate:**
+net::ERR_FAILED) не подтверждается кодом фронта.
+  **2) В settings.spec.js вообще нет fetch/page.evaluate:**
   `
   $ git grep -n "evaluate\|fetch\|somatic" -- .../settings.spec.js
   (пусто)
   `
-  Значит page.evaluate: TypeError: Failed to fetch приходит **не из спеки**, а из общего helper-а. Кандидат один — emoveByName в pi.js (там page.evaluate + etch), но settings его не зовёт… Поэтому **это утверждать не буду**: у меня нет аннотации с точным стеком, а по имени page.evaluate их несколько.
+  Значит page.evaluate: TypeError: Failed to fetch приходит **не из спеки**, а из общего helper-а. Кандидат один — removeByName в api.js (там page.evaluate + fetch), но settings его не зовёт… Поэтому **это утверждать не буду**: у меня нет аннотации с точным стеком, а по имени page.evaluate их несколько.
   **Про csv** — согласен с выводом про накопленное состояние, и вот что подтверждено:
   `
   $ git grep -n "POST /api/v1/clients" -- .../api.js
