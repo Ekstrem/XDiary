@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.59"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.60"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -201,8 +201,9 @@
     showView("lock");
     setTimeout(function () { $("pin-input").focus(); }, 60);
   }
-  // FE: журнал рендерим ТОЛЬКО после получения токена
+  // FE-026: журнал только с токеном — иначе API даёт 401-шторм
   function openJournal() {
+    if (!Api.config.token()) { openOnboarding(); return; }
     showView("journal");
     renderJournal();
   }
@@ -210,19 +211,12 @@
   // FE-018 ч.2: клиент-идентификация — телефон → SMS OTP → client-JWT → link-partner
   var onbClientId = "";
   function afterAuth() {
-    // FE-020: приоритет — legacy/PIN → журнал; client-JWT → /clients/me; иначе — онбординг
-    if (localStorage.getItem("xdiary.legacy")) { openJournal(); return; }
-    Pin.hasPin().then(function (hasPin) {
-      if (hasPin) { markLegacy(); openJournal(); return; }
-      if (localStorage.getItem("xdiary.clientId") && Api.config.token()) {
-        Api.clients.me().then(function (c) {
-          if (c && c.verified && c.linkedPartnerId) openJournal();
-          else openOnboarding();
-        }).catch(function () { openOnboarding(); });
-        return;
-      }
-      openOnboarding();
-    });
+    // FE-026 (вариант A): без client-JWT API не вызываем — только онбординг; legacy-флаг не удаляем
+    if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
+    Api.clients.me().then(function (c) {
+      if (c && c.verified && c.linkedPartnerId) openJournal();
+      else openOnboarding();
+    }).catch(function () { openOnboarding(); });
   }
   function openOnboarding() {
     onbClientId = "";
@@ -307,8 +301,7 @@
     }).catch(function () { if ($("self-status")) $("self-status").textContent = "—"; });
   }
   function lock() {
-    // AR-008/FE-025: PIN — локальный замок только при наличии client-JWT; первичная идентификация — телефон+OTP
-    if (localStorage.getItem("xdiary.legacy")) { afterAuth(); return; }
+    // FE-025/026: без client-JWT — только онбординг (PIN — локальный замок поверх сессии)
     var hasClient = !!localStorage.getItem("xdiary.clientId") && !!Api.config.token();
     if (!hasClient) { openOnboarding(); return; }
     Pin.hasPin().then(function (hasPin) {
@@ -2187,11 +2180,7 @@
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
     $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
     $("btn-onboarding-add").addEventListener("click", function () { partnerEditReturn = "onboarding"; openPartnerEdit(null); });
-    $("btn-onboarding-skip").addEventListener("click", function () {
-      markLegacy();
-      // «Пропустить» → журнал; если на стенде PIN — берём device-токен, иначе всё равно открываем журнал
-      Api.auth.login("").then(function () { openJournal(); }, function () { openJournal(); });
-    });
+    // FE-026 (вариант A): «Пропустить» убран — онбординг обязателен, иначе журнал без токена
     $("btn-self-change").addEventListener("click", function () {
       Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showLinkStep(); }, function () { openOnboarding(); });
     });
