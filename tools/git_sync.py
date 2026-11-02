@@ -33,6 +33,23 @@ def say(text=""):
     print(text)
 
 
+def classify_rebase_files(marker, names):
+    """Чистое решение по содержимому каталога rebase (без файловой системы).
+
+    «Пустой» — это `rebase-merge`, в котором НЕТ `head-name`/`onto` и лежит ТОЛЬКО
+    `autostash`. Именно так остаётся после `rebase --autostash` на грязном дереве.
+    Всё остальное — `other` (живой rebase, руками не трогаем).
+    """
+    names = sorted(names)
+    if marker != "rebase-merge":
+        return "other"
+    if "head-name" in names or "onto" in names:
+        return "other"
+    if names == ["autostash"]:
+        return "empty-autostash"
+    return "other"
+
+
 def rebase_state(git_dir):
     """Разбор состояния rebase БЕЗ изменений: что за маркер и можно ли его безопасно убрать.
 
@@ -49,12 +66,7 @@ def rebase_state(git_dir):
             continue
         state["marker"] = marker
         names = sorted(os.listdir(path))
-        state["kind"] = "other"
-        if marker == "rebase-merge" and "head-name" not in names and "onto" not in names:
-            if names == ["autostash"]:
-                state["kind"] = "empty-autostash"
-            elif "autostash" in names and set(names) <= {"autostash", "done", "git-rebase-todo"}:
-                state["kind"] = "other"
+        state["kind"] = classify_rebase_files(marker, names)
         autostash_file = os.path.join(path, "autostash")
         if os.path.isfile(autostash_file):
             try:

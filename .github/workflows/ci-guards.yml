@@ -50,6 +50,10 @@ jobs:
         # Инцидент 02.11: предохранитель падал с TypeError вместо отказа (@TE 07:18).
         # Файл-проба создаётся и удаляется самим тестом; пуша нет.
         run: python tools/test_git_sync.py
+      - name: Тест классификации rebase-состояния (git_sync --fix-state)
+        # Ошибка здесь опасна: признав живой rebase "пустым", --fix-state его удалит.
+        # Тест проверяет чистую функцию, файловая система не нужна.
+        run: python tools/test_git_sync_state.py
 
   guard-secrets:
     runs-on: ubuntu-latest
