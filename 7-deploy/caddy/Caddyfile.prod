@@ -1,0 +1,16 @@
+# Caddyfile — PROD (VPS-1)
+
+# Источник правды для прод-стенда. Применяется на VPS-1:
+#   sudo cp Caddyfile.prod /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Отличие от dev: на проде нет явного обработчика корня — всё уходит в API-шлюз.
+# Это зафиксированное состояние (снято с машины), а НЕ рекомендация:
+# `GET /` на проде тоже отдаёт 502, потому что у YARP нет маршрута на `/`.
+# Фронт (PWA) на проде — GitHub Pages, поэтому пользователи на `/` не ходят.
+
+xdiary-vps1.taile0b6ee.ts.net {
+	tls /etc/caddy/xdiary-vps1.taile0b6ee.ts.net.crt /etc/caddy/xdiary-vps1.taile0b6ee.ts.net.key
+	reverse_proxy 127.0.0.1:8080
+}

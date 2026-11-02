@@ -170,3 +170,6 @@ handle {
 
 Прод устроен иначе: фронт — GitHub Pages, Caddy на VPS-1 проксирует только API.
 Ручное добавление `file_server` на dev — **не делать**: это разойдётся с ADR-020.
+
+Готовые конфиги лежат в [caddy/](caddy/README.md): Caddyfile.dev (API-only) и
+Caddyfile.prod (снимок с VPS-1). Применение: cp -> caddy validate -> systemctl reload caddy.

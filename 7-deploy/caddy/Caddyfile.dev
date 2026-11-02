@@ -1,0 +1,30 @@
+# Caddyfile — DEV (VPS-2)
+
+# Источник правды для dev-стенда. Применяется на VPS-2:
+#   sudo cp Caddyfile.dev /etc/caddy/Caddyfile
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Вердикт @AR (DO-036 / ADR-020): dev = API-only, PWA живёт только на GitHub Pages.
+# Поэтому file_server здесь НЕ ставим. Корень отдаёт явный ответ, а не 502 от YARP
+# (у шлюза нет маршрута на `/`).
+
+https://xdiary-vps2.taile0b6ee.ts.net {
+	bind 100.116.0.20
+	tls /etc/caddy/xdiary-vps2.taile0b6ee.ts.net.crt /etc/caddy/xdiary-vps2.taile0b6ee.ts.net.key
+	encode gzip
+
+	@api path /api/* /health
+	handle @api {
+		reverse_proxy 127.0.0.1:8080 {
+			transport http {
+				read_timeout 60s
+				dial_timeout 10s
+			}
+		}
+	}
+
+	handle {
+		respond "API-only (dev stand). Frontend (PWA): https://ekstrem.github.io/XDiary/" 200
+	}
+}
