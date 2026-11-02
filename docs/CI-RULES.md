@@ -119,3 +119,37 @@
    пришлось ждать/обходить/отменять — переделываем гейт (как DO-023 про отмены).
 5. **Дисциплина сохраняется:** окно 5 минут и `cancel-in-progress: false` для тяжёлых
    джобов не отменяются оптимизацией (§5.1).
+
+## Пуш и транспорт: подробности
+
+**Симптом.** `git push origin` → `ssh.exe: couldn't create signal pipe, Win32 error 5`.
+Это не права и не ключи: git по умолчанию берёт ssh из `C:\Program Files\Git\usr\bin`,
+который в песочнице DSH не может создать pipe.
+
+**Причина точно.** `git config --get core.sshCommand` пусто → используется bundled ssh.
+С системным OpenSSH та же команда проходит.
+
+**Лечение (один раз на машину, действует на все роли):**
+
+```
+git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"
+git ls-remote --heads origin main      # должно ответить
+```
+
+**Если ssh недоступен в принципе** — HTTPS-фолбэк: токен берётся из личного хранилища
+роли **вне репозитория** и передаётся только через переменную окружения
+(`AUTHORIZATION: basic base64(x-access-token:<токен>)`), никогда — в argv, в `git config`
+или в файл в репозитории. Путь к хранилищу в документах не пишем: репозиторий публичный,
+а `check_rule_docs.py` такие строки ловит.
+
+**Проверка результата — только после `fetch`:**
+
+```
+git fetch origin main
+git rev-list --count origin/main..HEAD     # 0 = всё ушло
+git merge-base --is-ancestor <sha> origin/main && echo "коммит в истории"
+```
+
+**Почему `wip` — по зоне.** `git add -A` в общем дереве захватывает чужие правки; в истории
+уже был `wip(be)` с `AGENTS.md`. Поэтому `wip.py` фильтрует пути по `zones` из
+`loop.config.json`, а `--all` остаётся осознанным исключением.

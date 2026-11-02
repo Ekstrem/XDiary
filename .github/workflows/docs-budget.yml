@@ -30,3 +30,5 @@ jobs:
           python-version: "3.12"
       - name: Сумма и размер каждого AGENTS.md
         run: python tools/check_docs_size.py
+      - name: Доки без личных путей и токенов
+        run: python tools/check_rule_docs.py

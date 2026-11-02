@@ -25,6 +25,11 @@
       "synced_at": "2026-11-02",
       "upstream": "tools/check_paths.py"
     },
+    "check_rule_docs.py": {
+      "sha256": "51b85579c3f1c1909ec8c32889b24fee5791ccb9968259c049dab593e791ccad",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/check_rule_docs.py"
+    },
     "check_secrets.py": {
       "sha256": "afe5513bf311862e13ef2c3e70838c7352236386a9132f818dc0226931f13093",
       "synced_at": "2026-11-02",
@@ -36,7 +41,7 @@
       "upstream": "tools/check_workflow_paths.py"
     },
     "git_sync.py": {
-      "sha256": "848ede997f7f95f21e195b829c20f07f5405c018bd8788623278943553481840",
+      "sha256": "a5fea918e8fe79ba01166f9ad6f19fb0558c76b646b1edcb7ec96d975e4fde2b",
       "synced_at": "2026-11-02",
       "upstream": "tools/git_sync.py"
     },
@@ -76,7 +81,7 @@
       "upstream": "tools/sweep.py"
     },
     "wip.py": {
-      "sha256": "7ae0d66e247c9562173b9134d1fe797dd2e82308ef91fad3a0c32f9a63036339",
+      "sha256": "6c8a2a96de67e74aad9ae478e655d5812ef16151c9e209e037ba6eb96213a64e",
       "synced_at": "2026-11-02",
       "upstream": "tools/wip.py"
     }

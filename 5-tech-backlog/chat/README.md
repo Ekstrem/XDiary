@@ -63,59 +63,17 @@
 старые метки не переписаны (на них завязано состояние моста), поэтому в отчёте линтера
 старые нарушения порядка — ожидаемый исторический шум.
 
-## Правило пуша (единое для всех ролей, 2026-11-02)
+## Правило пуша (единое для всех ролей)
 
-**Статус:** черновик TL, **на ревью у @LM** (место правила — его зона: `AGENTS.md` §5/§5.5). До вердикта пользуемся как рабочим, но не считаем финальным.
+Полное правило — `AGENTS.md` §5.5, подробности и фолбэк — `docs/CI-RULES.md`
+(раздел «Пуш и транспорт»). Кратко:
 
-**Транспорт — только HTTPS.** `origin` в дереве = `git@github.com:...` (ssh), а ssh в песочнице
-не работает: `ssh.exe: couldn't create signal pipe, Win32 error 5`. Пуш через `origin`/`git_sync.py`
-по ssh **не пройдёт никогда** — это не «прав нет», это сломанный транспорт.
+1. транспорт чинится **одной настройкой машины** (`core.sshCommand` → системный OpenSSH),
+   проверка — `git ls-remote --heads origin main`;
+2. синхронизация — `python tools/git_sync.py --role XX`; `wip` берёт **только зону** роли;
+3. «дошло» проверяется **после `fetch`**: `git rev-list --count origin/main..HEAD` = 0;
+4. запрещено: `--force`, ссылка на SHA без `merge-base --is-ancestor`, токены и пути
+   к хранилищу в документах.
 
-### Одна команда (PowerShell, Windows — как у всех ролей)
-
-```powershell
-cd C:\Users\About\Documents\GitHub\XDiary
-$tok = (Get-Content C:\Users\About\Documents\Obsidian\DSH\GHT.md | ?{ $_ -match '^ghp_' } | Select-Object -First 1)
-$b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$tok"))
-$env:DSH_AUTH = "AUTHORIZATION: basic $b64"
-git fetch https://github.com/Ekstrem/XDiary.git main
-git rebase --autostash FETCH_HEAD
-git --config-env=http.extraHeader=DSH_AUTH -c credential.helper= push https://github.com/Ekstrem/XDiary.git HEAD:main
-Remove-Item Env:DSH_AUTH
-```
-
-Токен живёт только в `$env:` — **не** в argv, не в `git config`, не в файле.
-
-### Bash/WSL (если кто-то работает там)
-
-```bash
-tok=$(grep -m1 '^ghp_' /c/Users/About/Documents/Obsidian/DSH/GHT.md)
-git -c http.extraHeader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$tok" | base64 -w0)" \
-    -c credential.helper= push https://github.com/Ekstrem/XDiary.git HEAD:main
-```
-
-### Проверка «дошло или нет» — только после `fetch`
-
-`git log origin/main` **без** `fetch` показывает устаревшую ссылку и врёт «не запушилось».
-Правильно:
-
-```powershell
-git fetch https://github.com/Ekstrem/XDiary.git main:refs/remotes/gh/main
-git log --oneline gh/main..HEAD     # пусто = всё ушло
-```
-
-### Жёсткие запреты
-
-| Нельзя | Почему |
-|---|---|
-| Пушить через `origin`/ssh, `git_sync.py` в текущем виде | ssh сломан → ошибка, потерянное время |
-| `git push --force` | история не переписывается (§5.3) |
-| `wip`-коммит **всего дерева** | дерево общее: захватишь чужие правки под своим авторством (был случай `wip(be)` с `AGENTS.md`) |
-| Ссылаться в отчёте на SHA без проверки | ребейз переписывает коммиты: `git merge-base --is-ancestor <sha> gh/main` |
-| Пушить **код**, когда по группе висит `pending`-прогон | вытеснение ожидающего = `cancelled` без шагов (§5.1) |
-
-Правки чата/задач/доков (`.md`) тяжёлые джобы не запускают — их пушить можно всегда.
-
-### Non-fast-forward — не инцидент
-
-`fetch` + `rebase --autostash` + пуш. STOP только при конфликте, потере или повреждении (§5.3).
+Пути к личным хранилищам секретов в этом репозитории **не публикуем** (он публичный);
+для этого есть `python tools/check_rule_docs.py`.
