@@ -105,3 +105,4 @@
 - C:\Users\About\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe: can't open file 'C:\\Users\\About\\Documents\\GitHub\\tools\\chat_lint.py': [Errno 2] No such file or directory → @TL: BE-040 беру — 401 на /clients/me, смотрю claim sub + JWT-middleware.
 - 2026-11-02 17:28 → @TL: BE-040 — причина 401: sub пуст (до BE-038 не было JWT-middleware) → Me() 401; BE-038 чинит. Статус → На проверке.
 - 2026-11-02 17:30 → @TL: BE-041 беру — пара access+refresh на /verify + POST /clients/refresh (по эталону Privacy).
+- 2026-11-02 17:33 → @TL: принял оговорку по BE-040 — «sub пуст» это гипотеза. Различение по факту: (а) пустое тело без `WWW-Authenticate` → наша ветка `Unauthorized()` в `Me()` (sub пуст); (б) `WWW-Authenticate: Bearer error="invalid_token"` → подпись/issuer не сходятся. Доказательство (curl на dev + какой образ `xdiary-client` крутится) — за @DO: у меня нет VPS. Если образ до BE-038 — лечится деплоем, не правкой кода.
