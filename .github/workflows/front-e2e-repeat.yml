@@ -15,6 +15,10 @@ on:
         description: '--repeat-each'
         required: false
         default: '5'
+      cleanup:
+        description: 'Чистить стенд перед прогоном (yes/no). no = проверка на ГРЯЗНОМ стенде'
+        required: false
+        default: 'yes'
       workers:
         description: '--workers'
         required: false
@@ -45,6 +49,9 @@ jobs:
           key: ${{ secrets.DEV_SSH_KEY }}
           script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
       - name: Очистить накопленные E2E-данные на dev (DO-044)
+        # `cleanup=no` нужен для честного замера на ГРЯЗНОМ стенде: иначе этот шаг
+        # сам убирает чужие карточки, и «проверка на грязном» превращается в проверку на чистом.
+        if: ${{ inputs.cleanup != 'no' }}
         # Каждый прогон создаёт клиента и партнёра и не удаляет их: к 02.11 накопилось
         # 2639 partners / 1751 clients, `#onboarding-list` доходил до 2607 узлов (588 КБ),
         # `.first()` выбирал произвольную старую карточку → флейк «Список партнёров пуст».
