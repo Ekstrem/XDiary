@@ -1,0 +1,115 @@
+name: front-e2e-repeat
+
+# TE-036: измерение флейкости отдельных спеков, НЕ гейт.
+# Запускается только вручную (workflow_dispatch), чтобы не занимать очередь на каждый пуш.
+# --workers=1 обязателен: иначе воркеры делят один dev-стенд и создают ту самую гонку,
+# которую мы измеряем.
+on:
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: 'Спеки через пробел'
+        required: false
+        default: 'tests/partner-edit.spec.js tests/add-partner.spec.js tests/settings.spec.js tests/csv.spec.js'
+      repeat:
+        description: '--repeat-each'
+        required: false
+        default: '5'
+      workers:
+        description: '--workers'
+        required: false
+        default: '1'
+
+permissions:
+  contents: read
+
+jobs:
+  repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: front-e2e
+      cancel-in-progress: false
+    env:
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_PIN: "1234"
+      SPECS: ${{ inputs.specs }}
+      REPEAT: ${{ inputs.repeat }}
+      WORKERS: ${{ inputs.workers }}
+    steps:
+      - name: Reset dev PIN to 1234
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        working-directory: 9-tests/RnD/front-e2e
+        run: npm ci || npm install
+
+      - name: Install Playwright browsers
+        working-directory: 9-tests/RnD/front-e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Repeat run (json + list)
+        working-directory: 9-tests/RnD/front-e2e
+        continue-on-error: true
+        run: |
+          echo "спеки: $SPECS | repeat-each=$REPEAT | workers=$WORKERS"
+          npx playwright test $SPECS --repeat-each=$REPEAT --workers=$WORKERS \
+            --reporter=list,json > /tmp/repeat.json 2>/tmp/repeat.err || true
+          tail -40 /tmp/repeat.err || true
+
+      - name: Итог по спекам
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, collections
+          path = '/tmp/repeat.json'
+          if not os.path.exists(path):
+              print('::error::json-отчёт не создан — смотри шаг выше'); raise SystemExit(0)
+          raw = open(path, encoding='utf-8', errors='replace').read()
+          i = raw.find('{')
+          data = json.loads(raw[i:]) if i >= 0 else {}
+          agg = collections.OrderedDict()
+          for suite in data.get('suites', []) or []:
+              stack = [suite]
+              while stack:
+                  s = stack.pop()
+                  for sp in s.get('specs', []) or []:
+                      f = s.get('file') or sp.get('file') or '?'
+                      st = collections.Counter()
+                      first_err = ''
+                      for t in sp.get('tests', []) or []:
+                          for r in t.get('results', []) or []:
+                              st[r.get('status', '?')] += 1
+                              if not first_err and r.get('status') not in ('passed', 'skipped'):
+                                  err = (r.get('error') or {}).get('message') or ''
+                                  first_err = ' '.join(err.split())[:120]
+                      a = agg.setdefault(f, {'passed': 0, 'failed': 0, 'timedOut': 0, 'skipped': 0, 'err': ''})
+                      for k, v in st.items():
+                          if k in a:
+                              a[k] += v
+                      if not a['err'] and first_err:
+                          a['err'] = first_err
+                  stack.extend(s.get('suites', []) or [])
+          print('| спек | passed | failed | timedOut | skipped | первая ошибка |')
+          print('|---|---|---|---|---|---|')
+          total = collections.Counter()
+          for f, a in agg.items():
+              print(f"| `{f}` | {a['passed']} | {a['failed']} | {a['timedOut']} | {a['skipped']} | {a['err'] or '—'} |")
+              for k in ('passed', 'failed', 'timedOut', 'skipped'):
+                  total[k] += a[k]
+          print(f"| **итого** | {total['passed']} | {total['failed']} | {total['timedOut']} | {total['skipped']} | |")
+          print()
+          print(f"repeat-each={os.environ.get('REPEAT')} workers={os.environ.get('WORKERS')}")
+          print('Напоминание: повтор без падений НЕ доказывает отсутствие флейкости — он лишь говорит, что повторы её не поймали.')
+          PY
