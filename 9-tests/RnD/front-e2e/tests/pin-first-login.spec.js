@@ -39,56 +39,49 @@ test('E2E: новое устройство → онбординг (без PIN-э
     // TE-036 (@TL 03:50): шаг пройден = #onb-link виден И нет тоста ошибки. Если бы verify
     // вернул 400, спека упала бы ЗДЕСЬ, а не на «#view-journal hidden» ниже.
     await reportStep(page, 'онбординг: OTP → привязка');
-    const card = page.locator('#onboarding-list .partner-card').first();
-    // TE-032 (@TL 09:45): тот же дефект, что в `onboarding` — пустой список партнёров
-    // у нового клиента. При 0 карточках клик не выполняется, и падение маскируется
-    // под «журнал hidden». Фиксируем факт, создаём партнёра через API, падаем явно.
-    let cardCount = await card.count();
-    console.log('::warning::карточек партнёров на шаге привязки: ' + cardCount);
-    await page.waitForTimeout(300);
-    const listState = await page.evaluate(() => {
-      const l = document.querySelector('#onboarding-list');
-      if (!l) return { present: false };
-      return {
-        present: true,
-        children: l.children.length,
-        htmlLen: (l.innerHTML || '').length,
-        hidden: l.classList.contains('hidden'),
-        text: (l.textContent || '').trim().slice(0, 80),
-      };
-    }).catch(() => null);
-    console.log('::warning::состояние #onboarding-list: ' + JSON.stringify(listState));
-    cardCount = await card.count();
-    console.log('::warning::карточек после 300мс: ' + cardCount);
-    if (cardCount === 0) {
-      const partnerName = 'e2e-auto-' + Date.now();
-      const created = await page.evaluate(async ({ base, name }) => {
-        const t = localStorage.getItem('xdiary.accessToken') || '';
-        if (!t) return { ok: false, noToken: true };
-        const r = await fetch(base + '/api/v1/partners', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
-          body: JSON.stringify({ name }),
-        });
-        const j = r.ok ? await r.json().catch(() => null) : null;
-        return { ok: r.ok, status: r.status, id: (j && j.id) || null };
-      }, { base: API_BASE, name: partnerName }).catch((e) => ({ ok: false, err: String(e).slice(0, 120) }));
-      console.log('::warning::партнёр через API: ' + JSON.stringify(created) + ' name=' + partnerName);
-      if (created.ok) {
-        await page.reload();
-        await page.waitForTimeout(1500);
-        cardCount = await card.count();
-        console.log('::warning::карточек после создания: ' + cardCount);
-      }
-      if (cardCount === 0) {
-        throw new Error(
-          'Список партнёров пуст на шаге привязки: карточек 0, создать через API ' +
-          (created.ok ? 'удалось, но UI их не показал' : 'не удалось (' + JSON.stringify(created) + ')') +
-          '. Клик не выполняется — ждать журнал 20 с бессмысленно.'
-        );
+    // TE-043: карточка выбирается ДЕТЕРМИНИРОВАННО — по имени партнёра этого прогона,
+    // а не `.first()` (на стенде с сотнями карточек это произвольная старая запись).
+    const partnerName = 'e2e-auto-' + Date.now();
+    const created = await page.evaluate(async ({ base, name }) => {
+      const t = localStorage.getItem('xdiary.accessToken') || '';
+      if (!t) return { ok: false, noToken: true };
+      const r = await fetch(base + '/api/v1/partners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+        body: JSON.stringify({ name }),
+      });
+      const j = r.ok ? await r.json().catch(() => null) : null;
+      return { ok: r.ok, status: r.status, id: (j && j.id) || null };
+    }, { base: API_BASE, name: partnerName }).catch((e) => ({ ok: false, err: String(e).slice(0, 120) }));
+    console.log('::warning::партнёр через API: ' + JSON.stringify(created) + ' name=' + partnerName);
+
+    const allCards = page.locator('#onboarding-list .partner-card');
+    const ownCards = allCards.filter({ hasText: partnerName });
+    const countOwn = async () => await ownCards.count();
+
+    let ownCount = 0;
+    for (let i = 0; i < 10 && ownCount === 0; i++) {
+      ownCount = await countOwn();
+      if (ownCount === 0) await page.waitForTimeout(500);
+    }
+    if (ownCount === 0) {
+      await page.reload();
+      for (let i = 0; i < 30 && ownCount === 0; i++) {
+        ownCount = await countOwn();
+        if (ownCount === 0) await page.waitForTimeout(500);
       }
     }
-    if (await card.count()) await card.click();
+    const totalCards = await allCards.count();
+    console.log('::warning::карточек всего: ' + totalCards + ', своих по имени ' + partnerName + ': ' + ownCount);
+    if (ownCount !== 1) {
+      throw new Error(
+        'Своя карточка не найдена однозначно: совпадений ' + ownCount + ' из ' + totalCards +
+        ', партнёр создан=' + JSON.stringify(created) + ', имя=' + partnerName +
+        '. Клик не выполняется — привязка к чужому партнёру недопустима (TE-043).'
+      );
+    }
+    await ownCards.scrollIntoViewIfNeeded().catch(() => {});
+    await ownCards.click();
     // TE-032 (@DO 08:35): падение было на этой строке — при повторе нужен активный экран,
     // а не только «journal hidden», иначе снова гадаем «не тот экран или фронт не переключил».
     await page.waitForTimeout(700);
