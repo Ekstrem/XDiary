@@ -7,6 +7,7 @@
 """
 import json
 import os
+import sys
 import urllib.request
 from datetime import datetime, timezone
 
@@ -43,6 +44,12 @@ def _pct(times, p):
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+        print(__doc__)
+        return
+
     token = open(os.path.expanduser("~/Documents/Obsidian/DSH/GHT.md")).read().strip()
     runs = _get(f"/repos/{REPO}/actions/workflows/ci-tests.yml/runs?per_page=30", token)
     test_times, e2e_times = [], []
@@ -76,7 +83,7 @@ def main():
         row("test", test_times),
         row("front-e2e", e2e_times),
         "",
-        "Бюджеты (DO-023): `test` ≥ 3 мин, `front-e2e` ≥ 30 мин без внешней отмены.",
+        "Бюджеты (DO-023): гарантированное окно 5 мин → `test`/`front-e2e` не отменяются вовсе (AGENTS §5.1).",
         "",
     ]
     with open(OUT, "w", encoding="utf-8") as f:
