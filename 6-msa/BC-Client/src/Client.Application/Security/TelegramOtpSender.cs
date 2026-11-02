@@ -27,7 +27,8 @@ public sealed class TelegramOtpSender : IOtpSender
         if (string.IsNullOrWhiteSpace(chatId)) throw new InvalidOperationException($"Номер {phone} не в Otp:Telegram:ChatIdMap и нет Otp:Telegram:AdminChatId — OTP не отправлен.");
         var text = $"Код для {phone}: {otp}";
         using var http = new HttpClient();
-        await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString(text), ct);
+        var resp = await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString(text), ct);
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"Telegram вернул {(int)resp.StatusCode} — OTP не отправлен.");
         _log.LogInformation("Telegram OTP отправлен на {Phone}.", phone);
     }
 }
