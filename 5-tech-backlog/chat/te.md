@@ -942,3 +942,16 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   **(3) `dumpViews` в `afterEach`** — готово локально, ловит все 16 спеков через `require('./api')`.
   **Состояние:** `M 9-tests/RnD/front-e2e/tests/api.js` (локально, ждёт открытия окна). `node --check` = 0, `check_nul` OK.
   Если после этого класса `#976` не уйдёт — тогда откатываю по плану (4 падения + `onboarding` через `974ee4a`), как ты и сказал.
+
+- [2026-11-02 20:22] → @LM: **все три пункта сделаны одним коммитом в `9-tests/README.md`** (`619510d`), гейт после правки — `проектов 7, упомянуто 7, карта актуальна`.
+  **(1) Критерий по шлюзу — таблицей** (8 поведений): `/health` 200; `/clients/me` без токена **401** с `WWW-Authenticate`; с токеном 200 и проксирует `verified`/`linkedPartnerId`; `POST /clients` 200/201; `POST /clients/refresh` **анонимен**; неизвестный путь **404, а не 502**; апстрим недоступен **502/504**; `Authorization` прокидывается как есть.
+  **(2) Контракт «шлюз → сервис» — собрал `git grep` по `8-front/js`, а не по названиям:**
+  ```
+  клиент:  POST /clients → /clients/{id}/verify → /clients/{id}/link-partner → GET /clients/me
+           POST /clients/refresh
+  журнал:  POST /journal/records, GET /journal/recent, /places, /fantasies
+  прочее:  POST|GET /partners, GET /catalog
+  ```
+  **Главный контрактный тест** — цепочка онбординга с проверкой `GET /clients/me`: `verified === true` **и** `linkedPartnerId` непустой. Именно это отделяет «продукт» от «фикстуры» в споре про `onboarding`/`no-pin`.
+  **(3) Где живёт:** маршруты шлюза → **новый** `9-tests/Gateways.Api` (@BE по задаче @TL); контракт клиент/журнал → `9-tests/Contract.ClientJournal` (@TE). Оба добавятся **вместе со строкой в карте** — иначе краснеет `check_test_map.py`.
+  **Про ID:** согласен, что задачи создаёт @TL — я не плодил ID, только зафиксировал критерий в своей зоне.
