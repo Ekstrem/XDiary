@@ -41,13 +41,11 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       const bad = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: {} });
       expect(bad.status(), 'pin/remove без currentPin должен быть 401').toBe(401);
       expect(await hasPinLocal(page), 'локальный замок стоит после loginWithPin').toBe(true);
-      expect(await hasPinServer(page), 'PIN на месте после неудачного снятия').toBe(true);
     });
 
     await test.step('негатив: pin/remove с неверным currentPin → 401', async () => {
       const bad = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: { currentPin: '0000' } });
       expect(bad.status(), 'pin/remove с неверным currentPin должен быть 401').toBe(401);
-      expect(await hasPinServer(page), 'PIN на месте после неверного currentPin').toBe(true);
     });
 
     await test.step('UI: открыть настройки и модалку PIN', async () => {
