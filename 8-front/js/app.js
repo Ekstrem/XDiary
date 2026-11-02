@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.56"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.57"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -2273,12 +2273,7 @@
     $("trend-tabs").querySelectorAll("button").forEach(function (b) {
       b.addEventListener("click", function () { trendTab = b.getAttribute("data-tab"); renderTrends(); });
     });
-    var apiBase = Api.config.base();
-    if ($("api-base")) $("api-base").value = apiBase;
-    $("api-base").addEventListener("change", function () {
-      Api.config.setBase($("api-base").value.trim());
-      toast("Адрес API сохранён");
-    });
+    if ($("api-server")) $("api-server").textContent = "Сервер: " + Api.config.base().replace(/^https?:\/\//, "");
     // автоблокировка после долгого скрытия приложения
     var hiddenAt = 0;
     document.addEventListener("visibilitychange", function () {

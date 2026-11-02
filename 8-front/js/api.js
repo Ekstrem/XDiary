@@ -14,7 +14,16 @@
   function storeSet(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
 
   function token() { return storeGet(ACCESS_KEY); }
-  function baseUrl() { return storeGet(BASE_KEY) || DEFAULT_BASE; }
+  // FE-024: произвольный сервер разрешён ТОЛЬКО для E2E; иначе «застрявший» ключ вычищаем и идём на прод
+  function baseUrl() {
+    if (window.__XDIARY_E2E__ === true) {
+      var custom = storeGet(BASE_KEY);
+      if (custom) return custom;
+    } else {
+      storeSet(BASE_KEY, "");
+    }
+    return DEFAULT_BASE;
+  }
   function refreshToken() { return storeGet(REFRESH_KEY); }
 
   // FE-002: refresh-эндпоинта в бэке нет (POST /token принимает PIN). Refresh-токен (30 дней) — тоже валидный JWT,
