@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# КОПИЯ из LoopMaker/test_check_secrets.py (источник правды там; правка — в обоих местах).
 """Тесты `check_secrets.py` (PDR-20).
 
 Два обязательных случая из PDR-20:

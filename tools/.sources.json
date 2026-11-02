@@ -36,7 +36,7 @@
       "upstream": "tools/check_rule_docs.py"
     },
     "check_secrets.py": {
-      "sha256": "e0464f9616a0069d23ad69e1ca19b2bb63f423baf0d239ca53df8e010ab1dbfd",
+      "sha256": "27db5e25f60b72871cf7826bbc8024e0c1c2141fc2493bb288ae9dd642a2ffac",
       "synced_at": "2026-11-02",
       "upstream": "tools/check_secrets.py"
     },
@@ -51,7 +51,7 @@
       "upstream": "tools/check_workflow_paths.py"
     },
     "git_sync.py": {
-      "sha256": "fd56e7b322d41102db5011aeddd83d0e98a7a1a2f97760cf9eb11358bcb269d7",
+      "sha256": "09f618bd4fc1e8a365b3bfedee8e8f4694ca9933768ec3e4c1658455fce47c92",
       "synced_at": "2026-11-02",
       "upstream": "tools/git_sync.py"
     },
@@ -89,6 +89,11 @@
       "sha256": "0be7e39a006019ce6fb3dbf567e52997de21d4875ea8718ce1d65ad85b509d56",
       "synced_at": "2026-11-02",
       "upstream": "tools/sweep.py"
+    },
+    "test_check_secrets.py": {
+      "sha256": "25210af0620ab96b2978e8eca04376f338ba5ca21db706a2a187b7e5ed4dfb49",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/test_check_secrets.py"
     },
     "what_triggers.py": {
       "sha256": "1d27944a197e6fd755c0233cd95a8947cb730f64718fb4bacc42409ff45ec03e",
