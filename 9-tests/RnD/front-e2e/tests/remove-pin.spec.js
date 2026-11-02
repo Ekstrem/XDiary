@@ -26,6 +26,12 @@ async function hasPinServer(page) {
   }, API_BASE);
 }
 
+// TE-036 fix: helper требует `page` (внутри `page.evaluate`), а на L73/L83 передавался
+// `request` (APIRequestContext) → `TypeError: page.evaluate is not a function`.
+// Вариант (б) из ревью @TL (`request.get`) НЕЛЬЗЯ: pin/has скоупится по устройству,
+// голый `request.get` идёт без device-токена и всегда вернёт false (см. коммент выше,
+// это и был баг спека из BE-034). Поэтому — вариант (а): всегда передаём `page`.
+
 async function hasPinLocal(page) {
   return page.evaluate(() => window.Pin.hasPin());
 }
@@ -70,7 +76,7 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       // При отсутствии PIN сервер выдаёт device-токен (BE-019) на любой pin,
       // поэтому «старый PIN → 401» здесь неверно. Проверяем наблюдаемое:
       // PIN снят + device-токен выдаётся.
-      expect(await hasPinServer(request), 'после снятия pin/has = false').toBe(false);
+      expect(await hasPinServer(page), 'после снятия pin/has = false').toBe(false);
       removed = true;
       expect(await tokenStatus(request, ''), 'device-токен без PIN работает').toBe(200);
       expect(await tokenStatus(request, PIN), 'снятый PIN не мешает device-токену').toBe(200);
@@ -80,7 +86,7 @@ test('E2E: снятие PIN — негативы по API, снятие чере
       await test.step('finally: вернуть PIN', async () => {
         const r = await request.post(API_BASE + '/api/v1/privacy/pin/set', { data: { pin: PIN } });
         console.log('restore pin:', r.status());
-        expect(await hasPinServer(request), 'PIN восстановлен в finally').toBe(true);
+        expect(await hasPinServer(page), 'PIN восстановлен в finally').toBe(true);
       });
     }
   }
