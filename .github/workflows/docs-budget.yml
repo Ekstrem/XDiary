@@ -9,6 +9,7 @@ on:
     branches: ["main"]
     paths:
       - '**/AGENTS.md'
+      - '9-tests/**'
       - 'RULES.md'
       - 'loop.config.json'
       - 'tools/check_docs_size.py'
@@ -32,3 +33,5 @@ jobs:
         run: python tools/check_docs_size.py
       - name: Доки без личных путей и токенов
         run: python tools/check_rule_docs.py
+      - name: Карта тестов актуальна (проект → сервисы)
+        run: python tools/check_test_map.py

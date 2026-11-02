@@ -35,6 +35,11 @@
       "synced_at": "2026-11-02",
       "upstream": "tools/check_secrets.py"
     },
+    "check_test_map.py": {
+      "sha256": "51f128ed33ac096744f1ab1fed966e87bc9a699a7cf4a8a3ff454a635a7e1bdb",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/check_test_map.py"
+    },
     "check_workflow_paths.py": {
       "sha256": "169695a0a84701a4e6d73e75633547140223fa37d6c6e7319dc84a25a47299bf",
       "synced_at": "2026-11-02",

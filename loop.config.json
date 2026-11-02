@@ -232,5 +232,10 @@
     "total_bytes": 65536,
     "per_file_bytes": 32768,
     "_comment": "сумма всех AGENTS.md — лимит DSH (64 КиБ); per_file — защита от одного раздутого файла"
+  },
+  "test_map": {
+    "glob": "9-tests/**/*.csproj",
+    "readme": "9-tests/README.md",
+    "_comment": "карта «проект → сервисы»; гейт check_test_map.py"
   }
 }
