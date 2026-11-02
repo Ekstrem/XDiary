@@ -38,7 +38,7 @@ test('E2E: новое устройство → онбординг (без PIN-э
     await expect(page.locator('#onb-link')).toBeVisible({ timeout: 20000 });
     const card = page.locator('#onboarding-list .partner-card').first();
     if (await card.count()) await card.click();
-    else await page.click('#btn-onboarding-skip');
+    // skip убран из UI (решение владельца п.4 от 06.11)
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
     console.log('::notice::новое устройство: онбординг пройден без PIN-экрана, phone=' + PHONE);
   });

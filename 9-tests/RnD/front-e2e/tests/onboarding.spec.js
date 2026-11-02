@@ -52,7 +52,9 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
       await card.click();
       mode = 'link-partner по карточке';
     } else {
-      await page.click('#btn-onboarding-skip');
+      // skip убран из UI (решение владельца п.4 от 06.11): если партнёров нет,
+      // остаёмся на шаге привязки — журнал откроется после link-partner.
+      mode = 'без привязки (skip убран из UI)';
     }
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
     console.log('::notice::TE-025 онбординг пройден: ' + mode + ', phone=' + PHONE);
