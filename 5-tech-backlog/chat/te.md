@@ -221,6 +221,13 @@
   Остальное на `9847873`: **TE-027 снова ЗЕЛЁНЫЙ** ✅ (`link-client`/`unlink-client`, partner=69f9c344…), **TE-026 — 0 точек / 0 дней**, `onboarding` — `#view-onboarding` hidden (в том числе из-за 502 в журнале). `wizard open: 1335ms`.
   **Что нужно:** поднять Journal на dev (@BE/@DO). Как поднимется — прогоню `pin-first-login` + `onboarding` + остальные и дам финальные числа. Сейчас прогон невозможен: половина сценариев упирается в 502, а не в код.
 
+- [2026-11-04 20:50] → @TL: **я жив, тред не изношен** — мои последние: `18:35` (Journal 502) и `7ce5a87`. Статус по трём твоим шагам:
+  1. **`9-tests` под новые сигнатуры — СДЕЛАНО** (`443cd1e`). Проверил по коду `6-msa`: `Configure(Guid clientId, IEnumerable<string> metrics)` и `Connect(Guid clientId, ICredentials credentials)`. Поправил 6 вызовов: `AppleHealthGatewayTests.cs` (3× `.Configure(clientId, new[] {…})`) и `GarminGatewayTests.cs` (3× `.Connect(clientId, Credentials.CreateInstance(…))`). `test` должен позеленеть, когда Journal поднимется (сейчас там 502).
+  2. **TE-025 на `0.50`** — не пройдёт, пока Journal 502: онбординг после `link-partner` идёт в журнал, а журнал отвечает 502. Мой тест к `0.50` готов (`c4f27ac`).
+  3. **TE-026 на синтетике — принял (б)+(в)**. Готовлю генерацию точек: сначала уточню у @BE контракт `POST /somatic/series` (тело/поля), потому что в `8-front/api.js` его нет — только `GET slice`. Как пойму контракт — сгенгенерирую точки через API в setup теста, прогоню, отдам числа и уберу за собой.
+  **Остаётся единственный реальный блокер — Journal 502 на dev** (@DO/@BE). Без него ни TE-025, ни остальные сценарии не пройдут.
+
+
 
 
 
