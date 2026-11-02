@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.53"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.54"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -960,9 +960,15 @@
     }
     promise.then(function () {
       toast("Сохранено");
+      // FE-022: явный переход в журнал после полной цепочки (вкл. Api.journal.complete)
       showView("journal");
       renderJournal();
-    }).catch(function (e) { toast("Ошибка: " + e.message); });
+    }).catch(function (e) {
+      // FE-022: при ошибке тоже не оставляем пользователя на визарде без навигации
+      toast("Ошибка: " + e.message);
+      showView("journal");
+      renderJournal();
+    });
   }
 
   function deleteFromWizard(data) {
@@ -2114,6 +2120,8 @@
 
   // ---- инициализация ----
   function init() {
+    // FE-022: сразу показываем экран синхронно (не ждём IndexedDB/Api) — «ни одного видимого экрана» исключён
+    showView("lock");
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(function () {});
     }
