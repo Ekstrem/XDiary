@@ -48,6 +48,17 @@ SKIP_VALUES = {"", "null", "none", "true", "false", '""', "''", "string", "passw
 # YAML-права вроде `id-token: write` — не секрет, хотя в имени есть «token».
 SKIP_KEY_SUFFIXES = ("-token", "_token")
 
+# PDR-20: порог значащих символов поднят 4 -> 8. Значение из 4 символов — это
+# `bool`, `true`, `null`, имя типа или флаг, а не секрет. Реальные ключи/токены
+# короче 8 значащих символов не встречаются.
+MIN_SECRET_LEN = 8
+# PDR-20: если строка сама говорит, что значение маскировано — это документация,
+# а не утечка. Список узкий и относится к нашей же терминологии снапшотов.
+MASK_HINTS = (
+    "маскирован", "masked", "значение скрыто", "скрыто намеренно",
+    "tokenlen", "clientidlen", "apibaselen", "legacy", "bool",
+)
+
 # Имена, рядом с которыми значение считается секретом.
 KEY_NAME = (
     r"(?:jwt[:_\-\s]?signing[_\-\s]?key|signing[_\-\s]?key|api[_\-\s]?key|apikey|"
@@ -139,6 +150,16 @@ def _glob(pattern):
     return g.glob(pattern, recursive=False)
 
 
+def _entropy(s):
+    """Оценка Шеннона: низкая энтропия = слово, а не секрет (`aaaa`, `abababab`)."""
+    from collections import Counter
+    from math import log2
+    if not s:
+        return 0.0
+    n = len(s)
+    return -sum((c / n) * log2(c / n) for c in Counter(s).values())
+
+
 def looks_like_secret(value):
     if "`" in value:                      # `NAME=` внутри code-span — это имя, не значение
         return False
@@ -160,8 +181,14 @@ def looks_like_secret(value):
     # документация: «GCDC_...», «sk-...» — многоточие в конце = заглушка
     if core.endswith(("...", "…")):
         return False
-    # после отрезания многоточий должно остаться >= 4 значащих символов
-    return len(re.sub(r"[^A-Za-z0-9+/=_\-]", "", core)) >= 4
+    significant = re.sub(r"[^A-Za-z0-9+/=_\-]", "", core)
+    # PDR-20: порог 8 значащих символов + энтропия.
+    # 4 символа — это `bool`/`true`/флаг; `abababab` длинное, но энтропия 1.0.
+    if len(significant) < MIN_SECRET_LEN:
+        return False
+    if _entropy(significant.lower()) < 2.0:
+        return False
+    return True
 
 
 def scan_text(text, allow_shapes=True):
@@ -169,11 +196,12 @@ def scan_text(text, allow_shapes=True):
     for i, line in enumerate(text.splitlines(), 1):
         if len(line) > 4000:
             continue
+        mask_hint = any(h in line.lower() for h in MASK_HINTS)
         for m in ASSIGN.finditer(line):
             key = m.group(1).lower().replace(" ", "")
             if key.endswith(SKIP_KEY_SUFFIXES):
                 continue
-            if looks_like_secret(m.group(2)):
+            if looks_like_secret(m.group(2)) and not mask_hint:
                 findings.append(("assign:" + key, i, len(m.group(2))))
         if allow_shapes:
             for name, rx in SHAPES:
