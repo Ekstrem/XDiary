@@ -27,6 +27,8 @@ jobs:
           python-version: "3.12"
       - name: Check chat format (нет молча потерянных сообщений)
         run: python tools/chat_lint.py --config loop.config.json --check
+      - name: Проверить NUL-байты в md (файлы не должны становиться бинарными)
+        run: python tools/check_nul.py
 
   guard-secrets:
     runs-on: ubuntu-latest

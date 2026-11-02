@@ -8,6 +8,12 @@ on:
     # который теперь слушает и `5-tech-backlog/**` (DO-032: секреты в задачах).
     paths-ignore:
       - '5-tech-backlog/**'
+      - '0*/**'
+      - '01-user-stories/**'
+      - '02-cjm/**'
+      - '03-ddd/**'
+      - '04-architecture/**'
+      - '*.md'
   pull_request:
   workflow_dispatch:
 
