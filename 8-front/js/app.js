@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.55"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.56"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -2213,7 +2213,7 @@
     // FE-023: вход в идентификацию из Настроек + сброс устройства (данные на сервере не трогаем)
     $("btn-ident-start").addEventListener("click", function () { openOnboarding(); });
     $("btn-ident-logout").addEventListener("click", function () {
-      confirmDialog("Сбросить устройство? Данные на сервере сохранятся.").then(function (ok) {
+      confirmDialog("Сбросить устройство? Локальный PIN, вход и кэш будут удалены; записи на сервере сохранятся.").then(function (ok) {
         if (!ok) return;
         try {
           localStorage.removeItem("xdiary.clientId");
@@ -2221,8 +2221,15 @@
         } catch (e) {}
         Api.config.setToken("");
         Api.config.setRefresh("");
-        toast("Устройство сброшено");
-        openOnboarding();
+        // FE-023: сбросить SW-кэш, иначе после сброса отдаётся старая сборка
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (k) { caches.delete(k); });
+          }).catch(function () {});
+        }
+        // FE-023: локальный PIN хранится в IndexedDB — без removePin() hasPin останется true и покажется PIN-экран
+        Pin.removePin().then(done, done);
+        function done() { toast("Устройство сброшено"); openOnboarding(); }
       });
     });
     $("btn-self-clear").addEventListener("click", function () {
