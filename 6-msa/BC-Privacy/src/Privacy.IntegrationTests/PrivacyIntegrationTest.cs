@@ -11,7 +11,7 @@ public class PrivacyIntegrationTest
     public void SetPin_Then_Verify()
     {
         var (salt, hash, iter) = PinHasher.Hash("1234");
-        var set = Aggregate.CreateInstance(new AnemicModel()).SetPin(salt, hash, iter);
+        var set = Aggregate.CreateInstance(new AnemicModel()).SetPin(Guid.NewGuid(), salt, hash, iter);
         Assert.Equal(DomainOperationResultEnum.Success, set.Result);
         var entity = new PinCredentialEntity { Id = set.Model().Id };
         PrivacyMapper.MapToEntity(set.Model(), entity);
