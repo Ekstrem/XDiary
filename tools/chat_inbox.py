@@ -1,37 +1,63 @@
 #!/usr/bin/env python3
-"""Чат-инбокс TechLead: находит ВОПРОСЫ к @TL, на которые нет ответа в tl.md.
+# КОПИЯ из LoopMaker/chat_inbox.py (источник правды там; правка — в обоих местах).
+"""Гейт координатора: вопросы к @TL, на которые нет ответа в его outbox'е.
 
-Запуск: python tools/chat_inbox.py
-Код 1, если есть неотвеченные вопросы (гейт для мониторинга).
+    python tools/chat_inbox.py
 
-Формат сообщения: `- [YYYY-MM-DD HH:mm] → @КОМУ: текст` (см. AGENTS.md §3).
+Код 1 — есть неотвеченные вопросы (для мониторинга координатором каждый раунд).
+Формат сообщения: `- [YYYY-MM-DD HH:mm] → @КОМУ: текст`.
+
+Эвристика: «вопрос/просьба» распознаётся по маркерам (?, прошу, подтверди, какой вариант…),
+чтобы не шуметь на подтверждениях и инструкциях.
 """
+import argparse
+import glob
+import json
 import os
 import re
+import subprocess
 import sys
 
-CHAT = os.path.join("5-tech-backlog", "chat")
-ROLES = ["be", "do", "fe", "te", "ar", "po"]
+CONFIG = "loop.config.json"
+MSG = re.compile(r"^-\s*\[([^\]]+)\]\s*→\s*@?([^\s:]+)\s*:\s*(.+)$")
+SKIP = {"README.md", "_dialogue.md"}
 
-MSG = re.compile(r"^-\s*\[([^\]]+)\]\s*→\s*(.+?)\s*:\s*(.+)$")
-
-# Признаки вопроса/просьбы к TL (чтобы не шуметь на подтверждениях/инструкциях).
 QUESTION_MARKERS = (
     "?", "прошу", "скажи", "выбери", "выберите", "уточни", "подтверди",
     "можно ли", "какой вариант", "какой из", "как быть",
 )
 
 
-def parse(fn):
+def repo_root():
+    try:
+        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
+        if out.returncode == 0:
+            return out.stdout.decode("utf-8", "ignore").strip()
+    except Exception:
+        pass
+    return os.getcwd()
+
+
+def load_config(path=None):
+    path = path or os.path.join(repo_root(), CONFIG)
+    if not os.path.exists(path):
+        sys.exit("chat_inbox: нет %s" % CONFIG)
+    with open(path, encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def parse(path):
     out = []
-    path = os.path.join(CHAT, fn)
     if not os.path.exists(path):
         return out
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8-sig") as f:
         for line in f:
             m = MSG.match(line.strip())
             if m:
-                out.append({"t": m.group(1).strip(), "to": m.group(2).strip(), "text": m.group(3).strip()})
+                to = m.group(2).strip()
+                if not to.startswith("@"):
+                    to = "@" + to
+                out.append({"t": m.group(1).strip(), "to": to, "text": m.group(3).strip()})
     return out
 
 
@@ -41,36 +67,47 @@ def is_question(text):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--config", default=None)
+    a = ap.parse_args()
+
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
 
-    tl = parse("tl.md")
+    cfg = load_config(a.config)
+    coordinator = cfg.get("coordinator", "tl")
+    coord_title = cfg.get("role_titles", {}).get(coordinator, coordinator.upper())
+    chat_dir = os.path.join(cfg.get("backlog", "5-backlog"), "chat")
+    roles = [r for r in (cfg.get("zones") or {}) if r != coordinator]
+
+    coordinator_msgs = parse(os.path.join(chat_dir, coordinator + ".md"))
     unanswered = []
-    for role in ROLES:
+    for role in roles:
+        # тег адресата в чате — короткий код роли (@TE, @FE), а не её название
         tag = "@" + role.upper()
-        for m in parse(role + ".md"):
-            if not re.search(r"@TL\b", m["to"], re.I):
+        for m in parse(os.path.join(chat_dir, role + ".md")):
+            if not re.search(r"@" + coordinator.upper() + r"\b", m["to"], re.I):
                 continue
             if not is_question(m["text"]):
                 continue
-            # ответ TL этой роли (или @ALL) позже по времени?
             replied = any(
-                (re.search(re.escape(tag) + r"\b", r["to"], re.I) or re.search(r"@ALL\b", r["to"], re.I))
+                (re.search(re.escape(tag) + r"\b", r["to"], re.I)
+                 or re.search(r"@ALL\b", r["to"], re.I))
                 and r["t"] > m["t"]
-                for r in tl
+                for r in coordinator_msgs
             )
             if not replied:
                 unanswered.append((role.upper(), m["t"], m["text"]))
 
     if not unanswered:
-        print("chat-inbox: неотвеченных вопросов к @TL нет")
+        print("chat_inbox: неотвеченных вопросов к @%s нет" % coordinator.upper())
         return 0
 
-    print("chat-inbox: НЕ ОТВЕЧЕНО вопросов: %d" % len(unanswered))
+    print("chat_inbox: НЕ ОТВЕЧЕНО вопросов к @%s: %d" % (coordinator.upper(), len(unanswered)))
     for role, t, text in sorted(unanswered, key=lambda x: x[1]):
-        print("  [%s] %s -> @TL: %s" % (t, role, text[:200]))
+        print("  [%s] %s -> @%s: %s" % (t, role, coord_title, text[:200]))
     return 1
 
 

@@ -1,102 +1,78 @@
 #!/usr/bin/env python3
-"""Проверка «роль пишет только в свои папки».
+# КОПИЯ из LoopMaker/check_paths.py (источник правды там; правка — в обоих местах).
+"""Guard: роль пишет только в свои папки (по loop.config.json).
 
 Роль определяется по префиксу коммита:
-    be:            fe:            do:            te:            ar:            tl:            po:
-    chat(te):      docs(do):      fix(9-tests):  feat(be):      ...
+    be:   fe:   do:   te:   ar:   tl:   po:
+    chat(te):   docs(do):   fix(9-tests):   feat(be):   ...
 
 Коммиты без узнаваемого префикса (руками, из IDE, «README: ...») не проверяются —
-они считаются человеческими. Это компромисс: забор ловит агентские коммиты, ваши
-не блокирует.
+считаются человеческими. Забор ловит агентские коммиты, ваши не блокирует.
 
-Использование:
-    python tools/check_paths.py                     # последний коммит
+    python tools/check_paths.py                      # последний коммит
     python tools/check_paths.py --range HEAD~20..HEAD
-    python tools/check_paths.py --range A..B --report-only   # только отчёт, код 0
-    python tools/check_paths.py --zones             # показать карту зон
+    python tools/check_paths.py --range A..B --report-only
+    python tools/check_paths.py --zones              # карта зон
+    python tools/check_paths.py --zones --strict     # только ядро
 
 Выход 1 — найдены вылеты за зону (в CI это красный job).
 """
 import argparse
-import fnmatch
+import json
+import os
 import re
 import subprocess
 import sys
 
-# ЯДРО — «своя» папка роли. Ровно то, что задал владелец продукта.
-CORE_ZONES = {
-    "po": ["01-user-stories/*", "02-cjm/*"],
-    "ar": ["03-ddd/*", "04-architecture/*"],
-    "be": ["6-msa/*"],
-    "fe": ["8-front/*"],
-    "do": ["7-deploy/*"],
-    "te": ["9-tests/*"],
-}
+CONFIG = "loop.config.json"
 
-# СЛУЖЕБНОЕ — без этого цикл не работает: своя папка задач, свой outbox, зоны
-# инструментов у DevOps и заметки о пробелах фреймворка у BackEnd.
-SERVICE_ZONES = {
-    "po": ["5-tech-backlog/chat/po.md"],
-    "ar": ["5-tech-backlog/arch/*", "5-tech-backlog/chat/ar.md"],
-    "be": ["0-df-issue/*", "5-tech-backlog/back-end/*", "5-tech-backlog/chat/be.md"],
-    "fe": ["5-tech-backlog/front-end/*", "5-tech-backlog/chat/fe.md"],
-    "do": ["tools/*", ".github/*", "5-tech-backlog/devops/*", "5-tech-backlog/chat/do.md"],
-    "te": ["5-tech-backlog/tester/*", "5-tech-backlog/chat/te.md"],
-}
-
-# Зона TechLead: он раздаёт задачи, поэтому видит все папки задач, но не outbox'ы чужих.
-TL_ZONE = ["5-tech-backlog/README.md",
-           "5-tech-backlog/arch/*", "5-tech-backlog/back-end/*",
-           "5-tech-backlog/front-end/*", "5-tech-backlog/devops/*",
-           "5-tech-backlog/tester/*",
-           "5-tech-backlog/chat/tl.md", "5-tech-backlog/chat/README.md",
-           "tools/*"]
-
-# зоны, доступные всем ролям (кроме самих outbox'ов чата)
-# loop.config.json — карта проекта для инструментов петли: её правят вместе с workflow.
-# AGENTS.md сюда НЕ входит: правила меняет человек (коммит без префикса роли).
-SHARED = ["README.md", "CHANGELOG.md", ".gitignore", ".gitattributes", "loop.config.json"]
-
-
-def zones_for(role, strict=False):
-    """Разрешённые пути роли. strict=True — только ядро (как задал владелец)."""
-    if role == "tl":
-        return TL_ZONE + SHARED
-    if strict:
-        return CORE_ZONES[role] + SHARED
-    return CORE_ZONES[role] + SERVICE_ZONES[role] + SHARED
-
-# псевдонимы скоупа/типа коммита -> роль
-ALIASES = {
-    "be": "be", "backend": "be", "back-end": "be", "6-msa": "be",
-    "fe": "fe", "frontend": "fe", "front-end": "fe", "8-front": "fe",
-    "do": "do", "devops": "do", "7-deploy": "do",
-    "te": "te", "tester": "te", "test": "te", "tests": "te", "9-tests": "te",
-    "ar": "ar", "arch": "ar", "architect": "ar", "03-ddd": "ar", "04-architecture": "ar",
-    "tl": "tl", "techlead": "tl", "5-tech-backlog": "tl",
-    "po": "po", "01-user-stories": "po", "02-cjm": "po",
-}
-
-ROLE_HUMAN = {"po": "PO", "ar": "Architect", "tl": "TechLead", "be": "BackEnd",
-              "fe": "FrontEnd", "do": "DevOps", "te": "TestEngineer"}
-
-# feat(be): ...   chat(te): ...   fix(9-tests): ...   be: ...
+# feat(be): ...   chat(te): ...   fix(9-tests): ...   be:
 CONV = re.compile(r"^([a-zA-Z][\w-]*)(?:\(([^)]+)\))?!?:\s")
-PLAIN = re.compile(r"^(be|fe|do|te|ar|tl|po)[!:]", re.IGNORECASE)
 
 
-def detect_role(subject):
+def repo_root():
+    try:
+        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
+        if out.returncode == 0:
+            return out.stdout.decode("utf-8", "ignore").strip()
+    except Exception:
+        pass
+    return os.getcwd()
+
+
+def load_config(path=None):
+    path = path or os.path.join(repo_root(), CONFIG)
+    if not os.path.exists(path):
+        sys.exit("guard: нет %s — это карта зон ролей (см. AGENTS.md §8)" % CONFIG)
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def title(cfg, role):
+    return cfg.get("role_titles", {}).get(role, role.upper())
+
+
+def zones_for(cfg, role, strict=False):
+    shared = cfg.get("shared", [])
+    if role == cfg.get("coordinator", "tl"):
+        return list(cfg.get("coordinator_zone", [])) + shared
+    zone = (cfg.get("zones") or {}).get(role)
+    if zone is None:
+        return None
+    allowed = list(zone.get("core", []))
+    if not strict:
+        allowed += zone.get("service", [])
+    return allowed + shared
+
+
+def detect_role(cfg, subject):
+    aliases = cfg.get("aliases", {})
     m = CONV.match(subject)
     if m:
         typ, scope = m.group(1).lower(), (m.group(2) or "").lower()
-        if scope and scope in ALIASES:
-            return ALIASES[scope]
-        if typ in ALIASES:
-            return ALIASES[typ]
-        return None
-    m = PLAIN.match(subject)
-    if m:
-        return ALIASES.get(m.group(1).lower())
+        if scope and scope in aliases:
+            return aliases[scope]
+        return aliases.get(typ)
     return None
 
 
@@ -122,7 +98,6 @@ def git(*args):
 
 
 def read_commits(rng):
-    """-> [(sha, subject, [paths])]"""
     raw = git("log", "--no-renames", "--name-only", "--format=%x00%H%x1f%s", rng)
     commits, cur = [], None
     for line in raw.split("\n"):
@@ -137,11 +112,12 @@ def read_commits(rng):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--range", default="HEAD~1..HEAD", help="диапазон git log (по умолчанию HEAD~1..HEAD)")
+    ap.add_argument("--range", default="HEAD~1..HEAD")
     ap.add_argument("--report-only", action="store_true", help="не падать, только отчёт")
     ap.add_argument("--zones", action="store_true", help="показать карту зон и выйти")
     ap.add_argument("--strict", action="store_true",
-                    help="только ядро (1/2, 3/4, 6, 8, 7, 9) — без папок задач и чата")
+                    help="только ядро — без папок задач и чата")
+    ap.add_argument("--config", default=None)
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
 
@@ -150,13 +126,15 @@ def main():
     except Exception:
         pass
 
+    cfg = load_config(a.config)
+
     if a.zones:
-        mode = "СТРОГО: только ядро" if a.strict else "ядро + служебные файлы"
-        print("режим: %s\n" % mode)
-        for role in ("po", "ar", "be", "fe", "do", "te"):
-            print("%-12s %s" % (ROLE_HUMAN[role], ", ".join(zones_for(role, a.strict))))
-        print("%-12s %s" % ("TechLead", ", ".join(zones_for("tl"))))
-        print("%-12s %s" % ("все", ", ".join(SHARED)))
+        print("режим: %s\n" % ("СТРОГО: только ядро" if a.strict else "ядро + служебное"))
+        for role in (cfg.get("zones") or {}):
+            print("%-12s %s" % (title(cfg, role), ", ".join(zones_for(cfg, role, a.strict))))
+        print("%-12s %s" % (title(cfg, cfg.get("coordinator", "tl")),
+                            ", ".join(zones_for(cfg, cfg.get("coordinator", "tl")))))
+        print("%-12s %s" % ("все", ", ".join(cfg.get("shared", []))))
         return 0
 
     commits = read_commits(a.range)
@@ -167,17 +145,20 @@ def main():
     bad = skipped = checked = 0
     lines = []
     for sha, subject, paths in commits:
-        role = detect_role(subject)
+        role = detect_role(cfg, subject)
         if not role:
             skipped += 1
             continue
+        allowed = zones_for(cfg, role, a.strict)
+        if allowed is None:
+            skipped += 1
+            continue
         checked += 1
-        allowed = zones_for(role, a.strict)
         outside = [p for p in paths if not matches(p, allowed)]
         if outside:
             bad += 1
             lines.append("")
-            lines.append("✗ %s  [%s]  %s" % (sha, ROLE_HUMAN[role], subject))
+            lines.append("✗ %s  [%s]  %s" % (sha, title(cfg, role), subject))
             for p in outside:
                 lines.append("    вне зоны: %s" % p)
 
@@ -189,8 +170,8 @@ def main():
 
     if bad and not a.report_only:
         print("\nРоль вышла за свою папку. Что делать:")
-        print(" 1) перенести правку в зону владельца (или оформить задачу через 5-tech-backlog/chat);")
-        print(" 2) если выход согласован — тот, кому принадлежит зона, коммитит её сам")
+        print(" 1) перенести правку в зону владельца (или оформить задачу через chat);")
+        print(" 2) если выход согласован — коммитит тот, кому принадлежит зона,")
         print("    с префиксом своей роли;")
         print(" 3) карта зон: python tools/check_paths.py --zones")
         return 1

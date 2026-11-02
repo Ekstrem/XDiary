@@ -1,0 +1,65 @@
+{
+  "tools": {
+    "chat_inbox.py": {
+      "sha256": "4c5e72e99dbc0342b175a7e783f8868ca970b69bc778c23cc594516f81b30135",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/chat_inbox.py"
+    },
+    "chat_lint.py": {
+      "sha256": "53f16521991441c9937628feb59628051dcdc884e28be3b26f30a08ca3b4feac",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/chat_lint.py"
+    },
+    "check_paths.py": {
+      "sha256": "3470c1b2400592abf4d43e749908145339be311c7bfdd2c766c35920ead0d66c",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/check_paths.py"
+    },
+    "check_secrets.py": {
+      "sha256": "afe5513bf311862e13ef2c3e70838c7352236386a9132f818dc0226931f13093",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/check_secrets.py"
+    },
+    "check_workflow_paths.py": {
+      "sha256": "169695a0a84701a4e6d73e75633547140223fa37d6c6e7319dc84a25a47299bf",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/check_workflow_paths.py"
+    },
+    "health.py": {
+      "sha256": "65dca7a6cf99e805418e97b9cb4f6666d9cbb10a76db3a133b0d3be54a04ea02",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/health.py"
+    },
+    "keycmp.py": {
+      "sha256": "f50a9b0bd05559f74d0807ce20399c72e74a93a5cc19f3883f7ddd76aa138a3e",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/keycmp.py"
+    },
+    "merge_chat.py": {
+      "sha256": "2933b8e10cc06ef8367ce4b08bdeedd94d4e25c9824e39a264ad9f6a17a6b900",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/merge_chat.py"
+    },
+    "migrate_statuses.py": {
+      "sha256": "be76cc0b665b71ab4ff0c4d4fd2db8db28a1655fd7e17f90f722c8d163a21478",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/migrate_statuses.py"
+    },
+    "stats.py": {
+      "sha256": "a67833d978d64e5dff884874883654716391edfd17e165f8b39170e59d3b66f7",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/stats.py"
+    },
+    "status_lint.py": {
+      "sha256": "aacade46abfa0b67943d625a9ab057c5465252dd32d14133af32e9f1c611323c",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/status_lint.py"
+    },
+    "sweep.py": {
+      "sha256": "0be7e39a006019ce6fb3dbf567e52997de21d4875ea8718ce1d65ad85b509d56",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/sweep.py"
+    }
+  },
+  "upstream": "Ekstrem/LoopMaker"
+}
