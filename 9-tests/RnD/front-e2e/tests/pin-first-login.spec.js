@@ -6,7 +6,7 @@
 //   1) чистое устройство → онбординг (никакого PIN-экрана);
 //   2) PIN-экран появляется на устройстве, где онбординг уже пройден и есть clientId/PIN.
 const { test, expect } = require('@playwright/test');
-const { PIN, installBase, waitToken, unlockIfLocked, reportStep } = require('./api');
+const { PIN, installBase, waitToken, unlockIfLocked, reportStep, expectScreen } = require('./api');
 
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 const PHONE = '+7999777' + String(Date.now()).slice(-4);
@@ -35,7 +35,7 @@ test('E2E: новое устройство → онбординг (без PIN-э
     await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
     await page.fill('#onb-otp-input', TEST_OTP);
     await page.click('#btn-onb-otp');
-    await expect(page.locator('#onb-link')).toBeVisible({ timeout: 20000 });
+    await expectScreen(page, '#onb-link', 'OTP принят (verify вернул 200)', 20000);
     // TE-036 (@TL 03:50): шаг пройден = #onb-link виден И нет тоста ошибки. Если бы verify
     // вернул 400, спека упала бы ЗДЕСЬ, а не на «#view-journal hidden» ниже.
     await reportStep(page, 'онбординг: OTP → привязка');
@@ -59,7 +59,7 @@ test('E2E: новое устройство → онбординг (без PIN-э
       // TE-036 (@TL 03:30): unlockIfLocked ждёт ИСЧЕЗНОВЕНИЯ #view-lock; раньше waitToken
       // возвращался мгновенно (токен не удалялся), и expect(jr) стартовал при видимом замке.
       await unlockIfLocked(page, PIN);
-      await expect(jr).toBeVisible({ timeout: 20000 });
+      await expectScreen(page, '#view-journal', 'после PIN журнал открылся', 20000);
       console.log('::notice::после reload — PIN-экран, вход выполнен');
     } else if (await onb.isVisible()) {
       console.log('::notice::после reload — онбординг (новое устройство)');

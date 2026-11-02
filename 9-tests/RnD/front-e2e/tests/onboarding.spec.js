@@ -4,7 +4,7 @@
 //   чистый контекст (нет локального PIN и нет xdiary.legacy) → afterAuth() → Pin.hasPin()=false → openOnboarding().
 // Если на устройстве PIN уже есть — путь legacy (журнал), поэтому чистим оба флага перед стартом.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, installBase, waitToken, dumpViews, reportStep } = require('./api');
+const { API_BASE, PIN, installBase, waitToken, dumpViews, reportStep, expectScreen } = require('./api');
 
 const PHONE = '+7999000' + String(Date.now()).slice(-4);
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
@@ -40,7 +40,7 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
   await test.step('шаг 2: OTP ' + TEST_OTP + ' → верификация и client-JWT', async () => {
     await page.fill('#onb-otp-input', TEST_OTP);
     await page.click('#btn-onb-otp');
-    await expect(page.locator('#onb-link')).toBeVisible({ timeout: 20000 });
+    await expectScreen(page, '#onb-link', 'OTP принят (verify вернул 200)', 20000);
     // TE-036 (@TL 03:50): шаг пройден = #onb-link виден И нет тоста ошибки. Порядок важен:
     // если бы verify вернул 400, спека упала бы ЗДЕСЬ, а не на «#view-journal hidden».
     await reportStep(page, 'шаг 2: OTP → привязка');

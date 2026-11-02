@@ -314,4 +314,21 @@ async function reportStep(page, where) {
   return true;
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep };
+// TE-036 (@TL 03:40): падение шага должно НАЗЫВАТЬ шаг, а не «журнал hidden».
+// `expect(locator).toBeVisible()` даёт общий таймаут, и по нему нельзя отличить «OTP не принят»
+// (verify 400 → тост «Ошибка: …») от «экран не отрисовался». Здесь — имя шага + тост + экраны.
+async function expectScreen(page, selector, where, timeout) {
+  const ms = timeout || 20000;
+  try {
+    await page.locator(selector).waitFor({ state: 'visible', timeout: ms });
+  } catch (e) {
+    const toast = ((await page.locator('#toast').innerText().catch(() => '')) || '').trim();
+    const views = await dumpViews(page, 'НЕ ДОШЛИ: ' + where).catch(() => null);
+    throw new Error(
+      'Шаг не пройден: ' + where + '. Ожидали видимый ' + selector + ' за ' + ms + 'мс. ' +
+      'Тост=' + JSON.stringify(toast.slice(0, 300)) + ' views=' + JSON.stringify(views)
+    );
+  }
+}
+
+module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen };
