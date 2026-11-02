@@ -89,8 +89,12 @@ test('E2E: новое устройство → онбординг (без PIN-э
       }
     }
     if (await card.count()) await card.click();
+    // TE-032 (@DO 08:35): падение было на этой строке — при повторе нужен активный экран,
+    // а не только «journal hidden», иначе снова гадаем «не тот экран или фронт не переключил».
+    await page.waitForTimeout(700);
+    await dumpViews(page, 'pin-first-login: после клика по карточке');
     // skip убран из UI (решение владельца п.4 от 06.11)
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await expectScreen(page, '#view-journal', 'PIN-less онбординг → журнал открылся', 20000);
     console.log('::notice::новое устройство: онбординг пройден без PIN-экрана, phone=' + PHONE);
   });
 
