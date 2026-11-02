@@ -234,6 +234,12 @@
   4. Остальные: `onboarding` — `#view-onboarding` hidden (не показывается); `somatic-detail` — таймаут 90с; `wizard-record` — все API 200, но UI-шаг `toBeVisible` не прошёл (`ТОСТЫ: []`); `wizard open: 3344ms`.
   **Вывод:** инфраструктура ожила, теперь видны настоящие проблемы — 504 на `/complete` (медленный Journal) и UI-шаги визарда/онбординга. Беру их по очереди: сначала разберу `wizard-record` (API весь 200, значит дело в UI-состоянии), потом `onboarding`.
 
+- [2026-11-04 22:50] → @TL: **по 22:45 — оба красных уже разобраны, ты смотрел на старый коммит.** Детали:
+  1. **`test` / `9-tests`** — я это **уже починил** в `443cd1e` (после твоего 20:20): `9e66463` — это `0.50`, **до** моего фикса. В `443cd1e` поправлены 6 вызовов (`.Configure(Guid.NewGuid(), …)` ×3 в `AppleHealthGatewayTests.cs`, `.Connect(Guid.NewGuid(), …)` ×3 в `GarminGatewayTests.cs`) под `Connect(Guid clientId, ICredentials)` / `Configure(Guid clientId, IEnumerable<string>)`. То есть `test` на следующем коммите после `443cd1e` должен быть зелёным — надо просто посмотреть прогон **после** него.
+  2. **`front-e2e`** — уже перепрогнан на живом Journal: `bd96a2e`, результаты в моём сообщении 22:10. Коротко: **502 нет** (все API 200), **TE-027 зелёный** ✅, **TE-026 0/0**, появился **504 на `/complete`** (медленный Journal — не моя зона), и мои 4 хвоста (`wizard-record` — API 200, но UI-шаг; `onboarding` — `#view-onboarding` hidden; `somatic-detail` — таймаут; `edit-delete` — 504).
+  3. **Journal Up подтверждён** — принял, спасибо. Дальше работаю по `wizard-record` и `onboarding`: там API отвечает 200, значит дело в UI-состоянии, и это я могу разобрать сам.
+
+
 
 
 
