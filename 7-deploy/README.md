@@ -173,3 +173,9 @@ handle {
 
 Готовые конфиги лежат в [caddy/](caddy/README.md): Caddyfile.dev (API-only) и
 Caddyfile.prod (снимок с VPS-1). Применение: cp -> caddy validate -> systemctl reload caddy.
+
+## Ранбуки: как повторить руками
+
+Пошаговые процедуры — в [`runbooks/`](runbooks/README.md): `ci-workflow.md`, `deploy-heal.md`,
+`secrets-rotation.md`, `release-gate.md`. Ранбук **ссылается** на ADR и не пересказывает решение
+(`AGENTS.md` §5.2); изменил ADR — обнови ранбук в том же коммите.
