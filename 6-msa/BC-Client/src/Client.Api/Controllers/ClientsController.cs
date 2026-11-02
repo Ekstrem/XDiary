@@ -50,6 +50,7 @@ public sealed class ClientsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListClientsQuery(), ct));
     [HttpGet("me")]
+    [Authorize]
     public async Task<IActionResult> Me(CancellationToken ct)
     {
         var sub = User.FindFirst("sub")?.Value;
