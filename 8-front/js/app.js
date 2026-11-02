@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.65"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.66"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -253,9 +253,17 @@
     $("onb-phone").classList.add("hidden");
     $("onb-otp").classList.add("hidden");
     $("onb-link").classList.remove("hidden");
+    showOnbLinkError("");
     renderLinkPartners();
   }
+  function showOnbLinkError(msg) {
+    var el = $("onb-link-error");
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.classList.remove("hidden"); }
+    else { el.textContent = ""; el.classList.add("hidden"); }
+  }
   function renderLinkPartners() {
+    showOnbLinkError("");
     Api.partners.list().then(function (partners) {
       var list = $("onboarding-list");
       list.innerHTML = "";
@@ -265,14 +273,23 @@
         c.className = "partner-card";
         c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
         c.addEventListener("click", function () {
+          // FE-031: без clientId привязка уходит в 400/404 молча
+          if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); openOnboarding(); return; }
+          if (!p || !p.id) { showOnbLinkError("Не удалось определить партнёра — обновите список."); return; }
+          showOnbLinkError("");
+          // FE-031: журнал только после успешного ответа link-partner
           Api.clients.linkPartner(onbClientId, p.id).then(function () {
             toast("Это ты: " + p.name);
             openJournal();
-          }, function (e) { toast("Ошибка: " + e.message); });
+          }, function (e) {
+            console.error("linkPartner:", e);
+            showOnbLinkError("Не удалось привязать «я»: " + (e && e.message ? e.message : "ошибка") + ". Попробуйте ещё раз.");
+            toast("Ошибка: " + (e && e.message ? e.message : "привязка"));
+          });
         });
         list.appendChild(c);
       });
-    }).catch(function (e) { toast("Ошибка: " + e.message); });
+    }).catch(function (e) { showOnbLinkError("Не удалось загрузить партнёров: " + (e && e.message ? e.message : "ошибка")); });
   }
   function submitOnbPhone() {
     var phone = $("onb-phone-input").value.trim();
