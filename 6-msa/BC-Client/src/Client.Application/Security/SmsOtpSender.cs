@@ -13,7 +13,7 @@ public sealed class SmsOtpSender : IOtpSender
     public async Task SendAsync(string phone, string otp, CancellationToken ct = default)
     {
         var url = _config["Otp:Sms:Url"];
-        if (string.IsNullOrWhiteSpace(url)) { _log.LogWarning("Otp:Sms:Url не задан — SMS OTP не отправлен."); return; }
+        if (string.IsNullOrWhiteSpace(url)) throw new InvalidOperationException("Otp:Sms:Url не задан — SMS OTP не отправлен.");
         var apiKey = _config["Otp:Sms:ApiKey"] ?? string.Empty;
         var sender = _config["Otp:Sms:Sender"] ?? string.Empty;
         using var http = new HttpClient();

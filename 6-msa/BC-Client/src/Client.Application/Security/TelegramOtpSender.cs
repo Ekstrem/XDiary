@@ -8,11 +8,22 @@ public sealed class TelegramOtpSender : IOtpSender
     private readonly IConfiguration _config;
     private readonly ILogger<TelegramOtpSender> _log;
     public TelegramOtpSender(IConfiguration config, ILogger<TelegramOtpSender> log) { _config = config; _log = log; }
+    private static string? FindChatId(string map, string phone)
+    {
+        foreach (var entry in map.Split(',', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var i = entry.IndexOf(':');
+            if (i < 0) continue;
+            if (entry[..i].Trim() == phone) return entry[(i + 1)..].Trim();
+        }
+        return null;
+    }
     public async Task SendAsync(string phone, string otp, CancellationToken ct = default)
     {
         var token = _config["Otp:Telegram:BotToken"];
-        var chatId = _config["Otp:Telegram:ChatIdMap:" + phone] ?? _config["Otp:Telegram:ChatId"];
-        if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(chatId)) { _log.LogWarning("Otp:Telegram:* не задан — Telegram OTP не отправлен."); return; }
+        var chatId = FindChatId(_config["Otp:Telegram:ChatIdMap"] ?? string.Empty, phone);
+        if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("Otp:Telegram:BotToken не задан.");
+        if (string.IsNullOrWhiteSpace(chatId)) throw new InvalidOperationException($"Номер {phone} не в Otp:Telegram:ChatIdMap — OTP не отправлен.");
         using var http = new HttpClient();
         await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString($"Ваш код: {otp}"), ct);
         _log.LogInformation("Telegram OTP отправлен на {Phone}.", phone);
