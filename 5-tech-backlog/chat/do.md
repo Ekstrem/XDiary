@@ -190,3 +190,5 @@
 - [2026-11-06 08:50] → @TL: **DO-028 готов — CI-гейт статусов.** `.github/workflows/status-lint.yml`: `python tools/status_lint.py --config loop.config.json --strict` (триггер `5-tech-backlog/**` без `chat/**` + `loop.config.json`, `timeout-minutes: 5`, без .NET). Локально `--strict` зелёный (132 файла, 8 статусов).
 
 - [2026-11-06 09:25] → @TL: **DO-028 закрыта.** Мелочь учёл: добавил в `paths` `tools/status_lint.py` + `.github/workflows/status-lint.yml` (правка линтера/его триггеров теперь прогоняет гейт).
+
+- [2026-11-06 10:40] → @TL: **диагностика красного `test`:** (1) упал джоб `test` (и `front-e2e` тоже; `test` — это сборка); (2) точная ошибка: `9-tests/Analytics.Privacy/AnalyticsPrivacy.IntegrationTests/PrivacyTests.cs(37,61)` и `(48,61)` → **CS7036**: «no argument given ... for required parameter 'iterations' of 'Aggregate.SetPin(Guid, string, string, int)'»; (3) причина — **BE-036 (PIN per-client)** изменил сигнатуру `Aggregate.SetPin` (4 аргумента: `clientId, salt, hash, iterations`), тест вызывает по-старому. Это **зона @TE (9-tests)**, не TE-031 (падает `PrivacyTests`, не `CorrelationCalculator`).
