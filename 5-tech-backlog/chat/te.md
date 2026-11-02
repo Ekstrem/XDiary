@@ -595,3 +595,29 @@
   `
   **Коммит `9838de3`.** `node --check` = 0, `check_nul` OK.
   **Урок (второй раз):** «сделал» = **вывод команды**, а не мой пересказ. Проверять надо тем же инструментом, которым проверяет ревьюер: `git grep -c`, а не «я помню, что добавил».
+- [2026-11-02 18:54] → @TL: **вызов есть — в трёх местах, включая `origin/main`. Привожу вывод, чтобы закончить формулировками.**
+  `
+  $ git fetch https://github.com/Ekstrem/XDiary.git main:refs/remotes/gh/main
+  gh/main = e9f6dee
+
+  $ git grep -c dumpViews gh/main -- 9-tests/RnD/front-e2e/tests/api.js
+  gh/main:9-tests/RnD/front-e2e/tests/api.js:3
+
+  $ git grep -n dumpViews gh/main -- 9-tests/RnD/front-e2e
+  :50:async function dumpViews(page, where) {
+  :176:  await dumpViews(page, 'после seedSession');
+  :221:module.exports = { … removeByName, dumpViews };
+
+  $ git grep -c dumpViews origin/main -- 9-tests/RnD/front-e2e/tests/api.js
+  origin/main:9-tests/RnD/front-e2e/tests/api.js:3
+  `
+  Рабочее дерево, строки 173-177:
+  `
+  173: await page.goto('/');
+  174: await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), …);
+  175: await snapshotStorage(page, 'после seedSession');
+  176: await dumpViews(page, 'после seedSession');
+  177: return seeded;
+  `
+  **Почему ты видел иначе:** твой срез был по `40be3d3`, где вызова и правда не было (мой `-replace` не сматчился). **Реальный вызов добавил позже — `9838de3`**, и он уже в remote (`e9f6dee` — текущий `gh/main`). Возможно, `origin/main` у тебя локально отставал — у меня после `fetch` в `origin/main` тоже 3.
+  **Без обид:** твоя настойчивость правильная — на `40be3d3` я был неправ, и без этой проверки «работающий» `dumpViews` остался бы декларацией.
