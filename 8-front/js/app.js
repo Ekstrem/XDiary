@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.58"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.59"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -324,27 +324,14 @@
   function markLegacy() { try { localStorage.setItem("xdiary.legacy", "1"); } catch (e) {} }
   function unlock() {
     var pin = $("pin-input").value;
-    Pin.hasPin().then(function (hasLocal) {
-      if (!hasLocal) {
-        // FE-007/FE-019: локального PIN нет — проверяем через бэкенд; неверный → #pin-error (не afterAuth)
-        Api.auth.login(pin).then(function () {
-          $("pin-error").classList.add("hidden");
-          $("pin-input").value = "";
-          markLegacy();
-          Pin.setPin(pin).catch(function () {});
-          afterAuth();
-        }).catch(showPinError);
-        return;
-      }
-      Pin.verifyPin(pin).then(function (ok) {
-        if (!ok) { showPinError(); return; }
-        $("pin-error").classList.add("hidden");
-        $("pin-input").value = "";
-        // FE-007/FE-019/FE-020: с локальным PIN нужен токен для API; при пройденном онбординге client-JWT уже есть
-        if (localStorage.getItem("xdiary.clientId") && Api.config.token()) { afterAuth(); return; }
-        ensureToken(pin).then(function () { markLegacy(); afterAuth(); }, showPinError);
-      });
-    });
+    // FE-025/AR-008: PIN — только локальный замок поверх client-JWT; бэкенд-токен по PIN не запрашиваем
+    Pin.verifyPin(pin).then(function (ok) {
+      if (!ok) { showPinError(); return; }
+      $("pin-error").classList.add("hidden");
+      $("pin-input").value = "";
+      if (!Api.config.token()) { openOnboarding(); return; }
+      afterAuth();
+    }, function () { openOnboarding(); });
   }
 
   // ---- журнал ----
