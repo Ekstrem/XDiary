@@ -93,11 +93,27 @@ jobs:
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
-            if [ -f /opt/xdiary/7-deploy/cleanup-e2e-dev.sh ]; then
-              bash /opt/xdiary/7-deploy/cleanup-e2e-dev.sh --apply --clients
-            else
+            SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
+            if [ ! -f "$SCRIPT" ]; then
               echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
+              exit 0
             fi
+            # @TL 17:57: удаляем ТОЛЬКО тестовые телефоны (+7999…) и печатаем отчёт
+            # «до/после», чтобы было видно, что и сколько удалено (журнал/аналитика не задеты).
+            echo "=== DRY-RUN (что будет удалено) ==="
+            bash "$SCRIPT" | tee /tmp/cleanup-dry.txt
+            echo "=== APPLY (--clients: только +7999…) ==="
+            bash "$SCRIPT" --apply --clients | tee /tmp/cleanup-apply.txt
+            {
+              echo "### Очистка dev перед прогоном (DO-044)"
+              echo
+              echo '```'
+              echo "--- dry-run ---"
+              cat /tmp/cleanup-dry.txt
+              echo "--- apply ---"
+              cat /tmp/cleanup-apply.txt
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
