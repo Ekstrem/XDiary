@@ -60,6 +60,30 @@ async function waitToken(page) {
 // client-JWT → link-partner. Без этого все спеки уходили в онбординг и падали «JWT не получен».
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 
+// TE-032/FE-027: снимок хранилища БЕЗ раскрытия значений (только наличиe/длины).
+// Причина #926 — HTTP 401 от `/clients/me`, pageerror = 0: по логам нельзя было понять,
+// что в localStorage. Печатаем маскированно, чтобы при следующем 401 это было видно.
+async function snapshotStorage(page, where) {
+  try {
+    const snap = await page.evaluate(() => {
+      const t = localStorage.getItem('xdiary.accessToken') || '';
+      const c = localStorage.getItem('xdiary.clientId') || '';
+      const l = localStorage.getItem('xdiary.legacy') || '';
+      const b = localStorage.getItem('xdiary.apiBase') || '';
+      return {
+        token: !!t, tokenLen: t.length,
+        clientId: !!c, clientIdLen: c.length,
+        legacy: !!l,
+        apiBaseLen: b.length,
+      };
+    });
+    console.log('::notice::' + JSON.stringify({ title: 'storage snapshot' + (where ? ' (' + where + ')' : ''), storage: snap }));
+    return snap;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function seedSession(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
@@ -111,6 +135,7 @@ async function seedSession(page) {
   }
   await page.goto('/');
   await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
+  await snapshotStorage(page, 'после seedSession');
   return seeded;
 }
 
