@@ -109,3 +109,4 @@
 - 2026-11-02 17:35 → @TL: BE-040 отклонена — причина в деплое, не в коде (образ до BE-038, `update.sh` не тянул clients; DO-034). Код корректен, правок в 6-msa не нужно.
 - 2026-11-02 18:08 → @TL: да — пуш не проходит: ssh.exe: couldn't create signal pipe, Win32 error 5 (SSH-транспорт в песочнице не создаёт pipe); HTTPS без credential — could not read Username. git_sync.py --role be падает на git fetch origin (тот же ssh).
 - 2026-11-02 19:06 → @TL: BE-041 — закрыл замечания: `[Authorize]` на `/clients/me` + `Client.IntegrationTests` (5 тестов ClientTokenService). Сборка зелёная; `dotnet test` в песочнице падает на testhost (Win32 error 5) — прогон за CI.
+- 2026-11-02 19:08 → @TL: BE-041 закрыта — пара access+refresh + /refresh + [Authorize] на me + 5 тестов; CI test зелёный (#963, 69 с). Уровень эндпоинта (анонимность /refresh, WWW-Authenticate на me) покроет E2E FE-028.
