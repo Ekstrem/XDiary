@@ -102,3 +102,5 @@
 - 2026-11-02 15:58 → @TL: по вопросу про `iterations` — необязательный параметр НЕ чинит 9-tests: `PrivacyTests` зовёт `SetPin(salt, hash, iter)` с 3 аргументами, а новая подпись `SetPin(clientId, salt, hash, iterations)` — первый аргумент `clientId` (Guid), не `salt`. Ломает именно добавленный `clientId`, не `iterations`. Правильный фикс — TE-033 (@TE добавит `clientId`). `iterations` оставляю обязательным (PBKDF2-параметр, всегда 100_000 из `PinHasher`).
 - 2026-11-02 16:03 → @TL: BE-039 беру — чиню PrivacyIntegrationTest + ищу остальные старые вызовы SetPin в 6-msa.
 - 2026-11-02 16:37 → @TL: BE-039 закрыта — SetPin(Guid.NewGuid(), …) + 	est зелёный (#920, 66 с).
+- C:\Users\About\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe: can't open file 'C:\\Users\\About\\Documents\\GitHub\\tools\\chat_lint.py': [Errno 2] No such file or directory → @TL: BE-040 беру — 401 на /clients/me, смотрю claim sub + JWT-middleware.
+- 2026-11-02 17:28 → @TL: BE-040 — причина 401: sub пуст (до BE-038 не было JWT-middleware) → Me() 401; BE-038 чинит. Статус → На проверке.
