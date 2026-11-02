@@ -28,7 +28,7 @@ public sealed class TelegramOtpSender : IOtpSender
         var text = $"Код для {phone}: {otp}";
         using var http = new HttpClient();
         var resp = await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString(text), ct);
-        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"Telegram вернул {(int)resp.StatusCode} — OTP не отправлен.");
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"Telegram {(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync(ct)}");
         _log.LogInformation("Telegram OTP отправлен на {Phone}.", phone);
     }
 }
