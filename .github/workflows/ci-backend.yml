@@ -50,12 +50,15 @@ jobs:
             echo "=== $proj ==="
             dotnet test "$proj" --verbosity minimal
           done
-      # DO-045: тесты @BE живут в 6-msa и до этого не запускались нигде — `smoke-api` их не
-      # покрывает, а 8 из 9 его тестов помечены skip (TE-041), то есть контракт не проверялся.
+      # DO-045: тесты @BE живут в 6-msa и не запускались нигде — `smoke-api` их не покрывает,
+      # а 8 из 9 его тестов помечены skip (TE-041), то есть контракт не проверялся.
+      # Прогоняем ВСЕ проекты и возвращаем общий код: `set -e` обрывал на первом падении,
+      # и падение Client скрывало результаты ApiGateway.
       - name: Run BC tests (Client, ApiGateway — DO-045)
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          fail=0
           found=0
           for proj in \
             6-msa/BC-Client/src/Client.IntegrationTests/Client.IntegrationTests.csproj \
@@ -63,7 +66,7 @@ jobs:
             if [ -f "$proj" ]; then
               found=1
               echo "=== $proj ==="
-              dotnet test "$proj" --verbosity minimal
+              dotnet test "$proj" --verbosity minimal || fail=1
             else
               echo "::warning title=[tests] проекта нет::$proj — пропуск"
             fi
@@ -72,3 +75,8 @@ jobs:
             echo "::error title=[tests] нечего запускать::DO-045: оба проекта отсутствуют"
             exit 1
           fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::error title=[tests] есть падения::см. вывод dotnet test выше"
+            exit 1
+          fi
+          echo "все BC-тесты зелёные"
