@@ -222,5 +222,10 @@
       "badges.yml",
       "sync-board.yml"
     ]
+  },
+  "chat_time": {
+    "shift_hours": 106,
+    "tolerance_min": 120,
+    "_comment": "метка в чате = часы машины + сдвиг; чат старше реального времени на эту величину"
   }
 }
