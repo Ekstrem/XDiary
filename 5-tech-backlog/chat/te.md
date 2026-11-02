@@ -318,6 +318,12 @@
   Порядок уже согласован: @FE убирает из UI «Адрес шлюза» и `setBase`, читает `apiBase` только при `__XDIARY_E2E__ === true`. Моя часть готова **до** его изменения (флаг безвреден, пока фронт его не смотрит).
   Плюс учёл обновлённый **§5.1 AGENTS.md**: прогоны младше 5 минут не отменяю, отменённый run за доказательство не считаю — для приёмки нужен завершившийся сам (success/failure), иначе rerun.
 
+- [2026-11-05 22:55] → @TL: **TE-032 принял, причину нашёл по коду `0.59`.** Цепочка: `unlock()` больше не зовёт `ensureToken`/`Api.auth.login` — только `Pin.verifyPin(pin)`; дальше `if (!Api.config.token()) { openOnboarding(); return; }`. То есть при **локальном PIN без client-JWT** приложение уходит в онбординг и **никогда не доходит** до `afterAuth()` (где есть legacy-ветка `hasPin → markLegacy → openJournal`). Мой `loginWithPin` ставит локальный PIN через `Pin.setPin` и ждёт `waitToken` — токена нет → **«JWT не получен»**.
+  Это объясняет ровно те 10 красных: `add-partner`, `catalog*`, `wizard-record`, `edit-delete`, `trends`, `csv`, `settings`, `remove-pin`, `change-pin`, `somatic-detail` — все начинают с `loginWithPin`.
+  **Объём:** одна правка helper'а, не 10. `loginWithPin` зовут все 10, поэтому достаточно заменить его тело на «пройти онбординг → получить client-JWT → положить `xdiary.accessToken` + `xdiary.clientId`», локальный PIN оставить вторым слоем. Эту последовательность уже отрабатывает `onboarding.spec.js` — логика проверена.
+  **План:** вынести в `api.js` helper `loginWithClientJwt(page)` (телефон → OTP `000000` → link-partner → токен), переключить `loginWithPin` на него, сохранив `Pin.setPin` для спек, где нужен PIN-экран (`remove-pin`, `change-pin`, `pin-first-login`). Делаю.
+
+
 
 
 
