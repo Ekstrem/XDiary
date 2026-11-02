@@ -182,9 +182,12 @@ async function loginWithPin(page, pin) {
   // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
   await seedSession(page);
   const p = pin || PIN;
-  if (pin) {
-    try { await page.evaluate((v) => window.Pin.setPin(v), pin); } catch (e) {}
-  }
+  // TE-036: ставим локальный PIN ВСЕГДА, а не только когда передан аргумент.
+  // Было `if (pin) { setPin(pin) }` — а спеки зовут `loginWithPin(page)` без аргумента,
+  // поэтому PIN не создавался, `unlockIfLocked` вводил 1234 в пустой замок,
+  // `Pin.verifyPin` возвращал false → `showPinError()` → приложение оставалось на `#view-lock`.
+  // Именно это давало `{"view-lock":true,…}` и `hasPinLocal = false`.
+  try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
   // TE-036: `seedSession` + локальный PIN = законный замок при загрузке. Спеки, которые
   // не проверяют сам замок, обязаны его снять, иначе `#view-journal`/`#view-catalog` hidden
   // 20–90 с. Делаем это здесь, а не в каждом спеке: забыть вызов — типовая ошибка
