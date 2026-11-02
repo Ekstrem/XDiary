@@ -45,6 +45,12 @@ CASES = [
     ("YAML-права id-token: write -> зелёный", "permissions: id-token: write", False),
     ("плейсхолдер -> зелёный", 'apiKey = "<your-key-here>"', False),
     ("имя переменной в code-span -> зелёный", "положи в `Otp__Telegram__BotToken=`", False),
+    # --- осознанный компромисс энтропии (закреплено @TL 01:30) ---
+    # настоящие токены случайны; строка из 36 ОДИНАКОВЫХ символов — не токен.
+    # Это НЕ дыра, а выбор: без него эвристика ловила бы `aaaa…` как секрет.
+    ("ghp_ + случайные -> красный", "ghp_" + "aB3xK9mQ2pR7tY4uW8vZ6nL1cD5fG0hJ2kM9", True),
+    ("ghp_ + одинаковые -> зелёный (осознанно)", "ghp_" + "a" * 36, False),
+    ("token: 32 случайных -> красный", "token: " + "aB3xK9mQ2pR7tY4uW8vZ6nL1cD5fG0hJ", True),
 ]
 
 
