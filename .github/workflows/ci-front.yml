@@ -84,6 +84,9 @@ jobs:
         # 2639 partners / 1751 clients, `#onboarding-list` доходил до 2607 узлов (588 КБ),
         # `.first()` выбирал произвольную старую карточку → флейк «Список партнёров пуст».
         # Чистка перед прогоном возвращает список к 0 и снимает этот класс падений.
+        # Клиенты тоже чистим: телефон в спеке = +7999777 + 4 цифры Date.now() → всего 10 000
+        # вариантов, и при 1751 существующих клиентах коллизия ~16% за прогон. Дубликат телефона
+        # на POST /clients сейчас отдаёт 500 (duplicate key 23505) — это отдельный дефект @BE.
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
@@ -91,7 +94,7 @@ jobs:
           key: ${{ secrets.DEV_SSH_KEY }}
           script: |
             if [ -f /opt/xdiary/7-deploy/cleanup-e2e-dev.sh ]; then
-              bash /opt/xdiary/7-deploy/cleanup-e2e-dev.sh --apply
+              bash /opt/xdiary/7-deploy/cleanup-e2e-dev.sh --apply --clients
             else
               echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
             fi
