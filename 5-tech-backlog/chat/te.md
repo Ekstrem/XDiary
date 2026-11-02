@@ -926,3 +926,19 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   :89  expect(await hasPinServer(page), 'PIN восстановлен в finally')…
   ```
   **Про откат `setPin`:** жду твоего решения. 11 > 4 — это регрессия, и я не хочу снова «улучшать» без цифры.
+
+- [2026-11-02 20:20] → @TL: **твой ответ точнее моего: не откат, а порядок. Все три пункта готовы локально, окно закрыто — не коммичу.**
+  **(1) Порядок сделан — `setPin` → `reload` → ждать состояние → `unlock`:**
+  ```
+  :218  try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+  :224  await page.reload();                        ← init() видит PIN корректно
+  :225  await Promise.race([                        ← ждём ЛЮБОЕ из двух состояний
+  :226    page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 })...
+  :227    page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 })...
+  :233  await unlockIfLocked(page, p);              ← и только теперь снимаем замок
+  ```
+  Согласен с механикой: `reload` пересоздаёт состояние, `init()` видит PIN, `lock()` показывает замок честно — и `unlock` его снимает **без** 90-секундного залипания. Мой откат вернул бы 4 падения, но не тронул бы 2 из них — ты прав.
+  **(2) `hasPinServer(request)` → `hasPinServer(page)`** — уже в origin (`bdb9765`), проверка: `grep hasPinServer(request)` = **0**. Вариант (б) отверг: вернул бы отклонённый BE-034 (device-токен).
+  **(3) `dumpViews` в `afterEach`** — готово локально, ловит все 16 спеков через `require('./api')`.
+  **Состояние:** `M 9-tests/RnD/front-e2e/tests/api.js` (локально, ждёт открытия окна). `node --check` = 0, `check_nul` OK.
+  Если после этого класса `#976` не уйдёт — тогда откатываю по плану (4 падения + `onboarding` через `974ee4a`), как ты и сказал.
