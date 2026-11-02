@@ -30,6 +30,8 @@ def main():
     for pat in PATTERNS:
         files.extend(glob.glob(os.path.join(ROOT, pat), recursive=True))
     files = sorted(set(files))
+    # _dialogue.md генерируется из outbox-ов ролей — чинится регенерацией, в гейте не участвует.
+    files = [x for x in files if not x.endswith("_dialogue.md")]
 
     bad = []
     for f in files:
