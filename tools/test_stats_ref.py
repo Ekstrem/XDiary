@@ -31,13 +31,23 @@ def main():
     failures = []
     print("stats: тесты режима --ref")
 
-    tree = run("--check")
-    head = run("--check", "--ref", "HEAD")
-    ok = (tree.returncode == head.returncode)
-    if not ok:
-        failures.append("--check vs --check --ref HEAD")
-    print("  [%s] --check rc=%d / --check --ref HEAD rc=%d (должны совпадать)" % (
-        "OK " if ok else "FAIL", tree.returncode, head.returncode))
+    # Инвариант «--check (дерево) == --check --ref HEAD» верен ТОЛЬКО на чистом дереве:
+    # при незакоммиченных правках README/задачи в дереве отличаются от HEAD, и тест
+    # давал ложный красный на общем рабочем дереве (@TL 02:00). Проверяем чистоту.
+    status = subprocess.run(["git", "status", "--porcelain"], capture_output=True,
+                            text=True, encoding="utf-8", errors="replace", cwd=ROOT)
+    dirty = bool((status.stdout or "").strip())
+    if dirty:
+        print("  [SKIP] --check vs --check --ref HEAD: дерево грязное "
+              "(незакоммиченные правки) — сравнение с HEAD не имеет смысла")
+    else:
+        tree = run("--check")
+        head = run("--check", "--ref", "HEAD")
+        ok = (tree.returncode == head.returncode)
+        if not ok:
+            failures.append("--check vs --check --ref HEAD")
+        print("  [%s] --check rc=%d / --check --ref HEAD rc=%d (должны совпадать)" % (
+            "OK " if ok else "FAIL", tree.returncode, head.returncode))
 
     ref_write = run("--write", "--ref", "HEAD")
     ok = ref_write.returncode == 1 and "несовместимы" in (ref_write.stderr + ref_write.stdout)
@@ -58,7 +68,7 @@ def main():
     if failures:
         print("ПРОВАЛЕНО: %s" % ", ".join(failures))
         return 1
-    print("все 3 проверки прошли")
+    print("все проверки прошли")
     return 0
 
 
