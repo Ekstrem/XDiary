@@ -100,9 +100,19 @@ test('E2E: запись через визард — создаётся и вид
     } catch (e) {
       const toasts = await page.evaluate(() => window.__toasts || []);
       const vis = await viewState(page);
+      // диагностика по просьбе @TL: состояние экранов + localStorage, чтобы @FE не искал вслепую
+      const ls = await page.evaluate(() => {
+        const o = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          o[k] = String(localStorage.getItem(k) || '').slice(0, 40);
+        }
+        return o;
+      });
       throw new Error('ТОСТЫ: ' + JSON.stringify(toasts) +
         ' ;; API: ' + apiLog.slice(-12).join(' | ') +
-        ' ;; ВИДЫ: ' + JSON.stringify(vis));
+        ' ;; ВИДЫ: ' + JSON.stringify(vis) +
+        ' ;; LS: ' + JSON.stringify(ls));
     }
 
     const found = await findRecord(page, WHEN);
