@@ -26,7 +26,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Check chat format (нет молча потерянных сообщений)
-        run: python tools/chat_lint.py --config loop.config.json --check
+        # --strict-times: метка из будущего или нарушенный порядок (после строки-маркера
+        # «метка = часы машины») — ошибка. Легаси до маркера не проверяется.
+        run: python tools/chat_lint.py --config loop.config.json --check --strict-times
       - name: Проверить NUL-байты в md (файлы не должны становиться бинарными)
         run: python tools/check_nul.py
 
