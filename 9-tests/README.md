@@ -134,3 +134,55 @@ IndexedDB/localStorage **не переносятся** между спеками
 
 **Практическое правило:** перед выводом «стабильно/флейко» фиксировать (а) число повторов,
 (б) `--workers`, (в) полный или изолированный прогон, (г) были ли сетевые ошибки.
+
+## PDR-19: максимальное покрытие шлюза и клиента (A + C, решение владельца)
+
+Обоснование: оба места уже дали инциденты — **502 через шлюз** и **неразвёрнутый `/clients`**.
+Тестов на маршрутизацию `ApiGateway` **не было нигде** (`9-tests/Gateways` — это Garmin и
+AppleHealth, см. раздел «Имя проекта ≠ имя сервиса»).
+
+### 1. Критерий: что обязано быть покрыто у `ApiGateway`
+
+| Поведение | Ожидание |
+|---|---|
+| `GET /health` | 200, без авторизации |
+| `GET /api/v1/clients/me` без токена | **401** + `WWW-Authenticate: Bearer` |
+| `GET /api/v1/clients/me` с токеном | 200, проксирует ответ сервиса (`verified`, наличие `linkedPartnerId`) |
+| `POST /api/v1/clients` | 200/201, тело доходит до сервиса |
+| `POST /api/v1/clients/refresh` | **анонимен** — 401 не возвращает |
+| неизвестный путь (`/api/v1/does-not-exist`) | **404**, а не 502 |
+| апстрим недоступен | **502** (соединение отклонено) или **504** (таймаут) |
+| `Authorization` | прокидывается **как есть** в апстрим (проверять на стороне сервиса) |
+
+### 2. Контракт «шлюз → сервис»: что реально дёргает фронт
+
+Собрано `git grep` по `8-front/js` (не по названиям, а по факту вызовов):
+
+**Клиент (BC-Client):**
+```
+POST /api/v1/clients                    создание
+POST /api/v1/clients/{id}/verify        OTP → client-JWT
+POST /api/v1/clients/{id}/link-partner  привязка «я»
+GET  /api/v1/clients/me                 verified + linkedPartnerId  ← ключевой для onboarding
+POST /api/v1/clients/refresh            обмен refresh → новая пара
+```
+**Журнал (BC-Journal):**
+```
+POST /api/v1/journal/records
+GET  /api/v1/journal/recent
+GET  /api/v1/journal/places
+GET  /api/v1/journal/fantasies
+```
+**Партнёры/каталог:** `POST|GET /api/v1/partners`, `GET /api/v1/catalog`.
+
+**Главный контрактный тест** — цепочка онбординга: `POST /clients` → `/verify` →
+`POST /partners` → `/clients/{id}/link-partner` → **`GET /clients/me`** и проверка, что
+`verified === true` и `linkedPartnerId` **непустой**. Именно это отличает «продукт» от
+«фикстуры» в споре про `onboarding`/`no-pin` (`#view-journal` hidden).
+
+### 3. Где это живёт
+
+- маршруты шлюза → **новый** `9-tests/Gateways.Api` (создаёт @BE по задаче от @TL);
+- контракт клиента/журнала → `9-tests/Contract.ClientJournal` (@TE);
+- карта в этом README обновляется **тем же коммитом**, что добавляет проект —
+  иначе краснеет гейт `check_test_map.py`.
