@@ -44,7 +44,9 @@ test('E2E: новое устройство → онбординг (без PIN-э
   });
 
   await test.step('после reload устройство помнит вход (журнал или PIN — оба допустимы)', async () => {
-    await page.evaluate(() => localStorage.removeItem('xdiary.accessToken'));
+    // ВАЖНО: токен НЕ удаляем — устройство уже прошло онбординг (clientId + client-JWT).
+    // Удаление токена уводило приложение в состояние, где afterAuth не мог решить, что показать,
+    // и все три экрана оставались hidden — это ошибка теста, не продукта (@TL 02:45).
     await page.reload();
     const lock = page.locator('#view-lock');
     const onb = page.locator('#view-onboarding');
