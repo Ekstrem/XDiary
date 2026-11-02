@@ -69,6 +69,12 @@
 - **Приоритет:** P2.
 - **Оценка:** теги образов + версионирование.
 
+### 13. EDM-несоответствие BE (Event Sourcing / IEventBus / MV)
+- **Суть:** код `6-msa` не использует инфраструктуру DigiTFactory — вместо Event Store/Event Bus/Read Store сделан **свой слой**: EF Core `SaveChangesAsync` + ручной HTTP-паблишер. Нет Event Sourcing, `IEventBus`, Event Consumer (`IHostedService`), проекции MV (`UpsertAsync`); свои `IRepository`/`IReadRepository`/`IBusAdapter` (запрещено скиллом). Полный разбор — `04-architecture/edm-verification.md`.
+- **Риск:** **высокий** (ядро CEQRS не реализовано: «событие = источник истины» отсутствует, query считает на лету).
+- **Приоритет:** P1 (отдельная итерация после тестирования фаз на фронте).
+- **Оценка:** системная переделка всех BC (вернуть `AddEventStorePostgres` + `AddEventBus` + `AddReadStore`, Event Consumer, проекции MV).
+
 ## Маркеры в коде (TODO/FIXME/HACK)
 - Скан `6-msa`/`8-front`/`7-deploy`/`9-tests`: **0 маркеров** (TODO/FIXME/HACK в коде нет).
 - `tools/` — 3 совпадения, но это false positives: `chat_lint.py` (`TODO-*.md` — паттерн имён файлов), `sync_board.py` (`Todo` — колонка доски).
