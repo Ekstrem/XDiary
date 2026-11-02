@@ -23,49 +23,6 @@ on:
 # paths-ignore, code-пуши редкие. Отменённый прогон не считается доказательством (TL).
 
 jobs:
-  check-chat:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Check chat format (нет молча потерянных сообщений)
-        run: python tools/chat_lint.py --config loop.config.json --check
-
-  guard-secrets:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout (нужна история для --range)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Проверить секреты и их фрагменты в пушимом диапазоне
-        env:
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.after }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -uo pipefail
-          head="${AFTER:-HEAD}"
-          git cat-file -e "${head}^{commit}" 2>/dev/null || head=HEAD
-          if [ -n "${PR_BASE:-}" ] && git cat-file -e "${PR_BASE}^{commit}" 2>/dev/null; then
-            range="${PR_BASE}..${head}"            # pull_request: база PR -> голова
-          elif [ -n "${BEFORE:-}" ] \
-               && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
-               && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            range="${BEFORE}..${head}"             # push: что именно прилетело
-          else
-            range="${head}~1..${head}"             # ручной запуск
-          fi
-          echo "range: ${range}"
-          python tools/check_secrets.py --config loop.config.json --range "$range"
-
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -1,0 +1,76 @@
+name: CI guards
+
+# PDR-16 шаг (a): guard'ы живут РОВНО В ОДНОМ файле.
+# До 02.11 `check-chat` и `guard-secrets` были описаны дважды — здесь и в
+# `ci-tests.yml`. Это остаток DO-032: правишь один файл, второй молча отстаёт,
+# и в итоге получаешь «два сканера секретов, один из которых врёт».
+# Имя `chat-guards.yml` заменено на `ci-guards.yml`, потому что guard'ы уже
+# проверяют не только чат: задачи (`5-tech-backlog/**`), `tools/**` и `loop.config.json`.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      # DO-032: секреты в задачах тоже нужно сканировать. Раньше здесь был только
+      # `chat/**`, и правка `5-tech-backlog/<роль>/*.md` не запускала guard-secrets.
+      - '5-tech-backlog/**'
+      - 'loop.config.json'
+      - 'tools/**'
+      - '.github/workflows/ci-guards.yml'
+  pull_request:
+  workflow_dispatch:
+
+# Лёгкие guard'ы (без test/front-e2e). Отменять их можно: результата у них нет,
+# пока они не дошли до шага (см. §5.1 про окно 5 минут — оно про тяжёлые джобы).
+concurrency:
+  group: ci-guards
+  cancel-in-progress: true
+
+jobs:
+  check-chat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check chat format (нет молча потерянных сообщений)
+        # --strict-times: метка из будущего или нарушенный порядок (после строки-маркера
+        # «метка = часы машины») — ошибка. Легаси до маркера не проверяется.
+        # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
+        # --strict-times — то есть на одном и том же пуше проверки расходились.
+        run: python tools/chat_lint.py --config loop.config.json --check --strict-times
+      - name: Проверить NUL-байты и прочие C0-символы в md
+        run: python tools/check_nul.py
+
+  guard-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (нужна история для --range)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Проверить секреты и их фрагменты в пушимом диапазоне
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -uo pipefail
+          head="${AFTER:-HEAD}"
+          git cat-file -e "${head}^{commit}" 2>/dev/null || head=HEAD
+          if [ -n "${PR_BASE:-}" ] && git cat-file -e "${PR_BASE}^{commit}" 2>/dev/null; then
+            range="${PR_BASE}..${head}"            # pull_request: база PR -> голова
+          elif [ -n "${BEFORE:-}" ] \
+               && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="${BEFORE}..${head}"             # push: всё пушимое
+          else
+            range="${head}~1..${head}"             # первый прогон/ручной запуск
+          fi
+          echo "range: ${range}"
+          python tools/check_secrets.py --config loop.config.json --range "$range"
