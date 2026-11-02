@@ -72,13 +72,10 @@ jobs:
             echo "Последний код ответа: \`$code\`. Падения E2E в этом прогоне не считать регрессией продукта."
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
-      - name: Reset dev PIN to 1234
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
+      # `Reset dev PIN to 1234` убран (@TL 20:50): он дёргал legacy-контур `/privacy/pin/set`,
+      # хотя спеки используют ЛОКАЛЬНЫЙ PIN (`setPin` в localStorage, api.js) — серверный PIN
+      # им не нужен. Доказательство безопасности: front-e2e-repeat #10 (success, 11 шагов,
+      # шага PIN нет). Гейт больше не зависит от `/privacy/*`.
       - name: Очистить накопленные E2E-данные на dev (DO-044)
         # Каждый прогон создаёт клиента и партнёра и не удаляет их: к 02.11 накопилось
         # 2639 partners / 1751 clients, `#onboarding-list` доходил до 2607 узлов (588 КБ),
