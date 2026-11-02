@@ -101,6 +101,41 @@ def rebase_state(git_dir):
     return state
 
 
+LOCK_NAME = "xdiary-sync.lock"
+LOCK_TTL_MIN = 10
+
+
+def lock_path(git_dir):
+    return os.path.join(git_dir, LOCK_NAME)
+
+
+def lock_is_fresh(git_dir, ttl_min=LOCK_TTL_MIN, now=None):
+    """Есть ли СВЕЖИЙ замок другого git_sync. Чистая логика по времени — тестируется."""
+    import time as _t
+    path = lock_path(git_dir)
+    if not os.path.exists(path):
+        return False, None
+    age_min = ((now or _t.time()) - os.path.getmtime(path)) / 60.0
+    return (age_min < ttl_min), age_min
+
+
+def write_lock(git_dir, role):
+    import time as _t
+    try:
+        with open(lock_path(git_dir), "w", encoding="utf-8") as fh:
+            fh.write("%s %s\n" % (role, int(_t.time())))
+        return True
+    except OSError:
+        return False
+
+
+def drop_lock(git_dir):
+    try:
+        os.remove(lock_path(git_dir))
+    except OSError:
+        pass
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -116,6 +151,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--remote", default="origin")
     ap.add_argument("--branch", default="main")
+    ap.add_argument("--ignore-lock", action="store_true",
+                    help="не считать свежий замок другого sync причиной отказа")
     ap.add_argument("--zone", action="store_true",
                     help="wip по всей зоне роли (старое поведение). По умолчанию wip идёт "
                          "ТОЛЬКО по явным --paths: зона загребает чужие правки (DO-043)")
@@ -201,6 +238,20 @@ def main():
         say("dry-run: дальше не иду")
         return 0
 
+    # Инцидент @TE 02.11: коммит, созданный во время ЧУЖОГО rebase, остаётся вне ветки.
+    # Второй sync в том же дереве — тот же риск, поэтому берём замок и не запускаемся поверх.
+    fresh, age = lock_is_fresh(git_dir)
+    if fresh and not args.ignore_lock:
+        say("")
+        say("git_sync: идёт ЧУЖОЙ sync (замок %.0f мин назад). Второй не запускаю:" % age)
+        say("  параллельные rebase в одном дереве теряют коммиты — коммит, созданный во")
+        say("  время чужого rebase, остаётся вне ветки. Подожди или, если замок зря: --ignore-lock.")
+        return 3
+
+    if write_lock(git_dir, args.role):
+        import atexit
+        atexit.register(drop_lock, git_dir)
+
     # Предохранитель (по инциденту 02.11): рапорт «запушено (1 коммит)» при непопавших
     # файлах опаснее ошибки. Если в зоне роли есть untracked, а `-u` не передан — не идём.
     NOISE = (".obsidian/", "log", "rep", "msg", ".tmp-", "node_modules/")
@@ -285,6 +336,9 @@ def main():
 
     check = git("rev-list", "--count", "%s/%s..HEAD" % (args.remote, args.branch)).stdout.strip()
     say("git_sync: проверка после пуша — впереди origin: %s" % check)
+
+    say("git_sync: если кто-то коммитил, пока шёл этот sync — проверь reflog:"
+        " его коммит мог осиротеть; восстановление — git cherry-pick <sha>")
     return 0
 
 
