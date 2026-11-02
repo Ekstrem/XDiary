@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # КОПИЯ из LoopMaker/tools/check_secrets.py (источник правды там; правка — в обоих местах).
 """Guard: утечки секретов в текстах петли (чат, задачи, доки).
 

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # КОПИЯ из LoopMaker/tools/stats.py (источник правды там; правка — в обоих местах).
 """Таблица статусов задач для README (по loop.config.json).
 

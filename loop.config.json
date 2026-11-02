@@ -1,77 +1,120 @@
 {
-  "_comment": "Карта проекта для инструментов LoopMaker (tools/*.py). Правки — только здесь, скрипты проектных путей не знают.",
-
-  "backlog": "5-tech-backlog",
-  "chat": "5-tech-backlog/chat",
-  "coordinator": "tl",
-
-  "_comment_tz": "Время в строках чата — местное (MSK). GitHub-раннеры живут в UTC, поэтому нужен сдвиг.",
-  "time_zone_offset": 3,
-
-  "_comment_statuses": "Восемь состояний (см. LoopMaker/STATUSES.md). Порядок = порядок колонок в README.",
-  "statuses": [
-    "Идея",
-    "На проработке",
-    "ToDo",
-    "В работе",
-    "В паузе",
-    "На проверке",
-    "Закрыта",
-    "Отклонена"
-  ],
-
-  "status_groups": {
-    "backlog": ["Идея", "На проработке", "ToDo"],
-    "active": ["В работе", "В паузе", "На проверке"],
-    "done": ["Закрыта", "Отклонена"]
-  },
-
-  "_comment_status_rules": "Обязательные поля под статус (tools/status_lint.py). Часть правил пока предупреждения — см. STATUSES.md §5.",
-  "status_rules": {
-    "На проработке": ["Прорабатывает"],
-    "ToDo": ["Приоритет"],
-    "В работе": ["В работе с"],
-    "В паузе": ["Пауза", "Разблокирует"],
-    "На проверке": ["Проверяет"],
-    "Закрыта": ["Результат"],
-    "Отклонена": ["Причина"]
-  },
-
-  "readme": {
-    "file": "README.md",
-    "start": "<!-- stats:start -->",
-    "end": "<!-- stats:end -->"
-  },
-
-  "role_titles": {
-    "po": "PO",
-    "ar": "Architect",
-    "tl": "TechLead",
-    "be": "BackEnd",
-    "fe": "FrontEnd",
-    "do": "DevOps",
-    "te": "TestEngineer",
-    "lm": "LoopMaster"
-  },
-
-  "task_folders": [
-    { "folder": "back-end", "title": "back-end" },
-    { "folder": "devops", "title": "devops" },
-    { "folder": "front-end", "title": "front-end" },
-    { "folder": "tester", "title": "tester" },
-    { "folder": "arch", "title": "arch" }
-  ],
-
-  "_comment_sweep": "Пороги «без движения» по статусу, часы. Статуса нет в списке — не проверяется (ToDo, Закрыта, Отклонена).",
-  "sweep": {
-    "thresholds": {
-      "Идея": 336,
-      "На проработке": 168,
-      "В работе": 72,
-      "В паузе": 168,
-      "На проверке": 24
-    },
-    "claim_hours": 0.5,
-    "git_claim_hours": 24
-  }
+    "_comment":  "Карта проекта для инструментов LoopMaker (tools/*.py). Правки — только здесь, скрипты проектных путей не знают.",
+    "backlog":  "5-tech-backlog",
+    "chat":  "5-tech-backlog/chat",
+    "coordinator":  "tl",
+    "_comment_tz":  "Время в строках чата — местное (MSK). GitHub-раннеры живут в UTC, поэтому нужен сдвиг.",
+    "time_zone_offset":  3,
+    "_comment_statuses":  "Восемь состояний (см. LoopMaker/STATUSES.md). Порядок = порядок колонок в README.",
+    "statuses":  [
+                     "Идея",
+                     "На проработке",
+                     "ToDo",
+                     "В работе",
+                     "В паузе",
+                     "На проверке",
+                     "Закрыта",
+                     "Отклонена"
+                 ],
+    "status_groups":  {
+                          "backlog":  [
+                                          "Идея",
+                                          "На проработке",
+                                          "ToDo"
+                                      ],
+                          "active":  [
+                                         "В работе",
+                                         "В паузе",
+                                         "На проверке"
+                                     ],
+                          "done":  [
+                                       "Закрыта",
+                                       "Отклонена"
+                                   ]
+                      },
+    "_comment_status_rules":  "Обязательные поля под статус (tools/status_lint.py). Часть правил пока предупреждения — см. STATUSES.md §5.",
+    "status_rules":  {
+                         "На проработке":  [
+                                               "Прорабатывает"
+                                           ],
+                         "ToDo":  [
+                                      "Приоритет"
+                                  ],
+                         "В работе":  [
+                                          "В работе с"
+                                      ],
+                         "В паузе":  [
+                                         "Пауза",
+                                         "Разблокирует"
+                                     ],
+                         "На проверке":  [
+                                             "Проверяет"
+                                         ],
+                         "Закрыта":  [
+                                         "Результат"
+                                     ],
+                         "Отклонена":  [
+                                           "Причина"
+                                       ]
+                     },
+    "readme":  {
+                   "file":  "README.md",
+                   "start":  "\u003c!-- stats:start --\u003e",
+                   "end":  "\u003c!-- stats:end --\u003e"
+               },
+    "role_titles":  {
+                        "po":  "PO",
+                        "ar":  "Architect",
+                        "tl":  "TechLead",
+                        "be":  "BackEnd",
+                        "fe":  "FrontEnd",
+                        "do":  "DevOps",
+                        "te":  "TestEngineer",
+                        "lm":  "LoopMaster"
+                    },
+    "task_folders":  [
+                         {
+                             "folder":  "back-end",
+                             "title":  "back-end"
+                         },
+                         {
+                             "folder":  "devops",
+                             "title":  "devops"
+                         },
+                         {
+                             "folder":  "front-end",
+                             "title":  "front-end"
+                         },
+                         {
+                             "folder":  "tester",
+                             "title":  "tester"
+                         },
+                         {
+                             "folder":  "arch",
+                             "title":  "arch"
+                         }
+                     ],
+    "_comment_sweep":  "Пороги «без движения» по статусу, часы. Статуса нет в списке — не проверяется (ToDo, Закрыта, Отклонена).",
+    "sweep":  {
+                  "thresholds":  {
+                                     "Идея":  336,
+                                     "На проработке":  168,
+                                     "В работе":  72,
+                                     "В паузе":  168,
+                                     "На проверке":  24
+                                 },
+                  "claim_hours":  0.5,
+                  "git_claim_hours":  24
+              },
+    "health":  {
+                   "file":  "HEALTH.md",
+                   "history":  "health/history.jsonl",
+                   "jobs":  [
+                                "test",
+                                "front-e2e"
+                            ],
+                   "workflow":  "ci-tests.yml",
+                   "repo":  "Ekstrem/XDiary",
+                   "keep":  30
+               }
 }

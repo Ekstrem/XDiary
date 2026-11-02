@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # КОПИЯ из LoopMaker/tools/migrate_statuses.py (источник правды там; правка — в обоих местах).
 """Миграция значений статуса в задачах. По умолчанию — dry-run.
 
