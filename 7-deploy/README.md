@@ -60,6 +60,21 @@ PWA (телефон) --HTTPS (Tailscale, xdiary.vps1.ts.net)--> VPS-1 (caddy -> 
 пропускается. PIN один на всё развёртывание (модель `PinCredential` без
 `ClientId`/`TenantId` — см. AR-008).
 
+### Правило триггеров CI/CD (paths-фильтры)
+
+Чат-сообщение **не должно** запускать тяжёлые джобы (деплой, сборку, тесты, синк).
+Правило: **любой** workflow с `on.push` обязан иметь `paths` или `paths-ignore` —
+иначе он триггерится на каждый пуш, включая переписку ролей (инцидент 2026-11-06:
+«сообщение в чате → деплой в прод»).
+
+- `deploy.yml` → `paths-ignore` (чат/задачи/доки/`.md` не триггерят dev→prod).
+- `pages.yml` → `paths: 8-front/**`.
+- `sync-board.yml` → `paths: 5-tech-backlog/**` (без `chat/**`).
+- `ci-tests.yml` → `paths-ignore: 5-tech-backlog/chat/**`.
+
+Проверка — `tools/check_workflow_paths.py` (в CI — джоб `guard-paths.yml`): падает,
+если появился workflow с `on.push` без фильтра (allowlist — только `guard-paths.yml`).
+
 ## Порядок развёртывания
 
 1. **VPS-2** (сначала — он отдаёт пароли БД):

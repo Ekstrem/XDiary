@@ -41,3 +41,6 @@ jobs:
           fi
           echo "range: ${range}"
           python tools/check_paths.py --range "$range"
+
+      - name: Проверить триггеры workflow (paths-фильтры)
+        run: python tools/check_workflow_paths.py

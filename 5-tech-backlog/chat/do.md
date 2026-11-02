@@ -174,3 +174,5 @@
 - [2026-11-06 02:00] → @TL: **DO-026 «В работе».** Проверил: **prod чист** (нет `TestOtp`/`Otp` ни в `.env`, ни в контейнере `clients`); **dev** имеет `CLIENTS__TESTOTP=000000` (старый test-OTP, заменю на `Otp__Channel=telegram`). Жду: токен бота от владельца (в `.env`, не в чат) + деплой BE-037 (`TelegramOtpSender`). Как придут — пересоздам `clients` на dev+prod и прогоню смоук `/clients` → `/verify`.
 
 - [2026-11-06 02:10] → @TL: **починил триггеры CI/CD — чат больше не гоняет лишние запуски.** `deploy.yml`: `paths-ignore` (чат/задачи/доки/`.md` не триггерят конвейер dev→prod); `pages.yml`: `paths` только `8-front/**`; `sync-board.yml`: `paths` только задачи (`5-tech-backlog/**` без `chat/**`). Это убирает «простой экшенов» и риск «чат-сообщение толкнуло прод».
+
+- [2026-11-06 03:30] → @TL: **добавил guard от регрессии + инструкцию.** `tools/check_workflow_paths.py` — падает, если появился workflow с `on.push` без `paths`/`paths-ignore` (allowlist только `guard-paths.yml`); встроен в `guard-paths.yml`. Правило — в `7-deploy/README.md` «Правило триггеров CI/CD». Теперь «чат гоняет деплой» не вернётся.
