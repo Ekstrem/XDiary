@@ -1,4 +1,10 @@
-name: Test (9-tests)
+name: Backend tests (9-tests)
+
+# PDR-16 шаг (b): `ci-tests.yml` разделён на бэкенд и фронт.
+# Причина: правка инфраструктуры сериализовалась с прогоном фронта, и один пуш
+# вытеснял ожидающий прогон другого артефакта. Гейт выбирается по природе
+# изменения (`AGENTS.md` §5.4): `6-msa/**`, `9-tests/**` -> этот файл,
+# `8-front/**` -> `ci-front.yml`.
 
 on:
   push:
@@ -44,36 +50,3 @@ jobs:
             echo "=== $proj ==="
             dotnet test "$proj" --verbosity minimal
           done
-
-  front-e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    concurrency:
-      group: front-e2e
-      cancel-in-progress: false
-    env:
-      # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
-      # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
-      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
-      XDIARY_E2E_PIN: "1234"
-    steps:
-      - name: Reset dev PIN to 1234
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install deps
-        working-directory: 9-tests/RnD/front-e2e
-        run: npm ci || npm install
-      - name: Install Playwright browsers
-        working-directory: 9-tests/RnD/front-e2e
-        run: npx playwright install --with-deps chromium
-      - name: Front E2E
-        working-directory: 9-tests/RnD/front-e2e
-        run: npm test

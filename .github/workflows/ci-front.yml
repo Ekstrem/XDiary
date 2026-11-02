@@ -1,0 +1,61 @@
+name: Front E2E (8-front + 9-tests/RnD)
+
+# PDR-16 шаг (b): фронтовый гейт отдельно от бэкендового.
+# `front-e2e` держит свою группу concurrency: он ходит на живой dev-стенд,
+# и параллельные прогоны создают ту самую гонку, которую мы измеряем.
+
+on:
+  push:
+    branches: ["main"]
+    # DO-031: правки задач и чата ролей не триггерят тяжёлые test/front-e2e (иначе
+    # каждый пуш в переписку отменяет идущий E2E). Guard'ы — в chat-guards.yml,
+    # который теперь слушает и `5-tech-backlog/**` (DO-032: секреты в задачах).
+    paths-ignore:
+      - '5-tech-backlog/**'
+      - '0*/**'
+      - '01-user-stories/**'
+      - '02-cjm/**'
+      - '03-ddd/**'
+      - '04-architecture/**'
+      - '**/*.md'
+  pull_request:
+  workflow_dispatch:
+
+# Политика отмены (DO-023, решение владельца 2026-11-05): прогоны НЕ отменяются новым
+# пушем — оба джоба идут в очередь. «test не трогать первые 5 минут» GitHub не умеет,
+# поэтому эквивалент — не отменять вовсе. Очередь не раздувается: чат-пуши отфильтрованы
+# paths-ignore, code-пуши редкие. Отменённый прогон не считается доказательством (TL).
+
+jobs:
+  front-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: front-e2e
+      cancel-in-progress: false
+    env:
+      # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
+      # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_PIN: "1234"
+    steps:
+      - name: Reset dev PIN to 1234
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: 9-tests/RnD/front-e2e
+        run: npm ci || npm install
+      - name: Install Playwright browsers
+        working-directory: 9-tests/RnD/front-e2e
+        run: npx playwright install --with-deps chromium
+      - name: Front E2E
+        working-directory: 9-tests/RnD/front-e2e
+        run: npm test
