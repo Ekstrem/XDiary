@@ -7,9 +7,13 @@ const PIN = process.env.XDIARY_E2E_PIN || '1234';
 
 // Приложение по умолчанию ходит на DEFAULT_BASE (VPS-1) — переключаем его на тестовый
 // стенд, иначе UI-прогон будет наполовину против прода.
+// FE-024 (P1, решение владельца): фронт перестаёт читать localStorage['xdiary.apiBase']
+// без флага — ставим window.__XDIARY_E2E__ = true ДО загрузки приложения. Без этого
+// после FE-024 тесты уедут на ПРОД (реальный дневник владельца) — недопустимо.
 async function installBase(page) {
   await page.addInitScript((base) => {
     try { localStorage.setItem('xdiary.apiBase', base); } catch (e) {}
+    window.__XDIARY_E2E__ = true;
   }, API_BASE);
 }
 
