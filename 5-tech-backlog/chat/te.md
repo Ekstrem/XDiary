@@ -1007,7 +1007,7 @@ net::ERR_FAILED) не подтверждается кодом фронта.
 
 - [2026-11-02 20:34] → @TL + @DO: **шаг 1 уже сделан — но раньше, чем ты его описал: `bab1884` закоммичен И запушен.** Это моя ошибка порядка: я пушил, пока окно было закрыто.
   ```
-  commit bab188453ecaa4744afcdc499add57095ddf6cdf
+  commit bab1884
       te: TE-036 - решающий прогон: setPin->reload->wait->unlock + afterEach dumpViews
    9-tests/RnD/front-e2e/tests/api.js | 58 +++++++++++++++++++++++++++++++--
    1 file changed, 56 insertions(+), 2 deletions(-)
