@@ -48,8 +48,35 @@ jobs:
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
 
-  # TE-022 / ADR-020 п.3 — блокирующий smoke (условие пропуска в prod).
-  smoke:
+  # DO-035: гейт выбирается по природе изменения, а не «один на всё».
+  # Считаем, что именно поменялось в пуше: бэкенд/инфра (6-msa, 7-deploy) → api,
+  # фронт (8-front) → front. Если непонятно/смешано — требуем оба гейта.
+  diff-paths:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.d.outputs.api }}
+      front: ${{ steps.d.outputs.front }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: d
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only HEAD~1 HEAD || true)"
+          echo "=== changed files ==="
+          echo "$changed"
+          api=false; front=false
+          if echo "$changed" | grep -qE '^(6-msa|7-deploy)/'; then api=true; fi
+          if echo "$changed" | grep -qE '^8-front/'; then front=true; fi
+          # ничего не распознали (например workflow_dispatch) — требуем оба гейта
+          if [ "$api" = false ] && [ "$front" = false ]; then api=true; front=true; fi
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+          echo "front=$front" >> "$GITHUB_OUTPUT"
+          echo "api=$api front=$front"
+
+  # TE-022 / ADR-020 п.3 — блокирующий API-гейт (health + интеграционные API-тесты).
+  smoke-api:
     needs: deploy-dev
     runs-on: ubuntu-latest
     env:
@@ -70,6 +97,18 @@ jobs:
           dotnet-version: '8.0.x'
       - name: API-E2E (9-tests/E2E, все 9)
         run: dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj --verbosity minimal
+
+  # Браузерный гейт: только фронт. Отдельный джоб, чтобы фронтовый баг не блокировал
+  # доставку бэкенда (DO-035).
+  smoke-front:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_PIN: "1234"
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -84,7 +123,13 @@ jobs:
         run: npx playwright test add-partner wizard-record change-pin
 
   deploy-prod:
-    needs: smoke
+    # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
+    # при условии, что фронт в этом пуше не менялся и smoke-api зелёный.
+    needs: [smoke-api, smoke-front, diff-paths]
+    if: |
+      always() &&
+      needs.smoke-api.result == 'success' &&
+      (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
     runs-on: ubuntu-latest
     environment: prod
     steps:
