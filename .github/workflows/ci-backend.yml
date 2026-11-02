@@ -50,3 +50,25 @@ jobs:
             echo "=== $proj ==="
             dotnet test "$proj" --verbosity minimal
           done
+      # DO-045: тесты @BE живут в 6-msa и до этого не запускались нигде — `smoke-api` их не
+      # покрывает, а 8 из 9 его тестов помечены skip (TE-041), то есть контракт не проверялся.
+      - name: Run BC tests (Client, ApiGateway — DO-045)
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          for proj in \
+            6-msa/BC-Client/src/Client.IntegrationTests/Client.IntegrationTests.csproj \
+            6-msa/ApiGateway.Tests/ApiGateway.Tests.csproj; do
+            if [ -f "$proj" ]; then
+              found=1
+              echo "=== $proj ==="
+              dotnet test "$proj" --verbosity minimal
+            else
+              echo "::warning title=[tests] проекта нет::$proj — пропуск"
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error title=[tests] нечего запускать::DO-045: оба проекта отсутствуют"
+            exit 1
+          fi
