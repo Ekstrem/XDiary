@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.61"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.62"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -146,13 +146,24 @@
     return Promise.race([p, new Promise(function (resolve) { setTimeout(function () { resolve(fallback); }, ms); })]);
   }
   // FE-022: гарантируем, что при любом состоянии виден ровно один экран
+  // FE-029: и что замок не висит, если PIN фактически нет
   function ensureView() {
     var any = false;
     for (var i = 0; i < VIEWS.length; i++) {
       var el = $("view-" + VIEWS[i]);
       if (el && !el.classList.contains("hidden")) { any = true; break; }
     }
-    if (!any) { showView("lock"); lock(); }
+    if (!any) { showView("lock"); lock(); return; }
+    var lockEl = $("view-lock");
+    if (lockEl && !lockEl.classList.contains("hidden")) {
+      withTimeout(Pin.hasPin(), 5000, false).then(function (hasPin) {
+        if (!hasPin) {
+          console.log("ensureView: view-lock показан, но Pin.hasPin=false -> онбординг");
+          if (!Api.config.token()) { openOnboarding(); return; }
+          afterAuth();
+        }
+      }, function (e) { console.error("ensureView/hasPin:", e); });
+    }
   }
 
   function avatarHtml(o) {
@@ -200,6 +211,8 @@
     });
   }
   function showLockScreen() {
+    // FE-029: причина показа замка — в консоль, чтобы не гадать по E2E
+    console.log("showLockScreen: hasPin=true, hasToken=" + !!Api.config.token() + ", clientId=" + !!localStorage.getItem("xdiary.clientId"));
     $("pin-input").value = "";
     $("pin-error").classList.add("hidden");
     showView("lock");
@@ -2263,10 +2276,13 @@
 
     // FE: сначала токен (lock), потом рендер журнала — иначе /partners уходит без Authorization → 401
     lock();
-    // FE-022: страховка — если через 2с ни один экран не виден, показываем хоть что-то
+    // FE-022/FE-029: страховка — если через 2с ни один экран не виден или висит замок без PIN
     setTimeout(ensureView, 2000);
     window.addEventListener("pageshow", function (e) { if (e.persisted) ensureView(); });
   }
 
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", function () {
+    // FE-029: если init() упал на раннем шаге, экран всё равно должен появиться
+    try { init(); } catch (e) { console.error("init failed:", e); ensureView(); }
+  });
 })();
