@@ -121,7 +121,7 @@ async function snapshotStorage(page, where) {
   }
 }
 
-async function seedSession(page) {
+async function seedSessionOnce(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
   await installBase(page);
@@ -177,6 +177,34 @@ async function seedSession(page) {
   return seeded;
 }
 
+// TE-036: узкий retry ТОЛЬКО на сетевые ошибки. Обоснование — из разбора @DO:
+// `page.evaluate: TypeError: Failed to fetch` приходит из `POST /clients/{id}/verify`
+// внутри seedSession, ответа не было вообще (SW исключён: не-GET + другой origin).
+// На HTTP-ошибки (401/500) retry НЕ делаем — иначе начнём прятать реальные дефекты.
+const NET_ERROR_RE = /Failed to fetch|ERR_FAILED|net::ERR|ECONNRESET|ETIMEDOUT/i;
+const SEED_ATTEMPTS = 3; // 1 + 2 повтора
+
+async function seedSession(page) {
+  let lastErr;
+  for (let attempt = 1; attempt <= SEED_ATTEMPTS; attempt++) {
+    try {
+      return await seedSessionOnce(page);
+    } catch (e) {
+      lastErr = e;
+      const msg = String((e && e.message) || e);
+      const isNet = NET_ERROR_RE.test(msg);
+      if (!isNet) {
+        // HTTP-ошибка или логическая — не ретраим, пусть падает честно
+        throw e;
+      }
+      if (attempt === SEED_ATTEMPTS) break;
+      console.log('::notice::seedSession: retry ' + attempt + ' на шаге старт (сеть): ' + msg.slice(0, 120));
+      await page.waitForTimeout(500 * attempt);
+    }
+  }
+  throw lastErr;
+}
+
 async function loginWithPin(page, pin) {
   // TE-032: основной путь — seedSession (client-JWT). Локальный PIN остаётся вторым слоем
   // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
@@ -188,6 +216,16 @@ async function loginWithPin(page, pin) {
   // `Pin.verifyPin` возвращал false → `showPinError()` → приложение оставалось на `#view-lock`.
   // Именно это давало `{"view-lock":true,…}` и `hasPinLocal = false`.
   try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+  // TE-036 (@TL 20:25): setPin идёт ПОСЛЕ goto('/') из seedSession, поэтому приложение
+  // уже показало #view-lock без PIN, а потом «сломалось» логикой загрузки — отсюда
+  // 90-секундное залипание в #976. Правильный порядок:
+  //   setPin → reload (init() видит PIN корректно) → дождаться ЛЮБОГО из двух состояний
+  //   (#view-lock или #view-journal) → и только потом unlockIfLocked снимает замок.
+  await page.reload();
+  await Promise.race([
+    page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+    page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+  ]);
   // TE-036: `seedSession` + локальный PIN = законный замок при загрузке. Спеки, которые
   // не проверяют сам замок, обязаны его снять, иначе `#view-journal`/`#view-catalog` hidden
   // 20–90 с. Делаем это здесь, а не в каждом спеке: забыть вызов — типовая ошибка
@@ -227,4 +265,20 @@ async function removeByName(page, kind, name) {
   }
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews };
+// TE-036 (@TL 20:20): снимок экранов при ЛЮБОМ падении, а не только в seedSession/onboarding.
+// Причина: в #976 было 7 таймаутов по 90 с (catalog x3, csv, partner-edit, settings, trends)
+// и мы не знали, какой экран висит. Один снимок в момент падения отвечает на все сразу.
+// Регистрируется здесь, потому что каждый спек делает require('./api').
+try {
+  const { test } = require('@playwright/test');
+  test.afterEach(async ({ page }, testInfo) => {
+    const failed = testInfo.status !== testInfo.expectedStatus;
+    if (!failed) return;
+    await dumpViews(page, 'ПОСЛЕ ПАДЕНИЯ: ' + testInfo.title).catch(() => {});
+    await snapshotStorage(page, 'ПОСЛЕ ПАДЕНИЯ').catch(() => {});
+  });
+} catch (e) {
+  // если api.js подключён вне Playwright-контекста — просто не регистрируем хук
+}
+
+module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage };
