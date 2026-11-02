@@ -35,3 +35,5 @@ jobs:
         run: python tools/check_rule_docs.py
       - name: Карта тестов актуальна (проект → сервисы)
         run: python tools/check_test_map.py
+      - name: Формат PDR и индекс
+        run: python tools/check_pdr.py

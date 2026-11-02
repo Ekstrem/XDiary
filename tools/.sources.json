@@ -25,6 +25,11 @@
       "synced_at": "2026-11-02",
       "upstream": "tools/check_paths.py"
     },
+    "check_pdr.py": {
+      "sha256": "649b74474a307db6139dcdc6658155a88d723ceece29e66411bf883eea88bdf9",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/check_pdr.py"
+    },
     "check_rule_docs.py": {
       "sha256": "51b85579c3f1c1909ec8c32889b24fee5791ccb9968259c049dab593e791ccad",
       "synced_at": "2026-11-02",
