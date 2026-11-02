@@ -2,6 +2,7 @@ namespace Client.Api.Controllers;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Client.Api.Security;
 using Client.Application.Commands;
 using Client.Application.Queries;
@@ -19,8 +20,10 @@ public sealed class ClientsController : ControllerBase
     private IActionResult Respond(AggregateResult<IClients, IClientAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
     [HttpPost]
+    [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterClientCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpPost("{id:guid}/verify")]
+    [AllowAnonymous]
     public async Task<IActionResult> Verify(Guid id, [FromBody] VerifyClientOtpCommand c, CancellationToken ct)
     {
         var result = await _mediator.Send(c with { AggregateId = id }, ct);

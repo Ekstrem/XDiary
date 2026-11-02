@@ -2,6 +2,7 @@ namespace Privacy.Api.Controllers;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Privacy.Application.Commands;
 using Privacy.Application.Queries;
 using Privacy.Domain;

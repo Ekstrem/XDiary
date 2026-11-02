@@ -12,12 +12,14 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
     <PackageReference Include="DigiTFactory.Libraries.EventBus.InMemory" Version="0.1.0" />
     <PackageReference Include="DigiTFactory.Libraries.ReadRepository.Postgres" Version="0.1.0" />
+      <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0"><PrivateAssets>all</PrivateAssets></PackageReference>
     <ProjectReference Include="..\AppleHealthGateway.Application\AppleHealthGateway.Application.csproj" />
     <ProjectReference Include="..\AppleHealthGateway.Storage\AppleHealthGateway.Storage.csproj" />
+      <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

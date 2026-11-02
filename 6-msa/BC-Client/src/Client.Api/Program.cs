@@ -25,6 +25,16 @@ builder.Services.AddScoped<IClientQueryRepository, ClientReadRepository>();
 builder.Services.AddSingleton<ClientTokenService>();
 builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.LogOtpSender>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
+System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o => o.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "xdiary",
+        ValidateIssuer = true,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(Convert.FromBase64String(builder.Configuration["Jwt:SigningKey"] ?? "eGRpYXJ5LWRldi1zaWduaW5nLWtleS1taW5pbXVtLTMyLWJ5dGVzLTIwMjY="))
+    });
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -33,6 +43,7 @@ using (var scope = app.Services.CreateScope())
 }
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
