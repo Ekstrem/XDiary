@@ -3,11 +3,11 @@ name: Test (9-tests)
 on:
   push:
     branches: ["main"]
-    # Chat-коммиты ролей не триггерят тяжёлые test/front-e2e (иначе каждый пуш
-    # в переписке отменяет идущий E2E через cancel-in-progress). Guard'ы для
-    # чата — в отдельном workflow chat-guards.yml.
+    # DO-031: правки задач и чата ролей не триггерят тяжёлые test/front-e2e (иначе
+    # каждый пуш в переписку отменяет идущий E2E). Guard'ы — в chat-guards.yml,
+    # который теперь слушает и `5-tech-backlog/**` (DO-032: секреты в задачах).
     paths-ignore:
-      - '5-tech-backlog/chat/**'
+      - '5-tech-backlog/**'
   pull_request:
   workflow_dispatch:
 

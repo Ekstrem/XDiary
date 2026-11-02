@@ -4,7 +4,12 @@ on:
   push:
     branches: ["main"]
     paths:
-      - '5-tech-backlog/chat/**'
+      # DO-032: секреты в задачах тоже нужно сканировать. Раньше здесь был только
+      # `chat/**`, и правка `5-tech-backlog/<роль>/*.md` не запускала guard-secrets.
+      - '5-tech-backlog/**'
+      - 'loop.config.json'
+      - 'tools/**'
+      - '.github/workflows/chat-guards.yml'
 
 # Chat-коммиты проверяем лёгкими guard'ами (без test/front-e2e).
 concurrency:
