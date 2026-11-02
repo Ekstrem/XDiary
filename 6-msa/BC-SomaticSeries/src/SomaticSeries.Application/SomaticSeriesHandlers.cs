@@ -13,5 +13,5 @@ public sealed class RecordPointHandler : IRequestHandler<RecordPointCommand, Agg
     private readonly ISomaticSeriesEventPublisher _publisher;
     public RecordPointHandler(IRepository<ISomaticSeries, ISomaticSeriesAnemicModel> repo, ISomaticSeriesEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> Handle(RecordPointCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(r.T, r.Hr, r.BodyBattery); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishPointAsync(r.T, r.Hr, r.BodyBattery, ct); } return res; }
+    { var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(r.T, r.Hr, r.BodyBattery); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); _ = _publisher.PublishPointAsync(r.T, r.Hr, r.BodyBattery, CancellationToken.None); } return res; }
 }

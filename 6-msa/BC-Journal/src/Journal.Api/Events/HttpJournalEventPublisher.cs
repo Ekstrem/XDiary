@@ -30,7 +30,7 @@ public sealed class HttpJournalEventPublisher : IJournalEventPublisher
     {
         try
         {
-            var client = _http.CreateClient();
+            var client = _http.CreateClient(); client.Timeout = TimeSpan.FromSeconds(2);
             await client.PostAsJsonAsync($"{_analyticsUrl}/api/v1/analytics/events", new { EventType = eventType, Id = id, Record = record }, ct);
         }
         catch { /* best-effort: Analytics MV восстановится fallback-расписанием */ }

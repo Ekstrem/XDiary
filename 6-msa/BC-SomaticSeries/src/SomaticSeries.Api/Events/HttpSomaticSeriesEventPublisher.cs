@@ -11,7 +11,7 @@ public sealed class HttpSomaticSeriesEventPublisher : ISomaticSeriesEventPublish
 
     public async Task PublishPointAsync(string t, int hr, int bodyBattery, CancellationToken ct = default)
     {
-        try { var client = _http.CreateClient(); await client.PostAsJsonAsync($"{_analyticsUrl}/api/v1/analytics/events", new { EventType = "SomaticPointRecorded", T = t, Hr = hr, BodyBattery = bodyBattery }, ct); }
+        try { var client = _http.CreateClient(); client.Timeout = TimeSpan.FromSeconds(2); await client.PostAsJsonAsync($"{_analyticsUrl}/api/v1/analytics/events", new { EventType = "SomaticPointRecorded", T = t, Hr = hr, BodyBattery = bodyBattery }, ct); }
         catch { }
     }
 }
