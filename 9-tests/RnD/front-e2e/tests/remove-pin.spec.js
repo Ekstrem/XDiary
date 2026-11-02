@@ -11,9 +11,19 @@ async function tokenStatus(request, pin) {
   return r.status();
 }
 
-async function hasPin(request) {
-  const r = await request.get(API_BASE + '/api/v1/privacy/pin/has');
-  return r.ok() ? await r.json() : null;
+// ВАЖНО (@TL 08:50): pin/has скоупится по УСТРОЙСТВУ. Голый `request.get` идёт без
+// device-токена и всегда отдаёт false — это был баг спека, а не продукта (BE-034 отклонена).
+// Поэтому проверяем через страницу, где device-токен есть.
+async function hasPin(page) {
+  return page.evaluate(async (base) => {
+    const t = localStorage.getItem('xdiary.accessToken') || '';
+    const r = await fetch(base + '/api/v1/privacy/pin/has', {
+      headers: t ? { Authorization: 'Bearer ' + t } : {},
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return typeof j === 'boolean' ? j : !!(j && (j.hasPin !== undefined ? j.hasPin : j.value));
+  }, API_BASE);
 }
 
 test('E2E: снятие PIN — негативы по API, снятие через UI, device-токен', async ({ page, request }) => {
@@ -26,13 +36,13 @@ test('E2E: снятие PIN — негативы по API, снятие чере
     await test.step('негатив: pin/remove без currentPin → 401', async () => {
       const bad = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: {} });
       expect(bad.status(), 'pin/remove без currentPin должен быть 401').toBe(401);
-      expect(await hasPin(request), 'PIN на месте после неудачного снятия').toBe(true);
+      expect(await hasPin(page), 'PIN на месте после неудачного снятия').toBe(true);
     });
 
     await test.step('негатив: pin/remove с неверным currentPin → 401', async () => {
       const bad = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: { currentPin: '0000' } });
       expect(bad.status(), 'pin/remove с неверным currentPin должен быть 401').toBe(401);
-      expect(await hasPin(request), 'PIN на месте после неверного currentPin').toBe(true);
+      expect(await hasPin(page), 'PIN на месте после неверного currentPin').toBe(true);
     });
 
     await test.step('UI: открыть настройки и модалку PIN', async () => {
