@@ -1,50 +1,65 @@
-// ============================================================================
-// LEGACY (ADR-008 / ADR-021 п.3): этот спек проверяет СЕРВЕРНЫЙ PIN
-// (`/api/v1/privacy/token`, `/privacy/pin/set`). По канону MVP PIN — ЛОКАЛЬНЫЙ
-// (`window.Pin`, IndexedDB), серверный оставлен для device-токена и в MVP не
-// создаётся. Поэтому спек исключён из гейта через `describe.skip`, но НЕ удалён:
-// переписать под локальный PIN — задача TE-037 (P2).
-// ============================================================================
-// E2E (настоящий): смена PIN — живое приложение + живой шлюз.
-// Ловит FE-009: `applyPin` проверяет текущий PIN только локально и шлёт
-// `setPin(nw)` без `currentPin`; BE-020 на это отвечает 400 → локальный PIN меняется,
-// серверный — нет (приложение при этом говорит «PIN сохранён»).
-// Поэтому источник истины — сам шлюз: после смены новый PIN должен работать, старый — нет.
+// E2E — TE-037: смена ЛОКАЛЬНОГО PIN через UI Настроек.
+//
+// Канон MVP (ADR-021 п.3, AR-009 = B): PIN живёт локально в `window.Pin` (IndexedDB),
+// серверный `/privacy/pin/*` — legacy и условием прохождения НЕ является.
+// Поэтому спек проверяет ровно три вещи (критерии TE-037 п.1):
+//   1) новый локальный PIN пускает в журнал;
+//   2) старый локальный PIN больше не проходит проверку;
+//   3) `Pin.hasPin()` = true, а в `finally` исходный PIN возвращается (чистота стенда).
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, loginWithPin } = require('./api');
+const { PIN, loginWithPin, unlockIfLocked } = require('./api');
 
-const NEW_PIN = '5678';
+const NEW_PIN = process.env.XDIARY_E2E_NEW_PIN || '5678';
 
-test.describe.skip('legacy: серверный PIN (ADR-008, вне MVP) — переписать в TE-037', () => {
-  test('E2E: смена PIN — сервер принимает новый PIN, старый перестаёт работать', async ({ page, request }) => {
-  const oldPin = PIN;
+async function hasPinLocal(page) {
+  return page.evaluate(() => window.Pin.hasPin());
+}
+
+async function verifyLocal(page, pin) {
+  return page.evaluate((v) => window.Pin.verifyPin(v), pin);
+}
+
+test('E2E: смена локального PIN — новый пускает, старый больше нет', async ({ page }) => {
   try {
-    await loginWithPin(page, oldPin);
+    await test.step('login по локальному PIN', async () => {
+      await loginWithPin(page, PIN);
+      expect(await hasPinLocal(page), 'локальный PIN стоит после loginWithPin').toBe(true);
+    });
 
-    await page.click('#tab-settings');
-    await expect(page.locator('#view-settings')).toBeVisible();
-    await page.click('#btn-pin-open');
-    await expect(page.locator('#pin-modal')).toBeVisible();
+    await test.step('UI: Настройки → модалка PIN → новый PIN', async () => {
+      await page.click('#tab-settings');
+      await expect(page.locator('#view-settings')).toBeVisible();
+      await page.click('#btn-pin-open');
+      await expect(page.locator('#pin-modal')).toBeVisible();
+      await page.fill('#pin-current', PIN);
+      await page.fill('#pin-new', NEW_PIN);
+      await page.fill('#pin-confirm', NEW_PIN);
+      // openPinDialog() асинхронный (Pin.hasPin().then) и чистит поля — проверяем,
+      // что значения реально доехали до сабмита
+      await expect(page.locator('#pin-current')).toHaveValue(PIN);
+      await expect(page.locator('#pin-new')).toHaveValue(NEW_PIN);
+      await page.click('#btn-pin-set');
+      await expect(page.locator('#pin-modal')).toBeHidden({ timeout: 15000 });
+    });
 
-    await page.fill('#pin-current', oldPin);
-    await page.fill('#pin-new', NEW_PIN);
-    await page.fill('#pin-confirm', NEW_PIN);
-    // openPinDialog открывается асинхронно и может чистить поля — дожидаемся,
-    // что currentPin реально остался в поле (иначе setPin уйдёт с currentPin="" → 401)
-    await expect(page.locator('#pin-current')).toHaveValue(oldPin);
-    await page.click('#btn-pin-set');
+    await test.step('новый PIN верен, старый — нет', async () => {
+      expect(await verifyLocal(page, NEW_PIN), 'новый локальный PIN верен').toBe(true);
+      expect(await verifyLocal(page, PIN), 'старый локальный PIN больше не верен').toBe(false);
+      expect(await hasPinLocal(page), 'Pin.hasPin() = true после смены').toBe(true);
+    });
 
-    // сервер — источник истины
-    const withNew = await request.post(API_BASE + '/api/v1/privacy/token', { data: { pin: NEW_PIN } });
-    expect(withNew.status(), 'сервер должен принять НОВЫЙ PIN (FE-009: setPin без currentPin → 400)').toBe(200);
-
-    const withOld = await request.post(API_BASE + '/api/v1/privacy/token', { data: { pin: oldPin } });
-    expect(withOld.status(), 'старый PIN после смены работать не должен').toBe(401);
+    await test.step('перезагрузка: замок снимается НОВЫМ PIN', async () => {
+      await page.reload();
+      await page.waitForTimeout(1500);
+      if (await page.locator('#view-lock').isVisible()) {
+        await unlockIfLocked(page, NEW_PIN);
+        await expect(page.locator('#view-lock')).toBeHidden({ timeout: 15000 });
+      }
+    });
   } finally {
-    // всегда возвращаем исходный PIN, чтобы не ломать API-E2E (XDIARY_E2E_PIN=1234);
-    // если смена не удалась, сервер остался на oldPin и этот вызов просто вернёт 400
-    const r = await request.post(API_BASE + '/api/v1/privacy/pin/set', { data: { pin: oldPin, currentPin: NEW_PIN } });
-    console.log('restore pin:', r.status());
+    // Чистота стенда: возвращаем исходный локальный PIN (серверный не трогаем — legacy).
+    await page.evaluate((v) => window.Pin.setPin(v), PIN).catch(() => {});
+    const back = await hasPinLocal(page).catch(() => null);
+    console.log('::notice::restore local pin (change-pin): hasPin=' + back);
   }
-});
 });
