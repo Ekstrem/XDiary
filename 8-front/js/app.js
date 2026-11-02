@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.49"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.50"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -199,18 +199,18 @@
   // FE-018 ч.2: клиент-идентификация — телефон → SMS OTP → client-JWT → link-partner
   var onbClientId = "";
   function afterAuth() {
-    // FE-018: есть client-JWT → /clients/me; legacy-устройство (PIN или явно пропущенный онбординг) → журнал; новое → онбординг
-    if (localStorage.getItem("xdiary.clientId") && Api.config.token()) {
-      Api.clients.me().then(function (c) {
-        if (c && c.verified && c.linkedPartnerId) openJournal();
-        else openOnboarding();
-      }).catch(function () { openOnboarding(); });
-      return;
-    }
+    // FE-020: приоритет — legacy/PIN → журнал; client-JWT → /clients/me; иначе — онбординг
     if (localStorage.getItem("xdiary.legacy")) { openJournal(); return; }
     Pin.hasPin().then(function (hasPin) {
-      if (hasPin) { try { localStorage.setItem("xdiary.legacy", "1"); } catch (e) {} openJournal(); }
-      else openOnboarding();
+      if (hasPin) { markLegacy(); openJournal(); return; }
+      if (localStorage.getItem("xdiary.clientId") && Api.config.token()) {
+        Api.clients.me().then(function (c) {
+          if (c && c.verified && c.linkedPartnerId) openJournal();
+          else openOnboarding();
+        }).catch(function () { openOnboarding(); });
+        return;
+      }
+      openOnboarding();
     });
   }
   function openOnboarding() {
