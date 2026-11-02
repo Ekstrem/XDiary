@@ -25,13 +25,17 @@ fi
 # 3. портмап шлюза: /health не отвечает -> пересоздать шлюз (re-trigger portmap)
 if ! curl -fsS -m 5 http://127.0.0.1:8080/health >/dev/null 2>&1; then
   echo "$(ts) gateway /health failed, recreating" >> "$LOG"
+  # DO-034: список хостов берём из gen-hosts.py (он читает podman-compose.yml),
+  # а не хардкодим — иначе снова забудем сервис, как забыли clients.
+  ADD_HOSTS="$(python3 "$(cd "$(dirname "$0")" && pwd)/gen-hosts.py" --add-host 2>/dev/null)"
+  if [ -z "$ADD_HOSTS" ]; then
+    echo "$(ts) gen-hosts недоступен — НЕ пересоздаю шлюз (иначе потеряю сервисы)" >> "$LOG"
+    exit 0
+  fi
   podman rm -f xdiary-api-gateway >/dev/null 2>&1
   cd /opt/xdiary/7-deploy || exit 1
   podman run -d --name xdiary-api-gateway --network xdiary --ip 10.89.9.30 --hostname api-gateway \
-    --add-host journal:10.89.9.20 --add-host partners:10.89.9.21 --add-host catalog:10.89.9.22 \
-    --add-host somatic-series:10.89.9.23 --add-host daily-metrics:10.89.9.24 --add-host garmin-gateway:10.89.9.25 \
-    --add-host apple-health-gateway:10.89.9.26 --add-host analytics:10.89.9.27 --add-host privacy:10.89.9.28 \
-    --add-host portability:10.89.9.29 --add-host clients:10.89.9.31 --label io.containers.autoupdate=registry \
+    $ADD_HOSTS --label io.containers.autoupdate=registry \
     --env-file secrets/.env -e ASPNETCORE_ENVIRONMENT=Single --memory 256m --pids-limit 512 \
     --read-only --tmpfs /tmp --restart unless-stopped -p 127.0.0.1:8080:8080 \
     ghcr.io/ekstrem/xdiary-api-gateway:single >/dev/null 2>&1

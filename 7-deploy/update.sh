@@ -9,7 +9,7 @@ TAG="${1:-single}"
 cd /opt/xdiary/7-deploy || exit 1
 HASHFILE="$HOME/.xdiary-images.sha256"
 
-GEN="$HOME/XDiary/tools/gen-hosts.py"
+GEN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gen-hosts.py"
 SVCS="$(python3 "$GEN" --svcs 2>/dev/null || true)"
 if [ -z "$SVCS" ]; then
   echo "update.sh: не смог получить список сервисов из $GEN — выхожу, чтобы не обновить неполный набор" >&2
