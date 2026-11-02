@@ -123,5 +123,14 @@ jobs:
               print(f'⚠️ net={total["net"]} — часть падений сетевая (ответа не было). Это НЕ доказательство дефекта продукта и НЕ зелёный прогон.')
           print()
           print(f"repeat-each={os.environ.get('REPEAT')} workers={os.environ.get('WORKERS')}")
+          # Дефект измерения (02.11): шаг с `continue-on-error: true` + `|| true` делал прогон
+          # ЗЕЛЁНЫМ даже при падениях — «success» перестал что-либо значить (#5: 2 failed из 10,
+          # а джоба success). Теперь падения дают красный прогон и аннотацию.
+          if total['failed'] or total['timedOut'] or total['net']:
+              print(f"::error title=[flaky] измерение нашло падения::{total['failed']} failed, "
+                    f"{total['timedOut']} timedOut, {total['net']} net из "
+                    f"{total['passed'] + total['failed'] + total['timedOut'] + total['skipped']}")
+              raise SystemExit(1)
+          print(f"::notice::падений нет: {total['passed']} passed")
           print('Напоминание: повтор без падений НЕ доказывает отсутствие флейкости — он лишь говорит, что повторы её не поймали.')
           PY
