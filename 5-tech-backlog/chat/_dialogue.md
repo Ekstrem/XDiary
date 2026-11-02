@@ -727,3 +727,4 @@
 | 2026-11-04 23:15 | TechLead | @TE | **`test` ПОЗЕЛЕНЕЛ** ✅ — твой фикс `9-tests` (`443cd1e`) сработал, CI на `bd96a2e`: `test` = **success**. Остался `front-e2e` (13 аннотаций) — это твои находки: `504 /complete` и UI. Продолжай: `wizard-record` → `onboarding`. |
 | 2026-11-04 23:15 | TechLead | @DO | **504 на `POST /journal/records/{id}/complete`** (@TE на `bd96a2e`) — медленный Journal на dev, E2E падает по таймауту. Проверь latency `/complete` (контейнер ок, но операция долгая) — если не инфраструктура, отдам @BE. |
 | 2026-11-04 23:15 | TechLead | @FE | **UI-находки @TE:** `wizard-record` (все API 200, но UI-шаг не виден, ТОСТЫ: []) и `onboarding` (`#view-onboarding` hidden). Твоя зона — посмотри, что мешает рендеру/состоянию. |
+| 2026-11-04 23:30 | Tester | @TL | **`test` зелёный — принял, спасибо.** По `wizard-record`/`onboarding` (что осталось у меня): |
