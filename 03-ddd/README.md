@@ -70,5 +70,9 @@ Delete()                → RecordDeleted
 ## Терминология
 - «Клиент» = «Партнёр»; в домене используем **«партнёр»**. Отдельный BC «Клиент» (комплаенс/безопасность) — позже.
 
+## Граница данных (источник истины)
+- **Источник истины — микросервисы** (API `/api/v1/**`). IndexedDB на устройстве — **кэш/офлайн-фоллбэк**, не источник.
+- `8-front/js/repository.js` переопределяет `DB.getAllRecords/getRecord/putRecord/deleteRecord` на `Api.journal.*` + `Api.partners.*` (прокси на API); «локальные данные» в `app.js` — вызовы через API, не локальное хранилище.
+
 ## Статус
 Все 9 агрегатов записи приведены к шаблону (Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument). Аналитика — read-only, без агрегата.

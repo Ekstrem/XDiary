@@ -16,7 +16,7 @@
 - Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
 
 **Сущность (Entity — корень агрегата):**
-- **PinCredential** — синглтон (один на устройство); идентичность неявная (владелец).
+- **PinCredential** — per-client: `clientId` (uuid, чей PIN); идентичность = `clientId` (ADR-021, AR-008).
 
 **Объект-значения (Value Objects):**
 - **Salt**: salt (base64)
@@ -35,6 +35,7 @@ Locked → [Unlock] → Set
 ## 4. Enforced Invariants
 | Инвариант | Описание |
 |---|---|
+| SinglePinPerClient | один PIN на клиента (`clientId`) |
 | PinFormat | 4–8 цифр |
 | NoPlaintext | открытый PIN не сохраняется |
 
