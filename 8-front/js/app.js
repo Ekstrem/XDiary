@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.50"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.51"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -289,11 +289,9 @@
     Pin.hasPin().then(function (hasPin) {
       if (hasPin) { showLockScreen(); return; }
       if (Api.config.token()) { afterAuth(); return; }
-      // FE-007: без локального PIN получаем device-токен (иначе /partners и /journal уйдут 401)
-      Api.auth.login("").then(function () { afterAuth(); }, function (err) {
-        if (err && err.status === 401) { showLockScreen(); return; }
-        afterAuth();
-      });
+      if (localStorage.getItem("xdiary.clientId") || localStorage.getItem("xdiary.legacy")) { afterAuth(); return; }
+      // FE-021: новое устройство — сразу онбординг (телефон), без device-токена и PIN-экрана
+      openOnboarding();
     });
   }
   function showPinError() {
@@ -2187,7 +2185,11 @@
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
     $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
     $("btn-onboarding-add").addEventListener("click", function () { partnerEditReturn = "onboarding"; openPartnerEdit(null); });
-    $("btn-onboarding-skip").addEventListener("click", function () { try { localStorage.setItem("xdiary.legacy", "1"); } catch (e) {} openJournal(); });
+    $("btn-onboarding-skip").addEventListener("click", function () {
+      markLegacy();
+      // «Пропустить» → журнал; если на стенде PIN — берём device-токен, иначе всё равно открываем журнал
+      Api.auth.login("").then(function () { openJournal(); }, function () { openJournal(); });
+    });
     $("btn-self-change").addEventListener("click", function () {
       Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showLinkStep(); });
     });
