@@ -1278,3 +1278,29 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   **Причина уже названа твоим же логом #5:** ты завёл `FE-031` — «`link-partner` из UI: `linked:false`». А `#view-journal` открывается **по `linkedPartnerId`** (мой контрактный вывод из `me()`). То есть: OTP прошёл → карточка нажата → `me()` вернул `linked:false` → журнал не открылся. Это **FE-031**, а не стенд.
   **Что всё же стоит проверить @DO (не на этих спеках):** `remove-pin` — он ходит через `verify`/`pin/has`; если там 400, это действительно дефект стенда.
   **Ожидание от следующего прогона:** `wizard-record` и `pin-first-login` зелёные (после `unlockIfLocked`), `onboarding` → **FE-031**, `remove-pin` → **BE-045**.
+
+- [2026-11-07 07:11] → @TL: **оба твоих сообщения закрыты: `TE-037` (`На проверке`, `c53b82a`) и перехват `/link-partner` (`a5e209c`). Всё в `origin`, проверено `git show`.**
+  **1) TE-037 — оба спека на локальном PIN:**
+  ```
+  change-pin.spec.js:  активный тест (describe.skip убран целиком)
+     #btn-pin-open → #pin-current/new/confirm → #btn-pin-set
+     Pin.verifyPin(NEW) = true,  Pin.verifyPin(OLD) = false,  Pin.hasPin() = true
+     reload → замок снимается НОВЫМ PIN; в finally Pin.setPin(исходный)
+  remove-pin.spec.js:  серверный контур в describe.skip (AR-009/ADR-021), активный тест — локальный
+     hasPinLocal = true → Настройки → «Удалить PIN» → #confirm-yes
+     → expect.poll(Pin.hasPin()) = FALSE   ← условие прохождения, а не ответ сервера
+     → reload → #view-lock hidden;  в finally локальный PIN возвращён
+  ```
+  **В `origin`:** `change-pin` — `describe.skip` **0** вхождений, `verifyLocal` 3; `remove-pin` — `describe.skip` 2 (блок+комментарий), `expect.poll` 1; все `/privacy/*` лежат внутри skip-блока (строки 21–58), активный тест с 60. `node --check` = 0 оба.
+  **Почему это снимает третье падение:** `remove-pin` падал на серверном assert, который по AR-009 = B вне MVP. Теперь серверный ответ не влияет на результат, а MVP-путь проверяется по-настоящему.
+  **2) Перехват `/link-partner` (быстрая правка):**
+  ```
+  api.js  watchLinkPartner(page) → REQ метод+URL+body(200) | RES статус+URL+body(200) | FAIL errorText
+          report(): ::warning::link-partner (<где>): …   либо «запросов не было»
+  onboarding.spec.js:57  const linkWatch = watchLinkPartner(page)   ← ДО клика
+  onboarding.spec.js:73  linkWatch.report('после клика по карточке')  ← через 700 мс
+  ```
+  Это ровно тот факт, который ты просил: уходит ли `POST …/link-partner` и с каким телом. Ответ будет в аннотациях (уровень `::warning::`), а не в логе шага.
+  **Что это даст @FE:** если запись `REQ …` есть, а `RES` 4xx/5xx — проблема в ответе; если `REQ` есть и `RES 200`, но `linked:false` — проблема в чтении (`me()`/кэш); если «запросов не было» — клик не доходит до вызова.
+  **Замечание по `#17`:** `3 failed / 15 passed / 1 skipped, 3.5 мин` — счёт не изменился, но состав другой: `wizard-record` в #10 был зелёным, а `remove-pin` ушёл в skip-обработку по TE-037. После моего коммита ожидаю **2** (`onboarding`, `pin-first-login`) до закрытия FE-031.
+  **Дальше по моей зоне открытых дефектов нет:** `TE-036` — `На проверке` (6 причин названы), `TE-037` — `На проверке`. Ручной rebase не запускал, пушил через `git_sync` (2 синка, оба «впереди origin: 0»).
