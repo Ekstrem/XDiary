@@ -4,7 +4,7 @@
 //   чистый контекст (нет локального PIN и нет xdiary.legacy) → afterAuth() → Pin.hasPin()=false → openOnboarding().
 // Если на устройстве PIN уже есть — путь legacy (журнал), поэтому чистим оба флага перед стартом.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, installBase, waitToken } = require('./api');
+const { API_BASE, PIN, installBase, waitToken, dumpViews } = require('./api');
 
 const PHONE = '+7999000' + String(Date.now()).slice(-4);
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
@@ -45,17 +45,34 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
     expect(clientId && clientId !== 'pending', 'clientId сохранён после верификации: ' + clientId).toBe(true);
   });
 
-  await test.step('шаг 3: привязка «я» (или «Пропустить») → журнал', async () => {
+  await test.step('шаг 3: привязка «я» → журнал', async () => {
     const card = page.locator('#onboarding-list .partner-card').first();
-    let mode = 'пропуск (нет партнёров)';
+    let mode = 'нет партнёров на шаге привязки';
+    // TE-036: карточка может быть видима, но не кликабельна (overlay/pointer-events) —
+    // тогда «клик не доходит» и «FE не переключает экран» выглядят одинаково.
     if (await card.count()) {
+      const vis = await card.isVisible();
+      const box = await card.boundingBox().catch(() => null);
+      const clickable = await card.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { pointerEvents: cs.pointerEvents, display: cs.display, visibility: cs.visibility };
+      }).catch(() => null);
+      console.log('::notice::карточка партнёра: visible=' + vis + ', box=' + JSON.stringify(box) + ', style=' + JSON.stringify(clickable));
       await card.click();
       mode = 'link-partner по карточке';
-    } else {
-      // skip убран из UI (решение владельца п.4 от 06.11): если партнёров нет,
-      // остаёмся на шаге привязки — журнал откроется после link-partner.
-      mode = 'без привязки (skip убран из UI)';
     }
+    // Снимок экранов ДО ожидания: видно, дошло ли приложение до журнала и что осталось висеть.
+    await dumpViews(page, 'после привязки');
+    // Маскированный ответ me(): пуст ли linkedPartnerId фактически.
+    const meNow = await page.evaluate(async (base) => {
+      const id = localStorage.getItem('xdiary.clientId') || '';
+      const t = localStorage.getItem('xdiary.accessToken') || '';
+      if (!id || !t) return { noSession: true };
+      const r = await fetch(base + '/api/v1/clients/' + id, { headers: { Authorization: 'Bearer ' + t } });
+      const j = r.ok ? await r.json().catch(() => null) : null;
+      return { status: r.status, verified: !!(j && j.verified), linked: !!(j && j.linkedPartnerId) };
+    }, API_BASE).catch(() => null);
+    console.log('::notice::me() после привязки: ' + JSON.stringify(meNow));
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
     console.log('::notice::TE-025 онбординг пройден: ' + mode + ', phone=' + PHONE);
   });
