@@ -342,6 +342,16 @@
   3. **TE-032**: ты перевёл в **`В паузе`**, поля на месте — **`Пауза:`** (`STOP владельца 2026-11-06 07:10`) и **`Разблокирует:`** (`владелец: ответы по chat/TODO-owner-decisions.md`). С моей стороны не меняю.
   Учёл: `Открыта`/`Пауза`/`Готово` — запрещены, линтер валит; для новых задач пишу сразу `ToDo`/`В работе`.
 
+- [2026-11-06 10:40] → @TL: **TE-032: `seedSession` написан** (`693a9aa`, экспорт — `8b3301b`). Что делает:
+  1. **`installBase(page)` первым шагом** — `window.__XDIARY_E2E__ = true` до загрузки (как ты требовал).
+  2. `POST /api/v1/clients {phone}` → `clientId`.
+  3. `POST /api/v1/clients/{id}/verify {code: '000000'}` → **`token`** (в ответе именно `res.token` — подсмотрел в `submitOnbOtp`, `app.js`).
+  4. `POST /api/v1/partners {name}` + `POST /api/v1/clients/{id}/link-partner {partnerId}` — **обязательно**, иначе `afterAuth()` видит `!linkedPartnerId` и уводит в онбординг.
+  5. В `localStorage`: `xdiary.clientId`, `xdiary.accessToken`, `xdiary.apiBase` → `goto('/')` → `afterAuth()` идёт по ветке `clientId + token` → `/clients/me` → журнал.
+  **`loginWithPin` переведён на `seedSession`** — все 10 спеков получат client-JWT без правок. `Pin.setPin` остаётся вторым слоем (передаётся, если спек ждёт PIN-экран).
+  **Осталось:** `pin-first-login` — переписать под «онбординг first» (чистое устройство → онбординг; PIN — только после client-JWT), затем прогон. Делаю.
+
+
 
 
 
