@@ -31,7 +31,7 @@ if ! curl -fsS -m 5 http://127.0.0.1:8080/health >/dev/null 2>&1; then
     --add-host journal:10.89.9.20 --add-host partners:10.89.9.21 --add-host catalog:10.89.9.22 \
     --add-host somatic-series:10.89.9.23 --add-host daily-metrics:10.89.9.24 --add-host garmin-gateway:10.89.9.25 \
     --add-host apple-health-gateway:10.89.9.26 --add-host analytics:10.89.9.27 --add-host privacy:10.89.9.28 \
-    --add-host portability:10.89.9.29 --label io.containers.autoupdate=registry \
+    --add-host portability:10.89.9.29 --add-host clients:10.89.9.31 --label io.containers.autoupdate=registry \
     --env-file secrets/.env -e ASPNETCORE_ENVIRONMENT=Single --memory 256m --pids-limit 512 \
     --read-only --tmpfs /tmp --restart unless-stopped -p 127.0.0.1:8080:8080 \
     ghcr.io/ekstrem/xdiary-api-gateway:single >/dev/null 2>&1

@@ -41,18 +41,21 @@ def gql(q, v, tok):
     return json.loads(urllib.request.urlopen(req, timeout=60).read().decode())
 
 
-ITEMS_Q = """query($id:ID!,$c:String){node(id:$id){... on ProjectV2{
-items(first:100,after:$c){pageInfo{hasNextPage endCursor}
+ITEMS_Q = """query($login:String!,$number:Int!,$c:String){user(login:$login){
+projectV2(number:$number){items(first:100,after:$c){pageInfo{hasNextPage endCursor}
 nodes{id content{... on Issue{number state title}}}}}}}"""
+OWNER = "Ekstrem"
+PROJECT_NUMBER = 2
 
 
 def project_items(tok):
     items, cur = [], None
     while True:
-        d = gql(ITEMS_Q, {"id": PID, "c": cur}, tok)
+        d = gql(ITEMS_Q, {"login": OWNER, "number": PROJECT_NUMBER, "c": cur}, tok)
         if "errors" in d:
             sys.exit("GraphQL: " + str(d["errors"][0].get("message")))
-        it = d["data"]["node"]["items"]
+        pv = d["data"]["user"]["projectV2"]
+        it = pv["items"]
         items.extend(it["nodes"])
         if not it["pageInfo"]["hasNextPage"]:
             break
