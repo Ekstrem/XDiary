@@ -51,7 +51,7 @@
       "upstream": "tools/check_workflow_paths.py"
     },
     "git_sync.py": {
-      "sha256": "a87516bda27e8a9db7fa9ab511f02d253189e586d6566832253e15f5c1499183",
+      "sha256": "f56ab6024801f0bc90b791543d46c5e20195d92a67c92eb41e00628b28db8d3e",
       "synced_at": "2026-11-02",
       "upstream": "tools/git_sync.py"
     },

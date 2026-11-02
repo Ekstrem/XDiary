@@ -96,6 +96,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--remote", default="origin")
     ap.add_argument("--branch", default="main")
+    ap.add_argument("--zone", action="store_true",
+                    help="wip по всей зоне роли (старое поведение). По умолчанию wip идёт "
+                         "ТОЛЬКО по явным --paths: зона загребает чужие правки (DO-043)")
     ap.add_argument("--fix-state", action="store_true",
                     help="убрать ТОЛЬКО пустой rebase-merge (без head-name/onto, один autostash) "
                          "и напечатать, что сделано; SHA автостэша сохраняется")
@@ -181,6 +184,22 @@ def main():
             say("   … ещё %d" % (len(untracked) - 10))
         say("   они не попадут в пуш. Добавь `-u` (все) или `--paths` (выборочно),")
         say("   либо удали/заигнорь их — иначе получишь рапорт «запушено» без содержимого.")
+        return 1
+
+    if dirty and not args.paths and not args.all and not args.zone and not args.include_untracked:
+        # DO-043: wip по зоне загребает чужое — так `tools/health.py` (@LM) уехал в коммит @DO.
+        # Поэтому по умолчанию требуем явные пути: молчаливая угадайка хуже лишней команды.
+        say("")
+        say("git_sync: в дереве есть изменения, но не указано, ЧТО коммитить.")
+        say("  По умолчанию wip идёт только по явным путям (DO-043), иначе в коммит уедет чужое.")
+        say("  Варианты:")
+        say("    --paths 7-deploy/runbooks/ tools/test_git_sync_state.py   # выборочно")
+        say("    --zone                                                    # вся зона роли (старое)")
+        say("    --all                                                     # всё дерево (исключение)")
+        say("    -u                                                        # + untracked")
+        say("  Изменённые файлы сейчас:")
+        for line in git("status", "--porcelain").stdout.splitlines()[:12]:
+            say("    " + line.strip()[:120])
         return 1
 
     if dirty:
