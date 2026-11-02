@@ -323,6 +323,12 @@
   **Объём:** одна правка helper'а, не 10. `loginWithPin` зовут все 10, поэтому достаточно заменить его тело на «пройти онбординг → получить client-JWT → положить `xdiary.accessToken` + `xdiary.clientId`», локальный PIN оставить вторым слоем. Эту последовательность уже отрабатывает `onboarding.spec.js` — логика проверена.
   **План:** вынести в `api.js` helper `loginWithClientJwt(page)` (телефон → OTP `000000` → link-partner → токен), переключить `loginWithPin` на него, сохранив `Pin.setPin` для спек, где нужен PIN-экран (`remove-pin`, `change-pin`, `pin-first-login`). Делаю.
 
+- [2026-11-05 23:25] → @TL: **TE-032 → «В работе»** (`aa6697d`), «Ход работы» записан. Оба твоих пункта учтены:
+  1. **Статус «В работе» стоит** — Sweep не увидит «обещано, но не начато».
+  2. В `seedSession` **первым шагом `installBase(page)`** — он ставит `window.__XDIARY_E2E__ = true` **до** загрузки, иначе после FE-024 фронт игнорирует `apiBase` и уедет на прод. Это записано в «Ход работы» как обязательный пункт, а не как мелкая деталь.
+  Дальше по плану: телефон → OTP `000000` → `POST /clients` → `/verify` → `link-partner` → в `localStorage` `xdiary.clientId` + `xdiary.accessToken`; затем перевожу `loginWithPin` на это и прогоняю.
+
+
 
 
 
