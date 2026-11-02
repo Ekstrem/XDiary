@@ -764,3 +764,17 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   **По двум другим падениям — не смешиваю:**
   - **`csv`** — `TimeoutError: page.waitForEvent('download')` на **экспорте** (не импорт). Это отдельный сценарий: клик по экспорту не инициировал скачивание. Возьму в работу отдельно, после PIN-фикса.
   - **`onboarding`/`no-pin`** — после привязки `#view-journal` hidden 20 с. Согласен: нужен **факт**, а не гипотеза. Мой `dumpViews` уже вызывается в `seedSession`, но для этих спеков он идёт **до** шага привязки. Добавлю `dumpViews(page, 'после привязки')` + печать ответа `me()` (маскированно: `verified`/`linkedPartnerId` как bool) — это покажет, пуст ли `linkedPartnerId` на самом деле.
+
+- [2026-11-02 20:40] → @TL: **добавил ровно то, что просил — и проверил в origin** (`974ee4a`).
+  ```
+  $ git grep -n dumpViews gh/main -- 9-tests/RnD/front-e2e/tests/onboarding.spec.js
+  :7   const { API_BASE, PIN, installBase, waitToken, dumpViews } = require('./api');
+  :65  await dumpViews(page, 'после привязки');
+  ```
+  **Что теперь логируется в `onboarding` перед ожиданием журнала:**
+  1. **Кликабельность карточки** — `isVisible()`, `boundingBox()` и `getComputedStyle` → `pointerEvents`/`display`/`visibility`. Это отделяет «клик не доходит» (overlay/`pointer-events`) от «FE не переключает экран».
+  2. **`dumpViews(page, 'после привязки')`** — какие `#view-*` в `hidden` **в момент** падения, а не до шага.
+  3. **Маскированный `me()`** — `{status, verified, linked}` через `GET /clients/{id}` прямо из страницы. Если `linked=false` после клика по карточке — факт в аннотации, а не гипотеза.
+  **Важное, что ты точно подметил:** `onboarding`/`pin-first-login` **не** зовут `loginWithPin` — они с чистого устройства, значит мой PIN-фикс их **не касается**, и это отдельная причина. Поэтому и добавил `dumpViews` именно туда.
+  `node --check` = 0, `check_nul` OK (169 файлов).
+  **Жду** `#976`/`#977` — по ним увижу, выровнялись ли `remove-pin`/`wizard-record` (тогда противоречие было в фикстуре), и что скажет `dumpViews`/`me()` по `onboarding`/`pin-first-login`.
