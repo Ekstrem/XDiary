@@ -154,6 +154,39 @@ def count_tolerant(chat_dir, known_roles):
     return tolerant, total, slash
 
 
+TS_ANY = re.compile(r"-\s*\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]")
+
+
+def chat_max_stamp(chat_dir):
+    """Максимальная метка в чате — шкала, которую реально использует проект.
+
+    Зачем: если шкала чата уехала вперёд (у нас — на ~4.6 суток), машинные часы дают
+    метку «в прошлое»: сообщение физически оказывается выше по файлу, и координатор
+    его не видит. Инструмент не должен сам создавать дрейф.
+    """
+    best = None
+    if not os.path.isdir(chat_dir):
+        return None
+    for name in sorted(os.listdir(chat_dir)):
+        if not name.endswith(".md"):
+            continue
+        try:
+            with open(os.path.join(chat_dir, name), encoding="utf-8-sig") as f:
+                for line in f:
+                    m = TS_ANY.match(line.strip())
+                    if not m:
+                        continue
+                    try:
+                        ts = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
+                    except ValueError:
+                        continue
+                    if best is None or ts > best:
+                        best = ts
+        except OSError:
+            continue
+    return best
+
+
 def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use_clock=True):
     """Метки времени: в будущем (часы врут) и немонотонность внутри файла.
 
@@ -247,9 +280,15 @@ def main():
         chat_dir0, _, cfg0 = load_config(args.config)
         shift0 = int((cfg0.get("chat_time") or {}).get("shift_hours", 0))
         tz0 = int((cfg0.get("chat_time") or {}).get("tz_offset_hours", 3))
-        # метка = сейчас в TZ проекта + сдвиг шкалы (по умолчанию 0)
-        print((datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=tz0 + shift0))
-              .strftime("%Y-%m-%d %H:%M"))
+        mx = chat_max_stamp(chat_dir0)
+        machine = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                   + datetime.timedelta(hours=tz0 + shift0))
+        # Шкала чата первична: метка = максимум по чату + 1 минута (не «в прошлое»).
+        # Если чат пуст — машинные часы в TZ проекта.
+        stamp = (mx + datetime.timedelta(minutes=1)) if mx else machine
+        if mx and machine > stamp:
+            stamp = machine  # если машина внезапно ушла вперёд — берём её
+        print(stamp.strftime("%Y-%m-%d %H:%M"))
         return 0
 
     chat_dir, titles, cfg = load_config(args.config)
