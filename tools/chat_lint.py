@@ -195,14 +195,21 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
                 collected.append((name, raw, ts))
     # PDR-21 (@TL 02:45): в CI часы раннера — UTC, а чат пишется в MSK(+3).
     # Сравнивать с now() бессмысленно: любая местная метка выглядит «будущим».
-    # В CI шкала самосогласована: опорная точка — САМАЯ ПОЗДНЯЯ метка в чате,
-    # и флагуется только файл, уехавший вперёд относительно остальных
-    # (это ловит опечатку «+2 дня», но не наказывает за часовой пояс).
-    if use_clock:
-        reference = now + datetime.timedelta(hours=shift_hours)
-    else:
-        reference = max((ts for _, _, ts in collected), default=now)
+    #
+    # Важно, какую опору брать. «Максимум по чату» НЕ работает: опечатка сама
+    # становится максимумом и никогда не флагуется (проверено — метка «+2 дня»
+    # прошла молча). Поэтому опора для файла — максимум по ОСТАЛЬНЫМ файлам:
+    # роль, уехавшая вперёд относительно всех, ловится, а часовой пояс — нет.
+    per_file = {}
+    for name, _raw, ts in collected:
+        if ts > per_file.get(name, ts):
+            per_file[name] = ts
     for name, raw, ts in collected:
+        if use_clock:
+            reference = now + datetime.timedelta(hours=shift_hours)
+        else:
+            others = [v for k, v in per_file.items() if k != name]
+            reference = max(others) if others else now
         if ts > reference + datetime.timedelta(minutes=tolerance_min):
             lag = ts - reference
             future.append((name, raw, int(lag.total_seconds() // 3600)))
@@ -266,7 +273,12 @@ def main():
     # Метки в чате — в TZ проекта (MSK). Раннер GitHub живёт в UTC, поэтому «сейчас»
     # считаем как UTC + смещение проекта, иначе --strict-times краснеет на ровных метках.
     now_project = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=tz_offset + shift))
-    future, order = scan_times(chat_dir, set(titles.keys()), now_project, tolerance, shift)
+    # PDR-21 (@TL 02:45): в CI опорная точка — САМАЯ ПОЗДНЯЯ метка в чате, а не часы
+    # раннера. Причина: раннер в UTC, чат в MSK(+3); любая местная метка выглядела
+    # «будущим». Вне CI (машина в TZ проекта) остаётся сравнение с текущим временем —
+    # там оно осмысленно и ловит метку, уехавшую вперёд по ошибке.
+    future, order = scan_times(chat_dir, set(titles.keys()), now_project, tolerance, shift,
+                               use_clock=not CI)
 
     if args.report or args.check:
         print("нераспознанных строк: %d (новых: %d)" % (len(problems), len(fresh)))
