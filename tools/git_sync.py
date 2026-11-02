@@ -38,6 +38,8 @@ def main():
     ap.add_argument("--role", required=True)
     ap.add_argument("--paths", default=None, help="пути для wip (по умолчанию — зона роли)")
     ap.add_argument("--all", action="store_true", help="wip всего дерева (исключение)")
+    ap.add_argument("--message", default=None,
+                    help="текст коммита (вместо wip-автосейва)")
     ap.add_argument("-u", "--include-untracked", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--remote", default="origin")
@@ -82,6 +84,8 @@ def main():
             cmd += ["--paths", args.paths]
         if args.include_untracked:
             cmd.append("-u")
+        if args.message:
+            cmd += ["--message", args.message]
         res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                              errors="replace")
         say((res.stdout or "").strip())
