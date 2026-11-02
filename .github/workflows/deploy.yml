@@ -3,6 +3,17 @@ name: Deploy (dev → prod)
 on:
   push:
     branches: [ main ]
+    # Деплой — только на изменения кода/инфры. Чат, задачи, доки и .md не триггерят
+    # полный конвейер dev→prod (раньше каждое сообщение в чате гоняло деплой).
+    paths-ignore:
+      - '5-tech-backlog/**'
+      - '0*/**'
+      - '01-user-stories/**'
+      - '02-cjm/**'
+      - '03-ddd/**'
+      - '04-architecture/**'
+      - 'app/**'
+      - '*.md'
   workflow_dispatch:
     inputs:
       tag:

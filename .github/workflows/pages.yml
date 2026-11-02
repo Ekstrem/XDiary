@@ -3,6 +3,9 @@ name: Deploy PWA to GitHub Pages
 on:
   push:
     branches: ["main"]
+    paths:
+      - '8-front/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:

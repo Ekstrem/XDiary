@@ -3,6 +3,12 @@ name: Sync board (md -> Issues + Project)
 on:
   push:
     branches: ["main"]
+    # Синк доски — только на задачи (5-tech-backlog/**), не на чат и не на код.
+    paths:
+      - '5-tech-backlog/**'
+      - '!5-tech-backlog/chat/**'
+      - 'README.md'
+      - 'tools/sync_board.py'
   workflow_dispatch:
 
 permissions:
