@@ -1,5 +1,5 @@
 # XDiary — VPS-1 (podman rootless)
-# 10 микросервисов + API Gateway (YARP), профиль Single.
+# 11 микросервисов + API Gateway (YARP), профиль Single.
 # Образы собирает CI и публикует в GHCR (ghcr.io/ekstrem/xdiary-*:single).
 # Секреты и строки подключения — в secrets/.env (gitignored, chmod 600).
 #
@@ -121,6 +121,18 @@ services:
 
   portability:
     image: ghcr.io/ekstrem/xdiary-portability:single
+    env_file: secrets/.env
+    environment: { ASPNETCORE_ENVIRONMENT: Single }
+    mem_limit: 256m
+    pids_limit: 512
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  # DO-033: BC-Client (онбординг/OTP). Шлюз маршрутизирует /api/v1/clients → clients:8080.
+  # Без этого сервиса вход не работает ни с какими ключами (502 на /api/v1/clients).
+  clients:
+    image: ghcr.io/ekstrem/xdiary-client:single
     env_file: secrets/.env
     environment: { ASPNETCORE_ENVIRONMENT: Single }
     mem_limit: 256m
