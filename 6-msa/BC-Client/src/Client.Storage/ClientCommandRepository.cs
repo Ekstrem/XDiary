@@ -1,6 +1,7 @@
 namespace Client.Storage;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Client.Domain;
 using Client.Domain.Abstraction;
 using XDiary.Contracts;
@@ -16,6 +17,8 @@ public sealed class ClientCommandRepository : IRepository<IClients, IClientAnemi
         var e = await _db.Clients.FirstOrDefaultAsync(x => x.Id == m.Id, ct);
         if (e is null) { e = new ClientEntity { Id = m.Id }; _db.Clients.Add(e); }
         ClientMapper.MapToEntity(m, e);
-        await _db.SaveChangesAsync(ct);
+        try { await _db.SaveChangesAsync(ct); }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pg && pg.SqlState == "23505")
+        { throw new DuplicatePhoneException(); }
     }
 }
