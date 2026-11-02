@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.63"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.64"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -289,10 +289,12 @@
     var code = $("onb-otp-input").value.trim();
     if (!code) { toast("Введите код из SMS"); return; }
     Api.clients.verify(onbClientId, code).then(function (res) {
-      var token = (res && res.token) || "";
+      // FE-028: BE-041 — /verify отдаёт пару accessToken + refreshToken (+ token для совместимости)
+      var token = (res && (res.accessToken || res.token)) || "";
+      var refresh = (res && res.refreshToken) || "";
       if (!token) { toast("Ошибка: сервер не вернул токен"); return; }
       Api.config.setToken(token);
-      Api.config.setRefresh("");
+      Api.config.setRefresh(refresh);
       try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
       showLinkStep();
     }, function (e) { toast("Ошибка: " + e.message); });
