@@ -56,7 +56,8 @@ async function dumpViews(page, where) {
       });
       return out;
     });
-    console.log('::notice::' + JSON.stringify({ title: 'views' + (where ? ' (' + where + ')' : ''), views }));
+    // TE-036: ::error:: (а не ::notice::) — только error/warning попадают в аннотации check-run.
+    console.log('::error::' + JSON.stringify({ title: 'views' + (where ? ' (' + where + ')' : ''), views }));
     return views;
   } catch (e) {
     return null;
