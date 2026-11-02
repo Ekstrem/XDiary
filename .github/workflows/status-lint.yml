@@ -1,0 +1,26 @@
+name: Status lint (схема статусов)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - '5-tech-backlog/**'
+      - '!5-tech-backlog/chat/**'
+      - 'loop.config.json'
+  workflow_dispatch:
+
+concurrency:
+  group: status-lint
+  cancel-in-progress: true
+
+jobs:
+  status-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Проверить статусы и обязательные поля
+        run: python tools/status_lint.py --config loop.config.json --strict
