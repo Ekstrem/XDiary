@@ -25,6 +25,9 @@ builder.Services.AddScoped<IRepository<IClients, IClientAnemicModel>, ClientComm
 builder.Services.AddScoped<IClientQueryRepository, ClientReadRepository>();
 builder.Services.AddSingleton<ClientTokenService>();
 var otpChannel = builder.Configuration["Otp:Channel"] ?? "log";
+var isDevEnv = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase);
+if (otpChannel == "log" && !isDevEnv)
+    throw new InvalidOperationException("Otp:Channel=log допустим только в dev/CI; на проде задай sms|telegram.");
 switch (otpChannel)
 {
     case "sms": builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.SmsOtpSender>(); break;
