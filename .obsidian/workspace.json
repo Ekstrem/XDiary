@@ -185,6 +185,12 @@
   },
   "active": "ef1d7f4524873a8d",
   "lastOpenFiles": [
+    "5-tech-backlog/front-end/FE-030.md",
+    "5-tech-backlog/front-end/FE-029.md",
+    "tools/tmp_fe_tasks.py",
+    "close37-tmp.py",
+    "msg9.txt",
+    "log951.txt",
     "tools/tmp_incident_verdict.py",
     "tools/tmp_do037_verdict.py",
     "msg8.txt",
@@ -193,11 +199,6 @@
     "7-deploy/caddy/Caddyfile.prod",
     "7-deploy/caddy/Caddyfile.dev",
     "7-deploy/caddy",
-    "tools/tmp_accept_te035.py",
-    "lmfix-tmp.py",
-    "msg7.txt",
-    "tools/__pycache__/health.cpython-312.pyc",
-    "tools/tmp_release_all.py",
     "5-tech-backlog/tester/TE-036.md",
     "docs/CI-RULES.md",
     "5-tech-backlog/chat/archive/tl/2026-10-30..2026-11-05.md",
@@ -219,7 +220,6 @@
     "03-ddd/BC-Privacy/02-aggregate-canvas.md",
     "03-ddd/BC-Privacy/01-context-canvas.md",
     "03-ddd/BC-Analytics/05-materialized-views.md",
-    "03-ddd/BC-Analytics/04-query-api.md",
-    "03-ddd/BC-Analytics/03-command-api.md"
+    "03-ddd/BC-Analytics/04-query-api.md"
   ]
 }

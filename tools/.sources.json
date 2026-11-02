@@ -6,7 +6,7 @@
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "36f62685b4ae9cffb8ce3fb8f3f95472ea7fe0b4d4a559f2c9c9e168cb8a6001",
+      "sha256": "1e1972540b1e0e4fd726c755e5d41348a990fc12a89ee63dfc36a5177654591e",
       "synced_at": "2026-11-02",
       "upstream": "tools/chat_lint.py"
     },
@@ -46,7 +46,7 @@
       "upstream": "tools/git_sync.py"
     },
     "health.py": {
-      "sha256": "4093ae081ac9b7c0f7ac1278d1135767c8f1b03ff5bf29ad793dc27550650bf4",
+      "sha256": "fd39458caebb5a1eab6ff2e1b23ac0a9bf07c03057801e5b4bb7aef6e75ba58c",
       "synced_at": "2026-11-02",
       "upstream": "tools/health.py"
     },
