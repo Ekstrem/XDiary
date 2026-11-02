@@ -25,12 +25,14 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
   await clearFlags(page);
 
   await test.step('чистое устройство → экран онбординга «кто ты»', async () => {
+    await reportStep(page, 'шаг 0: чистое устройство → онбординг');
     await page.reload();
     await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 20000 });
     await expect(page.locator('#onb-phone')).toBeVisible();
   });
 
   await test.step('шаг 1: телефон → запрос OTP', async () => {
+    await reportStep(page, 'шаг 1: телефон → запрос OTP');
     await page.fill('#onb-phone-input', PHONE);
     await page.click('#btn-onb-phone');
     await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
@@ -49,6 +51,7 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
   });
 
   await test.step('шаг 3: привязка «я» → журнал', async () => {
+    await reportStep(page, 'шаг 3: привязка «я» → журнал');
     // TE-043: карточка выбирается ДЕТЕРМИНИРОВАННО — по имени партнёра, созданного этим
     // прогоном. Раньше брался `.first()`: на стенде с сотнями чужих карточек это
     // произвольная старая запись (2635 партнёров → «флейк 20%», DO-044/TE-043).
@@ -168,6 +171,7 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
   });
 
   await test.step('«я» с сервера после перезагрузки', async () => {
+    await reportStep(page, 'шаг 4: «я» с сервера после перезагрузки');
     const clientId = await page.evaluate(() => localStorage.getItem('xdiary.clientId'));
     expect(clientId, 'clientId сохранён').toBeTruthy();
     await page.reload();
