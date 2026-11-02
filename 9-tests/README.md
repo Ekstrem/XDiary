@@ -3,6 +3,27 @@
 Здесь живут автотесты XDiary (интеграционные/E2E/нагрузочные), которые пишет роль **tester**.
 Задачи — в `5-tech-backlog/tester` (TE-001…TE-011).
 
+## ⚠️ Имя проекта ≠ имя сервиса
+
+Вывод о том, что покрывает проект, делается **только** по `git grep`/чтению файлов,
+**никогда** по названию папки. На этом ошиблись двое за один час:
+`9-tests/Gateways` — это **Garmin + AppleHealth** (домены приёма данных), а **не** `ApiGateway`;
+маршрутизация шлюза не покрыта нигде.
+
+| Проект | Какие сервисы покрывает |
+|---|---|
+| `9-tests/Gateways` | `BC-Garmin`, `BC-AppleHealth` — **не** `ApiGateway` |
+| `9-tests/Journal` | `BC-Journal` |
+| `9-tests/Partners.Catalog` | `BC-Partners`, `BC-Catalog` |
+| `9-tests/Somatic.Daily` | `BC-Somatic`, `BC-DailyMetrics` |
+| `9-tests/Analytics.Privacy` | `BC-Analytics`, `BC-Privacy` |
+| `9-tests/Portability.Gateway` | `BC-Portability` |
+| `9-tests/E2E` | весь стек через `ApiGateway` (сквозной) |
+| `9-tests/RnD/front-e2e` | PWA `8-front` (Playwright, гоняется `front-e2e`) |
+
+Проверка перед выводом: `git grep -c "<эндпоинт>" -- 9-tests/<Проект>` — если 0, проект
+этот сервис **не** покрывает, как бы он ни назывался.
+
 ## Правила
 - Писать можно **только в эту папку** (`9-tests`). Правки в `6-msa` (бэкенд) и `8-front` (фронт) —
   только после согласования с TechLead через `5-tech-backlog/chat/te.md` (`→ @TL`).
