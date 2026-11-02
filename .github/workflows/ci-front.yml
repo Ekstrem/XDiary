@@ -79,6 +79,22 @@ jobs:
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
           script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
+      - name: Очистить накопленные E2E-данные на dev (DO-044)
+        # Каждый прогон создаёт клиента и партнёра и не удаляет их: к 02.11 накопилось
+        # 2639 partners / 1751 clients, `#onboarding-list` доходил до 2607 узлов (588 КБ),
+        # `.first()` выбирал произвольную старую карточку → флейк «Список партнёров пуст».
+        # Чистка перед прогоном возвращает список к 0 и снимает этот класс падений.
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            if [ -f /opt/xdiary/7-deploy/cleanup-e2e-dev.sh ]; then
+              bash /opt/xdiary/7-deploy/cleanup-e2e-dev.sh --apply
+            else
+              echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
+            fi
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
