@@ -54,8 +54,13 @@ public class AnalyticsTests
         Assert.Empty(CorrelationCalculator.Calculate(records, metrics, new Dictionary<string, (int Hr, int BodyBattery)>()));
     }
 
+    // TE-034: контракт BE-033 — при n ≥ 3 калькулятор даёт пары:
+    //   1) длительность ↔ пульс, 2) оргазмы ↔ пульс, 3) BB ↔ длительность,
+    //   4) сон ↔ частота (только если у метрик SleepScore > 0).
+    // В этом кейсе SleepScore = 0, поэтому пар три, а не две (старое ожидание было
+    // устаревшим — до появления BB-пары).
     [Fact]
-    public void Correlations_WithThreePoints_ReturnsTwoWithExplanation()
+    public void Correlations_WithThreePoints_ReturnsThreeWithExplanation()
     {
         var records = new List<RecordInput>
         {
@@ -70,7 +75,7 @@ public class AnalyticsTests
             new() { Date = "2026-10-03", RestingHr = 57 }
         };
 
-        // BE-033: somatic обязателен; даём hr по тем же датам, что и записи.
+        // BE-033: somatic обязателен; даём hr и BB по тем же датам, что и записи.
         var somatic = new Dictionary<string, (int Hr, int BodyBattery)>
         {
             ["2026-10-01T21:00"] = (70, 50),
@@ -79,7 +84,38 @@ public class AnalyticsTests
         };
 
         var result = CorrelationCalculator.Calculate(records, metrics, somatic);
-        Assert.Equal(2, result.Count);
+        Assert.Equal(3, result.Count);
+        Assert.All(result, r => Assert.Equal(3, r.N));
+        Assert.All(result, r => Assert.False(string.IsNullOrEmpty(r.Explanation)));
+    }
+
+    // TE-034: полный контракт BE-033 — все четыре пары. Добавляем SleepScore > 0,
+    // чтобы включилась пара «сон ↔ частота» (в предыдущем кейсе её нет).
+    [Fact]
+    public void Correlations_WithThreePointsAndSleep_ReturnsFourWithExplanation()
+    {
+        var records = new List<RecordInput>
+        {
+            Rec("2026-10-01T21:00", 20, 1, 2, 5, 4),
+            Rec("2026-10-02T22:00", 30, 0, 1, 0, 3),
+            Rec("2026-10-03T20:00", 40, 2, 2, 4, 4)
+        };
+        var metrics = new List<MetricInput>
+        {
+            new() { Date = "2026-10-01", RestingHr = 55, SleepScore = 80 },
+            new() { Date = "2026-10-02", RestingHr = 56, SleepScore = 70 },
+            new() { Date = "2026-10-03", RestingHr = 57, SleepScore = 90 }
+        };
+
+        var somatic = new Dictionary<string, (int Hr, int BodyBattery)>
+        {
+            ["2026-10-01T21:00"] = (70, 50),
+            ["2026-10-02T22:00"] = (72, 45),
+            ["2026-10-03T20:00"] = (74, 40),
+        };
+
+        var result = CorrelationCalculator.Calculate(records, metrics, somatic);
+        Assert.Equal(4, result.Count);
         Assert.All(result, r => Assert.Equal(3, r.N));
         Assert.All(result, r => Assert.False(string.IsNullOrEmpty(r.Explanation)));
     }
