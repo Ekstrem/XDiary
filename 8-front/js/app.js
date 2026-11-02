@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.66"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.67"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -227,14 +227,16 @@
 
   // FE-018 ч.2: клиент-идентификация — телефон → SMS OTP → client-JWT → link-partner
   var onbClientId = "";
+  // FE-031: clientId есть и в localStorage — onbClientId мог сброситься (openOnboarding)
+  function storedClientId() { try { return localStorage.getItem("xdiary.clientId") || ""; } catch (e) { return ""; } }
   function afterAuth() {
     // FE-026 (вариант A): без client-JWT API не вызываем — только онбординг; legacy-флаг не удаляем
     if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
     // FE-027: me() с таймаутом — иначе экран блокировки остаётся навсегда
     withTimeout(Api.clients.me(), 5000, null).then(function (c) {
       if (c && c.verified && c.linkedPartnerId) { openJournal(); return; }
-      // FE-029: клиент подтверждён, но «я» не привязано — показываем шаг привязки, а не телефон заново
-      if (c && c.verified && c.id) { onbClientId = c.id; showLinkStep(); return; }
+      // FE-029/FE-031: подтверждён, но «я» не привязано — всегда шаг привязки, не телефон заново
+      if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showLinkStep(); return; }
       openOnboarding();
     }).catch(function (e) { console.error("afterAuth/me:", e); openOnboarding(); });
   }
@@ -264,6 +266,8 @@
   }
   function renderLinkPartners() {
     showOnbLinkError("");
+    // FE-031: onbClientId мог сброситься (openOnboarding) — берём из localStorage
+    onbClientId = onbClientId || storedClientId();
     Api.partners.list().then(function (partners) {
       var list = $("onboarding-list");
       list.innerHTML = "";
