@@ -8,12 +8,12 @@ namespace XDiary.Tests.E2E;
 /// <summary>TE-008: E2E журнал — создание записи через цепочку команд → чтение журнала/детали.</summary>
 public class JournalE2ETests
 {
-    [E2EFactLegacy]
+    [E2EFact]
     public async Task CreateRecord_Then_ReadJournalAndDetail()
     {
         var c = E2EInfra.Client();
-        var token = await E2EInfra.LoginAsync(c);
-        E2EInfra.Authorized(c, token);
+        var session = await E2EInfra.LoginAsync(c);
+        E2EInfra.Authorized(c, session);
 
         // StartManualEntry → id
         var start = await E2EInfra.PostAsync(c, "api/v1/journal/records");
@@ -41,12 +41,12 @@ public class JournalE2ETests
         Assert.Equal(20, detail.GetProperty("durationMin").GetInt32());
     }
 
-    [E2EFactLegacy]
+    [E2EFact]
     public async Task InvalidDuration_GivesError()
     {
         var c = E2EInfra.Client();
-        var token = await E2EInfra.LoginAsync(c);
-        E2EInfra.Authorized(c, token);
+        var session = await E2EInfra.LoginAsync(c);
+        E2EInfra.Authorized(c, session);
 
         var start = await E2EInfra.PostAsync(c, "api/v1/journal/records");
         var id = start.GetProperty("id").GetString();

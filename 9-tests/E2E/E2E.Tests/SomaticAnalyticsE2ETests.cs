@@ -6,12 +6,12 @@ namespace XDiary.Tests.E2E;
 /// <summary>TE-009: E2E соматика + аналитика (срез, сводка, корреляции).</summary>
 public class SomaticAnalyticsE2ETests
 {
-    [E2EFactLegacy]
+    [E2EFact]
     public async Task SomaticSlice_ReturnsData()
     {
         var c = E2EInfra.Client();
-        var token = await E2EInfra.LoginAsync(c);
-        E2EInfra.Authorized(c, token);
+        var session = await E2EInfra.LoginAsync(c);
+        E2EInfra.Authorized(c, session);
 
         // Известная рассинхронизация: шлюз роутит /api/v1/somatic-series/**, а контроллер сервиса — /api/v1/somatic.
         // Пробуем оба варианта — тест станет зелёным, когда любую из сторон выровняют.
@@ -36,12 +36,12 @@ public class SomaticAnalyticsE2ETests
         Assert.Fail("Ни один путь соматики не сработал:\n" + string.Join("\n", diag));
     }
 
-    [E2EFactLegacy]
+    [E2EFact]
     public async Task AnalyticsSummary_ReturnsCards()
     {
         var c = E2EInfra.Client();
-        var token = await E2EInfra.LoginAsync(c);
-        E2EInfra.Authorized(c, token);
+        var session = await E2EInfra.LoginAsync(c);
+        E2EInfra.Authorized(c, session);
 
         var summary = await E2EInfra.PostAsync(c, "api/v1/analytics/summary", new
         {
@@ -52,12 +52,12 @@ public class SomaticAnalyticsE2ETests
         Assert.True(summary.TryGetProperty("orgasms", out _));
     }
 
-    [E2EFactLegacy]
+    [E2EFact]
     public async Task AnalyticsCorrelations_ReturnsList()
     {
         var c = E2EInfra.Client();
-        var token = await E2EInfra.LoginAsync(c);
-        E2EInfra.Authorized(c, token);
+        var session = await E2EInfra.LoginAsync(c);
+        E2EInfra.Authorized(c, session);
 
         var corr = await E2EInfra.PostAsync(c, "api/v1/analytics/correlations", new
         {

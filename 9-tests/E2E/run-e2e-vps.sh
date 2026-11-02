@@ -4,12 +4,13 @@
 #
 # Использование (на VPS-1, из корня репозитория):
 #   ./9-tests/E2E/run-e2e-vps.sh
-# Переопределить PIN:
-#   XDIARY_E2E_PIN=4321 ./9-tests/E2E/run-e2e-vps.sh
+# Переопределить тестовый OTP:
+#   XDIARY_E2E_OTP=000000 ./9-tests/E2E/run-e2e-vps.sh
 set -euo pipefail
 
 export XDIARY_E2E_BASE_URL="${XDIARY_E2E_BASE_URL:-http://localhost:8080}"
-export XDIARY_E2E_PIN="${XDIARY_E2E_PIN:-1234}"
+# TE-041: контур входа — client-JWT (AR-009/ADR-021 п.3), device-token /privacy/token — legacy.
+export XDIARY_E2E_OTP="${XDIARY_E2E_OTP:-000000}"
 
 echo "== 1/3 проверка шлюза: $XDIARY_E2E_BASE_URL/health =="
 if command -v curl >/dev/null 2>&1; then
@@ -31,6 +32,7 @@ dotnet test "$PROJ" --verbosity normal
 
 echo
 echo "== нагрузка (TE-010..011) — отдельной командой, нужен токен =="
-echo "  1) TOKEN=\$(curl -fsS -X POST \$XDIARY_E2E_BASE_URL/api/v1/privacy/token -H 'Content-Type: application/json' -d '{\"pin\":\"'\"\$XDIARY_E2E_PIN\"'\"}' | sed -E 's/.*\"accessToken\":\"([^\"]+)\".*/\\1/')"
+echo "  1) CID=\$(curl -fsS -X POST \$XDIARY_E2E_BASE_URL/api/v1/clients -H 'Content-Type: application/json' -d '{\"phone\":\"+79990000001\"}' | sed -E 's/.*\"id\":\"([^\"]+)\".*/\1/')"
+echo "     TOKEN=\$(curl -fsS -X POST \$XDIARY_E2E_BASE_URL/api/v1/clients/\$CID/verify -H 'Content-Type: application/json' -d '{\"code\":\"'\"\$XDIARY_E2E_OTP\"'\"}' | sed -E 's/.*\"accessToken\":\"([^\"]+)\".*/\1/')"
 echo "  2) k6 run -e XDIARY_E2E_BASE_URL=\$XDIARY_E2E_BASE_URL -e XDIARY_E2E_TOKEN=\$TOKEN 9-tests/Load/load.js"
 echo "  (или PowerShell: ./9-tests/Load/load.ps1 -BaseUrl \$XDIARY_E2E_BASE_URL -Token \$TOKEN -Minutes 10)"
