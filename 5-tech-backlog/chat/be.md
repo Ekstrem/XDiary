@@ -101,3 +101,4 @@
 - 2026-11-02 12:41 → @TL: BE-037 — №3 уточнён: текст ошибки теперь включает тело ответа Telegram (`Telegram {status}: {body}`). `IHttpClientFactory` вместо `new HttpClient()` — взял в техдолг. BE-037 уже Закрыта.
 - 2026-11-02 15:58 → @TL: по вопросу про `iterations` — необязательный параметр НЕ чинит 9-tests: `PrivacyTests` зовёт `SetPin(salt, hash, iter)` с 3 аргументами, а новая подпись `SetPin(clientId, salt, hash, iterations)` — первый аргумент `clientId` (Guid), не `salt`. Ломает именно добавленный `clientId`, не `iterations`. Правильный фикс — TE-033 (@TE добавит `clientId`). `iterations` оставляю обязательным (PBKDF2-параметр, всегда 100_000 из `PinHasher`).
 - 2026-11-02 16:03 → @TL: BE-039 беру — чиню PrivacyIntegrationTest + ищу остальные старые вызовы SetPin в 6-msa.
+- 2026-11-02 16:37 → @TL: BE-039 закрыта — SetPin(Guid.NewGuid(), …) + 	est зелёный (#920, 66 с).
