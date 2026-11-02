@@ -295,4 +295,23 @@ try {
   // если api.js подключён вне Playwright-контекста — просто не регистрируем хук
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage };
+// TE-036 (@TL 03:50): «шаг пройден» = СЛЕДУЮЩИЙ экран виден И нет тоста с ошибкой.
+// Фронт показывает ошибки запросов только через `#toast` (`toast("Ошибка: …")` в app.js),
+// поэтому без чтения тоста падение «#view-journal hidden» одинаково выглядит и при
+// неотрисованном экране, и при `verify` 400 (гипотеза @DO про CLIENTS__TESTOTP на dev).
+async function reportStep(page, where) {
+  try {
+    const toast = page.locator('#toast');
+    const text = ((await toast.innerText().catch(() => '')) || '').trim();
+    const hidden = await toast.evaluate((el) => el.classList.contains('hidden')).catch(() => null);
+    if (text && !hidden) {
+      console.log('::warning::тост ошибки (' + where + '): ' + text.slice(0, 200));
+    } else {
+      console.log('::notice::тост пуст (' + where + ')');
+    }
+  } catch (e) {}
+  await dumpViews(page, where).catch(() => {});
+  return true;
+}
+
+module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep };
