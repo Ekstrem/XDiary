@@ -90,6 +90,11 @@
       "synced_at": "2026-11-02",
       "upstream": "tools/sweep.py"
     },
+    "what_triggers.py": {
+      "sha256": "1d27944a197e6fd755c0233cd95a8947cb730f64718fb4bacc42409ff45ec03e",
+      "synced_at": "2026-11-02",
+      "upstream": "tools/what_triggers.py"
+    },
     "wip.py": {
       "sha256": "6c8a2a96de67e74aad9ae478e655d5812ef16151c9e209e037ba6eb96213a64e",
       "synced_at": "2026-11-02",
