@@ -36,13 +36,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Checkout LoopMaker (движок обхода)
-        uses: actions/checkout@v4
-        with:
-          repository: Ekstrem/LoopMaker
-          ref: ${{ env.LOOPMAKER_REF }}
-          path: .loopmaker
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -52,7 +45,7 @@ jobs:
         id: scan
         run: |
           set +e
-          python .loopmaker/tools/sweep.py --config loop.config.json --fail-on-stale > sweep.md
+          python tools/sweep.py --config loop.config.json --fail-on-stale > sweep.md
           rc=$?
           set -e
           echo "findings-rc=$rc"

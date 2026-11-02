@@ -1,108 +1,137 @@
-#!/usr/bin/env python3
-"""Таблица статусов задач для README.
+﻿#!/usr/bin/env python3
+# КОПИЯ из LoopMaker/tools/stats.py (источник правды там; правка — в обоих местах).
+"""Таблица статусов задач для README (по loop.config.json).
 
-Источник истины — поле `**Статус:**` в `5-tech-backlog/<роль>/*.md`.
-Допустимые значения: Открыта, В работе, На проверке, Закрыта, Отклонена
-(«Выполнена»/«Готово»/«Done» считаются синонимами «Закрыта» — но так писать не надо).
+Источник истины — поле `**Статус:**` в `<backlog>/<роль>/*.md`.
+Допустимые значения берутся из конфига (по умолчанию: Открыта, В работе,
+На проверке, Закрыта, Отклонена).
 
-Использование:
     python tools/stats.py            # напечатать таблицу
-    python tools/stats.py --write    # обновить блок в README.md между маркерами
-    python tools/stats.py --check    # код 1, если README отстал от задач (для CI)
+    python tools/stats.py --write    # обновить блок в README между маркерами
+    python tools/stats.py --check    # код 1, если README отстал (для CI)
 """
 import argparse
+import json
 import os
 import re
+import subprocess
 import sys
 
-TASKS = "5-tech-backlog"
-README = "README.md"
-START = "<!-- stats:start -->"
-END = "<!-- stats:end -->"
-
-ROLE_ORDER = [
-    ("back-end", "back-end"),
-    ("devops", "devops"),
-    ("front-end", "front-end"),
-    ("tester", "tester"),
-    ("arch", "arch"),
-]
-COLUMNS = ["Открыта", "В работе", "На проверке", "Закрыта", "Отклонена"]
-
+CONFIG = "loop.config.json"
 STATUS_RE = re.compile(r"Статус:\*\*\s*(.+)")
 
 
-def normalize(raw):
+def repo_root():
+    try:
+        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True)
+        if out.returncode == 0:
+            return out.stdout.decode("utf-8", "ignore").strip()
+    except Exception:
+        pass
+    return os.getcwd()
+
+
+def load_config(path=None):
+    path = path or os.path.join(repo_root(), CONFIG)
+    if not os.path.exists(path):
+        sys.exit("stats: нет %s — это карта проекта (см. AGENTS.md §8)" % CONFIG)
+    with open(path, encoding="utf-8-sig") as f:
+        return json.load(f)
+
+
+def pick(statuses, word, default):
+    for st in statuses:
+        if word in st.lower():
+            return st
+    return default
+
+
+def normalize(raw, statuses):
+    """Привести значение к канону: синонимы и «почти-статусы» -> статус из конфига."""
     s = raw.strip().lower()
+    closed = pick(statuses, "закрыт", statuses[-1])
+    rejected = pick(statuses, "отклон", statuses[-1])
+    review = pick(statuses, "проверк", closed)
+    work = pick(statuses, "работе", closed)
+    pause = pick(statuses, "пауз", work)
+    groom = pick(statuses, "проработ", work)
+    todo = pick(statuses, "todo", work)
     if "отклон" in s:
-        return "Отклонена"
-    if "закрыт" in s or "выполн" in s or "готов" in s:
-        return "Закрыта"
-    if "на проверке" in s:
-        return "На проверке"
-    if "в работе" in s:
-        return "В работе"
-    return "Открыта"
+        return rejected
+    if "закрыт" in s or "выполн" in s or "готов" in s or "done" in s:
+        return closed
+    if "пауз" in s:
+        return pause
+    if "проработ" in s:
+        return groom
+    if "проверк" in s or "ревью" in s:
+        return review
+    if "todo" in s or "в очереди" in s:
+        return todo
+    if "работе" in s:
+        return work
+    return statuses[0]
 
 
-def task_status(path):
-    with open(path, encoding="utf-8") as f:
+def task_status(path, statuses):
+    with open(path, encoding="utf-8-sig") as f:
         for line in f:
             m = STATUS_RE.search(line)
             if m:
-                return normalize(m.group(1))
-    return "Открыта"
+                return normalize(m.group(1), statuses)
+    return statuses[0]
 
 
-def collect():
-    rows = []
-    totals = {c: 0 for c in COLUMNS}
-    for folder, title in ROLE_ORDER:
-        base = os.path.join(TASKS, folder)
+def collect(cfg):
+    statuses = cfg.get("statuses") or ["Открыта", "В работе", "На проверке", "Закрыта"]
+    backlog = cfg.get("backlog", "5-backlog")
+    rows, totals = [], {s: 0 for s in statuses}
+    for item in cfg.get("task_folders", []):
+        folder = item["folder"] if isinstance(item, dict) else item
+        name = item.get("title", folder) if isinstance(item, dict) else folder
+        base = os.path.join(backlog, folder)
         if not os.path.isdir(base):
             continue
-        counts = {c: 0 for c in COLUMNS}
+        counts = {s: 0 for s in statuses}
         total = 0
         for fn in sorted(os.listdir(base)):
             if not fn.endswith(".md") or fn == "README.md":
                 continue
             total += 1
-            counts[task_status(os.path.join(base, fn))] += 1
-        rows.append((title, total, counts))
-        for c in COLUMNS:
-            totals[c] += counts[c]
-    return rows, totals
+            counts[task_status(os.path.join(base, fn), statuses)] += 1
+        rows.append((name, total, counts))
+        for s in statuses:
+            totals[s] += counts[s]
+    return statuses, rows, totals
 
 
-def render(rows, totals):
-    head = "| Роль | Всего | " + " | ".join(COLUMNS) + " |"
-    sep = "|---" * (len(COLUMNS) + 2) + "|"
-    out = [head, sep]
-    for title, total, counts in rows:
-        out.append("| %s | %d | %s |" % (title, total, " | ".join(str(counts[c]) for c in COLUMNS)))
-    grand = sum(total for _, total, _ in rows)
+def render(statuses, rows, totals):
+    out = ["| Роль | Всего | " + " | ".join(statuses) + " |",
+           "|---" * (len(statuses) + 2) + "|"]
+    for name, total, counts in rows:
+        out.append("| %s | %d | %s |" % (name, total, " | ".join(str(counts[s]) for s in statuses)))
     out.append("| **Итого** | **%d** | %s |"
-               % (grand, " | ".join("**%d**" % totals[c] for c in COLUMNS)))
+               % (sum(t for _, t, _ in rows),
+                  " | ".join("**%d**" % totals[s] for s in statuses)))
     return out
 
 
-def block(lines):
-    return "\n".join([START, *lines, END])
-
-
-def current_block():
-    with open(README, encoding="utf-8", newline="") as f:
+def read_block(cfg):
+    readme = (cfg.get("readme") or {}).get("file", "README.md")
+    start = (cfg.get("readme") or {}).get("start", "<!-- stats:start -->")
+    end = (cfg.get("readme") or {}).get("end", "<!-- stats:end -->")
+    with open(readme, encoding="utf-8-sig", newline="") as f:
         text = f.read().replace("\r\n", "\n")
-    if START not in text or END not in text:
-        sys.exit("README.md: нет маркеров %s ... %s" % (START, END))
-    body = text.split(START, 1)[1].split(END, 1)[0].strip("\n")
-    return text, body
+    if start not in text or end not in text:
+        sys.exit("%s: нет маркеров %s ... %s" % (readme, start, end))
+    return text, start, end, text.split(start, 1)[1].split(end, 1)[0].strip("\n")
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--write", action="store_true", help="обновить блок в README.md")
+    ap.add_argument("--write", action="store_true", help="обновить блок в README")
     ap.add_argument("--check", action="store_true", help="проверить, что README актуален")
+    ap.add_argument("--config", default=None)
     a = ap.parse_args()
 
     try:
@@ -110,26 +139,37 @@ def main():
     except Exception:
         pass
 
-    rows, totals = collect()
-    table = render(rows, totals)
-    text, body = current_block()
+    cfg = load_config(a.config)
+    if not os.path.isdir(cfg.get("backlog", "5-backlog")):
+        print("stats: папки %s нет — петля ещё не заведена" % cfg.get("backlog"))
+        return 0
+
+    statuses, rows, totals = collect(cfg)
+    table = render(statuses, rows, totals)
+
+    if not rows:
+        print("stats: в %s нет папок задач из конфига" % cfg.get("backlog"))
+        return 0
+
+    text, start, end, body = read_block(cfg)
 
     if a.check:
         if body != "\n".join(table):
-            print("README.md устарел: статусы задач изменились.")
+            print("README устарел: статусы задач изменились.")
             print("Починить: python tools/stats.py --write")
             print("")
-            print("Сейчас в задачах:")
             print("\n".join(table))
             return 1
         print("stats: README актуален")
         return 0
 
     if a.write:
-        new = text.split(START, 1)[0] + block(table) + text.split(END, 1)[1]
-        with open(README, "w", encoding="utf-8", newline="\n") as f:
+        readme = (cfg.get("readme") or {}).get("file", "README.md")
+        new = text.split(start, 1)[0] + start + "\n" + "\n".join(table) + "\n" + end \
+            + text.split(end, 1)[1]
+        with open(readme, "w", encoding="utf-8", newline="\n") as f:
             f.write(new)
-        print("stats: README.md обновлён")
+        print("stats: %s обновлён" % readme)
         print("\n".join(table))
         return 0
 

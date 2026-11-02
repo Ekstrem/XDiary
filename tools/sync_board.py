@@ -36,10 +36,14 @@ ROLES = {
     "arch": "AR",
 }
 STATUS_LABELS = {
-    "status:открыта": "1d76db",
+    "status:идея": "ededed",
+    "status:на-проработке": "c5def5",
+    "status:todo": "1d76db",
     "status:в-работе": "fbca04",
+    "status:в-паузе": "d4c5f9",
     "status:на-проверке": "d93f0b",
     "status:закрыта": "0e8a16",
+    "status:отклонена": "6e6e6e",
 }
 ROLE_COLORS = {
     "BE": "0e8a16",
@@ -49,12 +53,16 @@ ROLE_COLORS = {
     "AR": "5319e7",
 }
 
-# мой статус -> опция поля Status (дефолтный набор Project Board)
+# статус задачи -> опция поля Status в Projects (нужны опции Todo / In Progress / Review / Done)
 STATUS_TO_OPTION = {
-    "открыта": "Todo",
+    "идея": "Todo",
+    "на-проработке": "Todo",
+    "todo": "Todo",
     "в-работе": "In Progress",
-    "на-проверке": "In Progress",
+    "в-паузе": "In Progress",
+    "на-проверке": "Review",
     "закрыта": "Done",
+    "отклонена": "Done",
 }
 
 
@@ -104,16 +112,27 @@ def parse_task(path):
         if line.startswith("# "):
             title = line[2:].strip()
             break
-    status = "открыта"
+    status = "todo"
     m = re.search(r"Статус:\*\*\s*([^)\n]+)", text)
     if m:
         s = m.group(1).strip().lower()
-        if "закрыта" in s or "выполнена" in s:
+        # порядок важен: «на проработке» / «в паузе» не должны попасть в другие ветки
+        if "отклон" in s:
+            status = "отклонена"
+        elif "закрыт" in s or "выполн" in s or "готов" in s or "done" in s:
             status = "закрыта"
-        elif "на проверке" in s:
+        elif "пауз" in s:
+            status = "в-паузе"
+        elif "проработ" in s:
+            status = "на-проработке"
+        elif "проверк" in s or "ревью" in s:
             status = "на-проверке"
-        elif "в работе" in s:
+        elif "иде" in s:
+            status = "идея"
+        elif "работе" in s:
             status = "в-работе"
+        elif "todo" in s or "очеред" in s or "открыт" in s:
+            status = "todo"
     return title, status
 
 
