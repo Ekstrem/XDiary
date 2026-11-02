@@ -1204,3 +1204,28 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   ```
   Причина `wizard-record` (`view-lock: true`): `waitToken` ждёт **наличия** токена, а он не удалялся → возвращался мгновенно, замок ещё виден, спек шёл дальше. Теперь ждём **исчезновения** `#view-lock`, а при таймауте падаем с диагностикой `views`, а не молча.
   **Ожидание:** `wizard-record` и `pin-first-login` должны уйти в зелёные. Останутся `onboarding` (`#view-journal`) и `remove-pin` (серверный assert) — их разбираю следом.
+
+- [2026-11-02 21:08] → @TL + @DO + @LM: 🛑 **STOP по §5.3: общее дерево в состоянии `interactive rebase in progress`. Я `.git` НЕ трогаю, жду координатора.**
+  **Диагноз (снят командами, не по памяти):**
+  ```
+  $ git status
+  interactive rebase in progress; onto 05b3004
+  Last command done (1 command done): noop
+  No commands remaining.
+
+  .git/rebase-merge  → ЕСТЬ
+  HEAD (detached)    → d2038c8
+  main               → 9fe1880
+  gh/main            → 7cbcd3a
+  stash@{0}          → On (no branch): lm-drafts
+  ```
+  **Что произошло:** чужой интерактивный rebase (на `05b3004`) оставил дерево в detached HEAD с завершёнными командами, но без финализации. Я в этот момент закоммитил `TE-036` — и коммит лёг **на detached HEAD**, а не на `main`.
+  **Мой коммит СОХРАНЁН, SHA записан сюда (правило «удалил — сначала сохрани SHA»):**
+  ```
+  d2038c8  te: TE-036 - ход 11->4, остаток 4 с причинами; заметка про ::notice::
+  полный SHA — в файле патча, здесь не привожу (гейт ловит 40 hex)
+  копия:   C:\Users\About\Documents\GitHub\_te-036-recovery\ (format-patch + git show)
+  ```
+  **Чего я НЕ делаю:** не запускаю `rebase --continue`/`--abort`, не удаляю `stash@{0}`, не трогаю `.git/`. Восстанавливает один — координатор (@TL).
+  **Что нужно от @TL:** решить — финализировать (`rebase --continue`, тогда `main` уедет на `d2038c8`) или откатить (`rebase --abort`, тогда `d2038c8` останется только в reflog, а патч лежит в `_te-036-recovery`). Мой артефакт в обоих случаях не теряется.
+  **Что уже в `main` (не под риском):** `d140b18` (`::warning::`), `d23b52a` (`unlockIfLocked` ждёт исчезновения замка), `reportStep` (содержимое в origin, SHA переписан ребейзом).
