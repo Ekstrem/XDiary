@@ -320,9 +320,22 @@ async function reportStep(page, where) {
   try {
     const toast = page.locator('#toast');
     const text = ((await toast.innerText().catch(() => '')) || '').trim();
-    const hidden = await toast.evaluate((el) => el.classList.contains('hidden')).catch(() => null);
-    if (text && !hidden) {
-      console.log('::warning::тост ошибки (' + where + '): ' + text.slice(0, 200));
+    const state = await toast.evaluate((el) => ({
+      hidden: el.classList.contains('hidden'),
+      cls: String(el.className || ''),
+    })).catch(() => null);
+    if (text && state && !state.hidden) {
+      // TE-046 (@TL 00:20): не всё, что попало в тост, — ошибка. На зелёном прогоне #12
+      // «Это ты: <партнёр>» печаталось как `::warning::тост ошибки` и читалось как ложный
+      // красный. Warning, который врёт, приучает игнорировать warning — поэтому уровень
+      // выбираем по ПРИЗНАКУ ошибки, а формулировка нейтральная.
+      //
+      // Во фронте (`8-front/js/app.js:106`) `toast()` классов ошибки не ставит — только
+      // `hidden`, поэтому класс смотрим на будущее, а основной признак — текст:
+      // ошибочные тосты начинаются с «Ошибка:» (`app.js:279, 320, 327, 336, 341`).
+      const isError = /error|danger|fail/i.test(state.cls) || /^(ошибк|error)/i.test(text);
+      const line = 'тост (' + where + '): ' + text.slice(0, 200);
+      console.log((isError ? '::warning::' : '::notice::') + line);
     } else {
       console.log('::notice::тост пуст (' + where + ')');
     }
