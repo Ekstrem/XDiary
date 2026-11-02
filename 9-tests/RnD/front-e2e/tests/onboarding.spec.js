@@ -4,7 +4,7 @@
 //   чистый контекст (нет локального PIN и нет xdiary.legacy) → afterAuth() → Pin.hasPin()=false → openOnboarding().
 // Если на устройстве PIN уже есть — путь legacy (журнал), поэтому чистим оба флага перед стартом.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, installBase, waitToken, dumpViews, reportStep, expectScreen } = require('./api');
+const { API_BASE, PIN, installBase, waitToken, dumpViews, reportStep, expectScreen, watchLinkPartner } = require('./api');
 
 const PHONE = '+7999000' + String(Date.now()).slice(-4);
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
@@ -51,6 +51,10 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
   await test.step('шаг 3: привязка «я» → журнал', async () => {
     const card = page.locator('#onboarding-list .partner-card').first();
     let mode = 'нет партнёров на шаге привязки';
+    // TE-037 (@TL 07:06): перехват сети вокруг клика. Без него нельзя отличить
+    // «POST /link-partner не отправлялся» от «отправлялся и вернул ошибку» —
+    // в #17 сетевых вызовов в логе не было, а #onb-link-error остался hidden.
+    const linkWatch = watchLinkPartner(page);
     // TE-036: карточка может быть видима, но не кликабельна (overlay/pointer-events) —
     // тогда «клик не доходит» и «FE не переключает экран» выглядят одинаково.
     if (await card.count()) {
@@ -64,6 +68,9 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
       await card.click();
       mode = 'link-partner по карточке';
     }
+    // Дать сети шанс отработать и зафиксировать факт: уходил ли POST /link-partner.
+    await page.waitForTimeout(700);
+    linkWatch.report('после клика по карточке');
     // Снимок экранов ДО ожидания: видно, дошло ли приложение до журнала и что осталось висеть.
     await dumpViews(page, 'после привязки');
     // Маскированный ответ me(): пуст ли linkedPartnerId фактически.

@@ -331,4 +331,43 @@ async function expectScreen(page, selector, where, timeout) {
   }
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen };
+// TE-037 (@TL 07:06): белое пятно «уходит ли POST /link-partner из UI».
+// В логе #17 сетевых вызовов нет, а `#onb-link-error` остался `hidden` — то есть
+// невозможно отличить «запрос не отправлялся» от «отправлялся и вернул ошибку».
+// Поэтому перехватываем ВСЁ, что матчит `/link-partner`: метод+URL, статус, тело (200 симв.).
+function watchLinkPartner(page) {
+  const events = [];
+  const match = (url) => String(url || '').indexOf('/link-partner') >= 0;
+  const onReq = (r) => {
+    if (!match(r.url())) return;
+    events.push('REQ ' + r.method() + ' ' + r.url() + ' body=' + String(r.postData() || '').slice(0, 200));
+  };
+  const onRes = (r) => {
+    if (!match(r.url())) return;
+    r.text().then((b) => {
+      events.push('RES ' + r.status() + ' ' + r.url() + ' body=' + String(b).slice(0, 200));
+    }).catch(() => {
+      events.push('RES ' + r.status() + ' ' + r.url() + ' (тело не прочиталось)');
+    });
+  };
+  const onFail = (r) => {
+    if (!match(r.url())) return;
+    const f = r.failure();
+    events.push('FAIL ' + r.url() + ' ' + ((f && f.errorText) || 'failed'));
+  };
+  page.on('request', onReq);
+  page.on('response', onRes);
+  page.on('requestfailed', onFail);
+  return {
+    report(where) {
+      page.off('request', onReq);
+      page.off('response', onRes);
+      page.off('requestfailed', onFail);
+      const text = events.length ? events.join(' | ') : 'запросов не было';
+      console.log('::warning::link-partner (' + (where || 'без метки') + '): ' + text);
+      return events.slice();
+    },
+  };
+}
+
+module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
