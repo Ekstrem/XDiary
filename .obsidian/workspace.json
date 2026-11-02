@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "04-architecture/c4-containers.md",
+                "file": "HEALTH.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "c4-containers"
+              "title": "HEALTH"
             }
           }
         ]
@@ -183,43 +183,43 @@
       "bases:Создать новую базу": false
     }
   },
-  "active": "14ea80d639afa9b1",
+  "active": "ef1d7f4524873a8d",
   "lastOpenFiles": [
+    "tools/tmp_correct_push.py",
+    "tools/check_rule_docs.py",
+    "tools/tmp_lm_review.py",
+    "tools/tmp_te036_next.py",
+    "tools/tmp_push_rule.py",
+    "log941.txt",
+    "log937.txt",
+    "log936.txt",
+    "log926.txt",
+    "tools/tmp_941.py",
+    "5-tech-backlog/tester/TE-036.md",
+    "tools/tmp_ar_corr.py",
+    "docs/CI-RULES.md",
+    "5-tech-backlog/chat/archive/tl/2026-10-30..2026-11-05.md",
+    "5-tech-backlog/chat/archive/tl/2026-11-02..2026-11-02.md",
+    "5-tech-backlog/tester/TE-035.md",
+    "5-tech-backlog/devops/DO-036.md",
+    "5-tech-backlog/front-end/FE-028.md",
+    "5-tech-backlog/back-end/BE-041.md",
+    "AGENTS.md",
+    "04-architecture/c4-containers.md",
     "03-ddd/BC-Portability/04-query-api.md",
     "03-ddd/BC-Portability/02-aggregate-canvas.md",
     "03-ddd/BC-Portability/05-materialized-views.md",
     "03-ddd/BC-Portability/03-command-api.md",
     "03-ddd/BC-Portability/01-context-canvas.md",
-    "03-ddd/BC-Portability",
     "03-ddd/BC-Privacy/05-materialized-views.md",
     "03-ddd/BC-Privacy/04-query-api.md",
     "03-ddd/BC-Privacy/03-command-api.md",
     "03-ddd/BC-Privacy/02-aggregate-canvas.md",
     "03-ddd/BC-Privacy/01-context-canvas.md",
-    "03-ddd/BC-Privacy",
     "03-ddd/BC-Analytics/05-materialized-views.md",
     "03-ddd/BC-Analytics/04-query-api.md",
     "03-ddd/BC-Analytics/03-command-api.md",
     "03-ddd/BC-Analytics/02-aggregate-canvas.md",
-    "03-ddd/BC-Analytics/01-context-canvas.md",
-    "03-ddd/BC-Analytics",
-    "03-ddd/BC-Catalog/05-materialized-views.md",
-    "03-ddd/BC-Catalog/04-query-api.md",
-    "03-ddd/BC-Catalog/03-command-api.md",
-    "03-ddd/BC-Catalog/02-aggregate-canvas.md",
-    "03-ddd/BC-Catalog/01-context-canvas.md",
-    "03-ddd/BC-Catalog",
-    "03-ddd/BC-Partners/04-query-api.md",
-    "03-ddd/BC-Partners/05-materialized-views.md",
-    "03-ddd/BC-Partners/03-command-api.md",
-    "03-ddd/BC-Partners/02-aggregate-canvas.md",
-    "03-ddd/BC-Partners/01-context-canvas.md",
-    "03-ddd/BC-Partners",
-    "03-ddd/BC-Journal/05-materialized-views.md",
-    "03-ddd/BC-Journal",
-    "03-ddd/BC-AppleHealthGateway",
-    "03-ddd/BC-GarminGateway",
-    "04-architecture/ADL",
-    "04-architecture"
+    "03-ddd/BC-Analytics/01-context-canvas.md"
   ]
 }
