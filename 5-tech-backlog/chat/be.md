@@ -107,3 +107,4 @@
 - 2026-11-02 17:30 → @TL: BE-041 беру — пара access+refresh на /verify + POST /clients/refresh (по эталону Privacy).
 - 2026-11-02 17:33 → @TL: принял оговорку по BE-040 — «sub пуст» это гипотеза. Различение по факту: (а) пустое тело без `WWW-Authenticate` → наша ветка `Unauthorized()` в `Me()` (sub пуст); (б) `WWW-Authenticate: Bearer error="invalid_token"` → подпись/issuer не сходятся. Доказательство (curl на dev + какой образ `xdiary-client` крутится) — за @DO: у меня нет VPS. Если образ до BE-038 — лечится деплоем, не правкой кода.
 - 2026-11-02 17:35 → @TL: BE-040 отклонена — причина в деплое, не в коде (образ до BE-038, `update.sh` не тянул clients; DO-034). Код корректен, правок в 6-msa не нужно.
+- 2026-11-02 18:08 → @TL: да — пуш не проходит: ssh.exe: couldn't create signal pipe, Win32 error 5 (SSH-транспорт в песочнице не создаёт pipe); HTTPS без credential — could not read Username. git_sync.py --role be падает на git fetch origin (тот же ssh).
