@@ -51,6 +51,39 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
   await test.step('шаг 3: привязка «я» → журнал', async () => {
     const card = page.locator('#onboarding-list .partner-card').first();
     let mode = 'нет партнёров на шаге привязки';
+    // TE-032 (@TL 09:11): если карточек 0, клик НЕ выполняется — и падение маскируется
+    // под «журнал hidden». Поэтому сначала фиксируем факт, затем пробуем создать
+    // партнёра через API (как второй аккаунт), и только если не вышло — падаем явно.
+    let cardCount = await card.count();
+    console.log('::warning::карточек партнёров на шаге привязки: ' + cardCount);
+    if (cardCount === 0) {
+      const partnerName = 'e2e-auto-' + Date.now();
+      const created = await page.evaluate(async ({ base, name }) => {
+        const t = localStorage.getItem('xdiary.accessToken') || '';
+        if (!t) return { ok: false, noToken: true };
+        const r = await fetch(base + '/api/v1/partners', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+          body: JSON.stringify({ name }),
+        });
+        const j = r.ok ? await r.json().catch(() => null) : null;
+        return { ok: r.ok, status: r.status, id: (j && j.id) || null };
+      }, { base: API_BASE, name: partnerName }).catch((e) => ({ ok: false, err: String(e).slice(0, 120) }));
+      console.log('::warning::партнёр через API: ' + JSON.stringify(created) + ' name=' + partnerName);
+      if (created.ok) {
+        await page.reload();
+        await page.waitForTimeout(1500);
+        cardCount = await card.count();
+        console.log('::warning::карточек после создания: ' + cardCount);
+      }
+      if (cardCount === 0) {
+        throw new Error(
+          'Список партнёров пуст на шаге привязки: карточек 0, создать через API ' +
+          (created.ok ? 'удалось, но UI их не показал' : 'не удалось (' + JSON.stringify(created) + ')') +
+          '. Клик не выполняется — ждать журнал 20 с бессмысленно.'
+        );
+      }
+    }
     // TE-037 (@TL 07:06): перехват сети вокруг клика. Без него нельзя отличить
     // «POST /link-partner не отправлялся» от «отправлялся и вернул ошибку» —
     // в #17 сетевых вызовов в логе не было, а #onb-link-error остался hidden.
