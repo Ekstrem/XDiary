@@ -91,6 +91,22 @@ def main():
         say("dry-run: дальше не иду")
         return 0
 
+    # Предохранитель (по инциденту 02.11): рапорт «запушено (1 коммит)» при непопавших
+    # файлах опаснее ошибки. Если в зоне роли есть untracked, а `-u` не передан — не идём.
+    NOISE = (".obsidian/", "log", "rep", "msg", ".tmp-", "node_modules/")
+    untracked = git("ls-files", "--others", "--exclude-standard").stdout.splitlines()
+    untracked = [u for u in untracked if u.strip() and not any(n in u for n in NOISE)]
+    if untracked and not args.include_untracked and not args.all:
+        say("")
+        say("git_sync: ВНИМАНИЕ — %d untracked-файлов вне коммита:" % len(untracked))
+        for name in untracked[:10]:
+            say("   ?", name)
+        if len(untracked) > 10:
+            say("   … ещё %d" % (len(untracked) - 10))
+        say("   они не попадут в пуш. Добавь `-u` (все) или `--paths` (выборочно),")
+        say("   либо удали/заигнорь их — иначе получишь рапорт «запушено» без содержимого.")
+        return 1
+
     if dirty:
         cmd = [sys.executable, "tools/wip.py", "--role", args.role]
         if args.all:
