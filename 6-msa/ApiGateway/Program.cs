@@ -34,8 +34,8 @@ app.Use(async (context, next) =>
 {
     var path = context.Request.Path.Value ?? string.Empty;
 
-    // BE-020: анонимны только health + auth-эндпоинты.
-    // pin/set пропускаем сюда (первичная установка) — проверку текущего PIN делает сервис.
+    // Анонимны только health + онбординг (создание/верификация клиента) + stateless verify-token.
+    // PIN (pin/set|has|token) требует JWT — валидацию делает сервис (BE-038).
     var anonymous =
         path == "/health"
         || path.Equals("/api/v1/privacy/verify-token", StringComparison.OrdinalIgnoreCase)
