@@ -13,7 +13,7 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
     private readonly IRepository<IClients, IClientAnemicModel> _repo;
     private readonly IOtpSender _sender;
     private readonly string? _testOtp;
-    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IOtpSender sender, IConfiguration config) { _repo = repo; _sender = sender; var enabled = string.Equals(config["Clients:TestOtpEnabled"], "true", StringComparison.OrdinalIgnoreCase); _testOtp = enabled ? config["Clients:TestOtp"] : null; }
+    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IOtpSender sender, IConfiguration config) { _repo = repo; _sender = sender; var isDev = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase); _testOtp = isDev ? config["Clients:TestOtp"] : null; }
     public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(RegisterClientCommand r, CancellationToken ct)
     { var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString(); if (_testOtp is null) await _sender.SendAsync(r.Phone, otp, ct); var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
