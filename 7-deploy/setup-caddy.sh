@@ -29,7 +29,13 @@ cat > /etc/caddy/Caddyfile <<EOF
 https://${TS_HOST} {
     bind tailscale0
     tls ${CERT} ${KEY}
-    reverse_proxy ${UPSTREAM}
+    reverse_proxy ${UPSTREAM} {
+        transport http {
+            # Медленные, но живые запросы (E2E-соматика 10–30 с) доходят без 502.
+            read_timeout 60s
+            dial_timeout 10s
+        }
+    }
     encode gzip
     log {
         output stdout

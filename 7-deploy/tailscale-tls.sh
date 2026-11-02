@@ -19,7 +19,12 @@ sudo mkdir -p /etc/caddy
 sudo tee /etc/caddy/Caddyfile >/dev/null <<EOF
 $HOST {
     tls /home/deploy/$HOST.crt /home/deploy/$HOST.key
-    reverse_proxy 127.0.0.1:8080
+    reverse_proxy 127.0.0.1:8080 {
+        transport http {
+            read_timeout 60s
+            dial_timeout 10s
+        }
+    }
 }
 EOF
 sudo systemctl reload caddy 2>/dev/null || sudo systemctl restart caddy
