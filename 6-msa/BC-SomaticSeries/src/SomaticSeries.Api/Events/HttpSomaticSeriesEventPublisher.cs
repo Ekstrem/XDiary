@@ -7,7 +7,7 @@ public sealed class HttpSomaticSeriesEventPublisher : ISomaticSeriesEventPublish
     private readonly IHttpClientFactory _http;
     private readonly string _analyticsUrl;
     public HttpSomaticSeriesEventPublisher(IHttpClientFactory http, IConfiguration config)
-    { _http = http; _analyticsUrl = config["Services:Analytics"] ?? "http://analytics"; }
+    { _http = http; _analyticsUrl = config["Services:Analytics"] ?? "http://analytics:8080"; }
 
     public async Task PublishPointAsync(string t, int hr, int bodyBattery, CancellationToken ct = default)
     {

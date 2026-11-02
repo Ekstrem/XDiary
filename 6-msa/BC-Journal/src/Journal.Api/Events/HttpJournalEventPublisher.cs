@@ -8,7 +8,7 @@ public sealed class HttpJournalEventPublisher : IJournalEventPublisher
     private readonly IHttpClientFactory _http;
     private readonly string _analyticsUrl;
     public HttpJournalEventPublisher(IHttpClientFactory http, IConfiguration config)
-    { _http = http; _analyticsUrl = config["Services:Analytics"] ?? "http://analytics"; }
+    { _http = http; _analyticsUrl = config["Services:Analytics"] ?? "http://analytics:8080"; }
 
     public Task PublishRecordCompletedAsync(IJournalAnemicModel m, CancellationToken ct = default)
         => PublishAsync("RecordCompleted", m.Id, new

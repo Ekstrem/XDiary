@@ -7,7 +7,7 @@ public sealed class HttpDailyMetricsEventPublisher : IDailyMetricsEventPublisher
     private readonly IHttpClientFactory _http;
     private readonly string _analyticsUrl;
     public HttpDailyMetricsEventPublisher(IHttpClientFactory http, IConfiguration config)
-    { _http = http; _analyticsUrl = config["Services:Analytics"] ?? "http://analytics"; }
+    { _http = http; _analyticsUrl = config["Services:Analytics"] ?? "http://analytics:8080"; }
 
     public Task PublishStressAsync(string date, int stress, CancellationToken ct = default)
         => PostAsync(new { EventType = "StressRecorded", Date = date, Stress = stress }, ct);
