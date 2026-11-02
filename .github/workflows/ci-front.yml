@@ -3,6 +3,14 @@ name: Front E2E (8-front + 9-tests/RnD)
 # PDR-16 шаг (b): фронтовый гейт отдельно от бэкендового.
 # `front-e2e` держит свою группу concurrency: он ходит на живой dev-стенд,
 # и параллельные прогоны создают ту самую гонку, которую мы измеряем.
+#
+# DO-041: группы `front-e2e` (здесь) и `deploy-dev-prod` (deploy.yml) РАЗНЫЕ — они
+# не вытесняют друг друга, но и не сериализуются, поэтому `front-e2e` мог стартовать
+# по стенду, который в этот момент пересоздавался деплоем. Инцидент: deploy #732
+# (deploy-dev 18:45:00–18:46:08, smoke-api упал 18:47:10), front-e2e #20 стартовал
+# 18:47:23 → `POST /api/v1/clients` вернул 500, и прогон дал ложные продуктовые падения.
+# Лечение: перед тестами ждём зелёный `/health` с ретраями; если стенд не поднялся —
+# прогон падает с `[infra] stand-unhealthy`, и его результат НЕ читается как дефект продукта.
 
 on:
   push:
@@ -39,6 +47,31 @@ jobs:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
     steps:
+      - name: Ждать здоровый dev-стенд (DO-041)
+        # Стенд пересоздаётся деплоем, а `front-e2e` и `deploy-dev` не сериализованы.
+        # Ждём `/health` = 200 до 5 минут; не дождались — это ИНФРАСТРУКТУРА, не продукт.
+        run: |
+          set -uo pipefail
+          base="${XDIARY_E2E_BASE_URL}"
+          code=000
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$base/health" || echo 000)
+            echo "попытка $i: GET $base/health -> $code"
+            if [ "$code" = "200" ]; then
+              echo "стенд здоров (попыток: $i)"
+              echo "### стенд: /health -> 200 (попыток: $i)" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "[infra] stand-unhealthy: /health не отдал 200 за 20 попыток, последний код $code"
+          echo "::error title=[infra] stand-unhealthy::dev-стенд не поднялся за 5 минут (последний код $code). Это дефект инфраструктуры, а не продукта: падения E2E в этом прогоне не считать регрессией."
+          {
+            echo "### [infra] stand-unhealthy"
+            echo ""
+            echo "Последний код ответа: \`$code\`. Падения E2E в этом прогоне не считать регрессией продукта."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
       - name: Reset dev PIN to 1234
         uses: appleboy/ssh-action@v1
         with:
