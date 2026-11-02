@@ -11,6 +11,7 @@ public sealed class ClientTokenService
     private const int RefreshDays = 30;
     private readonly string _key;
     private readonly string _issuer;
+    static ClientTokenService() => JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
     public ClientTokenService(IConfiguration config)
     { _key = config["Jwt:SigningKey"] ?? throw new InvalidOperationException("Jwt:SigningKey не задан"); _issuer = config["Jwt:Issuer"] ?? "xdiary"; }
 
