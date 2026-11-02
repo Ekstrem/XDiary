@@ -32,5 +32,26 @@
 | `analytics_distribution` | group by день недели и час startedAt |
 | `analytics_correlations` | pearson: длительность↔hr, оргазмы↔hr, BB↔длительность, сон↔частота (n ≥ 3); **пульс = Somatic `hr` (во время сессии), НЕ `RestingHr`** |
 
+## Соматика → аналитика (Фаза 4, контракт)
+### Корреляции (pearson, n ≥ 3)
+| Пара | X | Y | Источник X | Источник Y |
+|---|---|---|---|---|
+| длительность↔пульс | `durationMin` | avg(`hr`) в окне ±30 мин | Record | SomaticPoint |
+| оргазмы↔пульс | sum(`orgasms.count`) | avg(`hr`) | Record.orgasms | SomaticPoint |
+| BB↔длительность | BB Δ (first−last) | `durationMin` | SomaticPoint.body_battery | Record |
+| сон↔частота | `sleep.score` | частота (records/день) | DailyMetrics.sleep | Record.startedAt |
+
+- **Окно сессии:** ±30 мин вокруг `startedAt` (срез `somatic`).
+- **Пульс в корреляциях** = Somatic `hr` (во время сессии), НЕ `RestingHr`.
+
+### Физиопрофиль (physio)
+- усреднённый профиль пульса/BB ±30 мин вокруг `startedAt`.
+
+### Пороги (thresholds)
+- max `hr` / min `body_battery` за период.
+
+### Тренды (trends)
+- стресс/сон по дням (DailyMetrics).
+
 ## Перспектива
 - ST-01 (сводка), ST-05..ST-08 — не реализованы.
