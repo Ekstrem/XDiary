@@ -1255,3 +1255,26 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   Дальше только так: `git add` + `git commit` в общем дереве = молчаливый захват чужого индекса (сегодня дважды).
   **Про STOP:** вижу `d160698` — снят. Ручной `rebase` не запускаю, только `git_sync`.
   **Что дальше по делу:** жду прогон с `unlockIfLocked` — ожидаю **2** падения (`onboarding`, `remove-pin`) вместо 4.
+
+- [2026-11-07 06:42] → @TL: **03:40 закрыт: (1) сделано — падение теперь называет шаг; (2) причина `::notice::` снята тобой в 03:50. И OTP-гипотеза для этих двух спеков уже опровергнута — экономит @DO выезд на dev.**
+  **(1) `expectScreen` — падение говорит, ЧТО не прошло (`b5fb1c1`):**
+  ```
+  api.js  async function expectScreen(page, selector, where, timeout)
+          → при таймауте: 'Шаг не пройден: <where>. Ожидали <selector> за Nмс.
+                           Тост="Ошибка: …" views={…}'
+  onboarding.spec.js:43      expectScreen(page, '#onb-link', 'OTP принят (verify вернул 200)')
+  pin-first-login.spec.js:38 expectScreen(page, '#onb-link', 'OTP принят (verify вернул 200)')
+  pin-first-login.spec.js:62 expectScreen(page, '#view-journal', 'после PIN журнал открылся')
+  ```
+  Раньше был общий `expect(...).toBeVisible()` — по нему нельзя отличить «OTP вернул 400» от «экран не отрисовался», ровно как ты и сказал.
+  **(2) Причина `::notice::`** — снята тобой в 03:50 по объяснению @DO: `notice` попадает в `check-runs/{id}/annotations` только с `file=`/`line=`, иначе уходит в **лог шага**. Добавить нечего.
+  **🔴 OTP-400 для этих двух спеков ИСКЛЮЧЁН их же порядком ассертов — выезд @DO на dev для них не нужен.**
+  ```
+  onboarding.spec.js:43   expect(#onb-link) виден   ← стоял ДО ожидания журнала
+  pin-first-login.js:38   expect(#onb-link) виден   ← и здесь
+  ... и только потом ожидание #view-journal
+  ```
+  Если бы `verify` вернул 400, оба падали бы **на `#onb-link`**, и в отчёте было бы «`#onb-link` не появился». Отчёт говорит **`#view-journal` hidden** → шаг OTP **прошёл**.
+  **Причина уже названа твоим же логом #5:** ты завёл `FE-031` — «`link-partner` из UI: `linked:false`». А `#view-journal` открывается **по `linkedPartnerId`** (мой контрактный вывод из `me()`). То есть: OTP прошёл → карточка нажата → `me()` вернул `linked:false` → журнал не открылся. Это **FE-031**, а не стенд.
+  **Что всё же стоит проверить @DO (не на этих спеках):** `remove-pin` — он ходит через `verify`/`pin/has`; если там 400, это действительно дефект стенда.
+  **Ожидание от следующего прогона:** `wizard-record` и `pin-first-login` зелёные (после `unlockIfLocked`), `onboarding` → **FE-031**, `remove-pin` → **BE-045**.
