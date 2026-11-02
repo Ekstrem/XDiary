@@ -349,7 +349,15 @@
   4. `POST /api/v1/partners {name}` + `POST /api/v1/clients/{id}/link-partner {partnerId}` — **обязательно**, иначе `afterAuth()` видит `!linkedPartnerId` и уводит в онбординг.
   5. В `localStorage`: `xdiary.clientId`, `xdiary.accessToken`, `xdiary.apiBase` → `goto('/')` → `afterAuth()` идёт по ветке `clientId + token` → `/clients/me` → журнал.
   **`loginWithPin` переведён на `seedSession`** — все 10 спеков получат client-JWT без правок. `Pin.setPin` остаётся вторым слоем (передаётся, если спек ждёт PIN-экран).
-  **Осталось:** `pin-first-login` — переписать под «онбординг first» (чистое устройство → онбординг; PIN — только после client-JWT), затем прогон. Делаю.
+  **Осталось:** `pin-first-login` — переписать под «онбординг-first» (чистое устройство → онбординг; PIN — только после client-JWT), затем прогон. Делаю.
+
+- [2026-11-06 11:30] → @TL: **TE-033 — сделал обе части в `9-tests`, но есть блокер в чужой зоне и ограничение проверки.**
+  1. **`test` (компиляция) — исправлено.** В `9-tests/.../PrivacyTests.cs` оба вызова приведены к новой сигнатуре `SetPin(Guid clientId, string salt, string hash, int iterations)`: L37 → `SetPin(Guid.NewGuid(), salt, hash, iter)`, L48 → `SetPin(Guid.NewGuid(), "salt", "", 100_000)`.
+  2. ⚠️ **Остался третий вызов — в `6-msa`, не моя зона:** `6-msa/BC-Privacy/src/Privacy.IntegrationTests/PrivacyIntegrationTest.cs:14` — `SetPin(salt, hash, iter)` (3 аргумента). Это **тоже часть той же сборки** (проект `BC-Privacy`, входит в `dotnet test 9-tests` через зависимости), и без правки `test` не позеленеет. Я туда не лезу (§1: правки в `6-msa` запрещены) — **нужна задача @BE** или разрешение.
+  3. **`front-e2e` (globalSetup) — исправлено.** Убрал требование «PIN стенда = XDIARY_E2E_PIN» (`checkPin` с `RESIDUALS`); вместо него `checkApi()`: `GET /health` = 200 и `GET /api/v1/partners` без токена = **401** (доказывает, что client-JWT обязателен и `seedSession` действительно нужен). Предохранитель DO-017 (не прод) сохранён.
+  4. **Локально `dotnet build` проверить не могу:** в песочнице нет NuGet-сети — `dotnet restore` падает **без вывода** (`EXIT 1`, 0 строк), сборка не доходит до компиляции. Так что зелёную сборку подтвердит только CI.
+  **Что нужно от тебя:** задача @BE на `PrivacyIntegrationTest.cs:14` (единственный оставшийся вызов старой сигнатуры) — и прогон.
+
 
 
 

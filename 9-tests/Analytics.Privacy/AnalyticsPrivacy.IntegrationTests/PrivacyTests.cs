@@ -34,7 +34,7 @@ public class PrivacyTests
     public void SetPin_StoresHashOnly_NotPlaintext()
     {
         var (salt, hash, iter) = PinHasher.Hash("1234");
-        var r = Aggregate.CreateInstance(new AnemicModel()).SetPin(salt, hash, iter);
+        var r = Aggregate.CreateInstance(new AnemicModel()).SetPin(Guid.NewGuid(), salt, hash, iter);
 
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal(hash, r.Model().Root.Hash);
@@ -45,7 +45,7 @@ public class PrivacyTests
     [Fact]
     public void SetPin_EmptyHash_Fails()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).SetPin("salt", "", 100_000);
+        var r = Aggregate.CreateInstance(new AnemicModel()).SetPin(Guid.NewGuid(), "salt", "", 100_000);
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
