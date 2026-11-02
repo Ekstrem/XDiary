@@ -98,6 +98,23 @@ async function waitToken(page) {
 // client-JWT → link-partner. Без этого все спеки уходили в онбординг и падали «JWT не получен».
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 
+/**
+ * TE-044: уникальный телефон для прогона.
+ *
+ * Раньше спеки собирали номер как `'+7999777' + String(Date.now()).slice(-4)` — это
+ * всего 10 000 вариантов, и при 1751 накопленных клиентах вероятность коллизии за
+ * прогон ≈ `1 - exp(-1751/10000)` ≈ 16%. Дубликат телефона приводил к 500 от
+ * `POST /api/v1/clients` (BE-046), UI не переходил к OTP, и это выглядело как
+ * «флейк» на шаге «телефон → OTP».
+ *
+ * Здесь 10 млн вариантов (`+7999` + 7 цифр = 11 цифр, валидный РФ-номер);
+ * при том же объёме данных вероятность коллизии ≈ 0,02%.
+ */
+function uniquePhone(prefix) {
+  return (prefix || '+7999') + String(Date.now()).slice(-7);
+}
+
+
 // TE-032/FE-027: снимок хранилища БЕЗ раскрытия значений (только наличиe/длины).
 // Причина #926 — HTTP 401 от `/clients/me`, pageerror = 0: по логам нельзя было понять,
 // что в localStorage. Печатаем маскированно, чтобы при следующем 401 это было видно.
@@ -370,4 +387,4 @@ function watchLinkPartner(page) {
   };
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+module.exports = { API_BASE, PIN, TEST_OTP, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };

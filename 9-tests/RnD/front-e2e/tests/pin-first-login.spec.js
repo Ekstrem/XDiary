@@ -6,10 +6,10 @@
 //   1) чистое устройство → онбординг (никакого PIN-экрана);
 //   2) PIN-экран появляется на устройстве, где онбординг уже пройден и есть clientId/PIN.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews } = require('./api');
+const { API_BASE, PIN, uniquePhone, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews } = require('./api');
 
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
-const PHONE = '+7999777' + String(Date.now()).slice(-4);
+const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс. — иначе коллизия с накопленными клиентами (~16%)
 
 test('E2E: новое устройство → онбординг (без PIN-экрана) → журнал', async ({ page }) => {
   await installBase(page);

@@ -3,10 +3,10 @@
 // в read-model Partner.ClientId (Guid?). Прежний self.spec.js звал УДАЛЁННЫЙ POST /partners/{id}/self —
 // он заменён этим файлом (находка @TL 2026-11-04 13:00).
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin, removeByName } = require('./api');
+const { API_BASE, uniquePhone, loginWithPin, removeByName } = require('./api');
 
 const NAME = 'TE-LINK-' + Date.now();
-const PHONE = '+7999555' + String(Date.now()).slice(-4);
+const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс.
 
 function call(page, path, opts) {
   return page.evaluate(async ({ base, path, opts }) => {

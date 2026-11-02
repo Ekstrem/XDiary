@@ -4,9 +4,9 @@
 //   чистый контекст (нет локального PIN и нет xdiary.legacy) → afterAuth() → Pin.hasPin()=false → openOnboarding().
 // Если на устройстве PIN уже есть — путь legacy (журнал), поэтому чистим оба флага перед стартом.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, installBase, waitToken, dumpViews, reportStep, expectScreen, watchLinkPartner } = require('./api');
+const { API_BASE, PIN, uniquePhone, installBase, waitToken, dumpViews, reportStep, expectScreen, watchLinkPartner } = require('./api');
 
-const PHONE = '+7999000' + String(Date.now()).slice(-4);
+const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс. (коллизии телефонов давали 5-20% падений)
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 
 async function clearFlags(page) {
