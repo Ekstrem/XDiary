@@ -5,12 +5,34 @@
 const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps2.taile0b6ee.ts.net').replace(/\/+$/, '');
 const PIN = process.env.XDIARY_E2E_PIN || '1234';
 
+// FE-027: диагностика браузера. Приложение «остаётся на #view-lock» без видимой ошибки,
+// поэтому ловим JS-исключения и console.error — иначе причина угадывается.
+// Вызывается из installBase, то есть во всех спеках автоматически.
+function installDiagnostics(page) {
+  const errors = [];
+  page.on('pageerror', (e) => {
+    const msg = (e && (e.stack || e.message)) || String(e);
+    errors.push('pageerror: ' + msg);
+    if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser pageerror', error: msg }));
+  });
+  page.on('console', (m) => {
+    try {
+      if (m.type() !== 'error') return;
+      const txt = m.text();
+      errors.push('console.error: ' + txt);
+      if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser console.error', error: txt }));
+    } catch (e) {}
+  });
+  return errors;
+}
+
 // Приложение по умолчанию ходит на DEFAULT_BASE (VPS-1) — переключаем его на тестовый
 // стенд, иначе UI-прогон будет наполовину против прода.
 // FE-024 (P1, решение владельца): фронт перестаёт читать localStorage['xdiary.apiBase']
 // без флага — ставим window.__XDIARY_E2E__ = true ДО загрузки приложения. Без этого
 // после FE-024 тесты уедут на ПРОД (реальный дневник владельца) — недопустимо.
 async function installBase(page) {
+  installDiagnostics(page);
   await page.addInitScript((base) => {
     try { localStorage.setItem('xdiary.apiBase', base); } catch (e) {}
     window.__XDIARY_E2E__ = true;
