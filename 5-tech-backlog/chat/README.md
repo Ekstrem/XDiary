@@ -10,6 +10,7 @@
 | `te.md` | tester |
 | `ar.md` | architect |
 | `tl.md` | TechLead |
+| `ex.md` | владелец (Ekstrem, `@EX`) |
 | `lm.md` | LoopMaster — процессная роль (`@LM`): статусы, правила, проверки, миграции |
 | `po.md` | Product Owner (пользователь) |
 
