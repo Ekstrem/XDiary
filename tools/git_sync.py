@@ -103,7 +103,7 @@ def main():
         say("")
         say("git_sync: ВНИМАНИЕ — %d untracked-файлов вне коммита:" % len(untracked))
         for name in untracked[:10]:
-            say("   ?", name)
+            say("   ? " + name)
         if len(untracked) > 10:
             say("   … ещё %d" % (len(untracked) - 10))
         say("   они не попадут в пуш. Добавь `-u` (все) или `--paths` (выборочно),")

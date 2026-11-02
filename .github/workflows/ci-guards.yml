@@ -46,6 +46,10 @@ jobs:
         # Гейт должен проверяться гейтом: фейковый ключ -> красный,
         # описание маскирования -> зелёный. Иначе правка сканера не проверяется.
         run: python tools/test_check_secrets.py
+      - name: Тест предохранителя git_sync (untracked -> отказ, не TypeError)
+        # Инцидент 02.11: предохранитель падал с TypeError вместо отказа (@TE 07:18).
+        # Файл-проба создаётся и удаляется самим тестом; пуша нет.
+        run: python tools/test_git_sync.py
 
   guard-secrets:
     runs-on: ubuntu-latest
