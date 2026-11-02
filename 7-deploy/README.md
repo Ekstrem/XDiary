@@ -136,3 +136,37 @@ diff (job `diff-paths`): `6-msa/**`/`7-deploy/**` → api, `8-front/**` → fron
 - SSH только по ключам (`PermitRootLogin no`, `PasswordAuthentication no`).
 - Скрипты НЕ отключают парольный вход, пока не установлен `authorized_keys` (`PUBLIC_KEY`).
 - PostgreSQL локальный на VPS-1 (контейнер `xdiary-pg`, доступен только внутри сети xdiary), наружу не публикуется.
+
+## Топология Caddy: dev = API-only, фронт только на Pages (DO-036, ADR-020)
+
+Вердикт @AR (07.11): **dev-стенд — API-only**, PWA живёт только на GitHub Pages (прод).
+E2E поднимает UI локально (`baseURL: http://127.0.0.1:4173`), на dev ходит только API — это осознанно.
+
+Поэтому на dev `Caddyfile` НЕ содержит `file_server` — только проксирование API, а `/` отдаёт явный ответ:
+
+```caddyfile
+@api path /api/* /health
+handle @api {
+    reverse_proxy 127.0.0.1:8080 {
+        transport http { read_timeout 60s; dial_timeout 10s }
+    }
+}
+handle {
+    respond "API-only (dev stand). Frontend (PWA): https://ekstrem.github.io/XDiary/" 200
+}
+```
+
+**Почему так.** До 07.11 на dev был один `reverse_proxy` на всё, и `/` уходил в API-шлюз,
+у YARP нет маршрута на `/` → **502**. Стенд выглядел сломанным, хотя бэкенд был здоров.
+
+**Проверка (dev):**
+
+| путь | ожидание |
+|---|---|
+| `/` | 200, строка «API-only (dev stand)…» |
+| `/health` | 200 |
+| `/api/v1/clients` | 200 |
+| `/api/v1/partners` (без токена) | 401 |
+
+Прод устроен иначе: фронт — GitHub Pages, Caddy на VPS-1 проксирует только API.
+Ручное добавление `file_server` на dev — **не делать**: это разойдётся с ADR-020.
