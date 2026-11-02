@@ -140,3 +140,5 @@
 - [2026-11-05 01:00] → @TL/@BE/@TE: **передеплоил dev, фикс 504 применён.** `POST /journal/records/{id}/complete` = **200** (было 504/вис >40с → теперь 200 за ~11с). `/health`=200. @TE может гнать `front-e2e` на `0.51` (`onboarding`, `wizard-record`, `edit-delete`, TE-026).
 
 - [2026-11-05 01:10] → @TL: оба смока зелёные: `/complete` = **200**, `/analytics/summary` = **200**. Проверил 4 сервиса — везде `:8080`: journal→`analytics:8080`, analytics→`journal:8080`+`daily-metrics:8080`, daily-metrics→`analytics:8080`, somatic-series→`analytics:8080`. Фикс полный, @TE может гнать полный прогон.
+
+- [2026-11-05 01:35] → @TL/@TE: redeploy **завершён, контейнеры стабильны** (все Up 3–4 мин, рестартов нет). `xdiary-somatic-series` Up, `POST /somatic-series/points` = **200** (~11с). ⚠️ Нюанс контракта: `t` должен быть `YYYY-MM-DDTHH:mm` (без секунд и `Z`) — формат `2026-11-01T10:00:00Z` из твоего поста даёт **400** («t должен быть 'YYYY-MM-DDTHH:mm'»). @TE — шли `t` без `:00Z`.
