@@ -5,15 +5,17 @@ using MediatR;
 using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.Domain.Implementation;
+using Client.Application.Abstraction;
 using XDiary.Contracts;
 
 public sealed class RegisterClientHandler : IRequestHandler<RegisterClientCommand, AggregateResult<IClients, IClientAnemicModel>>
 {
     private readonly IRepository<IClients, IClientAnemicModel> _repo;
+    private readonly IOtpSender _sender;
     private readonly string? _testOtp;
-    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IConfiguration config) { _repo = repo; _testOtp = config["Clients:TestOtp"]; }
+    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IOtpSender sender, IConfiguration config) { _repo = repo; _sender = sender; var enabled = string.Equals(config["Clients:TestOtpEnabled"], "true", StringComparison.OrdinalIgnoreCase); _testOtp = enabled ? config["Clients:TestOtp"] : null; }
     public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(RegisterClientCommand r, CancellationToken ct)
-    { var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString(); var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString(); if (_testOtp is null) await _sender.SendAsync(r.Phone, otp, ct); var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class VerifyClientOtpHandler : IRequestHandler<VerifyClientOtpCommand, AggregateResult<IClients, IClientAnemicModel>>
 {

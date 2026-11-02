@@ -23,6 +23,7 @@ builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configurat
 builder.Services.AddScoped<IRepository<IClients, IClientAnemicModel>, ClientCommandRepository>();
 builder.Services.AddScoped<IClientQueryRepository, ClientReadRepository>();
 builder.Services.AddSingleton<ClientTokenService>();
+builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.LogOtpSender>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
