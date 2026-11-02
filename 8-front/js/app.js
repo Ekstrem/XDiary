@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.51"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.52"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -128,16 +128,27 @@
     });
   }
 
+  var VIEWS = ["lock", "onboarding", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"];
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   function showView(name) {
-    ["lock", "onboarding", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"].forEach(function (v) {
-      $("view-" + v).classList.toggle("hidden", v !== name);
+    VIEWS.forEach(function (v) {
+      var el = $("view-" + v);
+      if (el) el.classList.toggle("hidden", v !== name);
     });
     var hasTab = TAB_VIEWS.indexOf(name) !== -1;
-    $("tabbar").classList.toggle("hidden", !hasTab);
+    if ($("tabbar")) $("tabbar").classList.toggle("hidden", !hasTab);
     TAB_VIEWS.forEach(function (t) {
-      $("tab-" + t).classList.toggle("active", t === name && hasTab);
+      if ($("tab-" + t)) $("tab-" + t).classList.toggle("active", t === name && hasTab);
     });
+  }
+  // FE-022: гарантируем, что при любом состоянии виден ровно один экран
+  function ensureView() {
+    var any = false;
+    for (var i = 0; i < VIEWS.length; i++) {
+      var el = $("view-" + VIEWS[i]);
+      if (el && !el.classList.contains("hidden")) { any = true; break; }
+    }
+    if (!any) lock();
   }
 
   function avatarHtml(o) {
@@ -292,6 +303,9 @@
       if (localStorage.getItem("xdiary.clientId") || localStorage.getItem("xdiary.legacy")) { afterAuth(); return; }
       // FE-021: новое устройство — сразу онбординг (телефон), без device-токена и PIN-экрана
       openOnboarding();
+    }, function () {
+      // FE-022: если хранилище недоступно — всё равно показываем экран, а не пустоту
+      showLockScreen();
     });
   }
   function showPinError() {
@@ -2249,6 +2263,9 @@
 
     // FE: сначала токен (lock), потом рендер журнала — иначе /partners уходит без Authorization → 401
     lock();
+    // FE-022: страховка — если через 2с ни один экран не виден, показываем хоть что-то
+    setTimeout(ensureView, 2000);
+    window.addEventListener("pageshow", function (e) { if (e.persisted) ensureView(); });
   }
 
   document.addEventListener("DOMContentLoaded", init);
