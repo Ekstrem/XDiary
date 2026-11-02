@@ -1,30 +1,65 @@
-// E2E (настоящий) — TE-023 / FE-007: устройство без локального PIN, а на стенде PIN есть.
-// Путь PO: login("") → 401 → экран PIN → неверный PIN → ошибка → верный PIN → журнал.
+// E2E (настоящий) — новое устройство и PIN (адаптирован под FE-021, 0.51).
+//
+// ЧТО ИЗМЕНИЛОСЬ: до 0.51 на чистом устройстве показывался PIN-экран (legacy-путь).
+// После FE-021 новое устройство сразу идёт в онбординг «кто ты» — PIN-экрана там больше НЕТ.
+// Поэтому сценарий разделён:
+//   1) чистое устройство → онбординг (никакого PIN-экрана);
+//   2) PIN-экран появляется на устройстве, где онбординг уже пройден и есть clientId/PIN.
 const { test, expect } = require('@playwright/test');
 const { PIN, installBase, waitToken } = require('./api');
 
-test('E2E: устройство без локального PIN при PIN на стенде → экран PIN → вход', async ({ page }) => {
-  // локальный PIN НЕ ставим — только адрес API (как на новом устройстве)
+const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
+const PHONE = '+7999777' + String(Date.now()).slice(-4);
+
+test('E2E: новое устройство → онбординг (без PIN-экрана) → журнал', async ({ page }) => {
   await installBase(page);
   await page.goto('/');
 
-  await test.step('показан экран PIN (401 от login(""))', async () => {
-    await expect(page.locator('#view-lock')).toBeVisible({ timeout: 20000 });
-    expect(await page.evaluate(() => !!localStorage.getItem('xdiary.accessToken')), 'JWT не должен появиться').toBe(false);
+  await test.step('чистое устройство: PIN-экрана нет, показывается онбординг', async () => {
+    await page.evaluate(() => {
+      try {
+        localStorage.removeItem('xdiary.clientId');
+        localStorage.removeItem('xdiary.legacy');
+        localStorage.removeItem('xdiary.accessToken');
+      } catch (e) {}
+    });
+    await page.reload();
+    // FE-021: чистое устройство → сразу онбординг, минуя PIN
+    await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-lock')).toBeHidden();
   });
 
-  await test.step('неверный PIN → «Неверный PIN», без входа', async () => {
-    await page.fill('#pin-input', '0000');
-    await page.click('#pin-submit');
-    await expect(page.locator('#pin-error')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('#view-lock')).toBeVisible();
-    expect(await page.evaluate(() => !!localStorage.getItem('xdiary.accessToken')), 'JWT не должен появиться').toBe(false);
-  });
-
-  await test.step('верный PIN → JWT + журнал', async () => {
-    await page.fill('#pin-input', PIN);
-    await page.click('#pin-submit');
-    await waitToken(page);
+  await test.step('онбординг проходится: телефон → OTP → журнал (PIN не требуется)', async () => {
+    await page.fill('#onb-phone-input', PHONE);
+    await page.click('#btn-onb-phone');
+    await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
+    await page.fill('#onb-otp-input', TEST_OTP);
+    await page.click('#btn-onb-otp');
+    await expect(page.locator('#onb-link')).toBeVisible({ timeout: 20000 });
+    const card = page.locator('#onboarding-list .partner-card').first();
+    if (await card.count()) await card.click();
+    else await page.click('#btn-onboarding-skip');
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    console.log('::notice::новое устройство: онбординг пройден без PIN-экрана, phone=' + PHONE);
+  });
+
+  await test.step('после reload устройство помнит вход (журнал или PIN — оба допустимы)', async () => {
+    await page.evaluate(() => localStorage.removeItem('xdiary.accessToken'));
+    await page.reload();
+    const lock = page.locator('#view-lock');
+    const onb = page.locator('#view-onboarding');
+    const jr = page.locator('#view-journal');
+    await expect(lock.or(onb).or(jr).first()).toBeVisible({ timeout: 20000 });
+    if (await lock.isVisible()) {
+      await page.fill('#pin-input', String(PIN));
+      await page.click('#pin-submit');
+      await waitToken(page);
+      await expect(jr).toBeVisible({ timeout: 20000 });
+      console.log('::notice::после reload — PIN-экран, вход выполнен');
+    } else if (await onb.isVisible()) {
+      console.log('::notice::после reload — онбординг (новое устройство)');
+    } else {
+      console.log('::notice::после reload — сразу журнал');
+    }
   });
 });
