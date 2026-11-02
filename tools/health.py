@@ -479,6 +479,11 @@ def main():
     stale, _ = metric_stale(root)
     gates_ok, gates_total, gates_bad = metric_gates(root)
     p95 = metric_ci(root, cfg, jobs, enabled=not args.no_ci)
+    # Метрика @LM (metric_ci_reach, добавлена в a51d1a5): считает долю завершённых
+    # прогонов, дошедших до шагов. Вызова здесь не было -> NameError: name 'reach'
+    # is not defined при рендере таблицы (health.yml #1). Вызов обязателен до строки,
+    # где печатается «Прогоны, дошедшие до шагов».
+    reach, reach_total, reach_void = metric_ci_reach(root, cfg, enabled=not args.no_ci)
     inbox = metric_inbox(root)
     skew, order = metric_chat_skew(root)
     rev_ok, rev_total, rev_bad = metric_review_domain(root, cfg)
