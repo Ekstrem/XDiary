@@ -19,6 +19,14 @@ def load():
     return mod
 
 
+DECIDE_CASES = [
+    # (in_stash, applied, force, ожидаемое решение, почему)
+    (True, False, False, True, "автостэш в stash — снимаем"),
+    (False, True, False, False, "применён, но без --force — отказ с подсказкой"),
+    (False, True, True, True, "применён + --force-drop-autostash — снимаем"),
+    (False, False, True, False, "не в stash и не в дереве — отказ даже с force"),
+]
+
 CASES = [
     ("только autostash (боевой инцидент)", "rebase-merge", ["autostash"], "empty-autostash"),
     ("autostash + head-name (живой)", "rebase-merge", ["autostash", "head-name"], "other"),
@@ -40,11 +48,22 @@ def main():
         if not ok:
             failures.append(name)
         print("  [%s] %-34s kind=%s (ждали %s)" % ("OK " if ok else "FAIL", name, got, expect))
+    # corner-case (@TL 10:10): автостэш уже применён, но записи в stash нет
+    print()
+    print("  -- решение о снятии пустого состояния (decide_fix_state) --")
+    for in_stash, applied, force, expect, why in DECIDE_CASES:
+        got, reason = mod.decide_fix_state(in_stash, applied, force)
+        ok = got == expect
+        if not ok:
+            failures.append("decide %s/%s/%s" % (in_stash, applied, force))
+        print("  [%s] in_stash=%-5s applied=%-5s force=%-5s -> %-5s (%s)" % (
+            "OK " if ok else "FAIL", in_stash, applied, force, got, why))
+
     print()
     if failures:
         print("ПРОВАЛЕНО: %d -> %s" % (len(failures), ", ".join(failures)))
         return 1
-    print("все %d проверок прошли" % len(CASES))
+    print("все %d проверок прошли" % (len(CASES) + len(DECIDE_CASES)))
     return 0
 
 

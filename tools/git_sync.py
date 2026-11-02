@@ -50,7 +50,27 @@ def classify_rebase_files(marker, names):
     return "other"
 
 
+def decide_fix_state(in_stash, applied, force):
+    """Можно ли снимать ПУСТОЕ rebase-состояние. Чистая функция — её и тестируем.
+
+    in_stash — автостэш есть в `git stash list` (работа сохранена);
+    applied  — содержимое автостэша уже в рабочем дереве (`git diff <sha>` пуст);
+    force    — пользователь передал --force-drop-autostash.
+    Возвращает (разрешено, причина).
+    """
+    if in_stash:
+        return True, "автостэш есть в stash — снимаем пустое состояние, работа сохранена"
+    if applied and force:
+        return True, "автостэша нет в stash, но его изменения уже в дереве — снимаем по --force-drop-autostash"
+    if applied and not force:
+        return False, ("автостэша нет в stash, но его изменения уже в дереве: повторный запуск с "
+                       "--force-drop-autostash снимет пустое состояние")
+    return False, ("автостэша нет в stash и его изменения НЕ в дереве — сначала восстанови: "
+                   "git stash apply <sha>")
+
+
 def rebase_state(git_dir):
+
     """Разбор состояния rebase БЕЗ изменений: что за маркер и можно ли его безопасно убрать.
 
     «Пустой» = есть `.git/rebase-merge`, внутри НЕТ `head-name`/`onto` и в каталоге лежит
@@ -99,6 +119,9 @@ def main():
     ap.add_argument("--zone", action="store_true",
                     help="wip по всей зоне роли (старое поведение). По умолчанию wip идёт "
                          "ТОЛЬКО по явным --paths: зона загребает чужие правки (DO-043)")
+    ap.add_argument("--force-drop-autostash", action="store_true",
+                    help="с --fix-state: разрешить снятие пустого состояния, если автостэш уже "
+                         "применён к дереву (git diff <sha> пуст) и записи в stash нет")
     ap.add_argument("--fix-state", action="store_true",
                     help="убрать ТОЛЬКО пустой rebase-merge (без head-name/onto, один autostash) "
                          "и напечатать, что сделано; SHA автостэша сохраняется")
@@ -141,10 +164,18 @@ def main():
             say("git_sync --fix-state: найден ПУСТОЙ %s (нет head-name/onto, только autostash)." % state["marker"])
             say("  SHA автостэша: %s (полный — в %s/autostash)" % (
                 (state["autostash"] or "")[:8], os.path.join(git_dir, state["marker"])))
+            applied = False
             if state["autostash"] and not state["in_stash"]:
-                say("  ОТКАЗ: этого автостэша нет в `git stash list` — удалять нельзя, иначе работа")
-                say("  пропадёт. Сначала восстанови его: `git stash apply %s`." % state["autostash"][:8])
+                # Corner-case (@TL 10:10): состояние может остаться после того, как автостэш
+                # уже применили и запись из stash убрали. Тогда «нет в stash» ещё не значит
+                # «работа пропадёт» — проверяем, пуст ли diff между SHA и деревом.
+                diff = git("diff", "--quiet", state["autostash"], check=False)
+                applied = diff.returncode == 0
+            allowed, reason = decide_fix_state(state["in_stash"], applied, args.force_drop_autostash)
+            if not allowed:
+                say("  ОТКАЗ: %s" % reason)
                 return 2
+            say("  %s" % reason)
             removed = os.path.join(git_dir, state["marker"])
             try:
                 import shutil
