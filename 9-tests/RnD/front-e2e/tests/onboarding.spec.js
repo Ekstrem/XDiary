@@ -55,6 +55,19 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
     // «POST /link-partner не отправлялся» от «отправлялся и вернул ошибку» —
     // в #17 сетевых вызовов в логе не было, а #onb-link-error остался hidden.
     const linkWatch = watchLinkPartner(page);
+    // TE-032 (@TL 08:31): два дешёвых факта для «клик не доходит до обработчика».
+    // (1) кто реально под курсором в центре карточки — `elementFromPoint`;
+    // (2) перерисовывался ли `#onboarding-list` между поиском карточки и кликом —
+    //     `renderLinkPartners()` делает `innerHTML=""`, и клик может уйти в отсоединённый узел.
+    await page.evaluate(() => {
+      const list = document.querySelector('#onboarding-list');
+      window.__e2eListMut = 0;
+      try { if (window.__e2eListObs) window.__e2eListObs.disconnect(); } catch (e) {}
+      if (list && window.MutationObserver) {
+        window.__e2eListObs = new MutationObserver((ms) => { window.__e2eListMut += ms.length; });
+        window.__e2eListObs.observe(list, { childList: true, subtree: true });
+      }
+    }).catch(() => {});
     // TE-036: карточка может быть видима, но не кликабельна (overlay/pointer-events) —
     // тогда «клик не доходит» и «FE не переключает экран» выглядят одинаково.
     if (await card.count()) {
@@ -65,11 +78,33 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
         return { pointerEvents: cs.pointerEvents, display: cs.display, visibility: cs.visibility };
       }).catch(() => null);
       console.log('::notice::карточка партнёра: visible=' + vis + ', box=' + JSON.stringify(box) + ', style=' + JSON.stringify(clickable));
+      // (1) КТО под курсором — до клика, по реальным координатам центра карточки.
+      const under = await card.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        const y = r.top + r.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        if (!hit) return { point: { x, y }, hit: null };
+        const cardHit = hit.closest('.partner-card');
+        return {
+          point: { x, y },
+          hit: { tag: hit.tagName, id: hit.id || '', cls: String(hit.className || '').slice(0, 60) },
+          inCard: !!cardHit,
+          sameCard: cardHit === el,
+        };
+      }).catch(() => null);
+      console.log('::warning::под курсором в центре карточки: ' + JSON.stringify(under));
       await card.click();
       mode = 'link-partner по карточке';
     }
     // Дать сети шанс отработать и зафиксировать факт: уходил ли POST /link-partner.
     await page.waitForTimeout(700);
+    // (2) Перерисовывался ли список — счётчик мутаций `#onboarding-list` за время клика.
+    const mutations = await page.evaluate(() => {
+      try { if (window.__e2eListObs) window.__e2eListObs.disconnect(); } catch (e) {}
+      return window.__e2eListMut || 0;
+    }).catch(() => null);
+    console.log('::warning::перерисовок списка за клик: ' + mutations);
     linkWatch.report('после клика по карточке');
     // Снимок экранов ДО ожидания: видно, дошло ли приложение до журнала и что осталось висеть.
     await dumpViews(page, 'после привязки');
