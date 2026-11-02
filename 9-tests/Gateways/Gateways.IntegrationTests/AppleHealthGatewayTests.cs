@@ -13,7 +13,7 @@ public class AppleHealthGatewayTests
     [Fact]
     public void Configure_SetsMetrics()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr", "sleep" });
+        var r = Aggregate.CreateInstance(new AnemicModel()).Configure(Guid.NewGuid(), new[] { "hr", "sleep" });
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal(2, r.Model().ImportConfig.Metrics.Count);
     }
@@ -21,7 +21,7 @@ public class AppleHealthGatewayTests
     [Fact]
     public void ImportFile_IsIdempotent_ByFileName()
     {
-        var model = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr" }).Model();
+        var model = Aggregate.CreateInstance(new AnemicModel()).Configure(Guid.NewGuid(), new[] { "hr" }).Model();
         model = Aggregate.CreateInstance(model).ImportFile("export.xml").Model();
 
         Assert.Single(model.ProcessedFiles);
@@ -35,7 +35,7 @@ public class AppleHealthGatewayTests
     [Fact]
     public void ImportFile_DifferentFiles_AreBothTracked()
     {
-        var model = Aggregate.CreateInstance(new AnemicModel()).Configure(new[] { "hr" }).Model();
+        var model = Aggregate.CreateInstance(new AnemicModel()).Configure(Guid.NewGuid(), new[] { "hr" }).Model();
         model = Aggregate.CreateInstance(model).ImportFile("export-1.xml").Model();
         model = Aggregate.CreateInstance(model).ImportFile("export-2.xml").Model();
 

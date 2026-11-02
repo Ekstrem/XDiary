@@ -14,7 +14,7 @@ public class GarminGatewayTests
     public void Connect_ValidCredentials_Succeeds()
     {
         var r = Aggregate.CreateInstance(new AnemicModel())
-            .Connect(Credentials.CreateInstance("GCDC_x", "token-1", "2026-11-01T00:00"));
+            .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2026-11-01T00:00"));
 
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal("GCDC_x", r.Model().Credentials.ApiKey);
@@ -28,7 +28,7 @@ public class GarminGatewayTests
     public void Connect_InvalidCredentials_Fails(string key, string token)
     {
         var r = Aggregate.CreateInstance(new AnemicModel())
-            .Connect(Credentials.CreateInstance(key, token, ""));
+            .Connect(Guid.NewGuid(), Credentials.CreateInstance(key, token, ""));
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
@@ -36,7 +36,7 @@ public class GarminGatewayTests
     public void Sync_Somatic_And_FetchActivities_AreSeparateFlows()
     {
         var connected = Aggregate.CreateInstance(new AnemicModel())
-            .Connect(Credentials.CreateInstance("key", "token", "")).Model();
+            .Connect(Guid.NewGuid(), Credentials.CreateInstance("key", "token", "")).Model();
 
         // Поток 1 — соматика: Sync(config), сохраняет метрики и lastSync.
         var synced = Aggregate.CreateInstance(connected)
