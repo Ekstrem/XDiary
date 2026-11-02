@@ -38,11 +38,29 @@ SERVICE_IPS = {
 
 
 def compose_services():
-    import yaml
+    """Список сервисов из compose. На сервере PyYAML может не быть — тогда парсим сами."""
+    text = open(COMPOSE, encoding="utf-8").read()
+    try:
+        import yaml
 
-    with open(COMPOSE, encoding="utf-8") as f:
-        d = yaml.safe_load(f)
-    return list(d.get("services", {}).keys())
+        return list(yaml.safe_load(text).get("services", {}).keys())
+    except ImportError:
+        pass
+    import re
+
+    svcs, in_services = [], False
+    for line in text.splitlines():
+        if line.rstrip() == "services:":
+            in_services = True
+            continue
+        if not in_services:
+            continue
+        if line and not line.startswith(" "):
+            break
+        m = re.match(r"^  ([a-z][a-z0-9-]*):\s*$", line)
+        if m:
+            svcs.append(m.group(1))
+    return svcs
 
 
 def main():
