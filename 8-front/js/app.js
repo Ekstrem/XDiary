@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.60"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.61"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -141,6 +141,10 @@
       if ($("tab-" + t)) $("tab-" + t).classList.toggle("active", t === name && hasTab);
     });
   }
+  // FE-027: любой промис маршрута (IndexedDB/сеть) не должен держать экран вечно
+  function withTimeout(p, ms, fallback) {
+    return Promise.race([p, new Promise(function (resolve) { setTimeout(function () { resolve(fallback); }, ms); })]);
+  }
   // FE-022: гарантируем, что при любом состоянии виден ровно один экран
   function ensureView() {
     var any = false;
@@ -148,7 +152,7 @@
       var el = $("view-" + VIEWS[i]);
       if (el && !el.classList.contains("hidden")) { any = true; break; }
     }
-    if (!any) lock();
+    if (!any) { showView("lock"); lock(); }
   }
 
   function avatarHtml(o) {
@@ -213,10 +217,11 @@
   function afterAuth() {
     // FE-026 (вариант A): без client-JWT API не вызываем — только онбординг; legacy-флаг не удаляем
     if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
-    Api.clients.me().then(function (c) {
+    // FE-027: me() с таймаутом — иначе экран блокировки остаётся навсегда
+    withTimeout(Api.clients.me(), 5000, null).then(function (c) {
       if (c && c.verified && c.linkedPartnerId) openJournal();
       else openOnboarding();
-    }).catch(function () { openOnboarding(); });
+    }).catch(function (e) { console.error("afterAuth/me:", e); openOnboarding(); });
   }
   function openOnboarding() {
     onbClientId = "";
@@ -304,10 +309,11 @@
     // FE-025/026: без client-JWT — только онбординг (PIN — локальный замок поверх сессии)
     var hasClient = !!localStorage.getItem("xdiary.clientId") && !!Api.config.token();
     if (!hasClient) { openOnboarding(); return; }
-    Pin.hasPin().then(function (hasPin) {
+    // FE-027: hasPin не должен вешать экран блокировки
+    withTimeout(Pin.hasPin(), 5000, false).then(function (hasPin) {
       if (hasPin) { showLockScreen(); return; }
       afterAuth();
-    }, function () { openOnboarding(); });
+    }, function (e) { console.error("lock/hasPin:", e); openOnboarding(); });
   }
   function showPinError() {
     $("pin-error").classList.remove("hidden");
@@ -317,14 +323,14 @@
   function markLegacy() { try { localStorage.setItem("xdiary.legacy", "1"); } catch (e) {} }
   function unlock() {
     var pin = $("pin-input").value;
-    // FE-025/AR-008: PIN — только локальный замок поверх client-JWT; бэкенд-токен по PIN не запрашиваем
-    Pin.verifyPin(pin).then(function (ok) {
+    // FE-025/AR-008: PIN — только локальный замок поверх client-JWT; FE-027: verifyPin с таймаутом
+    withTimeout(Pin.verifyPin(pin), 5000, false).then(function (ok) {
       if (!ok) { showPinError(); return; }
       $("pin-error").classList.add("hidden");
       $("pin-input").value = "";
       if (!Api.config.token()) { openOnboarding(); return; }
       afterAuth();
-    }, function () { openOnboarding(); });
+    }, function (e) { console.error("unlock/verifyPin:", e); showPinError(); });
   }
 
   // ---- журнал ----
