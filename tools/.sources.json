@@ -11,7 +11,7 @@
       "upstream": "tools/chat_lint.py"
     },
     "chat_rotate.py": {
-      "sha256": "1cff6186528401b5b82f7a72fe45c065b8b898ff140f86a333038b79f1e0cd8f",
+      "sha256": "ba86e22af8cd9eafc007affd7543e0b5325d9e69a3453b41c4fa9db0960d29ca",
       "synced_at": "2026-11-02",
       "upstream": "tools/chat_rotate.py"
     },
