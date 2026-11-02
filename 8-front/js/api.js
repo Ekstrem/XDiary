@@ -26,12 +26,31 @@
   }
   function refreshToken() { return storeGet(REFRESH_KEY); }
 
-  // FE-002: refresh-эндпоинта в бэке нет (POST /token принимает PIN). Refresh-токен (30 дней) — тоже валидный JWT,
-  // поэтому при 401 подставляем его как Bearer (сессия не теряется до истечения refresh).
+  // FE-028: обновление пары по refresh-токену; одна попытка на всех (single-flight), без шторма
+  var refreshInflight = null;
   function authRefresh() {
+    if (refreshInflight) return refreshInflight;
     var rt = refreshToken();
-    if (rt) { storeSet(ACCESS_KEY, rt); return Promise.resolve(); }
-    return Promise.reject(new Error("Нет refresh-токена"));
+    if (!rt) return Promise.reject(Object.assign(new Error("Нет refresh-токена"), { status: 401 }));
+    refreshInflight = fetch(baseUrl() + "/api/v1/clients/refresh", {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: rt })
+    }).then(function (r) {
+      if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+      return r.json();
+    }).then(function (data) {
+      var a = data && (data.accessToken || data.token);
+      if (!a) throw new Error("refresh: нет accessToken в ответе");
+      storeSet(ACCESS_KEY, a);
+      if (data.refreshToken) storeSet(REFRESH_KEY, data.refreshToken);
+      return a;
+    }).then(function (a) { refreshInflight = null; return a; }, function () {
+      refreshInflight = null;
+      // 401/400/сеть — одинаково: сессия истекла, уходим в онбординг
+      throw Object.assign(new Error("Сессия истекла — войдите заново"), { status: 401 });
+    });
+    return refreshInflight;
   }
 
   function request(method, path, body, isRetry) {
@@ -46,7 +65,7 @@
     return fetch(base + path, opts).catch(function () {
       throw new Error("Недоступен API (шлюз) — проверьте сеть/адрес");
     }).then(function (r) {
-      if (r.status === 401 && !isRetry && refreshToken() && path.indexOf("/privacy/token") !== 0) {
+      if (r.status === 401 && !isRetry && refreshToken() && path.indexOf("/privacy/token") !== 0 && path.indexOf("/clients/refresh") !== 0) {
         return authRefresh().then(function () { return request(method, path, body, true); })
           .catch(function () { var e = new Error("Сессия истекла (401)"); e.status = 401; throw e; });
       }
