@@ -62,11 +62,14 @@ jobs:
       - name: Repeat run (json + list)
         working-directory: 9-tests/RnD/front-e2e
         continue-on-error: true
+        env:
+          # json-репортёр пишет в файл, list — в stdout.
+          # Без этого оба формата смешиваются в один файл и парсер падает.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: /tmp/repeat.json
         run: |
           echo "спеки: $SPECS | repeat-each=$REPEAT | workers=$WORKERS"
           npx playwright test $SPECS --repeat-each=$REPEAT --workers=$WORKERS \
-            --reporter=list,json > /tmp/repeat.json 2>/tmp/repeat.err || true
-          tail -40 /tmp/repeat.err || true
+            --reporter=list,json || true
 
       - name: Итог по спекам
         if: always()
