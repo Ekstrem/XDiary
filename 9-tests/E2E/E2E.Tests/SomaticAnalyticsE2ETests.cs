@@ -43,13 +43,12 @@ public class SomaticAnalyticsE2ETests
         var session = await E2EInfra.LoginAsync(c);
         E2EInfra.Authorized(c, session);
 
-        var summary = await E2EInfra.PostAsync(c, "api/v1/analytics/summary", new
-        {
-            period = "30",
-            records = Array.Empty<object>()
-        });
-        Assert.True(summary.TryGetProperty("sessions", out _));
-        Assert.True(summary.TryGetProperty("orgasms", out _));
+        // Контракт: AnalyticsController — `[HttpGet("summary")]` с `[FromQuery] period`.
+        // Раньше тест шёл POST'ом (legacy-привычка) и получал 405; тест был в `skip`,
+        // поэтому дефект не был виден до TE-041.
+        var summary = await E2EInfra.GetAsync(c, "api/v1/analytics/summary?period=30");
+        Assert.True(summary.TryGetProperty("sessions", out _), "в сводке есть sessions");
+        Assert.True(summary.TryGetProperty("orgasms", out _), "в сводке есть orgasms");
     }
 
     [E2EFact]
@@ -59,11 +58,9 @@ public class SomaticAnalyticsE2ETests
         var session = await E2EInfra.LoginAsync(c);
         E2EInfra.Authorized(c, session);
 
-        var corr = await E2EInfra.PostAsync(c, "api/v1/analytics/correlations", new
-        {
-            records = Array.Empty<object>(),
-            metrics = Array.Empty<object>()
-        });
+        // Контракт: `[HttpGet("correlations")]` без тела; POST /analytics/* объявлен только
+        // для `events`, поэтому POST давал 405.
+        var corr = await E2EInfra.GetAsync(c, "api/v1/analytics/correlations");
         Assert.True(corr.ValueKind == JsonValueKind.Array || corr.ValueKind == JsonValueKind.Object);
     }
 }
