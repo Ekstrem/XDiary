@@ -1,7 +1,10 @@
-// E2E (настоящий) — TE-026: соматика/дневные метрики из Garmin (Фаза 3).
-// Проверяем, что контракты Garmin → SomaticSeries / DailyMetrics отдают данные на dev:
-//   GET /api/v1/somatic-series/slice?fromT=&toT=
-//   GET /api/v1/daily-metrics/series?fromDate=&toDate=
+// E2E (настоящий) — TE-026: соматика/дневные метрики (Фаза 3).
+//
+// Решение PO (@TL 21:35/22:00): вариант (б)+(в) — генерируем ТЕСТОВЫЕ точки на dev и проверяем,
+// что они проходят реальный путь до API; реальные данные Garmin остаются вне dev/CI.
+// Контракт (@BE 21:45): POST /api/v1/somatic-series/points
+//   RecordPointCommand(string T, int Hr, int BodyBattery)  → тело { t, hr, bodyBattery }
+// Чтение: GET /api/v1/somatic-series/slice?fromT=&toT=, GET /api/v1/daily-metrics/series?fromDate=&toDate=
 // Прод не трогаем — globalSetup блокирует не-dev стенды (DO-017, 59a0afe).
 const { test, expect } = require('@playwright/test');
 const { API_BASE, loginWithPin } = require('./api');
@@ -20,37 +23,56 @@ function minuteKey(offsetMin) {
     'T' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
 }
 
-async function getJson(page, path) {
-  return page.evaluate(async ({ base, path }) => {
+async function api(page, path, method, body) {
+  return page.evaluate(async ({ base, path, method, body }) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
-    const r = await fetch(base + path, { headers: t ? { Authorization: 'Bearer ' + t } : {} });
+    const headers = { 'Content-Type': 'application/json' };
+    if (t) headers.Authorization = 'Bearer ' + t;
+    const r = await fetch(base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
     let data = null;
     try { data = await r.json(); } catch (e) {}
     return { status: r.status, data };
-  }, { base: API_BASE, path });
+  }, { base: API_BASE, path, method, body });
 }
 
-test('E2E: соматика и дневные метрики Garmin отдаются на dev (TE-026)', async ({ page }) => {
-  await test.step('login по PIN', async () => {
-    await loginWithPin(page);
+test('E2E: соматика Garmin — сгенерированные точки доходят до API (TE-026)', async ({ page }) => {
+  await loginWithPin(page);
+
+  // 3 тестовые точки в пределах последнего часа — попадают в окно slice и в сегодняшний день
+  const points = [
+    { t: minuteKey(-50), hr: 61, bodyBattery: 71 },
+    { t: minuteKey(-35), hr: 64, bodyBattery: 68 },
+    { t: minuteKey(-20), hr: 67, bodyBattery: 65 },
+  ];
+  const created = [];
+
+  await test.step('POST /somatic-series/points — генерация тестовых точек', async () => {
+    for (const p of points) {
+      const r = await api(page, '/api/v1/somatic-series/points', 'POST', p);
+      expect([200, 201], 'POST /somatic-series/points ' + JSON.stringify(p) + ' -> ' + r.status).toContain(r.status);
+      created.push(p);
+    }
+    console.log('::notice::TE-026 сгенерировано точек: ' + created.length);
   });
 
-  await test.step('somatic-series/slice — 200 и массив точек', async () => {
-    const fromT = minuteKey(-90 * 24 * 60);
-    const toT = minuteKey(0);
-    const r = await getJson(page, '/api/v1/somatic-series/slice?fromT=' + encodeURIComponent(fromT) + '&toT=' + encodeURIComponent(toT));
-    expect(r.status, 'GET /somatic-series/slice (' + fromT + '..' + toT + ')').toBe(200);
+  await test.step('slice отдаёт сгенерированные точки', async () => {
+    const fromT = minuteKey(-120);
+    const toT = minuteKey(5);
+    const r = await api(page, '/api/v1/somatic-series/slice?fromT=' + encodeURIComponent(fromT) + '&toT=' + encodeURIComponent(toT), 'GET');
+    expect(r.status, 'GET /somatic-series/slice').toBe(200);
     expect(Array.isArray(r.data), 'срез соматики — массив').toBe(true);
-    console.log('::notice::TE-026 somatic-series/slice: ' + r.data.length + ' точек за 90 дней');
+    // точки приходят через реальный путь записи → должны быть видны в срезе
+    expect(r.data.length, 'в срезе есть точки (после генерации): ' + r.data.length).toBeGreaterThan(0);
+    console.log('::notice::TE-026 somatic-series/slice после генерации: ' + r.data.length + ' точек за 2 часа');
   });
 
-  await test.step('daily-metrics/series — 200 и данные за период', async () => {
-    const fromDate = dayKey(-30);
+  await test.step('daily-metrics/series отвечает за сегодня', async () => {
+    const fromDate = dayKey(0);
     const toDate = dayKey(0);
-    const r = await getJson(page, '/api/v1/daily-metrics/series?fromDate=' + encodeURIComponent(fromDate) + '&toDate=' + encodeURIComponent(toDate));
-    expect(r.status, 'GET /daily-metrics/series (' + fromDate + '..' + toDate + ')').toBe(200);
+    const r = await api(page, '/api/v1/daily-metrics/series?fromDate=' + encodeURIComponent(fromDate) + '&toDate=' + encodeURIComponent(toDate), 'GET');
+    expect(r.status, 'GET /daily-metrics/series').toBe(200);
     const rows = Array.isArray(r.data) ? r.data : (r.data && r.data.items) || [];
     expect(Array.isArray(rows), 'дневные метрики — список дней').toBe(true);
-    console.log('::notice::TE-026 daily-metrics/series: ' + rows.length + ' дней за 30 дней');
+    console.log('::notice::TE-026 daily-metrics/series за сегодня: ' + rows.length + ' дней');
   });
 });
