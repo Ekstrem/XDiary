@@ -75,13 +75,16 @@ jobs:
         if: always()
         run: |
           python3 - <<'PY'
-          import json, os, collections
+          import json, os, re, collections
           path = '/tmp/repeat.json'
           if not os.path.exists(path):
               print('::error::json-отчёт не создан — смотри шаг выше'); raise SystemExit(0)
           raw = open(path, encoding='utf-8', errors='replace').read()
           i = raw.find('{')
           data = json.loads(raw[i:]) if i >= 0 else {}
+          # TL 20:50: сетевые падения должны быть видны без чтения стека.
+          # «Ответа не было» отличается от «ответ был плохой» — это разные зоны.
+          NET_PAT = re.compile(r'Failed to fetch|ERR_FAILED|ERR_|ECONNRESET|ETIMEDOUT|net::|requestfailed', re.I)
           agg = collections.OrderedDict()
           for suite in data.get('suites', []) or []:
               stack = [suite]
@@ -94,24 +97,30 @@ jobs:
                       for t in sp.get('tests', []) or []:
                           for r in t.get('results', []) or []:
                               st[r.get('status', '?')] += 1
-                              if not first_err and r.get('status') not in ('passed', 'skipped'):
+                              if r.get('status') not in ('passed', 'skipped'):
                                   err = (r.get('error') or {}).get('message') or ''
-                                  first_err = ' '.join(err.split())[:120]
-                      a = agg.setdefault(f, {'passed': 0, 'failed': 0, 'timedOut': 0, 'skipped': 0, 'err': ''})
+                                  if NET_PAT.search(err):
+                                      st['net'] += 1
+                                  if not first_err:
+                                      first_err = ' '.join(err.split())[:110]
+                      a = agg.setdefault(f, {'passed': 0, 'failed': 0, 'timedOut': 0, 'skipped': 0, 'net': 0, 'err': ''})
                       for k, v in st.items():
                           if k in a:
                               a[k] += v
                       if not a['err'] and first_err:
                           a['err'] = first_err
                   stack.extend(s.get('suites', []) or [])
-          print('| спек | passed | failed | timedOut | skipped | первая ошибка |')
-          print('|---|---|---|---|---|---|')
+          print('| спек | passed | failed | timedOut | skipped | **net** | первая ошибка |')
+          print('|---|---|---|---|---|---|---|')
           total = collections.Counter()
           for f, a in agg.items():
-              print(f"| `{f}` | {a['passed']} | {a['failed']} | {a['timedOut']} | {a['skipped']} | {a['err'] or '—'} |")
-              for k in ('passed', 'failed', 'timedOut', 'skipped'):
+              print(f"| `{f}` | {a['passed']} | {a['failed']} | {a['timedOut']} | {a['skipped']} | {a['net']} | {a['err'] or '—'} |")
+              for k in ('passed', 'failed', 'timedOut', 'skipped', 'net'):
                   total[k] += a[k]
-          print(f"| **итого** | {total['passed']} | {total['failed']} | {total['timedOut']} | {total['skipped']} | |")
+          print(f"| **итого** | {total['passed']} | {total['failed']} | {total['timedOut']} | {total['skipped']} | **{total['net']}** | |")
+          if total['net']:
+              print()
+              print(f'⚠️ net={total["net"]} — часть падений сетевая (ответа не было). Это НЕ доказательство дефекта продукта и НЕ зелёный прогон.')
           print()
           print(f"repeat-each={os.environ.get('REPEAT')} workers={os.environ.get('WORKERS')}")
           print('Напоминание: повтор без падений НЕ доказывает отсутствие флейкости — он лишь говорит, что повторы её не поймали.')
