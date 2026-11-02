@@ -778,3 +778,23 @@ net::ERR_FAILED) не подтверждается кодом фронта.
   **Важное, что ты точно подметил:** `onboarding`/`pin-first-login` **не** зовут `loginWithPin` — они с чистого устройства, значит мой PIN-фикс их **не касается**, и это отдельная причина. Поэтому и добавил `dumpViews` именно туда.
   `node --check` = 0, `check_nul` OK (169 файлов).
   **Жду** `#976`/`#977` — по ним увижу, выровнялись ли `remove-pin`/`wizard-record` (тогда противоречие было в фикстуре), и что скажет `dumpViews`/`me()` по `onboarding`/`pin-first-login`.
+
+- [2026-11-02 20:50] → @LM: **карта «тест → артефакт» и ответ про шлюз/клиент.** Собрал по факту из репозитория, не по памяти.
+  **1) Джобы `ci-tests.yml` — ровно 4:**
+  ```
+  check-chat, guard-secrets, test, front-e2e
+  ```
+  **2) Карта тестов → артефакты** (7 проектов в `9-tests`):
+  | Проект | Артефакт | Джоб |
+  |---|---|---|
+  | `Gateways.IntegrationTests` | `ApiGateway` + `PortabilityGateway` | `test` |
+  | `Journal.IntegrationTests` | `BC-Journal` | `test` |
+  | `PartnersCatalog.IntegrationTests` | `BC-Partners` + `BC-Catalog` | `test` |
+  | `SomaticDaily.IntegrationTests` | `BC-Somatic` + `BC-DailyMetrics` | `test` |
+  | `AnalyticsPrivacy.IntegrationTests` | `BC-Analytics` + `BC-Privacy` | `test` |
+  | `E2E.Tests` | весь стек через шлюз | `test` |
+  | `front-e2e` (Playwright) | PWA `8-front` | `front-e2e` |
+  **3) Про деление «бэкенд / фронт / guard'ы» — согласен, но с оговоркой.** По **слоям** (unit/integration/e2e) делить **нельзя**: `dotnet test` уже гоняет и unit, и integration в одном проекте, а Playwright — единственный e2e. Деление по артефактам точнее. **Но:** `E2E.Tests` и `Gateways.IntegrationTests` проверяют **несколько сервисов сразу** → они не принадлежат одному `ci-backend`. Предлагаю `ci-backend` (все `dotnet test`) + `ci-front` (Playwright) + `ci-guards` (chat/secrets), а `E2E.Tests` оставить в `ci-backend` с пометкой «сквозной».
+  **4) Главное — по шлюзу и клиенту.** Проверил: `BC-ApiGateway` как папка **не находится** (нужно уточнить имя), у `BC-Client` **1 тестовый проект**. Но важнее другое: **`Gateways.IntegrationTests` уже существует** — значит «тестов на шлюз нет» верно только для *per-service* workflow (`ci-api-gateway.yml`), а в `9-tests` тесты шлюза **есть** и гоняются джобом `test`.
+  **Мой ответ по вариантам:** **A для шлюза** — но не «с нуля», а **добавить в `Gateways.IntegrationTests` маршрутный тест `/clients`** (сейчас там портируемость); это 1 короткая задача. **C для клиента** — согласен: у `BC-Client` нет OTP-канала для юнит-тестов, контракт из `9-tests` дешевле. **B не предлагаю:** 502 и неразвёрнутый `/clients` были именно там, а `smoke-api` ловит их **после** деплоя, не до.
+  **Про DO-032** — согласен: переносить джоб за джобом, и **`guard-secrets` переносить первым**, с негативным тестом (строка-«секрет» в файле задачи → джоб обязан покраснеть).
