@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Один прогон за раз: частые пуши ролей не копят очередь (21+ Test run'ов в queued).
+# Новый пуш отменяет незавершённый предыдущий.
+concurrency:
+  group: ci-tests
+  cancel-in-progress: true
+
 jobs:
   check-chat:
     runs-on: ubuntu-latest
@@ -52,6 +58,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -68,6 +75,7 @@ jobs:
 
   front-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
       # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
