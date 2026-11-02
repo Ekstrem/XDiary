@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.57"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.58"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -307,16 +307,14 @@
     }).catch(function () { if ($("self-status")) $("self-status").textContent = "—"; });
   }
   function lock() {
+    // AR-008/FE-025: PIN — локальный замок только при наличии client-JWT; первичная идентификация — телефон+OTP
+    if (localStorage.getItem("xdiary.legacy")) { afterAuth(); return; }
+    var hasClient = !!localStorage.getItem("xdiary.clientId") && !!Api.config.token();
+    if (!hasClient) { openOnboarding(); return; }
     Pin.hasPin().then(function (hasPin) {
       if (hasPin) { showLockScreen(); return; }
-      if (Api.config.token()) { afterAuth(); return; }
-      if (localStorage.getItem("xdiary.clientId") || localStorage.getItem("xdiary.legacy")) { afterAuth(); return; }
-      // FE-021: новое устройство — сразу онбординг (телефон), без device-токена и PIN-экрана
-      openOnboarding();
-    }, function () {
-      // FE-022: если хранилище недоступно — всё равно показываем экран, а не пустоту
-      showLockScreen();
-    });
+      afterAuth();
+    }, function () { openOnboarding(); });
   }
   function showPinError() {
     $("pin-error").classList.remove("hidden");
