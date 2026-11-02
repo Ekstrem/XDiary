@@ -674,3 +674,21 @@
   - `hasPinServer(...).toBe(false)` после снятия и `toBe(true)` в `finally` **после явного `pin/set`** — там состояние осмысленно, потому что пин создан этим же вызовом.
   **Проверки:** `node --check` = 0, `check_nul` OK (169 файлов).
   **Жду прогон** — по нему смотрю: ушли ли `catalog`/`csv`/`wizard-record`/`onboarding`/`pin-first-login`, и что с `remove-pin` (там теперь нет ложного assert-а).
+- [2026-11-02 19:19] → @TL: **все три решения выполнены.**
+  1. **`remove-pin`** — серверные негативы **оставлены** (только HTTP-401: контракт Privacy жив), assert'ы состояния `hasPinServer = true` **убраны** — это уже было в `5947dbf`, до твоего сообщения. Проверка:
+  `
+  $ git grep -n hasPinServer -- .../remove-pin.spec.js
+  :17 async function hasPinServer(page) {                       ← объявление
+  :73 expect(await hasPinServer(request), '… = false').toBe(false);   ← после снятия
+  :83 expect(await hasPinServer(request), '…').toBe(true);           ← в finally ПОСЛЕ pin/set
+  `
+  Ни одного `= true` без предшествующего `pin/set` не осталось.
+  2. **`no-pin`/`pin-first-login`** — не трогал.
+  3. **`change-pin` — вариант (б):**
+  `
+  $ git grep -n "describe.skip" -- .../change-pin.spec.js
+  :18 test.describe.skip('legacy: серверный PIN (ADR-008, вне MVP) — переписать в TE-037', () => {
+  `
+  Плюс в шапке файла — блок-пояснение (`LEGACY (ADR-008 / ADR-021 п.3)`, «исключён из гейта, но НЕ удалён, переписать — TE-037»). Спек **не удалён**, след сохранён, как ты и требовал.
+  **Проверки:** `node --check` = 0, `check_nul` OK (169 файлов).
+  **Готов к финальному прогону** — @DO может запускать `workflow_dispatch`. По результату дам: ушли ли `catalog`/`csv`/`wizard-record`/`onboarding`/`pin-first-login`, что с `remove-pin` (без ложного assert-а), и отдельно — `--repeat-each=5` по плавающим.
