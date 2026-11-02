@@ -138,6 +138,14 @@
       remove: function (id) { return post("/api/v1/catalog/" + id + "/remove"); }
     },
 
+    // FE-017: аналитика с сервера (MV) — корреляции/сводка/топы/распределение
+    analytics: {
+      summary: function (period) { return get("/api/v1/analytics/summary?period=" + encodeURIComponent(period || "30")); },
+      correlations: function () { return get("/api/v1/analytics/correlations"); },
+      tops: function () { return get("/api/v1/analytics/tops"); },
+      distribution: function () { return get("/api/v1/analytics/distribution"); }
+    },
+
     // FE-018: BC «Клиент» — телефон/SMS OTP, client-JWT, link-partner
     clients: {
       register: function (phone) { return post("/api/v1/clients", { phone: phone }); },

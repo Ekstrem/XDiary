@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.52"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.53"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1805,20 +1805,7 @@
     ctx.textAlign = "right"; ctx.fillText(pts[pts.length - 1].t.slice(2), cssW - 4, cssH - 4);
   }
   // ---- корреляции ----
-  function pearson(xs, ys) {
-    var n = xs.length;
-    if (n < 3) return null;
-    var sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
-    for (var i = 0; i < n; i++) {
-      sx += xs[i]; sy += ys[i];
-      sxx += xs[i] * xs[i]; syy += ys[i] * ys[i]; sxy += xs[i] * ys[i];
-    }
-    var num = n * sxy - sx * sy;
-    var den = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
-    if (!den) return null;
-    return num / den;
-  }
-
+  // FE-017: Pearson считает сервер (MV analytics_correlations); клиент только рендерит
   function renderCorrelations() {
     function dayKey(offset) {
       var d = new Date(); d.setDate(d.getDate() + offset);
@@ -1873,25 +1860,23 @@
         html += "</tbody></table>";
         table.innerHTML = html;
 
-        var coefs = [];
-        function addCoef(field, label) {
-          var arr = rows.filter(function (x) { return x[field] != null; });
-          if (arr.length < 3) return;
-          var c = pearson(arr.map(function (x) { return x.r.durationMin || 0; }), arr.map(function (x) { return x[field]; }));
-          if (c != null) coefs.push({ label: label, c: c, n: arr.length });
-        }
-        addCoef("avgHr", "Длительность ↔ пульс ср");
-        addCoef("maxHr", "Длительность ↔ пульс макс");
-        addCoef("stress", "Длительность ↔ стресс за день");
-        addCoef("sleepScore", "Длительность ↔ оценка сна");
-
-        if (!coefs.length) {
-          summary.textContent = "Недостаточно данных для коэффициентов.";
-          return;
-        }
-        summary.innerHTML = coefs.map(function (x) {
-          return '<div class="corr-coef"><span>' + x.label + "</span><b>" + x.c.toFixed(2) + '</b><span class="muted">n=' + x.n + "</span></div>";
-        }).join("");
+        // FE-017: коэффициенты — из серверного MV, клиент не считает Pearson
+        Api.analytics.correlations().then(function (list) {
+          var arr = (list || []).filter(function (c) {
+            return c && c.n >= 3 && c.coefficient != null && isFinite(c.coefficient);
+          });
+          if (!arr.length) {
+            summary.textContent = "Недостаточно данных для коэффициентов.";
+            return;
+          }
+          summary.innerHTML = arr.map(function (c) {
+            return '<div class="corr-coef"><span>' + esc(c.label) + "</span><b>" + Number(c.coefficient).toFixed(2) +
+              '</b><span class="muted">n=' + c.n + "</span>" +
+              (c.explanation ? '<div class="muted small">' + esc(c.explanation) + "</div>" : "") + "</div>";
+          }).join("");
+        }, function (e) {
+          summary.textContent = "Корреляции недоступны: " + e.message;
+        });
       });
     });
   }
