@@ -41,13 +41,9 @@ jobs:
       REPEAT: ${{ inputs.repeat }}
       WORKERS: ${{ inputs.workers }}
     steps:
-      - name: Reset dev PIN to 1234
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          script: bash /opt/xdiary/7-deploy/reset-dev-pin.sh
+      # `Reset dev PIN to 1234` убран (DO/@TL 17:11): он дёргал legacy-контур `/privacy/pin/set`,
+      # хотя спеки используют ЛОКАЛЬНЫЙ PIN (`setPin` в localStorage, api.js) — серверный PIN
+      # им не нужен. Гейт больше не зависит от `/privacy/*`.
       - name: Очистить накопленные E2E-данные на dev (DO-044)
         # `cleanup=no` нужен для честного замера на ГРЯЗНОМ стенде: иначе этот шаг
         # сам убирает чужие карточки, и «проверка на грязном» превращается в проверку на чистом.
