@@ -12,6 +12,7 @@ module.exports = defineConfig({
     baseURL: 'http://127.0.0.1:4173',
     headless: true,
     screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
   },
   webServer: {
     command: 'node serve.js',

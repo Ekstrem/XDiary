@@ -23,7 +23,44 @@ function installDiagnostics(page) {
       if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser console.error', error: txt }));
     } catch (e) {}
   });
+  // TE-036: сетевые ответы со статусом >= 400 и упавшие запросы. Без них «селектор
+  // не найден» не отличить от «сервер вернул 500» — а это разные адресаты (фикстура/продукт).
+  page.on('response', (r) => {
+    try {
+      const st = r.status();
+      if (st < 400) return;
+      const line = 'http ' + st + ' ' + r.url();
+      errors.push(line);
+      if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser http error', error: line }));
+    } catch (e) {}
+  });
+  page.on('requestfailed', (r) => {
+    try {
+      const f = r.failure();
+      const line = 'requestfailed ' + r.url() + ' :: ' + ((f && f.errorText) || '');
+      errors.push(line);
+      if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser requestfailed', error: line }));
+    } catch (e) {}
+  });
   return errors;
+}
+
+// TE-036: снимок экранов `#view-*` с их классами. Из-за одного `hidden` уже полдня
+// искали не там — фиксируем это в аннотации, а не в догадках.
+async function dumpViews(page, where) {
+  try {
+    const views = await page.evaluate(() => {
+      const out = {};
+      document.querySelectorAll('[id^="view-"]').forEach((el) => {
+        out[el.id] = el.classList.contains('hidden') ? 'hidden' : 'visible';
+      });
+      return out;
+    });
+    console.log('::notice::' + JSON.stringify({ title: 'views' + (where ? ' (' + where + ')' : ''), views }));
+    return views;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Приложение по умолчанию ходит на DEFAULT_BASE (VPS-1) — переключаем его на тестовый
