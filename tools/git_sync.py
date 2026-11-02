@@ -33,6 +33,42 @@ def say(text=""):
     print(text)
 
 
+def rebase_state(git_dir):
+    """Разбор состояния rebase БЕЗ изменений: что за маркер и можно ли его безопасно убрать.
+
+    «Пустой» = есть `.git/rebase-merge`, внутри НЕТ `head-name`/`onto` и в каталоге лежит
+    ТОЛЬКО `autostash`. Именно такое состояние остаётся после `rebase --autostash` на грязном
+    дереве (инцидент 02.11, повторился трижды). Вид:
+      {"marker": None|"rebase-merge"|"rebase-apply", "kind": "healthy"|"empty-autostash"|"other",
+       "autostash": "<sha>"|None, "in_stash": bool}
+    """
+    state = {"marker": None, "kind": "healthy", "autostash": None, "in_stash": False}
+    for marker in ("rebase-merge", "rebase-apply"):
+        path = os.path.join(git_dir, marker)
+        if not os.path.isdir(path):
+            continue
+        state["marker"] = marker
+        names = sorted(os.listdir(path))
+        state["kind"] = "other"
+        if marker == "rebase-merge" and "head-name" not in names and "onto" not in names:
+            if names == ["autostash"]:
+                state["kind"] = "empty-autostash"
+            elif "autostash" in names and set(names) <= {"autostash", "done", "git-rebase-todo"}:
+                state["kind"] = "other"
+        autostash_file = os.path.join(path, "autostash")
+        if os.path.isfile(autostash_file):
+            try:
+                with open(autostash_file, encoding="utf-8", errors="replace") as fh:
+                    state["autostash"] = fh.read().strip()
+            except OSError:
+                state["autostash"] = None
+        if state["autostash"]:
+            listing = git("stash", "list", "--format=%H", check=False).stdout
+            state["in_stash"] = state["autostash"] in (listing or "")
+        return state
+    return state
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -48,6 +84,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--remote", default="origin")
     ap.add_argument("--branch", default="main")
+    ap.add_argument("--fix-state", action="store_true",
+                    help="убрать ТОЛЬКО пустой rebase-merge (без head-name/onto, один autostash) "
+                         "и напечатать, что сделано; SHA автостэша сохраняется")
     args = ap.parse_args()
 
     dirty = git("status", "--porcelain").stdout.strip()
@@ -79,16 +118,38 @@ def main():
     # Висящий rebase/автостэш: `rebase --autostash` в цикле с push оставляет за собой
     # `.git/rebase-merge` без `head-name`, после чего ни один rebase не стартует.
     git_dir = git("rev-parse", "--git-dir").stdout.strip() or ".git"
-    for marker in ("rebase-merge", "rebase-apply"):
-        path = os.path.join(git_dir, marker)
-        if os.path.exists(path):
+    state = rebase_state(git_dir)
+
+    if state["marker"]:
+        if args.fix_state and state["kind"] == "empty-autostash":
             say("")
-            say("git_sync: найден незавершённый rebase (%s)." % marker)
-            say("  Сначала восстанови и объяви в чат (§5.3): `git rebase --abort`;")
-            say("  если abort не работает (could not read head-name) — это повреждённые")
-            say("  метаданные: объявить `→ всем`, восстанавливает координатор, автостэш")
-            say("  спасать через `git stash apply <sha>`, SHA записать в чат.")
-            return 2
+            say("git_sync --fix-state: найден ПУСТОЙ %s (нет head-name/onto, только autostash)." % state["marker"])
+            say("  SHA автостэша: %s (полный — в %s/autostash)" % (
+                (state["autostash"] or "")[:8], os.path.join(git_dir, state["marker"])))
+            if state["autostash"] and not state["in_stash"]:
+                say("  ОТКАЗ: этого автостэша нет в `git stash list` — удалять нельзя, иначе работа")
+                say("  пропадёт. Сначала восстанови его: `git stash apply %s`." % state["autostash"][:8])
+                return 2
+            removed = os.path.join(git_dir, state["marker"])
+            try:
+                import shutil
+                shutil.rmtree(removed)
+            except OSError as exc:
+                say("  ОТКАЗ: не смог удалить %s: %s" % (removed, exc))
+                return 2
+            say("  удалено: %s (автостэш сохранён в stash, ничего не потеряно)" % removed)
+            say("  теперь повтори обычный запуск: git_sync.py --role <роль>")
+            return 0
+
+        say("")
+        say("git_sync: найден незавершённый rebase (%s)." % state["marker"])
+        if state["kind"] == "empty-autostash":
+            say("  Похоже на ПУСТОЙ rebase-merge (только autostash). Разобрать безопасно:")
+            say("  `python tools/git_sync.py --role %s --fix-state` — уберёт только пустое" % args.role)
+            say("  состояние, SHA автостэша будет напечатан и проверен по stash.")
+        say("  Иначе (§5.3): объявить `→ всем`, `git rebase --abort`; если не работает —")
+        say("  восстанавливает координатор, автостэш спасать `git stash apply <sha>`.")
+        return 2
 
     if args.dry_run:
         say("dry-run: дальше не иду")
