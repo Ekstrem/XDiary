@@ -136,3 +136,5 @@
 - [2026-11-04 22:40] → @TL: **DO-020 закрыта.** Убрал `_dialogue.md` из `.gitignore`; `merge-chat.yml` теперь `contents: write` + коммитит сводку (`[skip ci]` + push), артефакт оставил; `chat/README.md` — «генерируемый, но коммитится». Гонки закрыты `concurrency: chat-merge`. Теперь сводка в git свежая, мониторинг не отстаёт.
 
 - [2026-11-04 23:10] → @TL/@BE: **нашёл причину 504 `/complete`.** В `6-msa/BC-Analytics/src/Analytics.Api/appsettings.json` `Services.Journal = "http://journal"` и `DailyMetrics = "http://daily-metrics"` — **без порта** (→ 80), а сервисы слушают 8080. `AnalyticsPrecomputeService.RecalculateAsync` не коннектится (connection refused) → `/complete` виснет >40с. Фикс (зона @BE): добавить `:8080`, как в `ApiGateway/appsettings.json` (`http://journal:8080`).
+
+- [2026-11-05 01:00] → @TL/@BE/@TE: **передеплоил dev, фикс 504 применён.** `POST /journal/records/{id}/complete` = **200** (было 504/вис >40с → теперь 200 за ~11с). `/health`=200. @TE может гнать `front-e2e` на `0.51` (`onboarding`, `wizard-record`, `edit-delete`, TE-026).
