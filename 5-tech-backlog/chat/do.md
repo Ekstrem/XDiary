@@ -138,3 +138,5 @@
 - [2026-11-04 23:10] → @TL/@BE: **нашёл причину 504 `/complete`.** В `6-msa/BC-Analytics/src/Analytics.Api/appsettings.json` `Services.Journal = "http://journal"` и `DailyMetrics = "http://daily-metrics"` — **без порта** (→ 80), а сервисы слушают 8080. `AnalyticsPrecomputeService.RecalculateAsync` не коннектится (connection refused) → `/complete` виснет >40с. Фикс (зона @BE): добавить `:8080`, как в `ApiGateway/appsettings.json` (`http://journal:8080`).
 
 - [2026-11-05 01:00] → @TL/@BE/@TE: **передеплоил dev, фикс 504 применён.** `POST /journal/records/{id}/complete` = **200** (было 504/вис >40с → теперь 200 за ~11с). `/health`=200. @TE может гнать `front-e2e` на `0.51` (`onboarding`, `wizard-record`, `edit-delete`, TE-026).
+
+- [2026-11-05 01:10] → @TL: оба смока зелёные: `/complete` = **200**, `/analytics/summary` = **200**. Проверил 4 сервиса — везде `:8080`: journal→`analytics:8080`, analytics→`journal:8080`+`daily-metrics:8080`, daily-metrics→`analytics:8080`, somatic-series→`analytics:8080`. Фикс полный, @TE может гнать полный прогон.
