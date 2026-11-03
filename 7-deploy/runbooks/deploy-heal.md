@@ -121,3 +121,35 @@ sudo podman pull ghcr.io/ekstrem/xdiary-client:single   # нужен конкр�
 git revert <lock-commit> && git push   # деплой сам возьмёт теги из lock
 sudo bash /opt/xdiary/7-deploy/deploy.sh single
 ```
+
+## 502, а контейнер «есть»: `ExitCode=139` и `inotify` (DO-072, 2026-11-04)
+
+**Симптом:** снаружи `/health` → **502** от Caddy/Funnel, `ss -ltn | grep 8080` — пусто,
+`podman ps -a` показывает `xdiary-api-gateway Exited (139)`.
+
+**Причина в логе** (`podman logs xdiary-api-gateway | head`):
+
+```
+System.IO.IOException: The configured user limit (128) on the number of inotify
+instances has been reached …
+   at System.IO.FileSystemWatcher.StartRaisingEvents()
+   at Microsoft.Extensions.Configuration.FileConfigurationProvider..ctor
+```
+
+.NET держит `FileSystemWatcher` на `appsettings.json` (reloadOnChange); каждая копия
+сервиса тратит inotify-инстанс, и на хосте с 13+ контейнерами дефолт
+`fs.inotify.max_user_instances=128` заканчивается. Это **не** ошибка конфигурации
+приложения и **не** сеть.
+
+**Лечение (идемпотентно, из репозитория):**
+
+```bash
+sudo bash 7-deploy/host-inotify.sh    # 1024 инстанса / 524288 watch, persist в sysctl.d
+podman start xdiary-api-gateway
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/health   # ждём 200
+```
+
+`update.sh` вызывает этот скрипт сам перед пересозданием контейнеров — ручной шаг нужен
+только при «зависшем» проде до ближайшего деплоя.
+
+**Проверка лимитов:** `sysctl fs.inotify.max_user_instances fs.inotify.max_user_watches`.

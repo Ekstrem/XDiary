@@ -47,6 +47,15 @@ HASHFILE="$HOME/.xdiary-images.sha256"
 IDFILE="$HOME/.xdiary-image-ids"
 DEPLOY_HASH_FILE="$HOME/.xdiary-deploy-sh.sha256"
 
+# DO-072: на хосте с 12+ .NET-сервисов дефолт fs.inotify.max_user_instances=128
+# исчерпывается, сервис падает на старте (IOException + ExitCode=139), снаружи — 502.
+# Поднимаем лимиты ДО пересоздания контейнеров; скрипт идемпотентен.
+HOST_INOTIFY="$(dirname "$0")/host-inotify.sh"
+if [ -f "$HOST_INOTIFY" ]; then
+  bash "$HOST_INOTIFY" || sudo -n bash "$HOST_INOTIFY" || \
+    echo "update.sh: ПРЕДУПРЕЖДЕНИЕ: не удалось поднять inotify-лимиты (DO-072)" >&2
+fi
+
 say() { printf '%s\n' "$*"; }
 die() { printf 'update.sh: ОШИБКА: %s\n' "$*" >&2; exit 1; }
 
