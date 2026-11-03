@@ -72,7 +72,7 @@ public class RecordLifecycleTests
     [Fact]
     public void StartFromGarmin_Then_Complete_PreservesOrigin()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin("2026-10-19T20:02", 18, "garmin-24790291519");
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin("2026-10-19T20:02", 18, "garmin-24790291519", Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, start.Result);
         var model = Step(start.Model(), a => a.AddPartner("partner-1"));
         model = Step(model, a => a.Complete());
