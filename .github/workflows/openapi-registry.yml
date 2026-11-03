@@ -1,0 +1,92 @@
+name: OpenAPI реестр (генерация + дрейф)
+
+# BE-050 инкремент 1/2, ADR-023. Генерация спек ИЗ КОДА (не из живого swagger:
+# на dev его отдают 2 сервиса из 12 — замер @DO 2026-11-09), затем сравнение с
+# закоммиченным `openapi/` (это и есть гейт дрейфа) и артефакт.
+#
+# Часть @BE: генератор (MSBuild-target `GenerateOpenApi`, версия пакета) в `6-msa/`.
+# Часть @DO: этот workflow + артефакт + сравнение.
+#
+# Пока генератора в main нет — job честно предупреждает (`::warning::`) и выходит 0,
+# НЕ притворяясь проверкой (§5.4: «громко пропущено», не «тихо зелено»).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '6-msa/**'
+      - 'openapi/**'
+      - '.github/workflows/openapi-registry.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: openapi-registry
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Preflight — есть ли генератор BE-050
+        id: preflight
+        run: |
+          if grep -rql --include='*.csproj' --include='*.props' --include='*.targets' \
+               -e 'GenerateOpenApi' -e 'ApiDescription.Server' -e 'Swashbuckle.AspNetCore.Cli' 6-msa 2>/dev/null; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "генератор найден"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::openapi-реестр не проверен: генератор BE-050 (GenerateOpenApi) ещё не в main — это не «зелёный», а «громко пропущено»"
+          fi
+
+      - name: Сгенерировать спеки из кода (если генератор есть)
+        if: steps.preflight.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/gen
+          fail=0
+          for proj in $(git ls-files '6-msa/*/src/*/*.Api.csproj' '6-msa/ApiGateway/ApiGateway.csproj'); do
+            svc=$(basename "$(dirname "$proj")")
+            echo "== $proj -> $svc"
+            if dotnet build "$proj" -c Release -t:GenerateOpenApi \
+                 -p:OpenApiOutputPath="/tmp/gen/${svc}.json" --nologo >/tmp/build.log 2>&1; then
+              echo "  ok"
+            else
+              echo "  FAILED: $svc"; tail -20 /tmp/build.log; fail=1
+            fi
+          done
+          ls -1 /tmp/gen | wc -l | xargs echo "сгенерировано файлов:"
+          exit $fail
+
+      - name: Гейт дрейфа — сравнить с закоммиченным openapi/
+        if: steps.preflight.outputs.ready == 'true'
+        run: |
+          python3 tools/check_openapi.py --registry openapi --generated /tmp/gen
+
+      - name: Артефакт спек
+        if: steps.preflight.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-specs
+          path: /tmp/gen/*.json
+          if-no-files-found: error
+
+      - name: Итог
+        run: |
+          if [ "${{ steps.preflight.outputs.ready }}" = "true" ]; then
+            echo "openapi-реестр: проверен"
+          else
+            echo "openapi-реестр: НЕ проверен (нет генератора BE-050) — см. warning выше"
+          fi
