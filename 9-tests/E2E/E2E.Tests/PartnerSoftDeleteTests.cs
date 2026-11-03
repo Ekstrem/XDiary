@@ -109,26 +109,39 @@ public class PartnerSoftDeleteTests
     }
 
     /// <summary>
-    /// TE-050 кейс (4), @AR 2026-11-13 16:20: история остаётся разрешимой (ADR-028 §11 `HistoryStaysResolvable`).
+    /// TE-050 кейс (4): история остаётся разрешимой (ADR-028 §11 `HistoryStaysResolvable`).
     ///
     /// **Состояние на 2026-11-13: pending — пройти не может.** Проверено `origin`:
     /// `JournalReadModel`/`IJournalAnemicModel` содержат только `Root.Partners` — `IReadOnlyList&lt;string&gt;`
-    /// с **id**, а `git grep -i partnername -- 6-msa` даёт **0** совпадений. Ассерт не ослабляем
-    /// (иначе тест зелёный и бесполезный): вместо этого тест **сам определяет**, включён ли триггер
-    /// из §8, и печатает `::warning::[spec][pending:PartnersDirectory]`, пока имён нет.
+    /// с **id**, а `git grep -i partnername -- 6-msa` даёт **0** совпадений.
     ///
-    /// Триггер включения (машинно-проверяемый, §8): (а) существует `partners_directory` **и**
-    /// (б) ответ `GET /journal/records/{id}` содержит **имена** партнёров (аддитивное поле рядом с `partners`).
-    /// Когда оба выполнены — ассерт ниже начинает работать сам, без правки теста.
+    /// **Триггер — ВНЕШНИЙ флаг, а не наблюдаемое поведение** (@AR 2026-11-13 17:35): тест по поведению
+    /// («имени нет → warning») сам себя выключил бы при регресс, то есть перестал бы проверять
+    /// `HistoryStaysResolvable` ровно в момент поломки. Поэтому:
+    ///   * env `XDIARY_PARTNERS_DIRECTORY` ≠ `1` → `::warning::[spec][pending:PartnersDirectory]` и выход;
+    ///   * env = `1` (ставит @DO в CI, когда проекция выкачена) → **строго**: имя обязано быть и до, и после
+    ///     мягкого удаления. Пропажа имени — красный тест, а не тихое предупреждение.
+    /// Шаблон тот же, что `XDIARY_STRICT_UNKNOWN_FIELDS=1` в `Point9b`.
     /// </summary>
     [E2EFact]
     public async Task Remove_PartnerInExistingJournalRecord_StillResolvable()
     {
+        var projectionReady = (Environment.GetEnvironmentVariable("XDIARY_PARTNERS_DIRECTORY") ?? "").Trim() == "1";
+        if (!projectionReady)
+        {
+            Console.WriteLine(
+                "::warning::[spec][pending:PartnersDirectory] " +
+                "кейс ожидает выкатки partners_directory: журнал отдаёт только id партнёров " +
+                "(0 совпадений по partnername в 6-msa). Включение — внешним флагом, а не поведением: " +
+                "поставьте XDIARY_PARTNERS_DIRECTORY=1 в job (@DO), когда проекция выкачена; тогда ассерт строгий.");
+            return;
+        }
+
         var (c, _) = await SessionAsync();
         var partnerName = "TE-soft-hist-" + Guid.NewGuid().ToString("N")[..8];
         var partnerId = await CreatePartnerAsync(c, partnerName);
 
-        // Реальный контракт журнала (проверено по JournalController):
+        // Реальный контракт журнала (проверено по JournalController, вписан @AR в api-index.yaml):
         //   POST /journal/records            — без тела, создаёт черновик
         //   POST /journal/records/{id}/partners { partnerId } — привязка партнёра (строка, не Guid)
         var create = await c.PostAsync("api/v1/journal/records", null);
@@ -143,21 +156,13 @@ public class PartnerSoftDeleteTests
             new { partnerId = partnerId.ToString() });
         Assert.Equal(HttpStatusCode.OK, addPartner.StatusCode);
 
-        // ---- ТРИГГЕР (§8): включён, только если в ответе уже есть имена ----
+        // Флаг выставлен → контракт обязан отдавать имя. Нет имени — красный: значит проекция соврала.
         var beforeRemove = await c.GetAsync($"api/v1/journal/records/{recordId}");
         Assert.Equal(HttpStatusCode.OK, beforeRemove.StatusCode);
         var beforeBody = await beforeRemove.Content.ReadAsStringAsync();
-
-        if (!beforeBody.Contains(partnerName, StringComparison.Ordinal))
-        {
-            // Имён в ответе нет → триггер не сработал. Не валим: причина названа, включение машинное.
-            Console.WriteLine(
-                "::warning::[spec][pending:PartnersDirectory] " +
-                "журнал отдаёт только id партнёров (0 совпадений по partnername в 6-msa) — " +
-                "кейс включится, когда partners_directory начнёт отдавать имена в /journal/records/{id}; " +
-                "ассерт не ослаблен.");
-            return;
-        }
+        Assert.True(
+            beforeBody.Contains(partnerName, StringComparison.Ordinal),
+            "XDIARY_PARTNERS_DIRECTORY=1, но имя партнёра отсутствует в ответе журнала — проекция/ответ не отдают имена");
 
         var remove = await c.PostAsJsonAsync($"api/v1/partners/{partnerId}/remove", new { });
         Assert.Equal(HttpStatusCode.OK, remove.StatusCode);
