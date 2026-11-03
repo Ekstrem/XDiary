@@ -131,6 +131,13 @@ def selftest():
         ({"6-msa/BC-Journal/src/Journal.Tests/x.csproj": "<Project />"}, 0),
         ({"6-msa/Stray.Tests/x.csproj": "<Project />"}, 1),
         ({"6-msa/ApiGateway.Tests/x.csproj": "<Project />"}, 0),
+        # (б) уточнение @TL 2026-11-14 28:11: ссылка на 6-msa/Shared/** РАЗРЕШЕНА
+        # (общий пакет контрактов), запрещена только реализация чужого BC.
+        ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
+          '<Project><ItemGroup>'
+          '<ProjectReference Include="../../../Shared/XDiary.Contracts/XDiary.Contracts.csproj" />'
+          '</ItemGroup></Project>',
+          "6-msa/Shared/XDiary.Contracts/XDiary.Contracts.csproj": "<Project />"}, 0),
         # (ж): include с лишним `6-msa/` (типичный след переезда) ведёт в никуда
         ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
           '<Project><ItemGroup><ProjectReference Include="../../../6-msa/BC-A/src/A.Domain/A.Domain.csproj" />'
