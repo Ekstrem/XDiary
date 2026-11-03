@@ -117,9 +117,11 @@ def selftest():
     cases = [
         # (файлы{путь: содержимое}, ожидаемое число нарушений)
         ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
-          '<Project><ItemGroup><ProjectReference Include="../../BC-B/src/B.csproj" /></ItemGroup></Project>'}, 1),
+          '<Project><ItemGroup><ProjectReference Include="../../BC-B/src/B.csproj" /></ItemGroup></Project>',
+          "6-msa/BC-A/BC-B/src/B.csproj": "<Project />"}, 1),
         ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
-          '<Project><ItemGroup><ProjectReference Include="../../BC-A/src/A.csproj" /></ItemGroup></Project>'}, 0),
+          '<Project><ItemGroup><ProjectReference Include="../../BC-A/src/A.csproj" /></ItemGroup></Project>',
+          "6-msa/BC-A/BC-A/src/A.csproj": "<Project />"}, 0),
         ({"6-msa/BC-A/src/A.csproj":
           '<Project><ItemGroup><ProjectReference Include="../../E2E/E2E.csproj" /></ItemGroup></Project>',
           "6-msa/E2E/E2E.csproj": "<Project />"}, 2),
@@ -129,6 +131,10 @@ def selftest():
         ({"6-msa/BC-Journal/src/Journal.Tests/x.csproj": "<Project />"}, 0),
         ({"6-msa/Stray.Tests/x.csproj": "<Project />"}, 1),
         ({"6-msa/ApiGateway.Tests/x.csproj": "<Project />"}, 0),
+        # (ж): include с лишним `6-msa/` (типичный след переезда) ведёт в никуда
+        ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
+          '<Project><ItemGroup><ProjectReference Include="../../../6-msa/BC-A/src/A.Domain/A.Domain.csproj" />'
+          '</ItemGroup></Project>'}, 1),
     ]
     shutil.rmtree(base, ignore_errors=True)
     for files, expect in cases:
@@ -138,7 +144,7 @@ def selftest():
             full = os.path.join(case, rel.replace("/", os.sep))
             os.makedirs(os.path.dirname(full), exist_ok=True)
             open(full, "w", encoding="utf-8").write(content)
-        got = len(scan(case))
+        got = len(scan(case)) + len(scan_broken_refs(case))
         if got == expect:
             ok += 1
         else:
@@ -146,6 +152,36 @@ def selftest():
     shutil.rmtree(base, ignore_errors=True)
     print("check_test_isolation --selftest: %d/%d" % (ok, len(cases)))
     return 0 if ok == len(cases) else 1
+
+
+def scan_broken_refs(root):
+    """(ж) ProjectReference в тестовом проекте указывает на существующий файл.
+
+    Почему: перенос файлов без правки относительных путей оставляет
+    `..\\..\\..\\6-msa\\BC-X\\src\\...` от старого места. Проект не собирается, а гейт
+    «(б) чужой BC» при этом молчит: ссылка-то ведёт «в свой» BC, просто в никуда.
+    Ловит и переезд, и опечатку, и удалённый проект.
+    """
+    out = []
+    base = os.path.join(root, "6-msa")
+    if not os.path.isdir(base):
+        return out
+    pattern = re.compile(r'<ProjectReference\s+Include="([^"]+)"', re.I)
+    for dirpath, _dirs, names in os.walk(base):
+        for name in names:
+            if not re.search(r"Tests?\.csproj$", name):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                txt = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            rel_proj = os.path.relpath(path, root).replace(os.sep, "/")
+            for inc in pattern.findall(txt):
+                target = os.path.normpath(os.path.join(dirpath, inc.replace("\\", os.sep)))
+                if not os.path.isfile(target):
+                    out.append((rel_proj, inc))
+    return out
 
 
 def main():
@@ -158,12 +194,15 @@ def main():
 
     root = os.path.abspath(a.root)
     v = scan(root)
+    for rel_proj, inc in scan_broken_refs(root):
+        v.append(("ж", rel_proj, "ProjectReference на несуществующий путь: %s" % inc))
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
     projects = sorted({rel for _, rel, _ in v})
     print("check_test_isolation: нарушений %d в %d проект(ах) — б: чужие ProjectReference, "
           "в: ссылка сервиса на E2E, д: запрещённые общие папки "
-          "(6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>)" % (len(v), len(projects)))
+          "(6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>), ж: ProjectReference в никуда"
+          % (len(v), len(projects)))
     return 1 if v else 0
 
 
