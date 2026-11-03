@@ -48,8 +48,9 @@ public sealed class Aggregate
     public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl)
     {
         if (string.IsNullOrWhiteSpace(displayName)) return Fail("displayName обязателен.");
-        if (string.IsNullOrWhiteSpace(gender)) return Fail("gender обязателен.");
-        var m = Clone(); m.DisplayName = displayName; m.Gender = gender; m.PhotoUrl = photoUrl; return Success(m);
+        var g = (gender ?? "").Trim().ToLowerInvariant();
+        if (g is not ("male" or "female")) return Fail("gender: допустимо male или female.");
+        var m = Clone(); m.DisplayName = displayName; m.Gender = g; m.PhotoUrl = photoUrl; return Success(m);
     }
     public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp)
     {
