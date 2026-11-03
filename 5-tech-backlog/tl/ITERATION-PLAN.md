@@ -243,3 +243,7 @@
 | 3 | `7-deploy/runbooks/release-gate.md:90` | откат `ssh <прод> "podman tag <prev-digest> …:single"` | откат **нигде не фиксируется**; «что в проде» снова знает только сервер |
 
 **Решение:** закрывать все три гейтом ADR-027 Step 0 (`deploy.sh`/`deploy.yml` **отказываются** принимать тег, rc≠0), откат — только коммитом lock (запись в git), `paths`/промоушен — по lock. Исполнитель — @DO, карточка `DO-066`.
+
+**Уточнение механизма (факт @TE `93656b7f`):** «заменить `ProjectReference` на `Shared/XDiary.Contracts`» **механически не работает** — в `6-msa/Shared/XDiary.Contracts` сейчас 5 файлов (`FailedSpecification`, `Infrastructure`, `JwtSigningKey`, `SwaggerExtensions`, `.csproj`), **DTO/контрактов провайдеров там нет**. Три пары ссылаются на **домен и хранилище** провайдера и работают **в процессе** (`Privacy.Domain…Specifications`, `Partners.Domain/Storage/InternalContracts`, `SomaticSeries.Domain/Storage`).
+
+**Следствие: это не «замена ссылки», а переписывание теста в HTTP** — (1) поднять контракт в `Shared` **или** написать локальную модель ожидания, (2) переписать тест с вызовов агрегата на **HTTP-двойник**, (3) проверки, требующие реального провайдера, унести в `BC-<Провайдер>/src/*.IntegrationTests`. **Образец в репозитории:** `6-msa/BC-Journal/src/Journal.ApiTests` (csproj без чужих `ProjectReference`, тест ходит по HTTP). **Оценка: 3–5 ч на три проекта, не «одна строка».**
