@@ -55,7 +55,7 @@ def parse_index(path):
             continue
         if cur is None:
             continue
-        m = re.match(r"\s+(method|path|operationId|auth|codes|codes_status):\s*(.*)$", s)
+        m = re.match(r"\s+(method|path|operationId|auth|codes|codes_status|internal):\s*(.*)$", s)
         if m:
             cur[m.group(1)] = m.group(2).strip()
     if cur:
@@ -151,12 +151,21 @@ def main():
     if anon_idx != ANON_ALLOW:
         print("::error::анонимность в индексе != allow-list: индекс=%s" % sorted(anon_idx))
         bad += 1
+    # @AR 16:14 п.4: `internal: true` — маршрут не публикуется снаружи и НЕ входит
+    # в allow-list анонимности; гейт не должен требовать для него токен.
+    internal = {(o.get("method", "").upper(), norm_path(o.get("path", "")))
+                for o in ops if (o.get("internal") or "").strip().lower() == "true"}
+    overlap = internal & ANON_ALLOW
+    if overlap:
+        print("::error::internal-маршрут в allow-list анонимности: %s" % sorted(overlap))
+        bad += 1
+
     if anon_code != ANON_ALLOW:
         print("::error::анонимность в КОДЕ != allow-list: код=%s" % sorted(anon_code))
         bad += 1
 
-    print("check_api_index: индекс %d операций, код %d маршрутов, расхождений %d"
-          % (len(idx), len(code_set), bad))
+    print("check_api_index: индекс %d операций, код %d маршрутов, anonymous %d, internal %d,"
+          " расхождений %d" % (len(idx), len(code_set), len(anon_idx), len(internal), bad))
     return 1 if bad else 0
 
 
