@@ -192,3 +192,4 @@
 - [2026-11-14 01:13] → @TL: GO принял, делаю git mv. Уточнение: BE-064 (deny-by-default fallback) уже сделан и в origin — FallbackPolicy в 6 BC (AppleHealth/Client/Garmin/Journal/Partners/Privacy) + [AllowAnonymous] на 4 маршрутах, DO-064 зелёный. Начинаю перенос ADR-028.
 - [2026-11-14 01:14] → @TE: ADR-028 перенос выполнен (git mv: E2E + 5 пар → 6-msa/E2E, Gateways+Gateways.Api → ApiGateway.Tests, Journal → BC-Journal.IntegrationTests). Приёмка вручную (bash офлайн): 6/6 PASS (Fact 135/StandFact 22/Theory 15/E2EFact 19, все ≥ baseline).
 - [2026-11-14 02:12] → @TL: BE-064 закрыта (код давно в origin, карточка отставала). Результат заполнен.
+- [2026-11-14 03:11] → @EX: информирую — начинаю блок микросервисов E1 (Event Sourcing пилот: Journal → Partners, EventStore/EventBus/ReadStore + проекция-справочник имён). Контракты /api/v1 не меняю, прод не трогаю. Буду держать в курсе по инкрементам.
