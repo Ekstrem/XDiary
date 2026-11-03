@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.83"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.84"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -452,8 +452,18 @@
     if (!hasClient) { openOnboarding(); return; }
     // FE-027: hasPin не должен вешать экран блокировки; FE-032: ошибка = «PIN нет»
     withTimeout(Pin.hasPin(), 1500, false).then(function (hasPin) {
-      if (hasPin) { showLockScreen(); return; }
-      afterAuth();
+      if (!hasPin) { afterAuth(); return; }
+      // FE-032: легаси-запись PIN (без schema) от старой сборки — человек его не ставил.
+      var pinUsed = false;
+      try { pinUsed = !!localStorage.getItem("xdiary.pin.lastSuccess"); } catch (e) {}
+      Pin.pinInfo().then(function (info) {
+        if (info && info.legacy && !pinUsed) {
+          console.log("lock: легаси-PIN без schema и ни разу не введён — очищаем, идём дальше");
+          withTimeout(Pin.removePin(), 2000, null).then(function () { afterAuth(); }, function () { afterAuth(); });
+          return;
+        }
+        showLockScreen();
+      }, function () { showLockScreen(); });
     }, function (e) { console.error("lock/hasPin:", e); openOnboarding(); });
   }
   function showPinError() {
@@ -467,6 +477,8 @@
     // FE-025/AR-008: PIN — только локальный замок поверх client-JWT; FE-027: verifyPin с таймаутом
     withTimeout(Pin.verifyPin(pin), 5000, false).then(function (ok) {
       if (!ok) { showPinError(); return; }
+      // FE-032: отметка «PIN реально вводился» — легаси-запись после этого не чистим
+      try { localStorage.setItem("xdiary.pin.lastSuccess", "1"); } catch (e) {}
       $("pin-error").classList.add("hidden");
       $("pin-input").value = "";
       if (!Api.config.token()) { openOnboarding(); return; }

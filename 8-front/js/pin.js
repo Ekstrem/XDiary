@@ -53,7 +53,14 @@
     setPin: function (pin) {
       var salt = crypto.getRandomValues(new Uint8Array(16));
       return derive(pin, salt).then(function (hash) {
-        return DB.setMeta("pin", { salt: bufToB64(salt), hash: bufToHex(hash), iterations: ITERATIONS });
+        // FE-032: schema=2 — маркер «PIN создан текущей моделью» (легаси-записи его не имеют)
+        return DB.setMeta("pin", { salt: bufToB64(salt), hash: bufToHex(hash), iterations: ITERATIONS, schema: 2, createdAt: Date.now() });
+      });
+    },
+    pinInfo: function () {
+      return DB.getMeta("pin").then(function (r) {
+        if (!r || !r.value) return { exists: false, legacy: false, createdAt: 0 };
+        return { exists: true, legacy: !r.value.schema, createdAt: r.value.createdAt || 0 };
       });
     },
     verifyPin: function (pin) {
