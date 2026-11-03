@@ -152,8 +152,8 @@ fi
 
 # 7) атрибуты тестов не потерялись
 count_attr() {
-  { git grep -h -c -E "\[$1" "$REF" -- 6-msa 2>/dev/null
-    git grep -h -c -E "\[$1" "$REF" -- 9-tests 2>/dev/null
+  { git grep -h -c -E "\[$1" "$REF" -- ':(glob)6-msa/**/*.cs' 2>/dev/null
+    git grep -h -c -E "\[$1" "$REF" -- ':(glob)9-tests/**/*.cs' 2>/dev/null
   } | awk '{s+=$1} END {print s+0}'
 }
 fact_total=$(count_attr 'Fact')
