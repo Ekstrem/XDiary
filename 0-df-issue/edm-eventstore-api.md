@@ -51,3 +51,10 @@ E1 = вернуть наследование DF-базы (как в `0-df-issue/
 ## Статус
 API прочитан. E1 разблокирован по сигнатурам; жду `04-architecture/event-delivery.md`
 для контракта доставки (outbox/диспетчер/идемпотентность).
+
+## Дополнено (round 6): DF сам строит событие
+`AggregateResult<TBC,TModel>` уже содержит: `Event` (IDomainEvent), `ChangeValueObjects`
+(IDictionary), `BusinessOperationData`, `Result`, `Reason`. Значит `AggregateBusinessOperation.Handle`
+даёт готовый `result.Event` → `IEventBusProducer.Publish(result.Event)`. Маппинг
+`DomainEvent → DomainEventEntry` делает DF (`DomainEventEntryMapping`).
+Свой `SaveAsync(result)` → заменить на `Publish(result.Event)` + consumer → `SaveEventAsync`.
