@@ -150,6 +150,25 @@ public sealed class ClientStandApi : IDisposable
         return (id, resp.StatusCode);
     }
 
+    /// <summary>
+    /// ADR-024 §3 / @AR 2026-11-10 18:03: канон пола живёт **в двух местах** (TECHDEBT п.16) —
+    /// inline в `Client.Aggregate.UpdateProfile` и через `GenderEnumValidator` в `Partners.Aggregate.UpdateProfile`.
+    /// Клиентский путь покрыт `Point2b`; этот метод даёт проверить **второй** путь, иначе он разойдётся незаметно.
+    /// `UpdatePartnerProfileCommand(Photo, Gender, Notes)` — обязательных валидаторов на `photo`/`notes` нет.
+    /// </summary>
+    public async Task<(HttpStatusCode Status, JsonElement Body)> UpdatePartnerProfileAsync(
+        Guid partnerId, string accessToken, string gender)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"api/v1/partners/{partnerId}/profile")
+        {
+            Content = JsonContent.Create(new { photo = "", gender, notes = "" }),
+        };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var resp = await _http.SendAsync(req);
+        var body = await ReadJsonAsync(resp);
+        return (resp.StatusCode, body);
+    }
+
     /// <summary>Регистрация + verify за один шаг: нужен просто валидный client-JWT.</summary>
     public async Task<string> RegisterAndVerifyAsync()
     {

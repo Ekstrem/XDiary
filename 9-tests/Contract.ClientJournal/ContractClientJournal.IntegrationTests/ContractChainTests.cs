@@ -413,4 +413,35 @@ public sealed class ContractChainTests
             Assert.Equal(HttpStatusCode.OK, internalStatus);
         }
     }
+
+    // Пункт 8 (@AR 2026-11-10 18:03, TECHDEBT п.16): канон пола живёт в ДВУХ местах —
+    // inline в `Client.Aggregate.UpdateProfile` (покрыт `Point2b`) и через `GenderEnumValidator`
+    // в `Partners.Aggregate.UpdateProfile`. Второй путь контрактом не покрывался, а именно так
+    // «два источника правды» и расходятся незаметно: клиент уже валидирует, партнёр — ещё нет.
+    //
+    // Ожидание: `"Male"` → 200 и в ответе **`male`** (канон, а не исходная строка); `Other` → 400.
+    [StandFact]
+    public async Task Point8_PartnersProfile_GenderCanon()
+    {
+        using var api = new ClientStandApi();
+        var token = await api.RegisterAndVerifyAsync();
+
+        var (partnerId, partnerStatus) = await api.CreatePartnerAsync(
+            token, "TE-038 партнёр " + DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        Assert.Equal(HttpStatusCode.OK, partnerStatus);
+        Assert.NotEqual(Guid.Empty, partnerId);
+
+        var (canonStatus, canonBody) = await api.UpdatePartnerProfileAsync(partnerId, token, "Male");
+        Assert.Equal(HttpStatusCode.OK, canonStatus);
+        Assert.True(
+            canonBody.TryGetProperty("gender", out var g) && g.GetString() == "male",
+            "после 'Male' в профиле партнёра должен лежать канон 'male', а лежит " +
+            (canonBody.TryGetProperty("gender", out var g0) ? "'" + g0.GetString() + "'" : "поле отсутствует"));
+
+        var (otherStatus, _) = await api.UpdatePartnerProfileAsync(partnerId, token, "Other");
+        Assert.True(
+            otherStatus is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
+            "gender='Other' в профиле партнёра должен отклоняться 400, а вернул " + (int)otherStatus +
+            " — канон @AR реализован только в Client, второй путь отстал (TECHDEBT п.16)");
+    }
 }
