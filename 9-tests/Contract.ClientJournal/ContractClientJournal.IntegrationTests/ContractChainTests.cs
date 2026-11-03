@@ -168,6 +168,23 @@ public sealed class ContractChainTests
         var (spacedOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", " female ");
         Assert.Equal(HttpStatusCode.OK, spacedOk);
 
+        // Канонизация при сохранении (@AR 2026-11-10 10:13, ADR-024 §3): в модель попадает
+        // НОРМАЛИЗОВАННОЕ значение, а не исходная строка. Иначе в базе появятся `Male`, `male `,
+        // и та же грязь вернётся в аналитику — при том, что тест «принимается» был бы зелёным.
+        var (_, canonBody) = await api.MeWithTokenAsync(access);
+        Assert.True(
+            canonBody.TryGetProperty("gender", out var canonGender) && canonGender.GetString() == "female",
+            "после ' female ' в профиле должно лежать каноническое 'female', а лежит " +
+            (canonBody.TryGetProperty("gender", out var g0) ? "'" + g0.GetString() + "'" : "поле отсутствует"));
+
+        var (maleOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", "Male");
+        Assert.Equal(HttpStatusCode.OK, maleOk);
+        var (_, maleBody) = await api.MeWithTokenAsync(access);
+        Assert.True(
+            maleBody.TryGetProperty("gender", out var maleGender) && maleGender.GetString() == "male",
+            "после 'Male' в профиле должно лежать каноническое 'male', а лежит " +
+            (maleBody.TryGetProperty("gender", out var g1) ? "'" + g1.GetString() + "'" : "поле отсутствует"));
+
         var (anonStatus, _) = await api.UpdateProfileAsync(string.Empty, "Аноним", "male");
         Assert.Equal(HttpStatusCode.Unauthorized, anonStatus);
     }
