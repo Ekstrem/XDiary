@@ -246,7 +246,8 @@ outbox в чате, у BackEnd — заметки о пробелах фрейм
 Проверка: job `guard-secrets` — в `chat-guards.yml` (файлы задач и чата, `--range` по
 пушу) и в `ci-tests.yml` (код сервисов) — `tools/check_secrets.py`
 (в CI режим `--range`: сканируется только пушимое, включая строки, зачищенные потом
-в рабочем дереве), пути — из `loop.config.json`. Падает на находке; значения в лог
+в рабочем дереве), пути по умолчанию — `default_paths()` в `tools/check_secrets.py`
+(`--config` задаёт `--range`, не пути). Падает на находке; значения в лог
 не попадают. Локально: `python tools/check_secrets.py --config loop.config.json`.
 
 `tools/check_secrets.py`, `tools/keycmp.py`, `tools/chat_lint.py` — **копии** из
