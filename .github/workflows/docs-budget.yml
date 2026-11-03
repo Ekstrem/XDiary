@@ -44,14 +44,23 @@ jobs:
       # «правило, которое выглядит работающим» (класс, который ловили весь день).
       - name: Самопроверка гейта ADR (негативный контроль)
         run: python tools/check_adr.py --selftest
+      # Проверяем ТОЛЬКО затронутые ADR. Фолбэк на `--since` нельзя: он красит
+      # исторические ADR (018–022 писались до шаблона) — проверено прогоном #49,
+      # где именно этот фолбэк уронил шаг. Ошибка была моя, не гейта.
       - name: Формат новых/изменённых ADR
         run: |
           set -euo pipefail
           BASE="${{ github.event.before }}"
-          if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] && git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
-            echo "проверяю ADR в диапазоне $BASE..${{ github.sha }}"
-            python tools/check_adr.py --range "$BASE..${{ github.sha }}"
-          else
-            echo "нет базовой ревизии (первый пуш или force-push) — проверяю по дате"
-            python tools/check_adr.py --since "$(date -u -d '-2 days' +%F)"
+          RANGE=""
+          if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] \
+             && git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+            RANGE="$BASE..${{ github.sha }}"
+          elif git rev-parse --verify --quiet "HEAD~1^{commit}" >/dev/null; then
+            RANGE="HEAD~1..HEAD"
           fi
+          if [ -z "$RANGE" ]; then
+            echo "::warning::ADR-гейт не проверял: нет базовой ревизии (первый коммит). Самопроверка выше пройдена."
+            exit 0
+          fi
+          echo "проверяю ADR в диапазоне $RANGE"
+          python tools/check_adr.py --range "$RANGE"
