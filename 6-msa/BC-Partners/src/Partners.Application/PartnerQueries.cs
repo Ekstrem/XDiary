@@ -7,11 +7,11 @@ public sealed class ListPartnersHandler : IRequestHandler<ListPartnersQuery, IRe
 {
     private readonly IPartnersQueryRepository _repo;
     public ListPartnersHandler(IPartnersQueryRepository repo) => _repo = repo;
-    public Task<IReadOnlyList<PartnersReadModel>> Handle(ListPartnersQuery r, CancellationToken ct) => _repo.ListAsync(r.ClientId, ct);
+    public async Task<IReadOnlyList<PartnersReadModel>> Handle(ListPartnersQuery r, CancellationToken ct) => (await _repo.ListAsync(r.ClientId, ct)).Where(x => x.DeletedAt == null).ToList();
 }
 public sealed class GetPartnerByIdHandler : IRequestHandler<GetPartnerByIdQuery, PartnersReadModel?>
 {
     private readonly IPartnersQueryRepository _repo;
     public GetPartnerByIdHandler(IPartnersQueryRepository repo) => _repo = repo;
-    public Task<PartnersReadModel?> Handle(GetPartnerByIdQuery r, CancellationToken ct) => _repo.GetByIdAsync(r.AggregateId, ct);
+    public async Task<PartnersReadModel?> Handle(GetPartnerByIdQuery r, CancellationToken ct) { var x = await _repo.GetByIdAsync(r.AggregateId, ct); return x is null || x.DeletedAt is not null ? null : x; }
 }

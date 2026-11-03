@@ -8,4 +8,5 @@ public sealed class PartnersReadModel : IReadModel<Partners.Domain.IPartners>
     public string Gender { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public Guid? ClientId { get; set; }
+    public DateTime? DeletedAt { get; set; }
 }
