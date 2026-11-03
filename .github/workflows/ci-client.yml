@@ -8,7 +8,7 @@ on:
       # ADR-028 ред. 3: тест пары (consumer-driven) живёт ВНУТРИ сервиса-потребителя
       # (`BC-Client/src/Client.ApiTests`), поэтому отдельный путь не нужен:
       # он уже покрыт `6-msa/BC-Client/**`.
-      - '6-msa/E2E/**'
+      - '6-msa/BC-Client/src/Client.ApiTests/**'
       - '.github/workflows/ci-client.yml'
   pull_request:
     branches: [ main ]
@@ -17,7 +17,7 @@ on:
       # ADR-028 ред. 3: тест пары (consumer-driven) живёт ВНУТРИ сервиса-потребителя
       # (`BC-Client/src/Client.ApiTests`), поэтому отдельный путь не нужен:
       # он уже покрыт `6-msa/BC-Client/**`.
-      - '6-msa/E2E/**'
+      - '6-msa/BC-Client/src/Client.ApiTests/**'
       - '.github/workflows/ci-client.yml'
   workflow_dispatch:
 
@@ -64,28 +64,10 @@ jobs:
         [ "$found" = "1" ] || { echo "::error::в BC-Client нет тестовых проектов"; exit 1; }
 
     # ADR-028 этап 1 (@AR 2026-11-13 19:25): пара Client↔Journal должна бежать при
-    # изменении ЛЮБОЙ из сторон. Пока она лежит в общем наборе (`6-msa/E2E/...`),
+    # изменении ЛЮБОЙ из сторон. После ADR-028 пара живёт у потребителя:
+    # `6-msa/BC-Client/src/Client.ApiTests/**` — общего набора `6-msa/E2E` больше нет.
     # запускаем её отсюда; после переноса к потребителю (`BC-Client/src/Client.ApiTests`)
     # шаг станет no-op (hashFiles = '') и его удалит следующая правка.
-    - name: Пара Client↔Journal (переходно, до переноса к потребителю)
-      if: hashFiles('6-msa/E2E/Contract.Client_Journal/**/*.csproj') != ''
-      run: |
-        set -e
-        for p in 6-msa/E2E/Contract.Client_Journal/**/*.csproj; do
-          [ -e "$p" ] || continue
-          echo "== $p"
-          dotnet test "$p" --configuration Release --verbosity normal
-        done
-
-  docker:
-    needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
     - uses: actions/checkout@v4
 
     - name: Log in to GitHub Container Registry
