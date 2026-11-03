@@ -35,6 +35,10 @@ public sealed class Aggregate
         if (Model.OtpCode != code) return Fail("Неверный код.");
         var m = Clone(); m.Verified = true; return Success(m);
     }
+    public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp)
+    {
+        var m = Clone(); m.OtpCode = otp; return Success(m);
+    }
     public AggregateResult<IClients, IClientAnemicModel> LinkPartner(Guid partnerId)
     {
         var m = Clone(); m.LinkedPartnerId = partnerId; return Success(m);
