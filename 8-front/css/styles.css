@@ -102,17 +102,21 @@ body {
 .fab:active { transform: scale(0.95); }
 
 /* ---- Inputs ---- */
-input[type="text"], input[type="number"], input[type="password"], input[type="datetime-local"], textarea {
+/* FE-034: tel тоже стилизуем — раньше поле телефона оставалось с дефолтным мелким шрифтом */
+input[type="text"], input[type="number"], input[type="password"], input[type="tel"], input[type="datetime-local"], textarea {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
   color: var(--text); padding: 13px 14px; font-size: 16px; width: 100%;
   font-family: inherit;
 }
 textarea { resize: vertical; }
-input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-input::placeholder, textarea::placeholder { color: #6d657e; }
+input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* FE-034: плейсхолдер был #6d657e (< 3:1 на фоне) — вернул к токену с контрастом ≥ 4.5:1 */
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.field label { color: var(--muted); font-size: 14px; }
+/* FE-034: подписи ≥ 16px */
+.field label { color: var(--muted); font-size: 16px; }
 
 /* ---- Wizard ---- */
 .progress { display: flex; justify-content: center; gap: 8px; padding: 14px 14px 0; }
@@ -209,7 +213,8 @@ input::placeholder, textarea::placeholder { color: #6d657e; }
 /* ---- Settings ---- */
 .settings h2 { margin: 26px 0 8px; font-size: 18px; }
 .settings h2:first-child { margin-top: 0; }
-.muted { color: var(--muted); font-size: 14px; }
+/* FE-034: пояснения ≥ 16px и токен --muted (контраст ≥ 4.5:1 на --bg/--bg-soft) */
+.muted { color: var(--muted); font-size: 16px; line-height: 1.45; }
 
 /* ---- Tabbar ---- */
 .tabbar {
