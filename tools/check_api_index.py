@@ -34,6 +34,16 @@ ANON_ALLOW = {
 }
 NORM = re.compile(r"\{(\w+)(?::[a-z]+)?\}")
 
+# Область проверки анонимности (ADR-026, @AR 2026-11-12 23:52): 6 BC с auth-стеком.
+# Остальные 5 (Catalog, SomaticSeries, DailyMetrics, Portability, Analytics) доверяют
+# шлюзу по ADR-008 — там auth-стека нет ОСОЗНАННО, и требовать fallback нельзя:
+# он закрыл бы всё без разбора. Расширение списка — триггер @BE (AddAuthentication),
+# тогда гейт проверяет 11 BC.
+AUTH_BCS = {
+    "BC-Client", "BC-Journal", "BC-Partners", "BC-Privacy",
+    "BC-GarminGateway", "BC-AppleHealthGateway",
+}
+
 
 def norm_path(p):
     p = p.strip().strip('"').strip("'")
@@ -85,6 +95,33 @@ def parse_code(root):
                 anon = "[AllowAnonymous]" in tail.split("public ")[0] if "public " in tail else False
                 found.append((verb, path, anon, os.path.relpath(f, root)))
     return found
+
+
+def auth_scope(root):
+    """(с fallback, без fallback, расширенные) по BC: машинная проверка ADR-026."""
+    ok, broken, extended = [], [], []
+    base = os.path.join(root, "6-msa")
+    if not os.path.isdir(base):
+        return ok, broken, extended
+    for name in sorted(os.listdir(base)):
+        if not name.startswith("BC-"):
+            continue
+        has_auth = has_fallback = False
+        for dirpath, _, names in os.walk(os.path.join(base, name)):
+            for n in names:
+                if n != "Program.cs":
+                    continue
+                try:
+                    t = open(os.path.join(dirpath, n), encoding="utf-8-sig").read()
+                except OSError:
+                    continue
+                has_auth = has_auth or "AddAuthentication" in t
+                has_fallback = has_fallback or "RequireAuthenticatedUser" in t
+        if name in AUTH_BCS:
+            (ok if has_fallback else broken).append(name)
+        elif has_auth:
+            extended.append(name)
+    return ok, broken, extended
 
 
 def selftest():
@@ -164,8 +201,17 @@ def main():
         print("::error::анонимность в КОДЕ != allow-list: код=%s" % sorted(anon_code))
         bad += 1
 
+    ok_bc, broken_bc, extended_bc = auth_scope(root)
+    for name in broken_bc:
+        print("::error::%s: нет FallbackPolicy=RequireAuthenticatedUser (ADR-026)" % name)
+        bad += 1
+    for name in extended_bc:
+        print("::notice::%s: добавлен auth-стек — обнови область в ADR-026 "
+              "(гейт ждёт 6 BC, станет %d)" % (name, len(ok_bc) + len(extended_bc)))
     print("check_api_index: индекс %d операций, код %d маршрутов, anonymous %d, internal %d,"
           " расхождений %d" % (len(idx), len(code_set), len(anon_idx), len(internal), bad))
+    print("check_api_index: auth-стек %d/%d с fallback; без auth по ADR-008: %d"
+          % (len(ok_bc), len(AUTH_BCS), 11 - len(ok_bc) - len(broken_bc)))
     return 1 if bad else 0
 
 
