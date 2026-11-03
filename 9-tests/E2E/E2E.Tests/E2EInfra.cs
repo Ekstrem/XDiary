@@ -138,12 +138,21 @@ public static class E2EInfra
     }
 }
 
-/// <summary>Fact, который пропускается, если не задан XDIARY_E2E_BASE_URL.</summary>
+/// <summary>
+/// Fact, который пропускается, если не задан XDIARY_E2E_BASE_URL.
+///
+/// TE-038 (@TL 2026-11-09 20:40): пропуск должен быть **громким** — `::warning::` в логе,
+/// иначе зелёный прогон в `ci-backend` (где стенда нет) читается как «контракт проверен».
+/// </summary>
 public sealed class E2EFactAttribute : FactAttribute
 {
     public E2EFactAttribute()
     {
         if (!E2EInfra.Enabled)
+        {
             Skip = "XDIARY_E2E_BASE_URL не задан (нужен запущенный стек: локальный compose или Tailscale).";
+            Console.WriteLine(
+                "::warning::[infra] E2E-тесты пропущены: стенд не задан (XDIARY_E2E_BASE_URL) — контракт/поведение не проверялись");
+        }
     }
 }
