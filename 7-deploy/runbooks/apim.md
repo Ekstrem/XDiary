@@ -25,6 +25,36 @@
 management наружу не публикуется: на этой версии podman публикация через rootlessport
 иногда роняет контейнер.
 
+### 1.1. Порты (не путать — иначе контейнер падает на старте)
+
+| Что | Порт | Почему именно так |
+|---|---|---|
+| node-management API **gateway** | `8072` | не `8082`: там прокси-слушатель, и при совпадении gateway падает `Unable to start HTTP server` |
+| прокси gateway | `8082` (публикуется как `127.0.0.1:18082`) | сюда приходят запросы control plane |
+| node-management API **management-api** | `8073` | не `8083`: там HTTP API |
+| HTTP API management-api | `8083` | `/management/health` живёт здесь |
+
+Проверка «health 200» (порт наружу не публикуется, поэтому изнутри сети):
+
+```bash
+MG_IP=$(podman inspect xdiary-apim-management --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+podman exec xdiary-apim-gateway wget -q -O- "http://$MG_IP:8083/management/health"
+# ожидаем JSON со "status": "UP"; до готовности приложения — пусто/отказ (boot 60–90 c)
+```
+
+### 1.2. CNI-DNS отсутствует → адрес Mongo задаётся явно
+
+В сети `apim` **имена не резолвятся** (`getent hosts xdiary-apim-mongo` → пусто,
+`nc: bad address`). Поэтому:
+
+1. `up.sh` поднимает `mongo`, берёт его IP из `podman inspect` и подставляет в
+   `mongodb://<ip>:27017`;
+2. перед запуском `management-api` скрипт **сверяет** «URI в конфиге == живой IP»
+   и при расхождении перезаписывает и перезапускает контейнер.
+
+Без этой сверки `management-api` падает `MongoTimeoutException` и уходит в петлю
+рестартов — при каждом `up` IP mongo может измениться.
+
 ## 2. Негативный контроль (обязателен при любом изменении)
 
 APIM **не в пути трафика**. Проверка:
