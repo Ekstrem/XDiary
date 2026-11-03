@@ -166,7 +166,19 @@ async function seedSessionOnce(page) {
     const token = (v.data && (v.data.accessToken || v.data.token)) || '';
     const refreshToken = (v.data && v.data.refreshToken) || '';
     if (!token) return { ok: false, step: 'verify', status: v.status };
-    // партнёр-«я» + привязка
+    // TE-049 (P1, @TL 2026-11-10 04:45): канон E7/ADR-024 — «я» это ПРОФИЛЬ, а не партнёр.
+    // Шаг аддитивный: профиль ставим ВСЕГДА (по нему онбординг 0.88 пускает в журнал),
+    // а старый двухшаговый путь (партнёр + шим `link-partner`) пока оставляем — он нужен
+    // образам до 0.88 и спекам, которые ожидают партнёра. Режим печатаем, чтобы
+    // "зелёный на старом образе" не выглядел как "новый контракт проверен".
+    const prof = await j(await fetch(base + "/api/v1/clients/me/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ displayName: "TE-SEED", gender: "female" }),
+    }));
+    const profileOk = prof.status >= 200 && prof.status < 300;
+    const profileMode = profileOk ? "profile" : (prof.status === 404 || prof.status === 405 ? "pre-profile-image" : "profile-rejected:" + prof.status);
+    // партнёр-«я» + привязка (легаси-путь: нужен до 0.88 и спекам, ожидающим партнёра)
     const p = await j(await fetch(base + '/api/v1/partners', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ name: partnerName }),
@@ -198,6 +210,7 @@ async function seedSessionOnce(page) {
     return {
       ok: true,
       clientId,
+      profileMode,
       partnerId: p.data && p.data.id,
       partnerCreated: !!(p.data && p.data.id),
       hasRefresh: !!refreshToken,
@@ -239,6 +252,7 @@ async function seedSessionOnce(page) {
     const tokenAccepted = seeded.partnersStatus === 200;
     console.log('::warning::' + JSON.stringify({
       title: 'seedSession: auth-контур /partners + экран',
+      profileMode: seeded.profileMode,          // TE-049: 'profile' (0.88+) | 'pre-profile-image' (старый образ)
       anonStatus: seeded.anonStatus,              // ожидание после BE-048: 401
       withTokenStatus: seeded.partnersStatus,     // ожидание: 200
       authEnforced: seeded.anonStatus === 401,
