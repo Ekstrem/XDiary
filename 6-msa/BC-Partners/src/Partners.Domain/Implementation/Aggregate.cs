@@ -47,6 +47,10 @@ public sealed class Aggregate
     }
     public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId) { var m = Clone(); m.ClientId = clientId; return Success(m); }
     public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient() { var m = Clone(); m.ClientId = null; return Success(m); }
-    public AggregateResult<IPartners, IPartnerAnemicModel> Remove() => Success(Clone());
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes, ClientId = Model.ClientId };
+    public AggregateResult<IPartners, IPartnerAnemicModel> Remove()
+    {
+        if (Model.DeletedAt is not null) return Success(Clone()); // идемпотентно, без второго события
+        var m = Clone(); m.DeletedAt = DateTime.UtcNow; return Success(m);
+    }
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes, ClientId = Model.ClientId, DeletedAt = Model.DeletedAt };
 }

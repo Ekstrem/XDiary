@@ -7,4 +7,5 @@ public interface IPartnerAnemicModel : IAnemicModel<IPartners>
     string Gender { get; }
     string Notes { get; }
     Guid? ClientId { get; }
+    DateTime? DeletedAt { get; }
 }
