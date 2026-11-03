@@ -57,8 +57,6 @@ public sealed class ClientsController : ControllerBase
         Response.Headers["Deprecation"] = "true";
         return Ok(new { deprecated = true });
     }
-    [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListClientsQuery(), ct));
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me(CancellationToken ct)
@@ -77,6 +75,13 @@ public sealed class ClientsController : ControllerBase
         return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     }
     [HttpGet("{id:guid}")]
+    [Authorize]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
-    { var r = await _mediator.Send(new GetClientByIdQuery(id), ct); return r is null ? NotFound() : Ok(r); }
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
+        if (id != clientId) return Forbid();
+        var r = await _mediator.Send(new GetClientByIdQuery(id), ct);
+        return r is null ? NotFound() : Ok(r);
+    }
 }
