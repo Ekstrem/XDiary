@@ -14,6 +14,7 @@
     python tools/git_sync.py --role lm --dry-run
     python tools/git_sync.py --role lm --paths 5-tech-backlog/chat/lm.md   # узкий wip
 """
+import subprocess
 import argparse
 import time
 import os
@@ -147,6 +148,8 @@ def main():
                     help="текст коммита (вместо wip-автосейва)")
     ap.add_argument("--hold", action="store_true",
                     help="не пушить main: собрать ветку hold/<role> для MR (окно тишины)")
+    ap.add_argument("--no-owner-chat", action="store_true",
+                    help="не проверять после пуша, что строки владельца доехали в origin (D-16)")
     ap.add_argument("-u", "--include-untracked", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--remote", default="origin")
@@ -336,6 +339,24 @@ def main():
 
     check = git("rev-list", "--count", "%s/%s..HEAD" % (args.remote, args.branch)).stdout.strip()
     say("git_sync: проверка после пуша — впереди origin: %s" % check)
+
+    # D-16 (LoopMaster 19:32): строки владельца из Telegram обязаны оказаться в origin.
+    # В CI эта проверка вырождается (дерево чистое), поэтому точка подключения — ЗДЕСЬ:
+    # пушащая роль сразу видит, что её строка не доехала. Проверка не блокирует пуш
+    # (он уже прошёл), но завершает команду ненулевым кодом, чтобы это не потерялось.
+    if not getattr(args, "no_owner_chat", False):
+        owner = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check_owner_chat.py")
+        if os.path.exists(owner):
+            r = subprocess.run([sys.executable, owner], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            out = (r.stdout or r.stderr or "").strip()
+            if r.returncode != 0:
+                say("git_sync: ВНИМАНИЕ — строка владельца не доехала в origin:")
+                for line in out.splitlines()[-8:]:
+                    say("  " + line)
+                say("git_sync: коммит строки — за раннером/агентом (не за плагином моста)")
+                return 1
+            say("git_sync: строки владельца синхронизированы (D-16)")
 
     say("git_sync: если кто-то коммитил, пока шёл этот sync — проверь reflog:"
         " его коммит мог осиротеть; восстановление — git cherry-pick <sha>")
