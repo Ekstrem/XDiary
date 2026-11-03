@@ -8,7 +8,11 @@
   var ACCESS_KEY = "xdiary.accessToken";
   var REFRESH_KEY = "xdiary.refreshToken";
   var BASE_KEY = "xdiary.apiBase";
+  var WORKING_KEY = "xdiary.apiBaseWorking";
   var DEFAULT_BASE = "https://xdiary-vps1.taile0b6ee.ts.net";
+  // P0 (2026-11-08): запасной ПУБЛИЧНЫЙ адрес (Funnel). Пока пусто — failover выключен.
+  // Значение даёт @DO; менять здесь, а не в localStorage (прод-путь, FE-024).
+  var FALLBACK_BASE = "";
 
   function storeGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function storeSet(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
@@ -22,6 +26,9 @@
     } else {
       storeSet(BASE_KEY, "");
     }
+    // P0: адрес, на котором failover уже сработал, — используем его дальше
+    var working = storeGet(WORKING_KEY);
+    if (working) return working;
     return DEFAULT_BASE;
   }
   function refreshToken() { return storeGet(REFRESH_KEY); }
@@ -53,8 +60,9 @@
     return refreshInflight;
   }
 
-  function request(method, path, body, isRetry) {
-    var base = baseUrl();
+  function request(method, path, body, isRetry, useFallback) {
+    var primary = baseUrl();
+    var base = useFallback ? (FALLBACK_BASE || primary) : primary;
     var headers = { "Accept": "application/json" };
     if (token()) headers["Authorization"] = "Bearer " + token();
     var opts = { method: method, headers: headers };
@@ -62,9 +70,20 @@
       headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
-    return fetch(base + path, opts).catch(function () {
-      throw new Error("Недоступен API (шлюз) — проверьте сеть/адрес");
+    return fetch(base + path, opts).catch(function (err) {
+      // сетевой сбой (fetch reject, DNS, TLS) — отдельная причина и фактический адрес
+      console.error("API network error:", method, base + path, err && err.message);
+      if (!useFallback && FALLBACK_BASE && FALLBACK_BASE !== primary) {
+        console.error("API: основной адрес недоступен, одна попытка на запасной", FALLBACK_BASE);
+        return request(method, path, body, isRetry, true);
+      }
+      var e = new Error("Нет связи с сервером (" + base + ") — проверьте VPN/Tailscale/сеть");
+      e.status = 0;
+      e.cause = "network";
+      e.base = base;
+      throw e;
     }).then(function (r) {
+      if (useFallback && r && r.ok) { try { localStorage.setItem(WORKING_KEY, base); } catch (e2) {} }
       if (r.status === 401 && !isRetry && refreshToken() && path.indexOf("/privacy/token") !== 0 && path.indexOf("/clients/refresh") !== 0) {
         return authRefresh().then(function () { return request(method, path, body, true); })
           .catch(function () { var e = new Error("Сессия истекла (401)"); e.status = 401; throw e; });
@@ -74,9 +93,10 @@
       var p = (ct.indexOf("json") !== -1) ? r.json() : r.text();
       return p.then(function (data) {
         if (!r.ok) {
-          var err = new Error("HTTP " + r.status);
+          var err = new Error(r.status >= 500 ? ("HTTP " + r.status + " — сервер ответил, повторите") : ("HTTP " + r.status));
           err.status = r.status;
           err.data = data;
+          err.base = base;
           throw err;
         }
         return data;

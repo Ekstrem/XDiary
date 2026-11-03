@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.72"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.73"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -320,10 +320,14 @@
   }
   function apiErrorText(e, fallback) {
     var parts = [];
-    if (e && e.status) parts.push("HTTP " + e.status);
     var msg = "";
     if (e && e.data) msg = typeof e.data === "string" ? e.data : (e.data.message || e.data.title || e.data.detail || JSON.stringify(e.data));
     else if (e && e.message) msg = e.message;
+    // P0: сетевой сбой — текст уже содержит фактический адрес
+    if (e && e.status === 0) return (fallback ? fallback + ": " : "") + (msg || "нет связи с сервером");
+    if (e && e.status) parts.push("HTTP " + e.status);
+    if (e && e.status >= 500) parts.push("сервер ответил " + e.status + ", повторите");
+    if (e && e.base && String(msg).indexOf(e.base) === -1) parts.push("адрес: " + e.base);
     if (msg) parts.push(String(msg).slice(0, 200));
     return (fallback ? fallback + ": " : "") + (parts.length ? parts.join(" · ") : "неизвестная ошибка");
   }
