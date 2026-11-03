@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.81"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.82"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -2296,7 +2296,7 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js").catch(function () {});
     }
-    if ($("app-version")) $("app-version").textContent = "XDiary v" + APP_VERSION;
+    if ($("app-version")) $("app-version").textContent = "XDiary v" + APP_VERSION + " · если видите старое поведение — обновите страницу";
     if ($("app-version-inline")) $("app-version-inline").textContent = "v" + APP_VERSION;
 
     $("pin-submit").addEventListener("click", unlock);

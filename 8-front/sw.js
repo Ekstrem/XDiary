@@ -1,5 +1,5 @@
 /* XDiary — service worker: офлайн и установка */
-var CACHE = "xdiary-v81"; // синхронизировать с APP_VERSION в app.js
+var CACHE = "xdiary-v82"; // синхронизировать с APP_VERSION в app.js
 var ASSETS = [
   "./",
   "./index.html",
@@ -25,7 +25,9 @@ self.addEventListener("install", function (e) {
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+      // FE-035: удаляем только СВОИ старые кэши (xdiary-v*) — чужие кэши на origin не трогаем
+      return Promise.all(keys.filter(function (k) { return k.indexOf("xdiary-") === 0 && k !== CACHE; })
+        .map(function (k) { return caches.delete(k); }));
     }).then(function () { return self.clients.claim(); })
   );
 });
