@@ -39,6 +39,31 @@ jobs:
 
     - name: Build
       run: dotnet build src/SomaticSeries.sln --no-restore --configuration Release
+    # ADR-028 + @TL 2026-11-14 19:11: прогон ВСЕХ тестовых проектов сервиса
+    # (`*.Domain.Tests`, `*.IntegrationTests`, `*.ApiTests`), а не списка из двух имён:
+    # новый тест иначе не запускается. Пустой список = `::error::` («нет тестов» ≠ зелёный).
+    - name: Тесты SomaticSeries (в папке сервиса)
+      shell: bash
+      run: |
+        set -uo pipefail
+        fail=0
+        found=0
+        for p in src/*Tests*/*.csproj; do
+          [ -e "$p" ] || continue
+          found=1
+          echo "=== $p ==="
+          dotnet test "$p" --configuration Release --verbosity normal || fail=1
+        done
+        if [ "$found" -eq 0 ]; then
+          echo "::error title=[tests] в BC-SomaticSeries нет тестовых проектов::ждали src/*Tests*/*.csproj"
+          exit 1
+        fi
+        if [ "$fail" -ne 0 ]; then
+          echo "::error title=[tests] есть падения::см. вывод dotnet test выше"
+          exit 1
+        fi
+        echo "тесты BC-SomaticSeries зелёные"
+
 
     - name: Unit Tests
       run: dotnet test src/SomaticSeries.Domain.Tests/SomaticSeries.Domain.Tests.csproj --no-build --configuration Release --verbosity normal

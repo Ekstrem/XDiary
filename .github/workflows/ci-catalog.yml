@@ -39,6 +39,31 @@ jobs:
 
     - name: Build
       run: dotnet build src/Catalog.sln --no-restore --configuration Release
+    # ADR-028 + @TL 2026-11-14 19:11: прогон ВСЕХ тестовых проектов сервиса
+    # (`*.Domain.Tests`, `*.IntegrationTests`, `*.ApiTests`), а не списка из двух имён:
+    # новый тест иначе не запускается. Пустой список = `::error::` («нет тестов» ≠ зелёный).
+    - name: Тесты Catalog (в папке сервиса)
+      shell: bash
+      run: |
+        set -uo pipefail
+        fail=0
+        found=0
+        for p in src/*Tests*/*.csproj; do
+          [ -e "$p" ] || continue
+          found=1
+          echo "=== $p ==="
+          dotnet test "$p" --configuration Release --verbosity normal || fail=1
+        done
+        if [ "$found" -eq 0 ]; then
+          echo "::error title=[tests] в BC-Catalog нет тестовых проектов::ждали src/*Tests*/*.csproj"
+          exit 1
+        fi
+        if [ "$fail" -ne 0 ]; then
+          echo "::error title=[tests] есть падения::см. вывод dotnet test выше"
+          exit 1
+        fi
+        echo "тесты BC-Catalog зелёные"
+
 
     - name: Unit Tests
       run: dotnet test src/Catalog.Domain.Tests/Catalog.Domain.Tests.csproj --no-build --configuration Release --verbosity normal
