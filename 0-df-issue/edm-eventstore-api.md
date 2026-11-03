@@ -66,3 +66,12 @@ API прочитан. E1 разблокирован по сигнатурам; �
 **НЕЯСНО:** `IDomainEventHandler<T>` — маркер без `Handle` (отражение `GetMethods()` пусто).
 Механизм вызова хендлера (reflection/convention) не прочитан офлайн — нужен пример из DF-доков
 или исходник. До этого консьюмер `JournalEventConsumer` писать рискованно.
+
+## Консьюмер: IDomainEventHandler — чистый маркер (round 9)
+`IDomainEventHandler<T>`: интерфейсов нет, методов нет (проверено `GetMethods` всех binding-флагов).
+`InMemoryEventBus.Publish(IDomainEvent)` + `Subscribe(IDomainEventHandler)` — как `Publish` вызывает
+хендлер без `Handle`, из DLL не читается (внутренние лямбды только по `Type`-ключу).
+`IDomainEvent<T>` → `IComplexKey, IHasKey, IHasVersion, IHasCorrelationToken, IBoundedContextDescription,
+IDomainOperationResult`; геттеры `Command` + `ChangedValueObjects`.
+**Вывод:** механизм хендлера задаётся конвенцией/рефлексией, которой нет в метаданных. Для консьюмера
+нужен пример из DF-доков или исходник; писать `Handle` наугад нельзя.
