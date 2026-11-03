@@ -25,6 +25,8 @@ import sys
 SKIP = {".git", "node_modules", "bin", "obj", ".loopmaker"}
 REF = re.compile(r'<ProjectReference\s+Include="([^"]+)"', re.I)
 CONTRACT_DIR = re.compile(r'Contract\.[A-Za-z]+_[A-Za-z]+')
+# ред. 3 ADR-028 (AGENTS.md §1, 2026-11-13): общих тестовых папок НЕТ.
+FORBIDDEN_DIRS = {"E2E", "ApiTests"}  # только под 6-msa/
 
 
 def bc_of(path):
@@ -53,13 +55,17 @@ def scan(root):
     violations = []
     e2e_dir = os.path.join(root, "6-msa", "E2E")
 
-    # д) запрещённые каталоги Contract.<A>_<B>
-    for dirpath, dirnames, _ in os.walk(os.path.join(root, "6-msa")):
+    # д) запрещённые общие тестовые каталоги (ред. 3 ADR-028)
+    msа = os.path.join(root, "6-msa")
+    for dirpath, dirnames, _ in os.walk(msа):
         dirnames[:] = [d for d in dirnames if d not in SKIP]
         for d in list(dirnames):
+            rel = os.path.relpath(os.path.join(dirpath, d), root).replace("\\", "/")
             if CONTRACT_DIR.fullmatch(d):
-                rel = os.path.relpath(os.path.join(dirpath, d), root).replace("\\", "/")
                 violations.append(("д", rel, "каталог Contract.<A>_<B> запрещён ADR-028"))
+            elif d in FORBIDDEN_DIRS and os.path.dirname(rel) == "6-msa":
+                violations.append(("д", rel, "общая тестовая папка 6-msa/%s запрещена "
+                                             "(ред. 3 ADR-028: тест живёт в папке сервиса)" % d))
 
     for proj in csproj_files(root):
         rel = os.path.relpath(proj, root).replace("\\", "/")
@@ -99,8 +105,11 @@ def selftest():
           '<Project><ItemGroup><ProjectReference Include="../../BC-A/src/A.csproj" /></ItemGroup></Project>'}, 0),
         ({"6-msa/BC-A/src/A.csproj":
           '<Project><ItemGroup><ProjectReference Include="../../E2E/E2E.csproj" /></ItemGroup></Project>',
-          "6-msa/E2E/E2E.csproj": "<Project />"}, 1),
+          "6-msa/E2E/E2E.csproj": "<Project />"}, 2),
         ({"6-msa/Contract.Client_Journal/x.csproj": "<Project />"}, 1),
+        ({"6-msa/E2E/x.csproj": "<Project />"}, 1),
+        ({"6-msa/ApiTests/x.csproj": "<Project />"}, 1),
+        ({"6-msa/BC-Journal/src/Journal.Tests/x.csproj": "<Project />"}, 0),
     ]
     shutil.rmtree(base, ignore_errors=True)
     for files, expect in cases:
@@ -132,8 +141,9 @@ def main():
     v = scan(root)
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
-    print("check_test_isolation: нарушений %d (б: чужие ProjectReference, в: E2E в сервисе, "
-          "д: каталог Contract.<A>_<B>)" % len(v))
+    print("check_test_isolation: нарушений %d (б: чужие ProjectReference, в: ссылка сервиса "
+          "на E2E, д: запрещённые общие папки 6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>)"
+          % len(v))
     return 1 if v else 0
 
 
