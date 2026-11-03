@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Приёмка раскладки тестов по ADR-028 ред. 3 (§5.4: два прогона — на дефекте и на норме).
 #
-# Что проверяется (9 проверок):
+# Десять проверок:
 #   1) в `9-tests` нет `.csproj` (там только браузерные тесты);
 #   2) общих тестовых папок нет: `6-msa/E2E`, `6-msa/ApiTests`, `Contract.<A>_<B>`;
 #   3) каждый `*Tests.csproj` — в `6-msa/BC-*/src/…` или `6-msa/ApiGateway.Tests/`;
@@ -10,18 +10,25 @@
 #   6) в `9-tests` нет посторонних исполняемых файлов;
 #   7) атрибуты тестов не потерялись (baseline: Fact 128 / StandFact 20 / Theory 11 / ApiFact 17);
 #   8) старые каталоги `9-tests` удалены;
-#   9) изоляция: в тестовом проекте нет ссылки на чужой BC (кроме `6-msa/Shared/**`) —
-#      ни `ProjectReference`, ни `Compile Include`. Добавлено по @TL 2026-11-14 30:10:
-#      без этой проверки приёмка давала «8/8» при красной изоляции.
+#   9) изоляция: нет ссылки на чужой BC (кроме `6-msa/Shared/**`) — ни `ProjectReference`,
+#      ни `Compile Include`. Добавлено по @TL 2026-11-14 30:10, канон — @AR 28:55;
+#   10) сборка: каждый тестовый проект собирается (`dotnet build` → rc=0). Добавлено
+#      по @AR 2026-11-14 28:55: несобирающийся тест = молча потерянное покрытие.
 #
-# Режимы: --post (по умолчанию) — рабочая приёмка; --pre — состояние до перекладывания.
+# Формат отчёта (требование @TL 34:11): для (9) печатаются ДВА числа —
+#   `нарушений <N> (<M> проект(ов))`, потому что «8 нарушений» читается как
+#   «8 проблемных проектов», хотя их может быть 3.
+#
+# Офлайн: если restore падает на сети (`NU1301`/`Unable to load`/`DigiTFactory`),
+# проверка (10) считает проект НЕ проверенным (SKIP), а не PASS и не FAIL.
+# `ADR028_SKIP_BUILD=1` отключает (10) локально — печатается SKIP, не PASS.
+#
 # Использование:
 #   bash 9-tests/scripts/check-adr028-move.sh --post
 #   REF=HEAD bash 9-tests/scripts/check-adr028-move.sh --post
 #
-# Печатает `REF=…` первой строкой и в итоге; при нарушении — `::error::` с путём.
-# Внимание: в песочнице @TE bash не запускается (не создаётся signal pipe), поэтому
-# там используют Python-двойник `9-tests/scripts/check_adr028_move.py` с теми же 9 проверками.
+# В песочнице @TE bash не запускается (не создаётся signal pipe), там используют
+# Python-двойник `9-tests/scripts/check_adr028_move.py` с теми же 10 проверками.
 set -uo pipefail
 
 MODE="post"
@@ -34,10 +41,12 @@ esac
 
 REF="${REF:-origin/main}"
 fail=0
+CHECKS=10
 
 say() { printf '%-62s %s\n' "$1" "$2"; }
 ok()  { say "$1" "PASS  ($2)"; }
 bad() { say "$1" "FAIL  ($2)"; fail=1; echo "::error::ADR-028: $1 - $2"; }
+skip(){ say "$1" "SKIP  ($2)"; }
 
 BASE_FACT=128
 BASE_STAND=20
@@ -139,8 +148,7 @@ fi
 foreign=""
 for f in $(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -E '\.(js|ps1|sh|cs)$' | grep -v '^9-tests/RnD/front-e2e/' || true); do
   case "$f" in
-    9-tests/reports/*) continue ;;
-    9-tests/scripts/*) continue ;;
+    9-tests/reports/*|9-tests/scripts/*) continue ;;
     *) foreign="$foreign $f" ;;
   esac
 done
@@ -150,7 +158,7 @@ else
   bad '6) в 9-tests нет посторонних скриптов' "лишнее:$foreign"
 fi
 
-# 7) атрибуты тестов не потерялись
+# 7) атрибуты тестов не потерялись (только .cs — отчёты в .md упоминают атрибуты)
 count_attr() {
   { git grep -h -c -E "\[$1" "$REF" -- ':(glob)6-msa/**/*.cs' 2>/dev/null
     git grep -h -c -E "\[$1" "$REF" -- ':(glob)9-tests/**/*.cs' 2>/dev/null
@@ -187,6 +195,7 @@ fi
 
 # 9) изоляция: нет ссылок на чужой BC (кроме 6-msa/Shared/**)
 n_viol=0
+viol_projects=""
 for proj in $(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/BC-[^/]+/src/.*Tests\.csproj$' || true); do
   owner=${proj#6-msa/BC-}
   owner=${owner%%/*}
@@ -204,19 +213,74 @@ for proj in $(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '
     fi
     echo "::error::ADR-028 1.1: ссылка на чужой BC в тестах - $proj -> BC-$other"
     n_viol=$((n_viol + 1))
+    viol_projects="$viol_projects$proj
+"
   done
 done
+n_viol_proj=$(printf '%s' "$viol_projects" | grep -c . || true)
 if [ "$n_viol" -eq 0 ]; then
-  ok '9) изоляция тестов: нет ссылок на чужой BC' '0 (Shared разрешён)'
+  ok '9) изоляция тестов: нет ссылок на чужой BC' 'нарушений 0 (0 проектов)'
 else
-  bad '9) изоляция тестов: нет ссылок на чужой BC' "$n_viol ссылк(и) в проектах"
+  bad '9) изоляция тестов: нет ссылок на чужой BC' "нарушений $n_viol ($n_viol_proj проект(ов)): ProjectReference/Compile Include на чужой BC"
+fi
+
+# 10) сборка каждого тестового проекта
+if [ "${ADR028_SKIP_BUILD:-0}" = "1" ]; then
+  skip '10) сборка тестовых проектов' 'ADR028_SKIP_BUILD=1'
+else
+  build_ok=0
+  build_skip=0
+  build_fail=0
+  build_fail_list=""
+  for proj in $(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E 'Tests?\.csproj$' || true); do
+    if [ ! -f "$proj" ]; then
+      build_skip=$((build_skip + 1))
+      continue
+    fi
+    out=$(dotnet build "$proj" -v q --nologo 2>&1)
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      build_ok=$((build_ok + 1))
+      continue
+    fi
+    case "$out" in
+      *"error CS2001"*)
+        echo "::error::ADR-028 6: тестовый проект не собирается (CS2001, не найден включённый файл) - $proj"
+        build_fail=$((build_fail + 1))
+        build_fail_list="$build_fail_list $proj"
+        continue
+        ;;
+    esac
+    if printf '%s' "$out" | grep -qE 'NU1[0-9]{3}|Unable to load|DigiTFactory'; then
+      build_skip=$((build_skip + 1))
+      continue
+    fi
+    case "$out" in
+      *"error CS"*)
+        echo "::error::ADR-028 6: тестовый проект не собирается - $proj"
+        build_fail=$((build_fail + 1))
+        build_fail_list="$build_fail_list $proj"
+        ;;
+      *)
+        build_skip=$((build_skip + 1))
+        ;;
+    esac
+  done
+  if [ "$build_fail" -eq 0 ]; then
+    if [ "$build_skip" -eq 0 ]; then
+      ok '10) сборка тестовых проектов' "нарушений 0 (0 проектов), собрано $build_ok"
+    else
+      ok '10) сборка тестовых проектов' "нарушений 0 (0 проектов), собрано $build_ok, не проверено $build_skip (restore/сеть)"
+    fi
+  else
+    bad '10) сборка тестовых проектов' "нарушений $build_fail ($build_fail проект(ов) не собирается), собрано $build_ok, не проверено $build_skip"
+  fi
 fi
 
 echo "----"
-checks=9
 if [ "$fail" -eq 0 ]; then
-  echo "REF=$REF | PASS: ADR-028 ${checks}/${checks} | режим --$MODE"
+  echo "REF=$REF | PASS: ADR-028 ${CHECKS}/${CHECKS} | режим --$MODE"
   exit 0
 fi
-echo "REF=$REF | FAIL: см. ::error:: выше | режим --$MODE"
+echo "REF=$REF | FAIL: ADR-028 | режим --$MODE"
 exit 1

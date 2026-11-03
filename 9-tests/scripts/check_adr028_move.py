@@ -205,7 +205,7 @@ def main() -> int:
     else:
         for v in sorted(set(viol)):
             print(f"::error::ADR-028 §1.1: ссылка на чужой BC в тестах — {v}")
-        bad("9) изоляция тестов: нет ссылок на чужой BC", f"{len(set(viol))} проект(ов)")
+        bad("9) изоляция тестов: нет ссылок на чужой BC", f"нарушений {len(viol)} ({len({v.split(chr(45) + chr(62))[0].strip() for v in viol})} проект(ов)): ссылка на чужой BC")
 
     # 10) СБОРКА каждого тестового проекта (@AR 2026-11-14 28:55).
     #     Тест, который не собирается, = молча потерянное покрытие: он выглядит существующим.
@@ -241,11 +241,11 @@ def main() -> int:
             else:
                 build_skip += 1
         if not build_fail:
-            ok("10) сборка тестовых проектов", f"rc=0 у {build_ok}, не проверено {build_skip}")
+            ok("10) сборка тестовых проектов", f"нарушений 0 (0 проектов), собрано {build_ok}, не проверено {build_skip}")
         else:
             for b in build_fail:
                 print(f"::error::ADR-028 §6: тестовый проект не собирается — {b}")
-            bad("10) сборка тестовых проектов", f"{len(build_fail)} не собирается (ok {build_ok}, skip {build_skip})")
+            bad("10) сборка тестовых проектов", f"нарушений {len(build_fail)} ({len(build_fail)} проект(ов) не собирается), собрано {build_ok}, не проверено {build_skip}")
 
     checks = 10
     if failures == 0:
