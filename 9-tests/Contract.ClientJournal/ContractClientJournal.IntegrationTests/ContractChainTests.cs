@@ -517,27 +517,19 @@ public sealed class ContractChainTests
     }
 
     /// <summary>
-    /// Строгая ветка `Point9`: требует **только 400** на лишнее поле в `POST /partners`.
+    /// Строгая ветка `Point9` (@TL 2026-11-11 23:11, @AR 21:28): требует **только 400** на лишнее поле в `POST /partners`.
     ///
     /// Зачем отдельный тест, а не «когда-нибудь поправим Point9» (@AR 2026-11-11 21:28):
     /// иначе после выкатки `Disallow` `Point9` остался бы **разрешающим**, и регресс «вернули игнор»
     /// прошёл бы зелёным — тот же класс, что `continue-on-error` без даты снятия.
     ///
-    /// Включается **фактом выкатки**, а не правкой кода: `XDIARY_STRICT_UNKNOWN_FIELDS=1`.
+    /// Включается **фактом выкатки**, а не правкой кода: `XDIARY_STRICT_UNKNOWN_FIELDS=1` (условие — `POST /partners` с `gender` отдаёт 400 на dev).
     /// Пока переменная не задана — печатаем `::notice::` с условием и выходим: это видимый долг
     /// в логе прогона, а не «зелёный навсегда».
     /// </summary>
     [StandFact]
-    public async Task Point9b_Partners_RejectsUnknownFields_Strict()
+    public async Task Point9b_RejectsUnknownFields_AfterDisallow()
     {
-        if (Environment.GetEnvironmentVariable("XDIARY_STRICT_UNKNOWN_FIELDS") is not "1")
-        {
-            Console.WriteLine(
-                "::notice::[spec] Point9b выключен: выставьте XDIARY_STRICT_UNKNOWN_FIELDS=1 после выкатки " +
-                "UnmappedMemberHandling.Disallow (@BE, BC-Partners/02 §10) — тогда лишнее поле обязано давать 400");
-            return;
-        }
-
         using var api = new ClientStandApi();
         var token = await api.RegisterAndVerifyAsync();
 
@@ -546,11 +538,34 @@ public sealed class ContractChainTests
             name = "TE-038 strict extra-field " + DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             gender = "Male",
         });
-
-        Assert.True(
-            status is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
-            "Disallow включён (XDIARY_STRICT_UNKNOWN_FIELDS=1), но POST /partners с лишним полем `gender` вернул " +
-            (int)status + " вместо 400 — контракт BC-Partners/02 §10 не соблюдён");
         _ = body;
+
+        var strict = Environment.GetEnvironmentVariable("XDIARY_STRICT_UNKNOWN_FIELDS") is "1";
+        var rejects = status is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity;
+
+        if (strict)
+        {
+            Assert.True(
+                rejects,
+                "Disallow включён (XDIARY_STRICT_UNKNOWN_FIELDS=1), но POST /partners с лишним полем `gender` вернул " +
+                (int)status + " вместо 400 — контракт BC-Partners/02 §10 не соблюдён");
+            return;
+        }
+
+        // Триггер сработал, а переключатель не выставлен: долг «висит», хотя реализация уже правильная.
+        // Это и есть риск, который @AR назвал 2026-11-11 23:16 («когда @BE выкатит, снимаются оба, иначе
+        // один останется висеть»): теперь снятие долга видно в логе прогона, а не только в индексе.
+        if (rejects)
+        {
+            Console.WriteLine(
+                "::warning::[spec][pending:BE-Disallow] POST /partners уже отклоняет лишнее поле (400), " +
+                "но переключатель не выставлен: добавьте XDIARY_STRICT_UNKNOWN_FIELDS=1 в smoke-api " +
+                "(став @DO) и снимите `target_until` у Partners.Register в api-index.yaml — долг закрыт фактом");
+            return;
+        }
+
+        Console.WriteLine(
+            "::notice::[spec][pending:BE-Disallow] Point9b выключен: выставьте XDIARY_STRICT_UNKNOWN_FIELDS=1 после выкатки " +
+            "UnmappedMemberHandling.Disallow (@BE, BC-Partners/02 §10) — тогда лишнее поле обязано давать 400");
     }
 }
