@@ -105,6 +105,17 @@ jobs:
           dotnet-version: '8.0.x'
       - name: API-E2E (9-tests/E2E, все 9)
         run: dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj --verbosity minimal
+      # Контракт журнала (@TE, TE-038). До деплоя BE-053 пункт 3 («чужую запись не видно»)
+      # ожидаемо красный: на dev свежий клиент получает 1100 записей, а чужую запись — 200.
+      # Поэтому шаг НЕ блокирует доставку прода (иначе один известный дефект бэка стопорит
+      # релиз), но и не молчит: падение видно в логе и как warning.
+      # Когда BE-053 в dev — убрать `continue-on-error` и сделать шаг блокирующим.
+      - name: Контракт журнала (9-tests/Contract.ClientJournal)
+        continue-on-error: true
+        run: |
+          dotnet test 9-tests/Contract.ClientJournal/ContractClientJournal.IntegrationTests/ContractClientJournal.IntegrationTests.csproj --verbosity minimal \
+            && echo "CONTRACT_OK" \
+            || { echo "::warning::контракт журнала красный — ожидаемо до деплоя BE-053 (фильтр по sub)"; exit 1; }
 
   # Браузерный гейт: только фронт. Отдельный джоб, чтобы фронтовый баг не блокировал
   # доставку бэкенда (DO-035).
