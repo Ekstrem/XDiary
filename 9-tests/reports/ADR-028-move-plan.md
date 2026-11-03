@@ -30,24 +30,27 @@
 
 Выполняет **@BE** (`6-msa` — его зона). Порядок: `E2E.Tests` разделяется последним, потому что от него зависит `E2EInfra`.
 
-## 3. Приёмка: `check-adr028-move.sh` (7 проверок, режимы `--post`/`--pre`)
+## 3. Приёмка: `check-adr028-move.sh` (8 проверок, режимы `--post`/`--pre`)
 
-| # | Проверка | Сейчас на `9c252e8e` |
+| # | Проверка | На `ea4394f4` (после переезда @BE) |
 |---|---|---|
-1 | `.csproj` в `9-tests` = 0 | ✅ **0** |
-2 | нет общих бакетов (`6-msa/E2E`, `6-msa/ApiTests`, `Contract.*`) | ❌ **`6-msa/E2E` есть** |
-3 | каждый `*Tests.csproj` в `6-msa/BC-*/src/…` или `6-msa/ApiGateway.Tests/` | ❌ **6 вне зоны** |
-4 | `9-tests/RnD/front-e2e`: маркер + `playwright` | ✅ |
-5 | в `9-tests` нет посторонних скриптов | ❌ **`9-tests/Load/load.js`, `load.ps1`** (нагрузка — не фронт; по @DO место — `7-deploy/load/`) |
-6 | атрибуты тестов не потеряны (`Fact ≥ 128`, `StandFact ≥ 20`, `Theory ≥ 11`, `ApiFact ≥ 17`) | ✅ |
-7 | старые каталоги в `9-tests` удалены | ✅ **0** |
+1 | `.csproj` в `9-tests` = 0 | ✅ **0**
+2 | нет общих бакетов (`6-msa/E2E`, `6-msa/ApiTests`, `Contract.*`) | ✅ **обе папки удалены**
+3 | каждый `*Tests.csproj` в `6-msa/BC-*/src/…` или `6-msa/ApiGateway.Tests/` | ✅ **29 из 29**
+4 | все 7 адресов карты §3.1 на месте | ✅ **7/7**
+5 | `9-tests/RnD/front-e2e`: маркер + `playwright` | ✅
+6 | в `9-tests` нет посторонних скриптов | ✅ **0** (`Load` снят в `a67bf6ab`)
+7 | атрибуты тестов не потеряны (`Fact 128`, `StandFact 20`, `Theory 11`, `ApiFact 17`) | ✅
+8 | старые каталоги в `9-tests` удалены | ✅ **0**
 
-Итог сейчас: **4 из 7**, и все три красных пункта — не мои правки, а оставшаяся работа: перекладывание `6-msa` (@BE) и перенос `Load` (@DO).
+**Итог: 8 из 8** на `ea4394f4` — приёмка раскладки ADR-028 пройдена.
+
+**Вне моей приёмки, но видно гейтом @AR:** `check_test_isolation` (правило (б)) → **rc=1** на 8 вхождениях `ProjectReference` «чужой `BC-*`» в трёх pair-проектах: `BC-Analytics/src/Analytics.ApiTests` → `BC-Privacy`, `BC-Catalog/src/Catalog.ApiTests` → `BC-Partners`, `BC-DailyMetrics/src/DailyMetrics.ApiTests` → `BC-SomaticSeries`. Это **вопрос модели, а не переноса**: consumer-driven тест пары у потребителя по определению хочет типы провайдера. Либо правилу (б) нужно исключение для `*.ApiTests`, либо pair-тесты обязаны быть HTTP-only без `ProjectReference`. Решение — @AR (правило) + @TL (приёмка). Плюс один `.csproj` повторяется в выводе 2–3 раза — стоит дедуплицировать.
 
 **Строка для квитанции** (после перекладывания):
 ```
 bash 9-tests/scripts/check-adr028-move.sh --post
-PASS: ADR-028 7/7 | режим --post | ревизия <REF>
+PASS: ADR-028 8/8 | режим --post | ревизия <REF>
 ```
 
 ## 4. Что изменилось в моих артефактах
