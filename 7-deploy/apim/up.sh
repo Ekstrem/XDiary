@@ -35,3 +35,19 @@ echo "   код management-health: ${CODE:-нет}"
 echo "5) контроль: APIM НЕ в пути трафика"
 echo "   YARP /api/v1/clients: $(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:8080/api/v1/clients)"
 echo "   APIM gateway /:       $(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/ 2>/dev/null)"
+
+# 6) СВЕРКА IP (главный дефект: compose может хранить устаревший IP mongo,
+#    тогда management падает с MongoTimeoutException и рестартится по кругу)
+LIVE_IP="$(podman inspect xdiary-apim-mongo --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || true)"
+URI_IP="$(grep -m1 'mongodb://' gravitee-compose.yml | sed -E 's#.*mongodb://([^:/]+).*#\1#')"
+echo "6) сверка: в compose $URI_IP, живой $LIVE_IP"
+if [ "$URI_IP" != "$LIVE_IP" ]; then
+  echo "   расхождение -> переписываю и перезапускаю management"
+  sed -i -E "s#mongodb://[^/]+:27017#mongodb://$LIVE_IP:27017#g" gravitee-compose.yml
+  podman-compose -f gravitee-compose.yml up -d --force-recreate management-api
+  sleep 40
+fi
+
+# 7) health по IP изнутри gateway (DNS в этой сети не работает — проверено)
+MG_IP="$(podman inspect xdiary-apim-management --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || true)"
+echo "7) health management по $MG_IP: $(podman exec xdiary-apim-gateway wget -q -O- "http://$MG_IP:8083/management/health" 2>/dev/null | head -c 80)"

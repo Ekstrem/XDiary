@@ -35,9 +35,8 @@ services:
       gravitee_analytics_type: none
       gravitee_reporters_elasticsearch_enabled: "false"
       gravitee_services_core_http_port: "8073"   # node-management, НЕ 8083 (там HTTP API)
-    # порт НЕ публикуем в интернет: только loopback для проверки состояния
-    ports:
-      - "127.0.0.1:18083:8083"
+    # порт НЕ публикуем ВООБЩЕ: проверка — через `podman exec` (rootlessport изредка
+    # роняет контейнер при старте; для control plane внешний порт не нужен)
     networks: [apim]
 
   gateway:
