@@ -58,3 +58,11 @@ API прочитан. E1 разблокирован по сигнатурам; �
 даёт готовый `result.Event` → `IEventBusProducer.Publish(result.Event)`. Маппинг
 `DomainEvent → DomainEventEntry` делает DF (`DomainEventEntryMapping`).
 Свой `SaveAsync(result)` → заменить на `Publish(result.Event)` + consumer → `SaveEventAsync`.
+
+## Консьюмер (round 8)
+`IEventBusConsumer.Subscribe(IDomainEventHandler<T> handler)` + `Unsubscribe`.
+`IReadModelStore<TBC,TReadModel>.UpsertAsync(TReadModel, CancellationToken)` / `DeleteAsync(Guid)`.
+`PostgresReadRepository.GetByIdAsync` / `GetAllAsync(IPaging)` / `CountAsync`.
+**НЕЯСНО:** `IDomainEventHandler<T>` — маркер без `Handle` (отражение `GetMethods()` пусто).
+Механизм вызова хендлера (reflection/convention) не прочитан офлайн — нужен пример из DF-доков
+или исходник. До этого консьюмер `JournalEventConsumer` писать рискованно.
