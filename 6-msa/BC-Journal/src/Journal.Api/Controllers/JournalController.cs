@@ -48,8 +48,11 @@ public sealed class JournalController : ControllerBase
         return Respond(await _mediator.Send(new StartManualEntryCommand(clientId), ct));
     }
     [HttpPost("records/from-garmin")]
-    [AllowAnonymous]
-    public async Task<IActionResult> StartFromGarmin([FromBody] StartFromGarminCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> StartFromGarmin([FromBody] StartFromGarminCommand c, CancellationToken ct)
+    {
+        if (!TryClientId(out var clientId)) return Unauthorized();
+        return Respond(await _mediator.Send(c with { ClientId = clientId }, ct));
+    }
     [HttpPost("records/{id:guid}/when")]
     public Task<IActionResult> SpecifyWhen(Guid id, [FromBody] SpecifyWhenCommand c, CancellationToken ct)
         => WithOwner(id, async () => Respond(await _mediator.Send(c with { AggregateId = id }, ct)));

@@ -24,7 +24,7 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
     public StartFromGarminHandler(IRepository<IJournal, IJournalAnemicModel> repo) => _repo = repo;
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartFromGarminCommand r, CancellationToken ct)
     {
-        var result = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId);
+        var result = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, r.ClientId);
         if (result.IsSuccess()) await _repo.SaveAsync(result, ct);
         return result;
     }

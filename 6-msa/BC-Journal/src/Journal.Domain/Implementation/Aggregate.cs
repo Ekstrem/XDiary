@@ -67,7 +67,7 @@ public sealed class Aggregate
         return Success(anemic);
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId)
+    public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
     {
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
