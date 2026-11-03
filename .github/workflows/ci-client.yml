@@ -5,11 +5,19 @@ on:
     branches: [ main ]
     paths:
       - '6-msa/BC-Client/**'
+      # ADR-028 этап 1 (@TL 2026-11-13 19:11): правка Client гоняет ЕГО контрактные
+      # тесты. Пока пара лежит в общем наборе — путь указываем здесь; когда тест
+      # переедет внутрь сервиса, строка ниже станет не нужна.
+      - '6-msa/E2E/Contract.Client_Journal/**'
       - '.github/workflows/ci-client.yml'
   pull_request:
     branches: [ main ]
     paths:
       - '6-msa/BC-Client/**'
+      # ADR-028 этап 1 (@TL 2026-11-13 19:11): правка Client гоняет ЕГО контрактные
+      # тесты. Пока пара лежит в общем наборе — путь указываем здесь; когда тест
+      # переедет внутрь сервиса, строка ниже станет не нужна.
+      - '6-msa/E2E/Contract.Client_Journal/**'
       - '.github/workflows/ci-client.yml'
   workflow_dispatch:
 
@@ -37,6 +45,23 @@ jobs:
 
     - name: Build
       run: dotnet build src/Client.sln --no-restore --configuration Release
+
+    # ADR-028: тесты сервиса живут в нём и бегут при его изменении.
+    # До 2026-11-13 у Client не было НИ ОДНОГО шага тестов — сборка считалась проверкой.
+    - name: Тесты Client (в папке сервиса)
+      run: dotnet test src/Client.IntegrationTests/Client.IntegrationTests.csproj --no-build --configuration Release --verbosity normal
+
+    # Контрактные ожидания потребителя (пара Client↔Journal). Путь временный:
+    # по ADR-028 они должны переехать внутрь BC-Client; шаг исчезнет вместе с переносом.
+    - name: Контракт Client↔Journal (если есть)
+      if: hashFiles('6-msa/E2E/Contract.Client_Journal/**/*.csproj') != ''
+      working-directory: .
+      run: |
+        set -e
+        for p in 6-msa/E2E/Contract.Client_Journal/**/*.csproj; do
+          echo "== $p"
+          dotnet test "$p" --configuration Release --verbosity normal
+        done
 
   docker:
     needs: build-and-test
