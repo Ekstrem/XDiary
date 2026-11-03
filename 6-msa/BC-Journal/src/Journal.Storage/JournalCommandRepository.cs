@@ -1,4 +1,5 @@
 namespace Journal.Storage;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -7,7 +8,8 @@ using XDiary.Contracts;
 public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAnemicModel>
 {
     private readonly CommandDbContext _db;
-    public JournalCommandRepository(CommandDbContext db) => _db = db;
+    private readonly IEventBusProducer _bus;
+    public JournalCommandRepository(CommandDbContext db, IEventBusProducer bus) { _db = db; _bus = bus; }
     public async Task<IJournalAnemicModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var e = await _db.Records.FirstOrDefaultAsync(x => x.Id == id, ct);
@@ -15,10 +17,7 @@ public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAne
     }
     public async Task SaveAsync(AggregateResult<IJournal, IJournalAnemicModel> result, CancellationToken ct = default)
     {
-        var m = result.Model();
-        var e = await _db.Records.FirstOrDefaultAsync(x => x.Id == m.Id, ct);
-        if (e is null) { e = new RecordEntity { Id = m.Id }; _db.Records.Add(e); }
-        JournalMapper.MapToEntity(m, e);
-        await _db.SaveChangesAsync(ct);
+        // E1: command-path пишет событием, а не SaveChangesAsync — store заполняет consumer.
+        await _bus.PublishAsync(result.Event);
     }
 }
