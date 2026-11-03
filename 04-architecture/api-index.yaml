@@ -339,11 +339,11 @@ operations:
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка", 401: "no-token"}
     codes_status: verified
-    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
+    verification: "код: JournalController.cs:44-49 (нет [FromBody]) + @TE 2026-11-13"
     request:
       required: []
       optional: []
-      note: "clientId из JWT sub, телом не задаётся (BE-053)"
+      note: "тела нет: создаёт черновик, владелец из JWT sub (проверено @TE 2026-11-13: первая версия теста слала тело и упала бы на 400)"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/from-garmin"
@@ -415,7 +415,11 @@ operations:
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
-    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
+    verification: "код: JournalController.cs:59-61 + AddPartnerCommand + @TE 2026-11-13"
+    request:
+      required: [partnerId]
+      optional: []
+      note: "partnerId — СТРОКА, не Guid (AddPartnerCommand(Guid AggregateId, string PartnerId)); тело {partnerId}"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/partners/{partnerId}/remove"
@@ -423,7 +427,11 @@ operations:
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
-    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
+    verification: "код: JournalController.cs:62-64 + @TE 2026-11-13"
+    request:
+      required: []
+      optional: []
+      note: "partnerId — сегмент пути (строка), тела нет"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/place"
