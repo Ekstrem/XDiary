@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.82"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.83"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -162,7 +162,7 @@
         if (!Api.config.token()) { openOnboarding(); return; }
         afterAuth();
       };
-      withTimeout(Pin.hasPin(), 5000, false).then(function (hasPin) {
+      withTimeout(Pin.hasPin(), 1500, false).then(function (hasPin) {
         if (!hasPin) {
           console.log("ensureView: view-lock показан, но Pin.hasPin=false -> онбординг");
           if (!Api.config.token()) { openOnboarding(); return; }
@@ -241,7 +241,7 @@
     // FE-026 (вариант A): без client-JWT API не вызываем — только онбординг; legacy-флаг не удаляем
     if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
     // FE-027: me() с таймаутом — иначе экран блокировки остаётся навсегда
-    withTimeout(Api.clients.me(), 5000, null).then(function (c) {
+    withTimeout(Api.clients.me(), 2500, null).then(function (c) {
       if (c && c.verified && c.linkedPartnerId) { openJournal(); return; }
       // FE-029/FE-031: подтверждён, но «я» не привязано — всегда шаг привязки, не телефон заново
       if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showLinkStep(); return; }
@@ -451,7 +451,7 @@
     var hasClient = !!localStorage.getItem("xdiary.clientId") && !!Api.config.token();
     if (!hasClient) { openOnboarding(); return; }
     // FE-027: hasPin не должен вешать экран блокировки; FE-032: ошибка = «PIN нет»
-    withTimeout(Pin.hasPin(), 5000, false).then(function (hasPin) {
+    withTimeout(Pin.hasPin(), 1500, false).then(function (hasPin) {
       if (hasPin) { showLockScreen(); return; }
       afterAuth();
     }, function (e) { console.error("lock/hasPin:", e); openOnboarding(); });
