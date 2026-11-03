@@ -15,6 +15,8 @@ change_rule: >-
   Новый или изменённый пункт = правка этого файла + гейт в ОДНОМ коммите. Гейт сверяет: (1) набор операций индекса == набор в коде; (2) у каждой операции заполнены codes; (3) анонимность только по allow-list. Иначе rc=1.
 dod_complete: >-
   status: complete ставится только когда: (1) гейт DO-064 зелёный (индекс == код, у всех codes, анонимность = allow-list + internal без токена); (2) каждая операция помечена: verified с источником (тест/контракт/замер с контуром) ИЛИ derived с явной пометкой «сверка не делалась». «Я посмотрел» — не критерий.
+target_rule: >-
+  target_codes = целевое поведение, ещё не реализованное. У каждой такой записи обязательны target_owner и target_until. Как только поведение реализовано: код переносится в codes, target_codes/target_owner/target_until удаляются. «Целевое» без срока и владельца — запрещено: это то же, что continue-on-error без даты снятия.
 auth_rule: >-
   deny-by-default (ADR-026): анонимны только POST /api/v1/clients, POST /api/v1/clients/{id}/verify, POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token, GET /health. Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026). auth: anonymous-inside = внутренний контур /internal/** (ADR-026 §3 п.4): изнутри сети без токена, снаружи 401; гейт не должен требовать токен для internal.
 codes_legend: >-
@@ -452,9 +454,11 @@ operations:
     auth: jwt
     codes: {200: "ok (gender не принимается этим эндпоинтом)", 401: "no-token"}
     codes_status: verified
-    target_codes: {400: "validation: неизвестное поле (целевое, задача @BE)"}
+    target_codes: {400: "validation: неизвестное поле (целевое)"}
+    target_owner: "@BE: UnmappedMemberHandling.Disallow для command-моделей"
+    target_until: "СНЯТЬ как только 400 отдаётся: перенести в codes, target_codes удалить"
     verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
-    contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400 (UnmappedMemberHandling.Disallow), а не молчаливый игнор. target: codes.400 на лишнее поле появится после задачи @BE; сейчас 400 по этому основанию НЕ отдаётся."
+    contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400, не игнор. Сейчас 400 по этому основанию НЕ отдаётся (@TE замер: 200, gender пуст). @TE Point9 намеренно допускает 200+пустой пол до выкатки — после выкатки он ОБЯЗАН стать строгим (иначе тест останется разрешающим и пропустит регресс)."
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
