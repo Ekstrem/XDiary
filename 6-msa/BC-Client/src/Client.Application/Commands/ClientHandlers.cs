@@ -15,7 +15,7 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
     private readonly IClientQueryRepository _query;
     private readonly IOtpSender _sender;
     private readonly string? _testOtp;
-    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IClientQueryRepository query, IOtpSender sender, IConfiguration config) { _repo = repo; _query = query; _sender = sender; var isDev = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Development", StringComparison.OrdinalIgnoreCase); _testOtp = isDev ? config["Clients:TestOtp"] : null; }
+    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IClientQueryRepository query, IOtpSender sender, IConfiguration config) { _repo = repo; _query = query; _sender = sender; _testOtp = TestOtpPolicy.Resolve(config, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")); }
     public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(RegisterClientCommand r, CancellationToken ct)
     { var existing = await _query.GetByPhoneAsync(r.Phone, ct); if (existing is not null) return ClientResults.Fail("phone_taken: Телефон уже зарегистрирован"); var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString(); if (_testOtp is null) { try { await _sender.SendAsync(r.Phone, otp, ct); } catch (Exception ex) { return ClientResults.Fail(ex.Message); } } var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp); if (res.IsSuccess()) { try { await _repo.SaveAsync(res, ct); } catch (DuplicatePhoneException ex) { return ClientResults.Fail(ex.Message); } } return res; }
 }
