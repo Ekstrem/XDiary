@@ -16,7 +16,7 @@
       "upstream": "tools/chat_rotate.py"
     },
     "check_adr.py": {
-      "sha256": "1d1f6f208da5bbfe7856e586c82cb4b8a7b4c2daf92ac80e06318b6087fd8d41",
+      "sha256": "ba6703cca2faeae6cb34e741b6fc0b455eeebccbb712c718b55b747d3e9e67c9",
       "synced_at": "2026-11-03",
       "upstream": "tools/check_adr.py"
     },
