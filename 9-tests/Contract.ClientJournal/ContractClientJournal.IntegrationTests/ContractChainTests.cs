@@ -415,22 +415,22 @@ public sealed class ContractChainTests
 
         Assert.Equal(HttpStatusCode.OK, await api.GetAsync("health", null));
 
-        // (3) Внутренний контур: `GET /internal/journal/records` анонимно → 200.
-        //     Им Analytics обновляет «Тренды». Если @BE включит default-deny без исключения
-        //     для `/internal/**`, «Тренды» замрут молча — это и ловит строка.
-        //     Через шлюз маршрут может быть не опубликован (шлюз публикует только `/api/v1/**`),
-        //     и тогда проверка честно говорит, что её надо делать внутри сети (зона @DO).
+        // (3) Внутренний контур: `GET /internal/journal/records`. Им Analytics обновляет «Тренды».
+        //
+        // Комплаенс ADR-026 (@AR 10:13, формулировка @TL): `/internal/**` доступен без токена
+        // **только изнутри сети**, а шлюз публикует лишь `/api/v1/**` — значит **снаружи** ожидается
+        // **404/401**, и это признак корректного периметра, а не дефект.
+        // Факт с dev `71f2f91d`: через шлюз `/internal/journal/records` → **401** (12 байт, "Unauthorized").
+        // Проверку «200 без токена» делает @DO **изнутри сети** — снаружи её требовать нельзя,
+        // иначе тест ловил бы сам периметр.
         var internalStatus = await api.GetAsync("internal/journal/records", null);
-        if (internalStatus == HttpStatusCode.NotFound)
-        {
-            Console.WriteLine(
-                "::warning::[infra] GET /internal/journal/records через шлюз = 404 (маршрут не публикуется) — " +
-                "проверка внутреннего контура возможна только изнутри сети, зона @DO");
-        }
-        else
-        {
-            Assert.Equal(HttpStatusCode.OK, internalStatus);
-        }
+        Assert.True(
+            internalStatus is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound or HttpStatusCode.Forbidden,
+            "GET /internal/journal/records снаружи (через шлюз) вернул " + (int)internalStatus +
+            " — ожидали 401/404 (маршрут не публикуется). 200 здесь означал бы утечку периметра");
+        Console.WriteLine(
+            "::notice::[infra] /internal/journal/records снаружи → " + (int)internalStatus +
+            "; проверка «без токена изнутри = 200» — зона @DO (внутри сети)");
     }
 
     // Пункт 8 (@AR 2026-11-10 18:03, TECHDEBT п.16): канон пола живёт в ДВУХ местах —
