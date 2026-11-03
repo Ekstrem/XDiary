@@ -37,7 +37,7 @@
 | 026 | Маршрутная авторизация: deny-by-default, анонимность по (метод, путь) | анон только по allow-list; всё прочее 401; /internal/** — только изнутри сети; явная анонимность в коде ([AllowAnonymous]) | Принято |
 | 027 | Релиз = immutable артефакт: sha-<short> + деплой по digest из lock | :single только для dev; прод по digest из 7-deploy/images.lock; проверка RepoDigests == lock; костыль «не пушить при выкатке» снимается | Принято |
 | 028 | Тесты — часть изолированного жизненного цикла компонента | тест живёт там, чей lifecycle он проверяет: сервис (unit/integration/контракт потребителя) — в `6-msa/BC-<X>`, межсервисные black-box — отдельный набор `6-msa/E2E`, фронтовые E2E — `9-tests` с маркером `front-e2e.md`; папка `Contract.A_B` запрещена (не собирается без обоих) | Предложено |
-| 029 | Межсервисная доставка событий: из Event Store через Outbound Handler (Saga/HTTP) | Event Store остаётся единственным источником истины (ADR-003, `FullEventSourcing`), второго журнала событий нет; публикация `IEventBus.Publish` из команды, доставку делает **Outbound Handler** по курсору на потребителя, приём идемпотентен (`SaveEventAsync` + `UpsertAsync`), dead-letter для отравленных; fire-and-forget публикаторы удаляются | Предложено |
+| 029 | Межсервисная доставка событий: из Event Store через Outbound Handler (Saga/HTTP) | Event Store остаётся единственным источником истины (ADR-003, `FullEventSourcing`), второго журнала событий нет; публикация `IEventBus.Publish` из команды, доставку делает **Outbound Handler** по курсору на потребителя, приём идемпотентен (`SaveEventAsync` + `UpsertAsync`), dead-letter для отравленных; fire-and-forget публикаторы удаляются | Отклонено |
 
 ## Статусы
 - **Предложено** (Proposed) — решение обсуждается, варианты собраны.
