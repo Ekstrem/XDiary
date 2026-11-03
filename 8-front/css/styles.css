@@ -214,7 +214,8 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 .settings h2 { margin: 26px 0 8px; font-size: 18px; }
 .settings h2:first-child { margin-top: 0; }
 /* FE-034: пояснения ≥ 16px и токен --muted (контраст ≥ 4.5:1 на --bg/--bg-soft) */
-.muted { color: var(--muted); font-size: 16px; line-height: 1.45; }
+.muted { color: var(--muted); font-size: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.partner-card span { overflow-wrap: anywhere; text-align: left; }
 
 /* ---- Tabbar ---- */
 .tabbar {
