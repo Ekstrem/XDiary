@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
-# Квитанция раскладки тестов по ADR-028 ред. 3 (§5.4: два прогона — на дефекте и на норме).
+# Приёмка раскладки тестов по ADR-028 ред. 3 (§5.4: два прогона — на дефекте и на норме).
 #
-# Правило ред. 3 (@AR 2026-11-14 06:40 — общий бакет отменён владельцем):
-#   (1) любой тест микросервиса — в папке своего сервиса `6-msa/BC-<X>/src/<S>.<Kind>Tests`;
-#   (2) тесты фронта — только `9-tests` (браузер, маркер `front-e2e.md`);
-#   (3) общих тестовых папок нет: `6-msa/E2E`, `6-msa/ApiTests`, `Contract.<A>_<B>` запрещены.
+# Что проверяется (9 проверок):
+#   1) в `9-tests` нет `.csproj` (там только браузерные тесты);
+#   2) общих тестовых папок нет: `6-msa/E2E`, `6-msa/ApiTests`, `Contract.<A>_<B>`;
+#   3) каждый `*Tests.csproj` — в `6-msa/BC-*/src/…` или `6-msa/ApiGateway.Tests/`;
+#   4) все 7 адресов карты ADR-028 §3.1 на месте (положительная проверка);
+#   5) `9-tests/RnD/front-e2e`: маркер `front-e2e.md` + `playwright` в `package.json`;
+#   6) в `9-tests` нет посторонних исполняемых файлов;
+#   7) атрибуты тестов не потерялись (baseline: Fact 128 / StandFact 20 / Theory 11 / ApiFact 17);
+#   8) старые каталоги `9-tests` удалены;
+#   9) изоляция: в тестовом проекте нет ссылки на чужой BC (кроме `6-msa/Shared/**`) —
+#      ни `ProjectReference`, ни `Compile Include`. Добавлено по @TL 2026-11-14 30:10:
+#      без этой проверки приёмка давала «8/8» при красной изоляции.
 #
-# Режимы:
-#   --post (по умолчанию) — приёмка ПОСЛЕ перекладывания: 7 проверок должны быть зелёными.
-#   --pre                 — состояние ДО (информационный): общий бакет ещё есть.
-#
+# Режимы: --post (по умолчанию) — рабочая приёмка; --pre — состояние до перекладывания.
 # Использование:
 #   bash 9-tests/scripts/check-adr028-move.sh --post
 #   REF=HEAD bash 9-tests/scripts/check-adr028-move.sh --post
 #
-# Печатает PASS/FAIL по каждому пункту, `::error::` на нарушениях и итог
-# `PASS: ADR-028 7/7 | режим --post | ревизия <REF>` — эту строку и присылают в чат.
+# Печатает `REF=…` первой строкой и в итоге; при нарушении — `::error::` с путём.
+# Внимание: в песочнице @TE bash не запускается (не создаётся signal pipe), поэтому
+# там используют Python-двойник `9-tests/scripts/check_adr028_move.py` с теми же 9 проверками.
 set -uo pipefail
 
 MODE="post"
@@ -33,17 +39,22 @@ say() { printf '%-62s %s\n' "$1" "$2"; }
 ok()  { say "$1" "PASS  ($2)"; }
 bad() { say "$1" "FAIL  ($2)"; fail=1; echo "::error::ADR-028: $1 - $2"; }
 
-# Baseline атрибутов: сумма по репозиторию (6-msa + 9-tests) при перекладывании не меняется.
-# Измерено @TE на 2026-11-14: Fact 128, StandFact 20, Theory 11, ApiFact/E2EFact 17.
 BASE_FACT=128
 BASE_STAND=20
 BASE_THEORY=11
 BASE_API=17
 
 echo "REF=$REF | режим: --$MODE"
+
+if ! git rev-parse --verify "$REF^{commit}" >/dev/null 2>&1; then
+  echo "::error::ADR-028: REF не резолвится в этом репозитории - приёмка не выполнена"
+  echo "REF=$REF | FAIL: невалидная ревизия | режим --$MODE"
+  exit 2
+fi
+
 echo "----"
 
-# 1) В 9-tests не осталось C#-проектов (там только браузерные тесты)
+# 1) .csproj в 9-tests
 n_csproj=$(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -c '\.csproj$' || true)
 if [ "${n_csproj:-0}" = "0" ]; then
   ok '1) .csproj в 9-tests отсутствуют' '0'
@@ -51,59 +62,45 @@ else
   bad '1) .csproj в 9-tests отсутствуют' "$n_csproj - тесты сервисов живут в 6-msa/BC-*"
 fi
 
-# 2) Общих тестовых бакетов нет (ADR-028 ред. 3 §3.1)
+# 2) общих тестовых бакетов нет
 shared=""
 for p in 6-msa/E2E 6-msa/ApiTests; do
   if [ -n "$(git ls-tree -r --name-only "$REF" -- "$p" 2>/dev/null | head -n1)" ]; then
     shared="$shared $p"
   fi
 done
-contract_out=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/Contract\.[^/]+/' | head -n5 || true)
+contract_out=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/Contract\.[^/]+/' | head -n3 || true)
 if [ -z "$shared" ] && [ -z "$contract_out" ]; then
   ok '2) общих тестовых бакетов нет' 'ни E2E, ни ApiTests, ни Contract.<A>_<B>'
 else
-  # Строгая формулировка (@TL 2026-11-14 10:10): ошибка называет каждый запрещённый путь,
-  # чтобы её можно было грепать и чтобы было видно, какая именно форма вернулась.
   for p in $shared; do
-    echo "::error::ADR-028 §3.1: общая тестовая папка запрещена — $p"
+    echo "::error::ADR-028 3.1: общая тестовая папка запрещена - $p"
   done
-  [ -n "$contract_out" ] && echo "::error::ADR-028 §3.1: каталог Contract.<A>_<B> запрещён — $contract_out"
-  bad '2) общих тестовых бакетов нет' "есть:${shared}${contract_out:+ contract: $contract_out}"
+  if [ -n "$contract_out" ]; then
+    echo "::error::ADR-028 3.1: каталог Contract.<A>_<B> запрещён"
+  fi
+  bad '2) общих тестовых бакетов нет' "есть:$shared"
 fi
 
-# 3) Каждый *Tests.csproj лежит в 6-msa/BC-<X>/src/... или 6-msa/ApiGateway.Tests/...
+# 3) каждый тестовый проект — в папке своего сервиса
 stray=""
-while IFS= read -r proj; do
-  [ -z "$proj" ] && continue
+n_proj=0
+for proj in $(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E 'Tests?\.csproj$' || true); do
+  n_proj=$((n_proj + 1))
   case "$proj" in
     6-msa/BC-*/src/*) ;;
     6-msa/ApiGateway.Tests/*) ;;
     *) stray="$stray $proj" ;;
   esac
-done <<EOF
-$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E 'Tests?\.csproj$' || true)
-EOF
-n_proj=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -cE 'Tests?\.csproj$' || true)
+done
 if [ -z "$stray" ]; then
   ok '3) все тестовые проекты в папках своих сервисов' "$n_proj проектов"
 else
   bad '3) все тестовые проекты в папках своих сервисов' "вне зоны:$stray"
 fi
 
-# 4) В 9-tests фронтовый набор помечен и имеет браузерную зависимость
-marker_ok=0
-pkg_ok=0
-if [ -n "$(git ls-tree -r --name-only "$REF" -- 9-tests/RnD/front-e2e 2>/dev/null | grep 'front-e2e\.md$' || true)" ]; then marker_ok=1; fi
-if git show "$REF:9-tests/RnD/front-e2e/package.json" 2>/dev/null | grep -q 'playwright'; then pkg_ok=1; fi
-if [ "$marker_ok" = "1" ] && [ "$pkg_ok" = "1" ]; then
-  ok '5) front-e2e: маркер + браузерная зависимость' 'front-e2e.md + playwright'
-else
-  bad '5) front-e2e: маркер + браузерная зависимость' "маркер=$marker_ok playwright=$pkg_ok"
-fi
-
-# 4) Все 7 адресов из карты ADR-028 §3.1 на месте (положительная проверка: не «ничего лишнего»,
-#    а «всё нужное приехало»). Ожидание — дословно из таблицы §3.1, не по памяти.
-missing4=""
+# 4) все 7 адресов §3.1 на месте
+missing=""
 for t in \
   '6-msa/BC-Client/src/Client.ApiTests' \
   '6-msa/BC-Catalog/src/Catalog.ApiTests' \
@@ -114,36 +111,47 @@ for t in \
   '6-msa/ApiGateway.Tests/ApiGateway.Tests.csproj'
 do
   if [ -z "$(git ls-tree -r --name-only "$REF" -- "$t" 2>/dev/null | head -n1)" ]; then
-    missing4="$missing4 ${t#6-msa/}"
+    missing="$missing ${t#6-msa/}"
   fi
 done
-if [ -z "$missing4" ]; then
+if [ -z "$missing" ]; then
   ok '4) все 7 адресов карты ADR-028 3.1 на месте' '7/7'
 else
-  bad '4) все 7 адресов карты ADR-028 3.1 на месте' "нет:${missing4}"
+  bad '4) все 7 адресов карты ADR-028 3.1 на месте' "нет:$missing"
 fi
-# 6) В 9-tests нет посторонних исполняемых файлов (идея @DO 2026-11-14 06:50):
-#    разрешены RnD/front-e2e (браузер), reports/, scripts/, README.md, AGENTS.md.
+
+# 5) front-e2e: маркер + браузер
+marker_ok=0
+pkg_ok=0
+if [ -n "$(git ls-tree -r --name-only "$REF" -- 9-tests/RnD/front-e2e 2>/dev/null | grep 'front-e2e\.md$' || true)" ]; then
+  marker_ok=1
+fi
+if git show "$REF:9-tests/RnD/front-e2e/package.json" 2>/dev/null | grep -q 'playwright'; then
+  pkg_ok=1
+fi
+if [ "$marker_ok" = "1" ] && [ "$pkg_ok" = "1" ]; then
+  ok '5) front-e2e: маркер + браузерная зависимость' 'front-e2e.md + playwright'
+else
+  bad '5) front-e2e: маркер + браузерная зависимость' "маркер=$marker_ok playwright=$pkg_ok"
+fi
+
+# 6) посторонние исполняемые файлы в 9-tests
 foreign=""
-while IFS= read -r f; do
-  [ -z "$f" ] && continue
+for f in $(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -E '\.(js|ps1|sh|cs)$' | grep -v '^9-tests/RnD/front-e2e/' || true); do
   case "$f" in
-    9-tests/RnD/front-e2e/*) continue ;;
-    9-tests/reports/*|9-tests/scripts/*) continue ;;
-    9-tests/README.md|9-tests/AGENTS.md) continue ;;
+    9-tests/reports/*) continue ;;
+    9-tests/scripts/*) continue ;;
     *) foreign="$foreign $f" ;;
   esac
-done <<EOF
-$(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -E '\.(js|ps1|sh|cs)$' | grep -v '^9-tests/RnD/front-e2e/' || true)
-EOF
+done
 if [ -z "$foreign" ]; then
   ok '6) в 9-tests нет посторонних скриптов' '0'
 else
-  bad '6) в 9-tests нет посторонних скриптов' "лишнее:$(echo "$foreign" | tr '\n' ' ' | cut -c1-170)"
+  bad '6) в 9-tests нет посторонних скриптов' "лишнее:$foreign"
 fi
 
-# 6) Атрибуты тестов не потерялись (сумма 6-msa + 9-tests)
-count_attr() { # $1 = регулярка имени атрибута
+# 7) атрибуты тестов не потерялись
+count_attr() {
   { git grep -h -c -E "\[$1" "$REF" -- 6-msa 2>/dev/null
     git grep -h -c -E "\[$1" "$REF" -- 9-tests 2>/dev/null
   } | awk '{s+=$1} END {print s+0}'
@@ -160,12 +168,12 @@ else
   bad '7) атрибуты тестов не потерялись' "$detail"
 fi
 
-# 7) Старые каталоги в 9-tests удалены (иначе проект существует дважды)
+# 8) старые каталоги 9-tests
 left=""
 for d in \
   '9-tests/Contract.ClientJournal' '9-tests/Partners.Catalog' '9-tests/Somatic.Daily' \
   '9-tests/Portability.Gateway' '9-tests/Analytics.Privacy' '9-tests/Gateways' \
-  '9-tests/Gateways.Api' '9-tests/Journal' '9-tests/E2E'
+  '9-tests/Gateways.Api' '9-tests/Journal' '9-tests/E2E' '9-tests/Load'
 do
   if [ -n "$(git ls-tree -r --name-only "$REF" -- "$d" 2>/dev/null | head -n1)" ]; then
     left="$left $d"
@@ -177,12 +185,38 @@ else
   bad '8) старые каталоги в 9-tests удалены' "остались:$left"
 fi
 
+# 9) изоляция: нет ссылок на чужой BC (кроме 6-msa/Shared/**)
+n_viol=0
+for proj in $(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/BC-[^/]+/src/.*Tests\.csproj$' || true); do
+  owner=${proj#6-msa/BC-}
+  owner=${owner%%/*}
+  incs=$(git show "$REF:$proj" 2>/dev/null | grep -oE 'Include="[^"]+"' | sed 's/Include="//; s/"$//' || true)
+  for inc in $incs; do
+    case "$inc" in
+      *Shared*) continue ;;
+    esac
+    other=$(printf '%s' "$inc" | grep -oE 'BC-[A-Za-z0-9_]+' | head -n1 | sed 's/^BC-//')
+    if [ -z "$other" ]; then
+      continue
+    fi
+    if [ "$other" = "$owner" ]; then
+      continue
+    fi
+    echo "::error::ADR-028 1.1: ссылка на чужой BC в тестах - $proj -> BC-$other"
+    n_viol=$((n_viol + 1))
+  done
+done
+if [ "$n_viol" -eq 0 ]; then
+  ok '9) изоляция тестов: нет ссылок на чужой BC' '0 (Shared разрешён)'
+else
+  bad '9) изоляция тестов: нет ссылок на чужой BC' "$n_viol ссылк(и) в проектах"
+fi
+
 echo "----"
-checks=8
+checks=9
 if [ "$fail" -eq 0 ]; then
   echo "REF=$REF | PASS: ADR-028 ${checks}/${checks} | режим --$MODE"
   exit 0
-else
-  echo "REF=$REF | FAIL: см. ::error:: выше | режим --$MODE"
-  exit 1
 fi
+echo "REF=$REF | FAIL: см. ::error:: выше | режим --$MODE"
+exit 1

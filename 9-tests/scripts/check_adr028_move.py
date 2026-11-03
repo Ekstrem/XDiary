@@ -87,7 +87,11 @@ def main() -> int:
     mode = "post"
     if "--pre" in sys.argv[1:]:
         mode = "pre"
-    ref = os.environ.get("REF", "origin/main")
+    ref = (os.environ.get("REF") or "origin/main").strip()
+    if not git_ok("rev-parse", "--verify", f"{ref}^{{commit}}"):
+        print(f"::error::ADR-028: REF={ref!r} не резолвится в этом репозитории — приёмка не выполнена")
+        print(f"REF={ref} | FAIL: невалидная ревизия | режим --{mode}")
+        return 2
     failures = 0
 
     def ok(name: str, detail: str) -> None:
@@ -177,7 +181,33 @@ def main() -> int:
         bad("8) старые каталоги в 9-tests удалены", "остались: " + ", ".join(left))
 
     print("----")
-    checks = 8
+    # 9) изоляция тестов: нет ссылок на чужой BC (кроме 6-msa/Shared/**).
+    #    Правило (@TL 2026-11-14 30:10 + однострочник @DO 14:13): для проекта `6-msa/BC-<X>/src/*Tests*`
+    #    любой ProjectReference/Compile Include, ведущий в `6-msa/BC-<Y>/`, при Y != X — нарушение.
+    #    Так приёмка не может дать 9/9 при красной изоляции.
+    viol: list[str] = []
+    proj_re = re.compile(r"^6-msa/BC-([^/]+)/src/.*Tests?\.csproj$")
+    for proj in tree(ref, "6-msa"):
+        m = proj_re.match(proj)
+        if not m:
+            continue
+        owner = m.group(1)
+        body = show(ref, proj)
+        for inc in re.findall(r'Include="([^"]+)"', body):
+            norm = inc.replace("\\", "/")
+            if "Shared/" in norm:
+                continue
+            other = re.search(r"BC-([^/]+)/", norm)
+            if other and other.group(1) != owner:
+                viol.append(f"{proj} -> BC-{other.group(1)}")
+    if not viol:
+        ok("9) изоляция тестов: нет ссылок на чужой BC", "0 (Shared разрешён)")
+    else:
+        for v in sorted(set(viol)):
+            print(f"::error::ADR-028 §1.1: ссылка на чужой BC в тестах — {v}")
+        bad("9) изоляция тестов: нет ссылок на чужой BC", f"{len(set(viol))} проект(ов)")
+
+    checks = 9
     if failures == 0:
         print(f"REF={ref} | PASS: ADR-028 {checks}/{checks} | режим --{mode}")
         return 0
