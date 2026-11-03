@@ -5,8 +5,12 @@
 Зачем: шаблон ADR есть, но «написали по шаблону» проверяется только глазами. Этот гейт
 ловит новые ADR без обязательных разделов: варианты (>=3), протокол по ролям, комплаенс.
 
-Проверяются ТОЛЬКО новые ADR (дата >= --since). Старые не трогаем: 24 ADR писались до
-шаблона, и красить их — значит сделать гейт вечно красным (дефект гейта, §5.4).
+Критерий «новый/старый» ОДИН — дата создания файла в git (`git log --diff-filter=AR`,
+а не поле «Дата»: его можно сдвинуть при правке). ADR, созданный раньше `--cutoff`
+(по умолчанию 2026-11-08), при правке даёт предупреждения, а не ошибки — иначе правка
+одной ссылки в старом ADR требовала бы переписать весь документ (дефект гейта, §5.4).
+`--since` — алиас для совместимости с документацией, но значение МЕНЬШЕ нормы не
+принимается: иначе «новыми» станут все 23 старых ADR и гейт покраснеет на истории.
 
 КОПИЯ в проекте: источник правды — LoopMaker/tools/check_adr.py.
 """
@@ -177,9 +181,12 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Гейт формата ADR")
     ap.add_argument("--dir", default=None, help="папка ADL (по умолчанию 04-architecture/ADL)")
-    ap.add_argument("--cutoff", "--since", dest="cutoff", default=CUTOFF_DEFAULT,
-                    help="ADR, созданные раньше этой даты, грандфазерятся (warning). "
-                         "--since — алиас для совместимости с документацией (AGENTS §5.2)")
+    ap.add_argument("--cutoff", default=None,
+                    help="порог: ADR, созданные раньше, грандфазерятся (warning). "
+                         "По умолчанию %s" % CUTOFF_DEFAULT)
+    ap.add_argument("--since", default=None,
+                    help="алиас --cutoff для совместимости (AGENTS §5.2); значение меньше "
+                         "нормы %s не принимается" % CUTOFF_DEFAULT)
     ap.add_argument("--strict", action="store_true", help="предупреждения считать ошибками")
     ap.add_argument("--range", default=None,
                     help="git-диапазон (a..b): проверять только изменённые ADR")
@@ -211,7 +218,19 @@ def main():
             print("check_adr: в диапазоне %s изменённых ADR нет" % args.range)
             return 0
 
-    cutoff = datetime.date.fromisoformat(args.cutoff)
+    norm = datetime.date.fromisoformat(CUTOFF_DEFAULT)
+    if args.cutoff:
+        cutoff = datetime.date.fromisoformat(args.cutoff)
+    elif args.since:
+        cutoff = datetime.date.fromisoformat(args.since)
+        if cutoff < norm:
+            print("check_adr: --since %s раньше нормы %s — тогда «новыми» станут все старые "
+                  "ADR и гейт покраснеет на истории (это дефект гейта, §5.4). "
+                  "Если действительно нужен строгий прогон — используй --cutoff %s"
+                  % (cutoff, norm, cutoff))
+            return 2
+    else:
+        cutoff = norm
     cmap = creation_map(adr_dir)
     checked = skipped = downgraded = 0
     bad = 0
