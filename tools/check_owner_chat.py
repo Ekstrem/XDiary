@@ -22,6 +22,7 @@ rebase-состояния), поэтому проверка механическ
 """
 import argparse
 import datetime
+import os
 import re
 import subprocess
 import sys
@@ -53,6 +54,8 @@ def main():
     ap.add_argument("--ref", default="origin/main")
     ap.add_argument("--sla", type=int, default=10, help="минут, после которых отсутствие в origin = дефект")
     ap.add_argument("--now", default=None, help="для тестов: 'YYYY-MM-DD HH:mm'")
+    ap.add_argument("--all", action="store_true",
+                    help="проверить ВСЕ файлы чата, а не только ex.md (D-16 повторился у @TL)")
     a = ap.parse_args()
 
     try:
@@ -66,42 +69,50 @@ def main():
     if dirty:
         warnings.append("грязные файлы чата (%d): %s" % (len(dirty), ", ".join(d.split()[-1] for d in dirty[:6])))
 
-    path = "%s/%s" % (CHAT_DIR, OWNER)
-    local = []
-    try:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            local = [l for l in f.read().splitlines() if STAMP.match(l)]
-    except OSError:
-        print("check_owner_chat: нет файла %s" % path)
-        return 0
-
-    remote = {l for l in origin_text(a.ref, path).splitlines() if STAMP.match(l)}
-    missing = [l for l in local if l not in remote]
-
     now = datetime.datetime.strptime(a.now, "%Y-%m-%d %H:%M") if a.now else datetime.datetime.now()
 
-    for line in missing:
-        m = STAMP.match(line)
+    if a.all:
+        files = sorted(n for n in os.listdir(CHAT_DIR) if n.endswith(".md"))
+    else:
+        files = [OWNER]
+
+    total_local = total_missing = 0
+    for name in files:
+        path = "%s/%s" % (CHAT_DIR, name)
+        local = []
         try:
-            when = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
-        except ValueError:
-            failures.append("нечитаемая метка: %s" % line[:60])
+            with open(path, encoding="utf-8", errors="replace") as f:
+                local = [l for l in f.read().splitlines() if STAMP.match(l)]
+        except OSError:
             continue
-        age = (now - when).total_seconds() / 60.0
-        # часы чата идут впереди машинных — отрицательный возраст означает «свежая», не ошибка
-        if age > a.sla:
-            failures.append("строка отсутствует в %s и старше %d мин (%.0f): %s"
-                            % (a.ref, a.sla, age, line[:90]))
-        else:
-            warnings.append("строка ещё не в %s (%.0f мин, в пределах SLA): %s"
-                            % (a.ref, age, line[:70]))
+        remote = {l for l in origin_text(a.ref, path).splitlines() if STAMP.match(l)}
+        missing = [l for l in local if l not in remote]
+        total_local += len(local)
+        total_missing += len(missing)
+        if missing:
+            warnings.append("%s: строк локально %d, в %s нет %d" % (name, len(local), a.ref, len(missing)))
+        for line in missing:
+            m = STAMP.match(line)
+            try:
+                when = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M")
+            except ValueError:
+                failures.append("%s: нечитаемая метка: %s" % (name, line[:60]))
+                continue
+            age = (now - when).total_seconds() / 60.0
+            # часы чата идут впереди машинных — отрицательный возраст = «свежая», не ошибка
+            if age > a.sla:
+                failures.append("%s: строка отсутствует в %s и старше %d мин (%.0f): %s"
+                                % (name, a.ref, a.sla, age, line[:80]))
+            else:
+                warnings.append("%s: строка ещё не в %s (%.0f мин, в пределах SLA): %s"
+                                % (name, a.ref, age, line[:60]))
 
-        if CODE.search(line) or PHONE.search(line):
-            failures.append("§6: в несохранённой строке есть код/номер — коммитить нельзя: %s"
-                            % line[:90])
+            if CODE.search(line) or PHONE.search(line):
+                failures.append("%s: §6 — в несохранённой строке есть код/номер: %s"
+                                % (name, line[:80]))
 
-    print("check_owner_chat: строк владельца локально %d, в %s %d, отсутствуют %d"
-          % (len(local), a.ref, len(remote), len(missing)))
+    print("check_owner_chat: проверено файлов %d, строк локально %d, отсутствуют в %s %d"
+          % (len(files), total_local, a.ref, total_missing))
     for w in warnings:
         print("  ~ %s" % w)
     for f in failures:
