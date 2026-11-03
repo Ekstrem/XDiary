@@ -1,13 +1,22 @@
 namespace Partners.Storage;
-using Microsoft.EntityFrameworkCore;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
+using Partners.Domain;
 using Partners.InternalContracts;
+
 public sealed class PartnerReadRepository : IPartnersQueryRepository
 {
-    private readonly ReadDbContext _db;
-    public PartnerReadRepository(ReadDbContext db) => _db = db;
+    private readonly IReadRepository<IPartners, PartnersReadModel> _read;
+    public PartnerReadRepository(IReadRepository<IPartners, PartnersReadModel> read) => _read = read;
+
     public async Task<PartnersReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    { var e = await _db.Partners.FirstOrDefaultAsync(x => x.Id == id, ct); return e is null ? null : PartnerMapper.MapToReadModel(e); }
+        => await _read.GetByIdAsync(id, ct);
+
     public async Task<IReadOnlyList<PartnersReadModel>> ListAsync(Guid clientId, CancellationToken ct = default)
-        => (await _db.Partners.AsNoTracking().Where(x => x.ClientId == clientId).OrderBy(x => x.Name).ToListAsync(ct)).Select(PartnerMapper.MapToReadModel).ToList();
-    public async Task<int> CountAsync(CancellationToken ct = default) => await _db.Partners.CountAsync(ct);
+    {
+        var all = await _read.GetAllAsync(null!, ct);
+        return all.Where(x => x.ClientId == clientId).ToList();
+    }
+
+    public async Task<int> CountAsync(CancellationToken ct = default)
+        => (int)await _read.CountAsync(ct);
 }
