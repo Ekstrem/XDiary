@@ -11,6 +11,9 @@ on:
 
 permissions:
   contents: write
+  # Метрика «дошедшие до шагов» читает /actions/runs/<id>/jobs — без actions: read
+  # API отвечает 403, и дашборд честно показывал «нет данных» (@LM 08:43).
+  actions: read
 
 concurrency:
   group: health
