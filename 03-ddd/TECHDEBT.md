@@ -86,6 +86,13 @@
 - **Сделано:** ADR-024 переведён в **Принято** (решение делегировано владельцем). Обновлены `00-context-map.md` (Privacy — часть `Client`, Client→Partners = scope владения), `BC-Client/02` (профиль `displayName`/`gender`/`photo?`, `LinkedPartnerId` удалён, состояния `CompleteProfile`/`UpdateProfile`), `BC-Privacy/01` (пометка «часть `Client`»), `BC-Partners/02` (`clientId` опционален), `BC-Journal/02` (владение + инварианты + `orgasms`-словарь), `01-entity-map.md` §4 (дельта внесена).
 - **Остаток (не долг, а работы):** реализация в коде — `BE-054` (E7) и `FE-038`; после них — проверка владельцем по чек-листу ADR-024 §6.
 
+### 16. Справочник пола реализован дважды (Client и Partners) — P3
+- **Суть:** `GenderEnumValidator` (`internal`, `BC-Partners`) и inline-логика в `Client.Aggregate.UpdateProfile` — одно и то же правило (`Trim().ToLowerInvariant()` → `male`/`female`) в двух местах. `00-context-map.md` §Shared Kernel говорит, что справочник пола **общий** для Журнала/Партнёров/Каталога.
+- **Риск:** низкий сейчас, средний при третьем BC: расширение словаря (если владелец когда-нибудь скажет «добавить значение») потребует правки N мест, и одно из них забудут — ровно класс «два источника правды».
+- **Приоритет:** P3 (не мешает; фиксируется, чтобы не выяснять заново).
+- **Что сделать при касании:** один примитив (`Gender` с `Normalize`/`TryParse`) в `Shared/XDiary.Contracts` **или** один список значений + per-BC валидатор, ссылающийся на него. Решение — при появлении третьего потребителя, отдельным ADR (это про Shared Kernel, не про косметику).
+- **Проверка:** `git grep -c "male.*female"` по `6-msa` — если 3+, пора.
+
 ## Маркеры в коде (TODO/FIXME/HACK)
 - Скан `6-msa`/`8-front`/`7-deploy`/`9-tests`: **0 маркеров** (TODO/FIXME/HACK в коде нет).
 - `tools/` — 3 совпадения, но это false positives: `chat_lint.py` (`TODO-*.md` — паттерн имён файлов), `sync_board.py` (`Todo` — колонка доски).
