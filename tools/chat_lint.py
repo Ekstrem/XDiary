@@ -330,6 +330,35 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
             future.append((name, raw, int(lag.total_seconds() // 3600)))
     return future, order
 
+def scan_invalid_times(chat_dir, known_roles):
+    """Метки с невозможным временем (час > 23, минута > 59).
+
+    Почему отдельно от scan_times: `strptime("%H:%M")` на `25:30` бросает ValueError,
+    а scan_times такие строки **молча пропускает** (`except ValueError: continue`) —
+    то есть гейт их не видел вообще. Практика 2026-11-11: пятнадцать строк с `24:00`,
+    `24:30`, `25:00`, `25:30` прошли все проверки, включая сортировку по времени.
+
+    Возвращает [(файл, метка)].
+    """
+    bad = []
+    stamp = re.compile(r"^-\s*\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\]")
+    for name in sorted(os.listdir(chat_dir)):
+        if not name.endswith(".md") or name.lower() in SKIP:
+            continue
+        if name[:-3].lower() not in known_roles:
+            continue
+        with open(os.path.join(chat_dir, name), encoding="utf-8-sig") as handle:
+            for line in handle:
+                m = stamp.match(line.strip())
+                if not m:
+                    continue
+                _, month, day, hour, minute = m.groups()
+                if int(hour) > 23 or int(minute) > 59 or not (1 <= int(month) <= 12) \
+                        or not (1 <= int(day) <= 31):
+                    bad.append((name, m.group(0)[3:-1]))
+    return bad
+
+
 def notice(role, titles, line, now):
     author = titles.get(role, role.upper())
     short = line if len(line) <= 160 else line[:157] + "..."
@@ -441,6 +470,7 @@ def main():
     # «будущим». Вне CI (машина в TZ проекта) остаётся сравнение с текущим временем —
     # там оно осмысленно и ловит метку, уехавшую вперёд по ошибке.
     # Шкала чата — канон и локально, и в CI: сравниваем с максимумом по чату и по часам.
+    invalid = scan_invalid_times(chat_dir, set(titles.keys()))
     future, order = scan_times(chat_dir, set(titles.keys()), now_project, tolerance, shift,
                                use_clock=False)
 
@@ -463,7 +493,12 @@ def main():
                 print("  %s: %s — на %d ч впереди шкалы" % (name, raw, days))
             for name, raw, prev in order[:5]:
                 print("  %s: %s после %s — порядок нарушен" % (name, raw, prev))
-        bad = problems or ((future or order) and args.strict_times)
+        if invalid:
+            print("невалидное время: %d (час/минута вне диапазона) — это ошибка, не предупреждение"
+                  % len(invalid))
+            for name, raw in invalid[:10]:
+                print("  %s: [%s] — час 0–23, минута 0–59" % (name, raw))
+        bad = problems or bool(invalid) or ((future or order) and args.strict_times)
         return 1 if bad and args.check else 0
 
     if not fresh:
