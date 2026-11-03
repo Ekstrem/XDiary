@@ -59,15 +59,31 @@ public sealed class ClientStandApi : IDisposable
 
     /// <summary>
     /// TE-038: маршрут привязки — ПОД авторизацией (проверено на dev: без токена 401, с токеном 200).
-    /// Фронт вызывает его так же — `8-front/js/api.js` `linkClient()` идёт через `post()` с Bearer.
-    /// Без токена привязка молча не происходит, а `linkedPartnerId` остаётся null — именно это
-    /// держало журнал закрытым в `onboarding`/`pin-first-login`.
+    /// ADR-024/E7: смысл меняется («я» — профиль, а не партнёр), поэтому метод используется
+    /// тестом ПЕРЕХОДА состояний и возвращает и заголовок `Deprecation`, если он есть.
     /// </summary>
-    public async Task<(HttpStatusCode Status, JsonElement Body)> LinkPartnerAsync(Guid clientId, Guid partnerId, string accessToken)
+    public async Task<(HttpStatusCode Status, string? Deprecation)> LinkPartnerAsync(Guid clientId, Guid partnerId, string accessToken)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, $"api/v1/clients/{clientId}/link-partner")
         {
             Content = JsonContent.Create(new { partnerId }),
+        };
+        if (!string.IsNullOrEmpty(accessToken))
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var resp = await _http.SendAsync(req);
+        return (resp.StatusCode, resp.Headers.TryGetValues("Deprecation", out var v) ? string.Join(",", v) : null);
+    }
+
+    /// <summary>
+    /// ADR-024: профиль «я» (displayName/gender) заменяет привязку к партнёру.
+    /// Маршрут пробуем по канону `/api/v1/clients/me/profile`; если в контракте его ещё нет,
+    /// тест скажет об этом `::warning::`, а не «зеленеет впустую».
+    /// </summary>
+    public async Task<(HttpStatusCode Status, JsonElement Body)> UpdateProfileAsync(string accessToken, string displayName, string gender)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "api/v1/clients/me/profile")
+        {
+            Content = JsonContent.Create(new { displayName, gender }),
         };
         if (!string.IsNullOrEmpty(accessToken))
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
