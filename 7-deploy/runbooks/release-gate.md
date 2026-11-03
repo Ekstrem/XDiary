@@ -166,3 +166,20 @@ for i in $(seq 1 18); do
 done
 echo "health: $code"
 ```
+
+### Литералы в .NET-сборке — только UTF-16, иначе «0» врёт
+
+`grep -a 'male' Client.Domain.dll` даёт **0** даже когда литерал есть: в .NET строки
+хранятся в **UTF-16LE** (`m\0a\0l\0e\0`), а `grep` ищет ASCII. Второй капкан: `strings`
+в runtime-образе **нет** — команда не найдена, вывод пустой, и это легко прочитать как
+«совпадений нет».
+
+Правильный способ — UTF-16-паттерн в `grep -P`, **всегда с контрольной строкой**:
+
+```bash
+podman exec xdiary-client sh -c 'grep -acP "m\x00a\x00l\x00e\x00" /app/Client.Domain.dll'   # ожидание 1
+podman exec xdiary-client sh -c 'grep -ac "UpdateProfile" /app/Client.Domain.dll'               # КОНТРОЛЬ: 1
+```
+
+Контроль обязателен: без него «0» не отличает «нет литерала» от «команда не сработала» —
+это тот же класс ошибки, что «вердикт по тексту вместо `rc`».
