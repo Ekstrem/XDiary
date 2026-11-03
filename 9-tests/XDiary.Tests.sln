@@ -35,6 +35,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Contract.ClientJournal", "C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ContractClientJournal.IntegrationTests", "Contract.ClientJournal\ContractClientJournal.IntegrationTests\ContractClientJournal.IntegrationTests.csproj", "{B4334475-3167-4B29-A244-76BA35BE0025}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Gateways.Api", "Gateways.Api", "{DA667AF1-6801-43F2-B63F-D87C8D51BB48}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GatewaysApi.IntegrationTests", "Gateways.Api\GatewaysApi.IntegrationTests\GatewaysApi.IntegrationTests.csproj", "{5787A005-88A1-4470-A274-87AF7B9C2C41}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -76,6 +80,10 @@ Global
 		{B4334475-3167-4B29-A244-76BA35BE0025}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B4334475-3167-4B29-A244-76BA35BE0025}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B4334475-3167-4B29-A244-76BA35BE0025}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5787A005-88A1-4470-A274-87AF7B9C2C41}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5787A005-88A1-4470-A274-87AF7B9C2C41}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5787A005-88A1-4470-A274-87AF7B9C2C41}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5787A005-88A1-4470-A274-87AF7B9C2C41}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{63FB5641-B76A-4A37-B8B5-E73D53C474A1} = {ABEF719D-9F1E-493B-8C38-3CD450CEB760}
@@ -86,5 +94,6 @@ Global
 		{D93C1BD7-9284-44C5-8B75-9101D39BCDC2} = {CDA60202-979B-4529-98FF-82731CB6B6EE}
 		{E81C661D-20C2-45CF-81F7-649980FE235A} = {2BC9CD0F-06CC-4C4B-BA60-2A3E9F44A562}
 		{B4334475-3167-4B29-A244-76BA35BE0025} = {F21D40AB-9A51-49C4-8F24-91B255902FBF}
+		{5787A005-88A1-4470-A274-87AF7B9C2C41} = {DA667AF1-6801-43F2-B63F-D87C8D51BB48}
 	EndGlobalSection
 EndGlobal
