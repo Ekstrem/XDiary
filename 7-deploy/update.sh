@@ -9,7 +9,14 @@ TAG="${1:-single}"
 cd /opt/xdiary/7-deploy || exit 1
 HASHFILE="$HOME/.xdiary-images.sha256"
 
-GEN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gen-hosts.py"
+# генератор может лежать в трёх местах: рядом со скриптом, в tools/ репозитория
+# или в развёрнутом /opt/xdiary/tools. Ищем первый существующий, чтобы скрипт
+# не зависел от того, как именно разложен деплой.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GEN=""
+for cand in "$HERE/gen-hosts.py" "$HERE/../tools/gen-hosts.py" "/opt/xdiary/tools/gen-hosts.py"; do
+  if [ -f "$cand" ]; then GEN="$cand"; break; fi
+done
 SVCS="$(python3 "$GEN" --svcs 2>/dev/null || true)"
 if [ -z "$SVCS" ]; then
   echo "update.sh: не смог получить список сервисов из $GEN — выхожу, чтобы не обновить неполный набор" >&2
@@ -17,11 +24,28 @@ if [ -z "$SVCS" ]; then
 fi
 echo "update.sh: сервисов $(echo "$SVCS" | wc -w) (из gen-hosts.py): $SVCS"
 
-for s in $SVCS; do
-  sudo podman pull "ghcr.io/ekstrem/xdiary-$s:$TAG" >/dev/null 2>&1 || true
+# P0 03.11: имя образа != `xdiary-<service>` (сервис `clients` -> образ `xdiary-client`).
+# Раньше здесь собиралось имя из сервиса, пулл `xdiary-clients` давал 403, ошибка
+# глоталась `|| true`, и контейнер клиента 33 часа жил на старом образе.
+IMAGES="$(python3 "$GEN" --images 2>/dev/null || true)"
+if [ -z "$IMAGES" ]; then
+  echo "update.sh: не смог получить образы из $GEN — выхожу" >&2
+  exit 1
+fi
+# Страховка от дрейфа compose на сервере: если развёрнутый podman-compose.yml
+# старее репозитория и в нём нет сервиса `clients`, генератор не вернёт образ
+# клиента. Именно так прод 33 часа жил на старом образе. Добавляем явно.
+case " $IMAGES " in
+  *"xdiary-client:"*) ;;
+  *) IMAGES="$IMAGES ghcr.io/ekstrem/xdiary-client:$TAG"
+     echo "update.sh: compose на диске без clients — образ клиента добавлен явно" >&2 ;;
+esac
+
+for img in $IMAGES; do
+  podman pull "$img" >/dev/null 2>&1 || echo "update.sh: pull не удался: $img" >&2
 done
 
-NEWHASH=$(for s in $SVCS; do sudo podman image inspect "ghcr.io/ekstrem/xdiary-$s:$TAG" --format '{{.Id}}' 2>/dev/null; done | sha256sum | cut -d' ' -f1)
+NEWHASH=$(for img in $IMAGES; do podman image inspect "$img" --format '{{.Id}}' 2>/dev/null; done | sha256sum | cut -d' ' -f1)
 OLDHASH=$(cat "$HASHFILE" 2>/dev/null || echo "")
 if [ "$NEWHASH" != "$OLDHASH" ]; then
   echo "$(date +%F_%T) image change detected, redeploying" >> "$HOME/update.log"

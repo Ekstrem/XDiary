@@ -11,6 +11,7 @@
 
 Запуск:
   python tools/gen-hosts.py --svcs       # "journal partners ... clients"
+  python tools/gen-hosts.py --images     # образы ИЗ COMPOSE (clients -> xdiary-client)
   python tools/gen-hosts.py --add-host   # "--add-host journal:10.89.9.20 ..."
   python tools/gen-hosts.py --check      # сверить, что все compose-сервисы имеют IP
 """
@@ -35,6 +36,39 @@ SERVICE_IPS = {
     "api-gateway": "10.89.9.30",
     "clients": "10.89.9.31",
 }
+
+
+def compose_images():
+    """Карта service -> image из compose. Причина (P0 03.11): имя образа НЕ всегда
+    равно `xdiary-<service>` — сервис `clients` использует образ `xdiary-client`.
+    `update.sh` собирал имя из сервиса и получал 404 на пулле (ошибка глоталась
+    `|| true`), поэтому контейнер клиента 33 часа жил на старом образе, и правки
+    @BE не доезжали до прода."""
+    text = open(COMPOSE, encoding="utf-8").read()
+    try:
+        import yaml
+
+        svcs = yaml.safe_load(text).get("services", {}) or {}
+        return {k: (v or {}).get("image", "") for k, v in svcs.items() if (v or {}).get("image")}
+    except ImportError:
+        pass
+    import re
+
+    images, cur, in_services = {}, None, False
+    for line in text.splitlines():
+        if line.rstrip() == "services:":
+            in_services = True
+            continue
+        if not in_services:
+            continue
+        m = re.match(r"^  ([a-z0-9-]+):\s*$", line)
+        if m:
+            cur = m.group(1)
+            continue
+        m = re.match(r"^\s+image:\s*(\S+)", line)
+        if m and cur:
+            images[cur] = m.group(1).strip('"\'')
+    return images
 
 
 def compose_services():
@@ -88,6 +122,9 @@ def main():
     if "--add-host" in args:
         # шлюзу не нужен --add-host на самого себя
         print(" ".join(f"--add-host {s}:{SERVICE_IPS[s]}" for s in svcs if s != "api-gateway"))
+    elif "--images" in args:
+        imgs = compose_images()
+        print(" ".join(imgs[s] for s in svcs if s in imgs))
     elif "--svcs" in args:
         print(" ".join(svcs))
     else:
