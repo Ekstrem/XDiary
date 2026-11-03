@@ -25,4 +25,13 @@ public class JournalReadRepositoryTests
         Assert.Single(list);
         Assert.Equal("2026-11-09T10:00:00", list[0].StartedAt);
     }
+    [Fact]
+    public async Task ListAsync_PartnerParticipant_DoesNotSeeRecord()
+    {
+        var owner = Guid.NewGuid(); var partner = Guid.NewGuid();
+        var repo = CreateRepo(
+            new RecordEntity { Id = Guid.NewGuid(), ClientId = owner, PartnersJson = "[\"participant\"]", StartedAt = "2026-11-09T10:00:00" });
+        var list = await repo.ListAsync(partner, null, null);
+        Assert.Empty(list);
+    }
 }
