@@ -16,12 +16,9 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\6-msa\BC-SomaticSeries\src\SomaticSeries.Domain\SomaticSeries.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-SomaticSeries\src\SomaticSeries.Storage\SomaticSeries.Storage.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-SomaticSeries\src\SomaticSeries.InternalContracts\SomaticSeries.InternalContracts.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-DailyMetrics\src\DailyMetrics.Domain\DailyMetrics.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-DailyMetrics\src\DailyMetrics.Storage\DailyMetrics.Storage.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-DailyMetrics\src\DailyMetrics.InternalContracts\DailyMetrics.InternalContracts.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
+    <ProjectReference Include="..\..\DailyMetrics.Domain\DailyMetrics.Domain.csproj" />
+    <ProjectReference Include="..\..\DailyMetrics.Storage\DailyMetrics.Storage.csproj" />
+    <ProjectReference Include="..\..\DailyMetrics.InternalContracts\DailyMetrics.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>

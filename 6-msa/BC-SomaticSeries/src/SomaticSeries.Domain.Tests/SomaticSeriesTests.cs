@@ -3,13 +3,9 @@ using DigiTFactory.Libraries.SeedWorks.Result;
 using SomaticSeries.Domain;
 using SomaticSeries.Domain.Abstraction;
 using SomaticSeries.Domain.Implementation;
-using SomaticSeries.InternalContracts;
-using SomaticSeries.Storage;
 using Xunit;
 
-namespace XDiary.Tests.SomaticDaily;
-
-/// <summary>TE-003: somatic-series — минутная гранулярность + срез/точки (Command → Query → Assert).</summary>
+/// <summary>TE-003: somatic-series — минутная гранулярность + срез/точки (Command → Aggregate → Assert).</summary>
 public class SomaticSeriesTests
 {
     private static ISomaticSeriesAnemicModel Record(string t, int hr, int bb)
@@ -19,20 +15,13 @@ public class SomaticSeriesTests
         return r.Model();
     }
 
-    private static SomaticSeriesReadModel ToRead(ISomaticSeriesAnemicModel m)
-    {
-        var e = new SomaticPointEntity();
-        SomaticSeriesMapper.MapToEntity(m, e);
-        return SomaticSeriesMapper.MapToReadModel(e);
-    }
-
     [Fact]
     public void RecordPoint_MinuteGranularity_Query_Returns()
     {
-        var read = ToRead(Record("2026-10-29T21:03", 72, 85));
-        Assert.Equal("2026-10-29T21:03", read.T);
-        Assert.Equal(72, read.Hr);
-        Assert.Equal(85, read.BodyBattery);
+        var model = Record("2026-10-29T21:03", 72, 85);
+        Assert.Equal("2026-10-29T21:03", model.Root.T);
+        Assert.Equal(72, model.Hr);
+        Assert.Equal(85, model.BodyBattery);
     }
 
     [Theory]

@@ -15,12 +15,9 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\6-msa\BC-Partners\src\Partners.Domain\Partners.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-Partners\src\Partners.Storage\Partners.Storage.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-Partners\src\Partners.InternalContracts\Partners.InternalContracts.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-Catalog\src\Catalog.Domain\Catalog.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-Catalog\src\Catalog.Storage\Catalog.Storage.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-Catalog\src\Catalog.InternalContracts\Catalog.InternalContracts.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
+    <ProjectReference Include="..\..\Catalog.Domain\Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\Catalog.Storage\Catalog.Storage.csproj" />
+    <ProjectReference Include="..\..\Catalog.InternalContracts\Catalog.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>

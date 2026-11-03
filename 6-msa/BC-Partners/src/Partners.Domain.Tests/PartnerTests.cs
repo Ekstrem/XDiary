@@ -3,13 +3,9 @@ using DigiTFactory.Libraries.SeedWorks.Result;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
 using Partners.Domain.Implementation;
-using Partners.InternalContracts;
-using Partners.Storage;
 using Xunit;
 
-namespace XDiary.Tests.PartnersCatalog;
-
-/// <summary>TE-002: partners — CRUD + пол (gender), Command → Query → Assert.</summary>
+/// <summary>TE-002: partners — CRUD + пол (gender), Command → Aggregate → Assert.</summary>
 public class PartnerTests
 {
     private static IPartnerAnemicModel Register(string name)
@@ -17,13 +13,6 @@ public class PartnerTests
         var r = Aggregate.CreateInstance(new AnemicModel()).Register(name, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         return r.Model();
-    }
-
-    private static PartnersReadModel ToRead(IPartnerAnemicModel m)
-    {
-        var e = new PartnerEntity();
-        PartnerMapper.MapToEntity(m, e);
-        return PartnerMapper.MapToReadModel(e);
     }
 
     [Fact]
@@ -36,8 +25,8 @@ public class PartnerTests
     [Fact]
     public void Register_ValidName_Query_Returns()
     {
-        var read = ToRead(Register("Аня"));
-        Assert.Equal("Аня", read.Name);
+        var model = Register("Аня");
+        Assert.Equal("Аня", model.Root.Name);
     }
 
     [Theory]
@@ -54,15 +43,13 @@ public class PartnerTests
     [Fact]
     public void Register_UpdateProfile_Query_ReturnsAllFields()
     {
-        var model = Register("Аня");
-        model = Aggregate.CreateInstance(model)
+        var model = Aggregate.CreateInstance(Register("Аня"))
             .UpdateProfile("data:image/png;base64,AAA", "female", "любит нежность").Model();
 
-        var read = ToRead(model);
-        Assert.Equal("Аня", read.Name);
-        Assert.Equal("female", read.Gender);
-        Assert.Equal("любит нежность", read.Notes);
-        Assert.Equal("data:image/png;base64,AAA", read.Photo);
+        Assert.Equal("Аня", model.Root.Name);
+        Assert.Equal("female", model.Gender);
+        Assert.Equal("любит нежность", model.Notes);
+        Assert.Equal("data:image/png;base64,AAA", model.Photo);
     }
 
     [Fact]
@@ -76,7 +63,7 @@ public class PartnerTests
     public void Rename_ValidName_Updates()
     {
         var model = Aggregate.CreateInstance(Register("Аня")).Rename("Анюта").Model();
-        Assert.Equal("Анюта", ToRead(model).Name);
+        Assert.Equal("Анюта", model.Root.Name);
     }
 
     [Fact]
