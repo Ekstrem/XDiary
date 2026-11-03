@@ -1,0 +1,62 @@
+# APIM этап 1 (DO-056): Gravitee CE как CONTROL PLANE, ВНЕ пути запросов.
+#
+# Почему так: трафик остаётся `Funnel → YARP → сервисы`; APIM нужен для импорта
+# `openapi/*.json`, жизненного цикла версий и drift-check. Падение APIM не влияет
+# на продукт — деградация «по умолчанию», а не «по команде» (@TL 05:40, ADR-023).
+#
+# Лимиты памяти — из замера @DO 05:25 (ES 875 / Mongo 99 / Gateway 489 / Management 496 МБ).
+# Elasticsearch в этап 1 НЕ входит: для маршрутизации он не нужен, а это +875 МБ.
+#
+# Запуск (rootless podman на VPS-1):
+#   cd /opt/xdiary/7-deploy/apim && podman-compose -f gravitee-compose.yml up -d
+name: xdiary-apim
+
+services:
+  mongo:
+    image: docker.io/library/mongo:6
+    container_name: xdiary-apim-mongo
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
+    mem_limit: 512m
+    restart: unless-stopped
+    volumes:
+      - apim-mongo-data:/data/db
+    networks: [apim]
+
+  management-api:
+    image: docker.io/graviteeio/apim-management-api:4.4
+    container_name: xdiary-apim-management
+    mem_limit: 512m
+    restart: unless-stopped
+    depends_on: [mongo]
+    environment:
+      gravitee_management_mongodb_uri: mongodb://xdiary-apim-mongo:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000
+      gravitee_analytics_type: none
+      gravitee_reporters_elasticsearch_enabled: "false"
+      gravitee_services_core_http_port: "8073"   # node-management, НЕ 8083 (там HTTP API)
+    # порт НЕ публикуем в интернет: только loopback для проверки состояния
+    ports:
+      - "127.0.0.1:18083:8083"
+    networks: [apim]
+
+  gateway:
+    image: docker.io/graviteeio/apim-gateway:4.4
+    container_name: xdiary-apim-gateway
+    mem_limit: 512m
+    restart: unless-stopped
+    depends_on: [mongo]
+    environment:
+      gravitee_management_mongodb_uri: mongodb://xdiary-apim-mongo:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000
+      gravitee_analytics_type: none
+      gravitee_reporters_elasticsearch_enabled: "false"
+      gravitee_services_core_http_port: "8072"   # node-management, НЕ 8082 (там прокси)
+      gravitee_http_port: "8082"                  # прокси-слушатель gateway
+    ports:
+      - "127.0.0.1:18082:8082"
+    networks: [apim]
+
+volumes:
+  apim-mongo-data:
+
+networks:
+  apim:
+    driver: bridge
