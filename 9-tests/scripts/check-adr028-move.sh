@@ -62,6 +62,12 @@ contract_out=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E 
 if [ -z "$shared" ] && [ -z "$contract_out" ]; then
   ok '2) общих тестовых бакетов нет' 'ни E2E, ни ApiTests, ни Contract.<A>_<B>'
 else
+  # Строгая формулировка (@TL 2026-11-14 10:10): ошибка называет каждый запрещённый путь,
+  # чтобы её можно было грепать и чтобы было видно, какая именно форма вернулась.
+  for p in $shared; do
+    echo "::error::ADR-028 §3.1: общая тестовая папка запрещена — $p"
+  done
+  [ -n "$contract_out" ] && echo "::error::ADR-028 §3.1: каталог Contract.<A>_<B> запрещён — $contract_out"
   bad '2) общих тестовых бакетов нет' "есть:${shared}${contract_out:+ contract: $contract_out}"
 fi
 
