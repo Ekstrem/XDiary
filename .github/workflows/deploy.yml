@@ -147,12 +147,16 @@ jobs:
           TAG_INPUT: ${{ inputs.tag }}
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
+        env:
+          CODE_TS: ${{ github.event.head_commit.timestamp }}
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG
+          envs: TAG,CODE_TS
           script: |
+            # DO-050: передаём время коммита, чтобы update.sh мог проверить
+            # «образ не старше кода» — иначе success означает «не тот код».
             bash /home/deploy/update.sh "$TAG"
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo PROD_OK

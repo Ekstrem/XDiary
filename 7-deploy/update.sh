@@ -15,9 +15,17 @@
 #   bash update.sh [tag] [--dry-run]
 #   bash update.sh --rollback <service> <image-id>
 set -uo pipefail
-TAG="${1:-single}"
-DRY=0
-[ "${2:-}" = "--dry-run" ] && DRY=1
+SELF_TEST_AGE=0
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --self-test-age) SELF_TEST_AGE=1 ;;
+    --dry-run) DRY=1 ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
+TAG="${ARGS[0]:-single}"
+DRY="${DRY:-0}"
 
 DEPLOY_DIR=/opt/xdiary/7-deploy
 DEPLOY_SH=/home/deploy/deploy.sh
@@ -28,6 +36,24 @@ DEPLOY_HASH_FILE="$HOME/.xdiary-deploy-sh.sha256"
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'update.sh: ОШИБКА: %s\n' "$*" >&2; exit 1; }
+
+# DO-050 (запрос @TL 21:02): «success» не должен означать «не тот код».
+# Сравниваем ВРЕМЯ СБОРКИ образа с временем деплоимого коммита (CODE_TS из CI).
+verify_image_age() {
+  local svc="$1" img="$2" created created_epoch code_epoch
+  [ -n "${CODE_TS:-}" ] || return 0
+  code_epoch="$(date -d "$CODE_TS" +%s 2>/dev/null || echo 0)"
+  [ "$code_epoch" -gt 0 ] || return 0
+  created="$(podman image inspect "$img" --format '{{.Created}}' 2>/dev/null || true)"
+  [ -n "$created" ] || return 1
+  created_epoch="$(date -d "$(printf '%s' "$created" | sed -E 's/\.[0-9]+//; s/ UTC$//')" +%s 2>/dev/null || echo 0)"
+  [ "$created_epoch" -gt 0 ] || return 0
+  if [ "$created_epoch" -lt "$code_epoch" ]; then
+    say "  ВНИМАНИЕ: $svc — образ собран $(date -d "@$created_epoch" '+%Y-%m-%d %H:%M:%S'), а коммит $(date -d "@$code_epoch" '+%Y-%m-%d %H:%M:%S') → образ СТАРШЕ кода" >&2
+    return 1
+  fi
+  return 0
+}
 
 if [ "${1:-}" = "--rollback" ]; then
   svc="${2:-}"; img="${3:-}"
@@ -71,6 +97,19 @@ case " $IMAGES " in
      say "compose на диске без clients — образ клиента добавлен явно" >&2 ;;
 esac
 
+if [ "$SELF_TEST_AGE" = "1" ]; then
+  declare -F verify_image_age >/dev/null || die "нет функции verify_image_age — selftest бессмыслен"
+  CODE_TS="${SELF_TEST_CODE_TS:-2030-01-01T00:00:00Z}"
+  say "self-test: CODE_TS=$CODE_TS (будущее) — проверка обязана покраснеть"
+  IMG="$(printf '%s' "$IMAGES" | awk '{print $1}')"
+  if verify_image_age "selftest" "$IMG"; then
+    say "ПРОВАЛ: проверка возраста НЕ покраснела на будущем коммите"
+    exit 1
+  fi
+  say "OK: проверка возраста покраснела как должна"
+  exit 0
+fi
+
 # ---------- pull (обязателен) ----------
 PULL_FAILED=0
 if [ "$DRY" = "1" ]; then
@@ -97,10 +136,15 @@ for img in $IMAGES; do
     continue
   fi
   svc="$(printf '%s' "$img" | sed -E 's#.*/xdiary-([a-z-]+):.*#\1#')"
+  verify_image_age "$svc" "$img" || STALE_IMAGES="${STALE_IMAGES:-} $svc"
   CUR_IDS["$svc"]="$id"
   NEW_STATE="${NEW_STATE}${svc} ${id}"$'\n'
 done
 [ "$MISSING" -eq 0 ] || die "$MISSING образ(ов) не найдено — не деплою"
+
+if [ -n "${STALE_IMAGES:-}" ] && [ "$DRY" != "1" ]; then
+  die "образ(ы) старше кода:$STALE_IMAGES — деплой бессмысленен (это «success» на старом коде)"
+fi
 
 OLD_STATE="$(cat "$IDFILE" 2>/dev/null || true)"
 
