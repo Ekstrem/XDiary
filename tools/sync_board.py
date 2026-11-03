@@ -84,6 +84,25 @@ def rest(method, path, data=None, token=None):
         return None
 
 
+def rest_status(method, path, data=None, token=None):
+    """Как rest(), но возвращает HTTP-код: DELETE отдаёт 204 и пустое тело."""
+    req = urllib.request.Request(API + path, method=method)
+    req.add_header("Authorization", "Bearer " + (token or TOKEN))
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode("utf-8")
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, body) as resp:
+            resp.read()
+            return resp.status
+    except urllib.error.HTTPError as e:
+        e.read()
+        return e.code
+
+
 def graphql(query, variables, token):
     req = urllib.request.Request(API + "/graphql", method="POST")
     req.add_header("Authorization", "Bearer " + token)
@@ -179,8 +198,17 @@ def find_issue(task_id):
 
 
 def close_duplicates(issues):
-    """Закрыть лишние ОТКРЫТЫЕ issue с тем же task_id (канон — минимальный номер)."""
-    closed = 0
+    """Убрать лишние issue с тем же task_id.
+
+    DO-022 (@TL 2026-11-13 09:10): раньше дубликаты только **закрывались** и оставались
+    на доске навсегда — накопилось 1614 лишних issues (1851 при 237 карточках). Теперь:
+    дубликаты **удаляются**, если у токена есть право (`DELETE` → 204); если права нет
+    (GitHub отдаёт 404) — **закрываются** и пишется предупреждение один раз, чтобы гейт
+    не падал, но и «тихо зелёным» не был. Канон — открытый с минимальным номером,
+    иначе минимальный номер.
+    """
+    removed = closed = denied = 0
+    warned = False
     for i in issues:
         if i.get("pull_request"):
             continue
@@ -188,10 +216,26 @@ def close_duplicates(issues):
         if not tid:
             continue
         canon = ISSUE_INDEX.get(tid)
-        if canon and i["number"] != canon["number"] and i.get("state") == "open":
-            rest("PATCH", "/repos/%s/issues/%d" % (REPO, i["number"]),
-                 {"state": "closed", "labels": ["duplicate"]})
-            closed += 1
+        if not canon or i["number"] == canon["number"]:
+            continue
+        if i.get("state") == "open" and canon.get("state") != "open":
+            continue  # открытую не трогаем, если канон закрыт
+        st = rest_status("DELETE", "/repos/%s/issues/%d" % (REPO, i["number"]))
+        if st in (204, 200):
+            removed += 1
+            continue
+        if st == 404 and not warned:
+            print("  ! DELETE issue недоступен (404): у PAT нет Issues: write — "
+                  "дубликаты закрываю, а не удаляю (DO-022)")
+            warned = True
+        if st == 404:
+            denied += 1
+        rest("PATCH", "/repos/%s/issues/%d" % (REPO, i["number"]),
+             {"state": "closed", "labels": ["duplicate"]})
+        closed += 1
+    if removed or closed:
+        print("  дубликаты: удалено %d, закрыто %d%s"
+              % (removed, closed, " (нет права на удаление)" if denied else ""))
     return closed
 
 
