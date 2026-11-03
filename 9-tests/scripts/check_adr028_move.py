@@ -249,9 +249,9 @@ def main() -> int:
 
     checks = 10
     if failures == 0:
-        print(f"REF={ref} | PASS: ADR-028 {checks}/{checks} | режим --{mode}")
+        print(f"REF={ref} | PASS: ADR-028 {checks}/{checks} (1-8 раскладка+адреса, 9 изоляция, 10 сборка) | режим --{mode}")
         return 0
-    print(f"REF={ref} | FAIL: см. ::error:: выше | режим --{mode}")
+    print(f"REF={ref} | FAIL: ADR-028 (1-8 раскладка+адреса, 9 изоляция, 10 сборка) | режим --{mode}")
     return 1
 
 

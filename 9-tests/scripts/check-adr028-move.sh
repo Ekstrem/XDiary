@@ -279,8 +279,8 @@ fi
 
 echo "----"
 if [ "$fail" -eq 0 ]; then
-  echo "REF=$REF | PASS: ADR-028 ${CHECKS}/${CHECKS} | режим --$MODE"
+  echo "REF=$REF | PASS: ADR-028 ${CHECKS}/${CHECKS} (1-8 раскладка+адреса, 9 изоляция, 10 сборка) | режим --$MODE"
   exit 0
 fi
-echo "REF=$REF | FAIL: ADR-028 | режим --$MODE"
+echo "REF=$REF | FAIL: ADR-028 (1-8 раскладка+адреса, 9 изоляция, 10 сборка) | режим --$MODE"
 exit 1
