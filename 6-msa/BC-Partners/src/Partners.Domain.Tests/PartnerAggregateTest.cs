@@ -30,4 +30,23 @@ public class PartnerAggregateTest
         var result = Aggregate.CreateInstance(start.Model()).UpdateProfile("photo", "x", "note");
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
+
+    [Fact]
+    public void Remove_SetsDeletedAt()
+    {
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice", Guid.NewGuid());
+        var remove = Aggregate.CreateInstance(start.Model()).Remove();
+        Assert.Equal(DomainOperationResultEnum.Success, remove.Result);
+        Assert.NotNull(remove.Model().DeletedAt);
+    }
+
+    [Fact]
+    public void Remove_IsIdempotent()
+    {
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice", Guid.NewGuid());
+        var remove1 = Aggregate.CreateInstance(start.Model()).Remove();
+        var remove2 = Aggregate.CreateInstance(remove1.Model()).Remove();
+        Assert.Equal(DomainOperationResultEnum.Success, remove2.Result);
+        Assert.Equal(remove1.Model().DeletedAt, remove2.Model().DeletedAt);
+    }
 }
