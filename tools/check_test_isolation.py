@@ -132,6 +132,9 @@ def selftest():
         ({"6-msa/BC-Journal/src/Journal.Tests/x.csproj": "<Project />"}, 0),
         ({"6-msa/Stray.Tests/x.csproj": "<Project />"}, 1),
         ({"6-msa/ApiGateway.Tests/x.csproj": "<Project />"}, 0),
+        # (11) вложенный тестовый проект = ошибка (ADR-028 §3.0.1)
+        ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj": "<Project />",
+          "6-msa/BC-A/src/A.Tests/Inner/Inner.Tests.csproj": "<Project />"}, 1),
         # (з) Compile Include тянет исходник чужого BC (@TE 2026-11-14 23:22)
         ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
           '<Project><ItemGroup><Compile Include="../../../BC-B/src/B.cs" /></ItemGroup></Project>',
@@ -161,7 +164,7 @@ def selftest():
             os.makedirs(os.path.dirname(full), exist_ok=True)
             open(full, "w", encoding="utf-8").write(content)
         got = (len(scan(case)) + len(scan_broken_refs(case))
-               + len(scan_compile_includes(case)))
+               + len(scan_compile_includes(case)) + len(scan_nested_projects(case)))
         if got == expect:
             ok += 1
         else:
@@ -214,6 +217,35 @@ def _bc_of_path(rel):
     return m.group(1) if m else None
 
 
+def scan_nested_projects(root):
+    """(11) тестовый проект не содержит внутри другой `*.csproj` (ADR-028 §3.0.1).
+
+    Почему: родительский `*Tests.csproj` по умолчанию глобит `**/*.cs` и затягивает
+    `obj/` **вложенного** проекта, где `[assembly: TargetFramework(...)]` → `CS0579`
+    (дубликат атрибута). Дефект зависит от порядка сборки: на чистом клоне соберётся,
+    после сборки вложенного — упадёт. Поэтому проверяем структуру, а не результат.
+    """
+    out = []
+    base = os.path.join(root, "6-msa")
+    if not os.path.isdir(base):
+        return out
+    for dirpath, _dirs, names in os.walk(base):
+        for name in names:
+            if not re.search(r"Tests?\.csproj$", name):
+                continue
+            rel_parent = os.path.relpath(dirpath, root).replace(os.sep, "/")
+            # любой другой csproj глубже в этой папке = вложенный проект
+            for sub_dir, _sd, sub_names in os.walk(dirpath):
+                if sub_dir == dirpath:
+                    continue
+                for sub in sub_names:
+                    if not sub.endswith(".csproj"):
+                        continue
+                    rel_sub = os.path.relpath(os.path.join(sub_dir, sub), root).replace(os.sep, "/")
+                    out.append((rel_parent + "/" + name, rel_sub))
+    return out
+
+
 def scan_broken_refs(root):
     """(ж) ProjectReference в тестовом проекте указывает на существующий файл.
 
@@ -258,6 +290,8 @@ def main():
         v.append(("ж", rel_proj, "ProjectReference на несуществующий путь: %s" % inc))
     for kind, rel_proj, why in scan_compile_includes(root):
         v.append((kind, rel_proj, why))
+    for parent, nested in scan_nested_projects(root):
+        v.append(("11", parent, "вложенный csproj внутри тестового проекта: %s" % nested))
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
     # Форма отчёта — требование @TL 2026-11-14 34:11: ДВА числа и дедуп по пути.
@@ -269,7 +303,8 @@ def main():
         kinds = collections.Counter(k for k, _, _ in v)
         titles = {"б": "ProjectReference на чужой BC", "в": "ссылка сервиса на E2E",
                   "д": "запрещённая общая папка", "е": "тест вне папки сервиса",
-                  "ж": "include в никуда", "з": "Compile Include чужого BC"}
+                  "ж": "include в никуда", "з": "Compile Include чужого BC",
+                  "11": "вложенный проект внутри тестового"}
         parts = []
         for kind, count in sorted(kinds.items()):
             in_proj = len({rel for k, rel, _ in v if k == kind})

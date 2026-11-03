@@ -58,16 +58,29 @@ def main():
         for p in projects:
             print("  " + os.path.relpath(p, root).replace(os.sep, "/"))
         return 0
+    def ref():
+        try:
+            return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                                  capture_output=True, text=True).stdout.strip() or "?"
+        except OSError:
+            return "?"
+
     bad = 0
+    bad_projects = []
     for p in projects:
         rel = os.path.relpath(p, root).replace(os.sep, "/")
         rc, msg = build(p)
         if rc != 0:
             bad += 1
+            bad_projects.append(rel)
             print("::error::(10) %s не собирается (rc=%d)%s" % (rel, rc, (": " + msg[:160]) if msg else ""))
         else:
             print("ok %s" % rel)
-    print("check_tests_build: проектов %d, не собирается %d" % (len(projects), bad))
+    # Формат квитанции @AR 2026-11-14 37:15: REF в самой строке, иначе «мерил другой origin».
+    print("REF=%s | (10) не собирается: %d (%d %s) из %d проектов"
+          % (ref(), bad, len(bad_projects),
+             "проект" if len(bad_projects) == 1 else "проекта" if len(bad_projects) < 5 else "проектов",
+             len(projects)))
     return 1 if bad else 0
 
 

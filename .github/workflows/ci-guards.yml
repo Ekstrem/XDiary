@@ -46,6 +46,11 @@ jobs:
         if: always()
         run: python tools/check_awaits.py --strict
 
+      # @AR 2026-11-14 37:30: этот шаг БЕЗ `if: always()` — он блокирующий: код в
+      # `6-msa/**`/`8-front/**` ушёл вперёд lock → «забыли сделать релиз» видно в CI.
+      - name: Lock не отстал от кода (release gate, ADR-027)
+        run: python tools/gen_images_lock.py --check
+
       - name: Деплой только по images.lock — ADR-027/DO-066
         # Три пункта @TL 2026-11-14 32:11: скрипты не принимают тег, у workflow нет inputs.tag,
         # откат — revert lock-коммита, а не `podman tag` на сервере.

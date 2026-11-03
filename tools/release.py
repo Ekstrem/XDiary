@@ -84,8 +84,8 @@ def main():
         t = subprocess.run(["git", "tag", tag], capture_output=True, text=True, encoding="utf-8",
                            errors="replace")
         print("git tag %s: rc=%d %s" % (tag, t.returncode, (t.stderr or "").strip()[:120]))
-    print("дальше: git add %s %s && git commit -m 'do(release): %s' && git push --follow-tags"
-          % (LOCK, CHANGELOG, tag))
+    print("следующий шаг: git add 7-deploy/images.lock CHANGELOG.md")
+    print("             git commit -m 'do(release): %s' && git push --follow-tags" % tag)
     return 0
 
 

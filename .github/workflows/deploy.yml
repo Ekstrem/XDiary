@@ -33,6 +33,18 @@ jobs:
     environment: dev
     steps:
       # DO-066: тег берётся ТОЛЬКО из 7-deploy/images.lock (он в git) — ручного входа нет.
+      # @AR 2026-11-14 37:30: «на сервере новая версия» должно доказываться, а не
+      # предполагаться — после копирования скриптов проверяем отказ от тега.
+      - name: Скрипты на сервере — версия с отказом от тега (DO-066)
+        run: |
+          for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
+            if ! grep -q 'запрещено: тег задаётся только images.lock' "$f"; then
+              echo "::error::$f без отказа от аргумента-тега (DO-066)"
+              exit 1
+            fi
+          done
+          echo "скрипты на сервере: DO-066 применён"
+
       - name: Tag из images.lock
         run: |
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
