@@ -39,10 +39,10 @@ def check_file(path, strict=False):
         # YYYY-MM-DD видит «нет поля», хотя поле есть (нашёл @LM при проверке скелета).
         m_date = re.search(r"\*\*Дата:\*\*\s*([^\n]*)", text)
         if m_date:
-            errors.append("поле «Дата» не в формате YYYY-MM-DD (значение: %s)"
+            errors.append("поле «Дата» не в формате YYYY-MM-DD (значение: %s) — подставь реальную дату, например 2026-11-09, а не плейсхолдер из шаблона"
                           % m_date.group(1).strip()[:40])
         else:
-            errors.append("нет поля «Дата: YYYY-MM-DD»")
+            errors.append("нет поля «Дата: YYYY-MM-DD» — добавь строку `- **Дата:** 2026-11-09` (это поле обязательно, плейсхолдер не считается)")
 
     for sec in REQUIRED_SECTIONS:
         if sec not in low:
