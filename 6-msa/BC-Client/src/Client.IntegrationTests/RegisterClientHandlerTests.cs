@@ -3,6 +3,8 @@ using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.InternalContracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 using Xunit;
 using XDiary.Contracts;
 
@@ -24,11 +26,18 @@ public class RegisterClientHandlerTests
     {
         public Task SendAsync(string phone, string otp, CancellationToken ct = default) => Task.CompletedTask;
     }
+    private sealed class FakeConfig : IConfiguration
+    {
+        public string? this[string key] { get => null; set { } }
+        public IEnumerable<IConfigurationSection> GetChildren() => Array.Empty<IConfigurationSection>();
+        public IChangeToken GetReloadToken() => null!;
+        public IConfigurationSection GetSection(string key) => null!;
+    }
 
     [Fact]
     public async Task Register_DuplicatePhone_ReturnsPhoneTaken()
     {
-        var handler = new RegisterClientHandler(new FakeRepo(), new FakeQuery { HasPhone = true }, new FakeSender(), null!, Microsoft.Extensions.Logging.Abstractions.NullLogger<RegisterClientHandler>.Instance);
+        var handler = new RegisterClientHandler(new FakeRepo(), new FakeQuery { HasPhone = true }, new FakeSender(), new FakeConfig(), Microsoft.Extensions.Logging.Abstractions.NullLogger<RegisterClientHandler>.Instance);
         var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
         Assert.False(res.IsSuccess());
         Assert.Contains("phone_taken", res.ErrorMessage());
