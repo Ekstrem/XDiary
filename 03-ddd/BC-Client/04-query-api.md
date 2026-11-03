@@ -10,4 +10,6 @@
 
 ## Response DTO
 ### ClientView
-- `id`, `phone`, `verified` (bool), `linkedPartnerId` (`uuid | null`).
+- `id`, `phone`, `verified` (bool), **`displayName`** (string), **`gender`** (`male | female`), `photo` (опционально).
+- **`linkedPartnerId` удалён** (ADR-024): «я» — не партнёр; в акте «я» = `participant="me"`.
+- PIN в `ClientView` **не отдаётся** (политика приватности того же контекста, отдельный контракт `/privacy/pin/*`).

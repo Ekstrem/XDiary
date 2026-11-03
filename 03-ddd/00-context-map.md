@@ -16,6 +16,10 @@
 | 10 | Переносимость данных (Portability) | Generic | Execution |
 | 11 | Клиент (Client) | Supporting | Execution |
 
+> **Privacy — часть контекста `Client`** (ADR-024, 2026-11-09): профиль «я», политика приватности и PIN живут
+> в одном контексте-аккаунте. Отдельного мелкого BC не выделяем — «нет смысла дробить контексты» (владелец).
+> `BC-Privacy/*` сохранён как описание агрегата `PinCredential` внутри `Client`.
+
 ## Диаграмма
 
 ```mermaid
@@ -45,7 +49,7 @@ flowchart TD
 | Downstream (потребитель) | Upstream (поставщик) | Тип отношения | Механизм |
 |---|---|---|---|
 | Журнал | Партнёры | Customer/Supplier | IndexedDB `partners` |
-| Клиент | Партнёры | Customer/Supplier | ссылка `clientId` (партнёр-«я») |
+| Клиент | Партнёры | Customer/Supplier | **scope владения**: `partner.clientId` (опционален) — «мои партнёры», без «партнёра-«я»» (ADR-024) |
 | Журнал | Каталог | Customer/Supplier | IndexedDB `catalog` |
 | Журнал | Соматика (минутные точки) | Customer/Supplier | срез соматики вокруг `startedAt` |
 | Журнал | Шлюз Garmin | Customer/Supplier | занятия (кандидаты в акты) |

@@ -11,12 +11,17 @@
 | id | uuid PK | фреймворк DF |
 | phone | string | сущность |
 | verified | bool | `PhoneVerified` |
-| linkedPartnerId | uuid\|null | `PartnerLinked` / `PartnerUnlinked` |
+| displayName | string | `ClientProfileCompleted` / `ClientProfileUpdated` |
+| gender | `male\|female` | `ClientProfileCompleted` / `ClientProfileUpdated` |
+| photo | string\|null | `ClientProfileUpdated` |
+
+> `linkedPartnerId` **удалён из проекции** (ADR-024): «я» — не партнёр. События `PartnerLinked`/`PartnerUnlinked`
+> больше не порождаются; строка профиля заполняется при `CompleteProfile`.
 
 ## Проекционные правила (событие → действие)
 | Событие | Действие |
 |---|---|
 | `ClientRegistered` | INSERT |
 | `PhoneVerified` | UPDATE (verified=true) |
-| `PartnerLinked` | UPDATE (linkedPartnerId) |
-| `PartnerUnlinked` | UPDATE (linkedPartnerId=null) |
+| `ClientProfileCompleted` | UPDATE (displayName, gender, photo) |
+| `ClientProfileUpdated` | UPDATE (displayName, gender, photo) |

@@ -59,16 +59,16 @@ flowchart LR
 5. Каталог не держит FK на Partner (`FantasyPartner` — текст), поэтому «я» в каталоге не участвует.
 6. Соматика привязана к **клиенту**, не к паре и не к партнёру.
 
-## 4. Дельта: где доки расходятся с постановкой
+## 4. Дельта: где доки расходятся с постановкой — ✅ **ВНЕСЕНО 2026-11-09** (ADR-024, AR-013)
 
-| Место | Сейчас в документах | По постановке | Действие |
+| Место | Было | Стало | Статус |
 |---|---|---|---|
-| `BC-Client/02-aggregate-canvas.md` | `Client.LinkedPartnerId` — VO «партнёр-«я»», состояния `Linked`/`Unlinked` | эго-партнёра быть не должно: «я» = автор записи | убрать VO и переходы **после твоего подтверждения** |
-| `00-context-map.md:48` | «Клиент → Партнёры: ссылка `clientId` (партнёр-«я»)» | Client → Partners = **scope владения** («мои партнёры»), не «я» | переформулировать |
-| `BC-Journal/02-aggregate-canvas.md` | «Участники акта = «я» (владелец, неявный) + `partners[]`» | **совпадает** | без изменений |
-| `BC-Partners/02-aggregate-canvas.md` | `Partner(name, photo, gender, notes)`; в реализации добавлен `clientId` | `clientId` — связь с клиентом, когда партнёр **тоже зарегистрирован** (может отсутствовать) | уточнить описание поля как опционального |
-| `BC-Journal/02-aggregate-canvas.md` | `orgasms[]` — «по участнику: `{ participant, count, types[], rating }`» | форма верная, но подчеркнуть: **`participant` может быть `"me"`** | уточнить формулировку (словарь, не список партнёров) |
-| `BC-Privacy/*` | отдельный BC «Приватность и доступ» с PIN | **Privacy — часть Client** (профиль + политика приватности + база), мельчить контексты не нужно | слить при следующей правке домена (после ретро); трогается **context-map**, а не ADR-008 (там про JWT) |
+| `BC-Client/02-aggregate-canvas.md` | `Client.LinkedPartnerId` — VO «партнёр-«я»», состояния `Linked`/`Unlinked` | **VO удалён**, добавлен профиль `displayName`/`gender`/`photo?`, состояния `CompleteProfile`/`UpdateProfile` | ✅ |
+| `00-context-map.md:48` | «Клиент → Партнёры: ссылка `clientId` (партнёр-«я»)» | Client → Partners = **scope владения** («мои партнёры»), `clientId` опционален | ✅ |
+| `BC-Journal/02-aggregate-canvas.md` | «Участники акта = «я» (неявный) + `partners[]`» | совпадало; добавлено **владение** (`clientId`), инварианты PartnersAreParticipants/AuthorFromToken, `NULL` — только легаси | ✅ |
+| `BC-Partners/02-aggregate-canvas.md` | `Partner(name, photo, gender, notes)`, `clientId` без описания | `clientId` — **опционален** (партнёр может стать клиентом) | ✅ |
+| `BC-Journal/02-aggregate-canvas.md` (`orgasms`) | «по участнику: `{ participant, count, types[], rating }`» | форма верная; подчёркнуто, что **`participant` может быть `"me"`** (словарь, а не список партнёров) | ✅ |
+| `BC-Privacy/*` | отдельный BC «Приватность и доступ» с PIN | **часть контекста `Client`** (шапка канваса это фиксирует); context-map помечен, ADR-008 не тронут (он про JWT) | ✅ |
 
 ## 5. Ответы владельца (2026-11-09) — бизнес-постановка получена
 
