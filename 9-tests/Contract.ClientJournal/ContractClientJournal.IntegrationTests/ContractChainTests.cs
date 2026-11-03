@@ -326,6 +326,16 @@ public sealed class ContractChainTests
             foreign is HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Unauthorized,
             "GET /clients/{чужой id} вернул " + (int)foreign + " — ожидали 403/404/401 (@TL 04:45)");
 
+        // Спека @TL 2026-11-10 14:20 (`BE-064`/ADR-026): чтение по id остаётся, но **только «себя»,
+        // иначе 403**. Если реализация выберет 404 (скрывать существование) — это не провал теста,
+        // но расхождение со спекой, и оно должно быть видно, а не «заметено» диапазоном 403/404.
+        if (foreign == HttpStatusCode.NotFound)
+        {
+            Console.WriteLine(
+                "::warning::[spec] GET /clients/{чужой id} → 404: спека @TL 14:20 требует 403. " +
+                "Если 404 выбран осознанно (скрывать существование записи) — зафиксируй это в ADR-026");
+        }
+
         // И без токена тот же маршрут обязан требовать авторизацию.
         var anonForeign = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), null);
         Assert.True(
