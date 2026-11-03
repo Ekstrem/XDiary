@@ -36,5 +36,13 @@ public sealed class AnemicModel : IJournalAnemicModel
         {
             ["Root"] = Root,
             ["ClientId"] = new ClientIdValueObject(ClientId),
+            ["Place"] = new StringValueObject(Place),
+            ["Fantasies"] = new StringListValueObject(Fantasies),
+            ["Positions"] = new StringListValueObject(Positions),
+            ["Tags"] = new StringListValueObject(Tags),
+            ["Costumes"] = new StringListValueObject(Costumes),
+            ["Toys"] = new StringListValueObject(Toys),
+            ["Contraceptives"] = new StringListValueObject(Contraceptives),
+            ["DurationMin"] = new IntValueObject(DurationMin),
         };
 }
