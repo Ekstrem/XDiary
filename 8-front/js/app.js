@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.79"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.80"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1202,6 +1202,16 @@
       promise = DB.putPartner({
         name: name, notes: $("pe-notes").value.trim(),
         photo: partnerEditPhotoData, gender: partnerEditGender, createdAt: nowIso, updatedAt: nowIso
+      }).then(function (created) {
+        // FE-033/BE-048: список партнёров фильтруется по sub, а POST /partners ClientId не ставит —
+        // связываем созданного партнёра с текущим клиентом, иначе «Кто ты?» снова останется пустым
+        var pid = created && (created.id || created.aggregateId);
+        var cid = onbClientId || storedClientId();
+        if (!pid || !cid) return created;
+        return Api.partners.linkClient(pid, cid).then(function () { return created; }, function (e) {
+          console.error("linkClient after create:", e);
+          return created;
+        });
       });
     }
     promise.then(function () {
