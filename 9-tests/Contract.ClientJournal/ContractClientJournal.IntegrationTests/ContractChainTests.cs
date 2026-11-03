@@ -185,6 +185,18 @@ public sealed class ContractChainTests
             "после 'Male' в профиле должно лежать каноническое 'male', а лежит " +
             (maleBody.TryGetProperty("gender", out var g1) ? "'" + g1.GetString() + "'" : "поле отсутствует"));
 
+        // @AR 2026-11-10 12:52: нормализация = `Trim` + нижний регистр, значит `"  male  "`
+        // (двойные пробелы) → 200 и в ответе ровно `male`. Если вернётся `"  male  "` как есть —
+        // это дефект реализации (не нормализовано перед сохранением), и ловим его отдельной строкой,
+        // а не только по статусу.
+        var (multiSpaceOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", "  male  ");
+        Assert.Equal(HttpStatusCode.OK, multiSpaceOk);
+        var (_, multiSpaceBody) = await api.MeWithTokenAsync(access);
+        Assert.True(
+            multiSpaceBody.TryGetProperty("gender", out var msGender) && msGender.GetString() == "male",
+            "после '  male  ' в профиле должно лежать каноническое 'male', а лежит " +
+            (multiSpaceBody.TryGetProperty("gender", out var g2) ? "'" + g2.GetString() + "'" : "поле отсутствует"));
+
         var (anonStatus, _) = await api.UpdateProfileAsync(string.Empty, "Аноним", "male");
         Assert.Equal(HttpStatusCode.Unauthorized, anonStatus);
     }
