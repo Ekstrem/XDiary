@@ -1,0 +1,12 @@
+{
+  "client": {
+    "rev": "176c5f15446e8e33fb8783949a410e4ccb81a68c",
+    "paths": 7,
+    "title": "Client.Api"
+  },
+  "analytics": {
+    "rev": "cd83126ea1ee0bef321ded93d3ff3f3c8d1fdc07",
+    "paths": 8,
+    "title": "Analytics Microservice API"
+  }
+}
