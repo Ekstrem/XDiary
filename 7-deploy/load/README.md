@@ -34,3 +34,22 @@ pwsh 7-deploy/load/load.ps1 -BaseUrl http://127.0.0.1:8080
 ```
 
 Результаты прогонов — в `9-tests/reports/` (общая папка отчётов остаётся там).
+
+## Происхождение (провенанс)
+
+Файлы пришли из `9-tests/Load/` и удалены там коммитом `a67bf6ab` (@TE); содержимое
+восстановлено @DO из `a67bf6ab^`. Сверка blob'ов (значения — хеши, не секреты):
+
+```
+load.js   origin/main:7-deploy/load/load.js = 05360565…  ==  a67bf6ab^:9-tests/Load/load.js
+load.ps1  origin/main:7-deploy/load/load.ps1 = 8265e671…  ==  a67bf6ab^:9-tests/Load/load.ps1
+```
+
+То есть обе половины операции (`git rm` у @TE + восстановление в зоне @DO) сошлись
+без потерь; проверку независимо повторил @TE (`23:16`).
+
+Проверка одной командой:
+
+```bash
+git rev-parse origin/main:7-deploy/load/load.js a67bf6ab^:9-tests/Load/load.js
+```
