@@ -3,11 +3,11 @@
 version: 1
 status: draft  # draft -> complete по DoD ниже (не «посмотрел», а гейт + пометки)
 counts:
-  operations: 79
-  verified: 31
-  derived: 48
-  unique_method_path: 79
-  unique_operationId: 79
+  operations: 80
+  verified: 37
+  derived: 43
+  unique_method_path: 80
+  unique_operationId: 80
 source:
   canvases: "03-ddd/BC-*/03-command-api.md, 04-query-api.md (AR-017 §2.2)"
   code: "6-msa/BC-*/**/*Controller.cs (фактические маршруты и operationId = имя действия)"
@@ -477,39 +477,52 @@ operations:
     auth: jwt
     codes: {200: "ok", 401: "no-token"}
     codes_status: verified
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Partners
     method: POST
     path: "/api/v1/partners"
     operationId: Partners.Register
     auth: jwt
-    codes: {200: "ok (gender не принимается этим эндпоинтом)", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: verified
     target_codes: {400: "validation: неизвестное поле (целевое)"}
     target_owner: "@BE: UnmappedMemberHandling.Disallow для command-моделей"
     target_until: "ТРИГГЕР (машинно-проверяемый): @DO ставит XDIARY_STRICT_UNKNOWN_FIELDS=1 в job smoke-api, когда @BE выкатит Disallow. С этого момента Point9b требует только 400, а Point9 перестаёт быть разрешающим. Тогда: код 400 переносится в codes, target_codes/target_owner/target_until удаляются."
-    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
     contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400, не игнор. Сейчас 400 по этому основанию НЕ отдаётся (@TE замер: 200, gender пуст). @TE закрыл ловушку «200 допустим всегда» переключателем по факту: Point9 печатает ::warning::[spec] с target_owner/target_until, Point9b включается XDIARY_STRICT_UNKNOWN_FIELDS=1 — регресс «вернули игнор» краснеет без правки теста."
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
     operationId: Partners.Get
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 403: "not-owner", 404: "not-found"}
-    codes_status: derived
+    codes: {200: "ok (в т.ч. чужой партнёр — дефект)", 401: "no-token", 404: "не найден"}
+    codes_status: verified
+    target_codes: {403: "чужой партнёр (владелец проверен)"}
+    target_owner: "@BE: проверка владельца в Partners (clientId из sub) — ForeignId → 403"
+    target_until: "СНЯТЬ когда dev отдаёт 403 на чужой партнёр: снять target_codes, добавить 403 в codes, включить контрактный тест [pending:BE-PartnerOwnership]"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/link-client"
     operationId: Partners.LinkClient
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok (в т.ч. чужой — дефект)", 400: "validation", 401: "no-token"}
+    codes_status: verified
+    target_codes: {403: "чужой партнёр (владелец проверен)"}
+    target_owner: "@BE: проверка владельца в Partners (clientId из sub) — ForeignId → 403"
+    target_until: "СНЯТЬ когда dev отдаёт 403 на чужой партнёр: снять target_codes, добавить 403 в codes, включить контрактный тест [pending:BE-PartnerOwnership]"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/name"
     operationId: Partners.Rename
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok (в т.ч. чужой — дефект)", 400: "validation", 401: "no-token"}
+    codes_status: verified
+    target_codes: {403: "чужой партнёр (владелец проверен)"}
+    target_owner: "@BE: проверка владельца в Partners (clientId из sub) — ForeignId → 403"
+    target_until: "СНЯТЬ когда dev отдаёт 403 на чужой партнёр: снять target_codes, добавить 403 в codes, включить контрактный тест [pending:BE-PartnerOwnership]"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/profile"
@@ -517,21 +530,29 @@ operations:
     auth: jwt
     codes: {200: "ok, gender канонизирован", 400: "validation (Other)", 401: "no-token"}
     codes_status: verified
-    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/remove"
     operationId: Partners.Remove
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok (в т.ч. чужой — дефект)", 400: "доменная ошибка", 401: "no-token"}
+    codes_status: verified
+    target_codes: {403: "чужой партнёр (владелец проверен)"}
+    target_owner: "@BE: проверка владельца в Partners (clientId из sub) — ForeignId → 403"
+    target_until: "СНЯТЬ когда dev отдаёт 403 на чужой партнёр: снять target_codes, добавить 403 в codes, включить контрактный тест [pending:BE-PartnerOwnership]"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/unlink-client"
     operationId: Partners.UnlinkClient
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok (в т.ч. чужой — дефект)", 400: "validation", 401: "no-token"}
+    codes_status: verified
+    target_codes: {403: "чужой партнёр (владелец проверен)"}
+    target_owner: "@BE: проверка владельца в Partners (clientId из sub) — ForeignId → 403"
+    target_until: "СНЯТЬ когда dev отдаёт 403 на чужой партнёр: снять target_codes, добавить 403 в codes, включить контрактный тест [pending:BE-PartnerOwnership]"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
   - bc: Portability
     method: GET
     path: "/api/v1/portability/document"
@@ -637,3 +658,13 @@ operations:
     auth: jwt
     codes: {200: "ok", 401: "no-token"}
     codes_status: derived
+  - bc: Journal
+    method: POST
+    path: "/internal/partners/events"
+    operationId: Journal.IngestPartnerEvent
+    auth: anonymous-inside
+    internal: true
+    codes: {200: "ok — upsert в partners_directory", 401: "снаружи/через шлюз (внутренний контур не публикуется)"}
+    codes_status: verified
+    verification: "код: Journal.Api/Controllers/PartnersEventsController.cs ([Route(internal/partners)], [AllowAnonymous], UpsertAsync), 2026-11-14 @AR"
+    contract_note: "E1-срез: конверт НЕ соответствует приёмке E1 (edm-debt-plan §1.2) — в DTO нет eventId/type/schemaVersion/aggregateId/version/occurredAt/correlationToken. Без eventId нет идемпотентности, без version — защиты от устаревшего события. Требуется @BE до закрытия E1."
