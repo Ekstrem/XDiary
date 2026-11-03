@@ -176,6 +176,19 @@ def created_date(path, cmap):
         return None
 
 
+def downgrade_note(cutoff):
+    """Текст «ошибки понижены». Вынесен и защищён от None (@TL 11:05).
+
+    Пока строка формировалась инлайн с `args.cutoff`, при default=None в сообщении
+    печаталось «создан до None» — гейт работал, а текст врал. Теперь None невозможен:
+    функция падает, а `--selftest` проверяет сам ТЕКСТ, а не только rc.
+    """
+    if cutoff is None:
+        raise ValueError("cutoff не задан — сообщение напечатало бы None")
+    return ("старый ADR (создан до %s): ошибки понижены до предупреждений — "
+            "полный шаблон нужен только при содержательном переписывании" % cutoff)
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -249,10 +262,7 @@ def main():
             # Грандфазеринг по дате создания: правка старого ADR не должна красить гейт.
             # Иначе «исправить одну ссылку в ADR-008» требует переписать весь документ
             # (стимул не трогать доки — класс «доки расходятся с кодом»). @TL 08:41 (б) + @AR 08:42 (по дате создания).
-            warnings = warnings + [
-                "старый ADR (создан до %s): ошибки понижены до предупреждений — "
-                "полный шаблон нужен только при содержательном переписывании"
-                % args.cutoff] + errors
+            warnings = warnings + [downgrade_note(cutoff)] + errors
             errors = []
             downgraded += 1
         if errors or (args.strict and warnings):
@@ -334,6 +344,25 @@ def selftest():
         print("  [%s] старые пропущены -> rc=%d" % ("OK " if rc == 0 else "FAIL", rc))
         ok = ok and rc == 0
     shutil.rmtree(tmp, ignore_errors=True)
+
+    # Текст сообщения — отдельная проверка (@TL 11:05): гейт может быть прав, а ТЕКСТ врать.
+    # Раньше здесь печаталось «создан до None» при default --cutoff.
+    try:
+        note = downgrade_note(datetime.date(2026, 11, 8))
+        ok_text = ("2026-11-08" in note) and ("None" not in note)
+    except Exception as exc:  # noqa: BLE001
+        ok_text = False
+        note = "исключение: %s" % exc
+    print("  [%s] текст понижения: %r" % ("OK " if ok_text else "FAIL", note[:70]))
+    ok = ok and ok_text
+
+    try:
+        downgrade_note(None)
+        print("  [FAIL] downgrade_note(None) не упал — снова напечатали бы None")
+        ok = False
+    except ValueError:
+        print("  [OK ] downgrade_note(None) -> ValueError (None напечатать нельзя)")
+
     print("check_adr: самопроверка %s" % ("пройдена" if ok else "ПРОВАЛЕНА"))
     return 0 if ok else 1
 
