@@ -41,8 +41,9 @@ public sealed class Aggregate
     public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes)
     {
         var gv = new GenderEnumValidator();
-        if (!gv.IsSatisfiedBy(gender)) return Fail(gv.Reason);
-        var m = Clone(); m.Photo = photo; m.Gender = gender; m.Notes = notes; return Success(m);
+        var g = gv.Normalize(gender);
+        if (!gv.IsSatisfiedBy(g)) return Fail(gv.Reason);
+        var m = Clone(); m.Photo = photo; m.Gender = g; m.Notes = notes; return Success(m);
     }
     public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId) { var m = Clone(); m.ClientId = clientId; return Success(m); }
     public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient() { var m = Clone(); m.ClientId = null; return Success(m); }
