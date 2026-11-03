@@ -6,6 +6,14 @@ using Xunit;
 public class RecordAggregateTest
 {
     [Fact]
+    public void StartManualEntry_PersistsClientId()
+    {
+        var clientId = Guid.NewGuid();
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId);
+        Assert.Equal(clientId, start.Model().ClientId);
+    }
+
+    [Fact]
     public void Complete_WithoutStartedAt_Fails()
     {
         var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
