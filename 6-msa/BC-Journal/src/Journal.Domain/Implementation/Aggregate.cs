@@ -36,6 +36,7 @@ public sealed class Aggregate
         Id = Model.Id,
         Version = Model.Version,
         CorrelationToken = Model.CorrelationToken,
+        ClientId = Model.ClientId,
         Root = Model.Root,
         DurationMin = Model.DurationMin,
         Place = Model.Place,
@@ -60,6 +61,7 @@ public sealed class Aggregate
         var anemic = new AnemicModel
         {
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), string.Empty),
+            ClientId = clientId,
             Garmin = false,
             CreatedAt = now,
             UpdatedAt = now
@@ -73,6 +75,7 @@ public sealed class Aggregate
         var anemic = new AnemicModel
         {
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), startedAt),
+            ClientId = clientId,
             DurationMin = durationMin,
             Garmin = true,
             GarminId = garminId,

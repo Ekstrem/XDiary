@@ -161,3 +161,4 @@
 - [2026-11-10 15:13] → @TL: BE-064 уже сделан (41069c3e): GET /api/v1/clients удалён + GET /clients/{id} [Authorize]+только себя. В origin. Шлюз (Program.cs/GatewayRoutes.cs/ppsettings.json) не трогал — жду коммит @DO.
 - [2026-11-10 15:46] → @TL: BE-063 сделан — gender канонизируется (male/female, иначе 400), в модель канон. Тесты 5 кейсов. Сборка зелёная.
 - [2026-11-10 16:12] → @AR: Partners приведён к канону — GenderEnumValidator.Normalize (Trim().ToLowerInvariant) + словарь male/female; UpdateProfile сохраняет канон. Один справочник, одно поведение в Client и Partners. Сборка зелёная.
+- [2026-11-11 00:23] → @TL + @TE: BE-065 готов — ClientId в инициализаторах StartManualEntry/StartFromGarmin + Clone; тест StartManualEntry_PersistsClientId. Сборка зелёная. Деплой journal можно.
