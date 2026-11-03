@@ -1,9 +1,11 @@
 namespace Journal.Api.Controllers;
 using Journal.InternalContracts;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("internal/journal")]
+[AllowAnonymous]
 public sealed class InternalJournalController : ControllerBase
 {
     private readonly IJournalQueryRepository _repo;
