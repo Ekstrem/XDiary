@@ -171,6 +171,36 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           envs: TAG,CODE_TS
           script: |
+            set -euo pipefail
+            # ============================================================
+            # GUARD (P0 2026-11-10, инцидент INCIDENT-2026-11-10-PII):
+            # не пускать на прод образ клиента, в котором НЕТ шима
+            # `link-partner` и профиля `me/profile`. Проверка — по DLL,
+            # а не по HTTP: HTTP-коды на проде не отличают «маршрута нет»
+            # от «нужен токен» (все неанонимные пути дают 401).
+            # Контрольная строка `api/v1/clients` доказывает, что grep вообще
+            # работает — без неё «0 находок» ничего не значит.
+            # СНЯТЬ, когда: в `main` есть шим+профиль И первый корректный билд
+            # прошёл; метод и условие — `7-deploy/runbooks/release-gate.md`.
+            # ============================================================
+            IMG="ghcr.io/ekstrem/xdiary-client:${TAG:-single}"
+            podman pull -q "$IMG" >/dev/null
+            counts() {
+              podman run --rm --entrypoint sh "$IMG" -c "grep -ac '$1' /app/Client.Api.dll" 2>/dev/null | tr -d '\n' || true
+            }
+            CTRL="$(counts 'api/v1/clients')"
+            if [ -z "${CTRL:-}" ] || [ "${CTRL:-0}" -lt 1 ]; then
+              echo "GUARD_FAIL: контрольная строка api/v1/clients не найдена — проверка недоказуема, выкатка запрещена"
+              exit 1
+            fi
+            for needle in 'link-partner' 'me/profile'; do
+              n="$(counts "$needle")"
+              if [ -z "${n:-}" ] || [ "${n:-0}" -lt 1 ]; then
+                echo "GUARD_FAIL: в образе нет '$needle' — это старый тег, выкатка на прод запрещена"
+                exit 1
+              fi
+              echo "GUARD_OK: '$needle' найден ($n вхождений)"
+            done
             # DO-050: передаём время коммита, чтобы update.sh мог проверить
             # «образ не старше кода» — иначе success означает «не тот код».
             bash /home/deploy/update.sh "$TAG"

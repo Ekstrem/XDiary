@@ -44,7 +44,9 @@ gh run list --workflow deploy.yml --limit 5
    ssh <прод> "sudo podman exec xdiary-client sh -c 'grep -ac AddJwtBearer /app/Client.Api.dll'"
    ```
    Ожидание: дата сегодняшняя, оба `grep` = `1`. `0` = старая версия, и релиз не состоялся.
-5. **Проверить API прода:** `/health` = 200, `/api/v1/clients` = 200.
+5. **Проверить API прода:** `/health` = 200; `GET /api/v1/clients` = **401**
+   (ADR-026: список закрыт, 200 здесь — дефект!), `POST /api/v1/clients` с пустым телом = **400**
+   (онбординг жив), `GET /clients/me` = **401**.
 6. **Отдать владельцу на вход по коду** — это единственная настоящая проверка OTP.
 
 ## 3. Гейты (кто и чем проверит)
@@ -89,3 +91,59 @@ ssh <прод> "sudo podman tag <предыдущий-digest> ghcr.io/ekstrem/xd
 ssh <прод> "sudo bash /opt/xdiary/7-deploy/deploy.sh single"
 # и зафиксировать инцидент задачей — «откатились молча» запрещено (§5.4)
 ```
+
+## 7. «Код в образе» и откат — только с контрольной строкой (P0 2026-11-10)
+
+Инцидент `INCIDENT-2026-11-10-PII`: прод 30 минут отдавал `GET /api/v1/clients` = **200
+со списком клиентов и телефонами**, при `/health` = 200. Два «разумных» способа проверки
+показали «всё в порядке».
+
+**Почему HTTP не доказывает ничего:** на проде **все** неанонимные пути отдают `401`
+(ставит шлюз до маршрутизации), и **выдуманный путь тоже 401**. По коду ответа нельзя
+отличить «маршрута нет» от «нужен токен».
+
+Проверять только по содержимому сборки, **с контрольной строкой**:
+
+```bash
+IMG=ghcr.io/ekstrem/xdiary-client:single
+ssh <прод> "sudo podman pull -q $IMG"
+
+# КОНТРОЛЬ: grep вообще работает. Без этой строки «0 находок» ничего не значит.
+ssh <прод> "sudo podman run --rm --entrypoint sh $IMG -c \"grep -ac 'api/v1/clients' /app/Client.Api.dll\""
+
+# что проверяем: шим и профиль
+ssh <прод> "sudo podman run --rm --entrypoint sh $IMG -c \"grep -ac 'link-partner' /app/Client.Api.dll\""
+ssh <прод> "sudo podman run --rm --entrypoint sh $IMG -c \"grep -ac 'me/profile'   /app/Client.Api.dll\""
+```
+
+`--entrypoint sh` обязателен: приложение падает на старте на guard'е `Otp:Channel=log`
+и не даёт посмотреть файлы.
+
+**Гейт в CI:** в `deploy.yml`, job `deploy-prod`, перед `update.sh` стоит `GUARD`:
+тянет образ, проверяет контрольную строку и обе ключевые; при отсутствии любой —
+`GUARD_FAIL` и выкатка не начинается. Условие снятия guard'а: в `main` есть шим + профиль,
+и первый корректный билд прошёл (дальше это дублирует `smoke-api`).
+
+**Откат образа — проверять три поля, иначе откат фиктивный:**
+
+```bash
+podman inspect xdiary-<svc> --format '{{.Image}}'                       # тот ли образ
+podman inspect xdiary-<svc> --format '{{len .HostConfig.ExtraHosts}}'   # ожидаемое число адресов
+podman inspect xdiary-<svc> --format '{{.Config.Cmd}}'                  # ДОЛЖНО быть [] / Entrypoint-дефолт
+```
+
+Реальный случай: `recreate-service.sh --image` подменял хвостовой `>/dev/null` вместо
+образа; флаги `--add-host` уходили **после** образа → попадали в `Cmd`; контейнер
+создавался на **старом** образе, а скрипт печатал «OK». Спасли только пост-проверки
+(`ExtraHosts=0, ожидалось 10`). **Инструмент, который печатает OK, не проверив результат,
+опаснее отсутствия инструмента.**
+
+**Псевдоним `clients` — отдельная проверка.** Маршруты шлюза ходят на имя **`clients`**
+(множественное), контейнер называется `xdiary-client`. Список `--add-host` нельзя собирать
+«по именам контейнеров»: псевдоним берётся из `gen-hosts.py`/`SERVICE_IPS`.
+
+```bash
+podman exec xdiary-api-gateway grep -c ' clients$' /etc/hosts   # >= 1
+```
+
+Иначе `GET/POST /api/v1/clients` → **502** при живом `/health`.
