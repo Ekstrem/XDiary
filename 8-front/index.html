@@ -39,6 +39,7 @@
           <input type="tel" id="onb-phone-input" placeholder="+7 900 000-00-00" autocomplete="tel">
         </div>
         <button type="button" class="btn primary full" id="btn-onb-phone">Получить код</button>
+        <p id="onb-phone-error" class="hidden" style="color:#e0567a;font-size:14px;"></p>
       </div>
       <div id="onb-otp" class="hidden">
         <div class="step-label">Код из SMS</div>
@@ -46,7 +47,9 @@
         <div class="field">
           <input type="text" id="onb-otp-input" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
         </div>
+        <p id="onb-otp-error" class="hidden" style="color:#e0567a;font-size:14px;"></p>
         <button type="button" class="btn primary full" id="btn-onb-otp">Подтвердить</button>
+        <button type="button" class="btn full" id="btn-onb-resend">Запросить код заново</button>
       </div>
       <div id="onb-link" class="hidden">
         <div class="step-label">Кто ты?</div>

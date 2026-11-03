@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.69"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.70"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -311,34 +311,70 @@
       list._fe031For = onbClientId;
     }).catch(function (e) { showOnbLinkError("Не удалось загрузить партнёров: " + (e && e.message ? e.message : "ошибка")); });
   }
+  // P0 (2026-11-08): ошибки register/verify должны быть видны, а не глотаться
+  function showOnbError(elId, text) {
+    var el = $(elId);
+    if (!el) return;
+    if (text) { el.textContent = text; el.classList.remove("hidden"); }
+    else { el.textContent = ""; el.classList.add("hidden"); }
+  }
+  function apiErrorText(e, fallback) {
+    var parts = [];
+    if (e && e.status) parts.push("HTTP " + e.status);
+    var msg = "";
+    if (e && e.data) msg = typeof e.data === "string" ? e.data : (e.data.message || e.data.title || e.data.detail || JSON.stringify(e.data));
+    else if (e && e.message) msg = e.message;
+    if (msg) parts.push(String(msg).slice(0, 200));
+    return (fallback ? fallback + ": " : "") + (parts.length ? parts.join(" · ") : "неизвестная ошибка");
+  }
+  function showOtpStep(phone) {
+    $("onb-phone").classList.add("hidden");
+    $("onb-otp").classList.remove("hidden");
+    $("onb-otp-phone").textContent = phone;
+    $("onb-otp-input").value = "";
+    showOnbError("onb-otp-error", "");
+    $("onb-otp-input").focus();
+  }
   function submitOnbPhone() {
     var phone = $("onb-phone-input").value.trim();
-    if (!phone) { toast("Введите номер телефона"); return; }
+    showOnbError("onb-phone-error", "");
+    if (!phone) { showOnbError("onb-phone-error", "Введите номер телефона"); return; }
     Api.clients.register(phone).then(function (res) {
       console.error("register response keys: " + JSON.stringify(res && Object.keys(res)));
       onbClientId = (res && (res.id || res.aggregateId || res.clientId)) || "";
-      if (!onbClientId) { toast("Ошибка: сервер не вернул id клиента"); return; }
+      if (!onbClientId) { showOnbError("onb-phone-error", "Сервер не вернул id клиента — попробуйте ещё раз."); return; }
       try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
-      $("onb-phone").classList.add("hidden");
-      $("onb-otp").classList.remove("hidden");
-      $("onb-otp-phone").textContent = phone;
-      $("onb-otp-input").value = "";
-      $("onb-otp-input").focus();
-    }, function (e) { toast("Ошибка: " + e.message); });
+      showOtpStep(phone);
+    }, function (e) {
+      var text = apiErrorText(e, "Не удалось получить код");
+      console.error("register error:", e);
+      // «телефон уже зарегистрирован» — не тупик: сразу к вводу кода
+      if (e && (e.status === 400 || e.status === 409)) {
+        onbClientId = onbClientId || storedClientId();
+        if (onbClientId) { showOtpStep(phone); showOnbError("onb-otp-error", "Номер уже зарегистрирован — введите код из SMS."); return; }
+      }
+      showOnbError("onb-phone-error", text);
+      toast("Ошибка: " + text);
+    });
   }
   function submitOnbOtp() {
     var code = $("onb-otp-input").value.trim();
-    if (!code) { toast("Введите код из SMS"); return; }
+    showOnbError("onb-otp-error", "");
+    if (!code) { showOnbError("onb-otp-error", "Введите код из SMS"); return; }
     Api.clients.verify(onbClientId, code).then(function (res) {
       // FE-028: BE-041 — /verify отдаёт пару accessToken + refreshToken (+ token для совместимости)
       var token = (res && (res.accessToken || res.token)) || "";
       var refresh = (res && res.refreshToken) || "";
-      if (!token) { toast("Ошибка: сервер не вернул токен"); return; }
+      if (!token) { showOnbError("onb-otp-error", "Сервер не вернул токен — запросите код заново."); return; }
       Api.config.setToken(token);
       Api.config.setRefresh(refresh);
       try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
       showLinkStep();
-    }, function (e) { toast("Ошибка: " + e.message); });
+    }, function (e) {
+      console.error("verify error:", e);
+      showOnbError("onb-otp-error", "Код неверный или истёк — запросите новый (кнопка ниже). " + apiErrorText(e, ""));
+      toast("Ошибка: " + apiErrorText(e, "код неверный"));
+    });
   }
   // FE-023: статус идентификации + вход/сброс устройства из Настроек
   function renderIdentStatus() {
@@ -2253,6 +2289,8 @@
     // FE-018 ч.2: телефон → SMS OTP → link-partner + «это я» в настройках
     $("btn-onb-phone").addEventListener("click", submitOnbPhone);
     $("btn-onb-otp").addEventListener("click", submitOnbOtp);
+    // P0: перезапрос кода из шага OTP (по тому же номеру)
+    $("btn-onb-resend").addEventListener("click", submitOnbPhone);
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
     $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
     $("btn-onboarding-add").addEventListener("click", function () { partnerEditReturn = "onboarding"; openPartnerEdit(null); });
