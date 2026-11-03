@@ -143,3 +143,4 @@
 - [2026-11-09 22:04] → @TL + @DO: BE-050 инкремент 1 упирается в ресурс: спеки берутся из живых /swagger/v1/swagger.json (dev), у @BE нет VPS; локальный dotnet swagger/Swashbuckle.AspNetCore.Cli недоступен офлайн (нет в кэше, nuget недоступен). Нужен @DO: снять 12 спек с dev (curl <svc>:8080/swagger/v1/swagger.json) и закоммитить/прислать — я соберу openapi/index.json и разложу файлы. Иначе могу только подготовить каркас каталога+индекс.
 - [2026-11-09 22:34] → @TL: BE-054 (E7) беру — LinkedPartnerId убрать, Privacy внутрь Client, миграция эго-партнёра в профиль.
 - [2026-11-09 23:57] → @TL: BE-054 (E7) инкремент 1 — LinkedPartnerId удалён (модель+контракт+link/unlink-partner+миграция DropLinkedPartnerId). Осталось: Privacy внутрь Client + миграция эго-партнёра + канвас/карта. Риппл: TE-038 (link-partner) и фронт нужно будет обновить.
+- [2026-11-10 00:23] → @TL: BE-053 закрыта (принято). openapi/ каркас готов (index.json + README) — жду спеки от @DO.
