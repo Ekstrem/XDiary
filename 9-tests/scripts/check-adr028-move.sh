@@ -1,23 +1,21 @@
 #!/usr/bin/env bash
-# Квитанция переноса тестов по ADR-028 (§5.4: два прогона — на дефекте и на норме).
+# Квитанция раскладки тестов по ADR-028 ред. 3 (§5.4: два прогона — на дефекте и на норме).
 #
-# Кто использует: @BE (переносил `git mv`), @TE (принимает), @TL (вердикт). Скрипт только
-# читает git — ничего не меняет и не пушит.
+# Правило ред. 3 (@AR 2026-11-14 06:40 — общий бакет отменён владельцем):
+#   (1) любой тест микросервиса — в папке своего сервиса `6-msa/BC-<X>/src/<S>.<Kind>Tests`;
+#   (2) тесты фронта — только `9-tests` (браузер, маркер `front-e2e.md`);
+#   (3) общих тестовых папок нет: `6-msa/E2E`, `6-msa/ApiTests`, `Contract.<A>_<B>` запрещены.
 #
-# Два режима (@AR: «двухрежимная форма»):
-#   --post    (по умолчанию) приёмка ПОСЛЕ переноса: 0 .csproj в 9-tests, все целевые пути в 6-msa,
-#             front-e2e на месте, старые каталоги удалены, sln не ссылается на переехавшие проекты,
-#             запрещённой папки Contract.<A>_<B> вне E2E нет, атрибуты не потеряны.
-#   --pre     состояние ДО переноса (информационный): .csproj в 9-tests ещё есть — режим нужен,
-#             чтобы показать «на дефекте гейт красный».
+# Режимы:
+#   --post (по умолчанию) — приёмка ПОСЛЕ перекладывания: 7 проверок должны быть зелёными.
+#   --pre                 — состояние ДО (информационный): общий бакет ещё есть.
 #
 # Использование:
-#   bash 9-tests/scripts/check-adr028-move.sh --post         # по origin/main
-#   REF=HEAD bash 9-tests/scripts/check-adr028-move.sh --post # до пуша, по своему коммиту
-#   bash 9-tests/scripts/check-adr028-move.sh --pre
+#   bash 9-tests/scripts/check-adr028-move.sh --post
+#   REF=HEAD bash 9-tests/scripts/check-adr028-move.sh --post
 #
-# Печатает PASS/FAIL по каждому пункту, ошибки `::error::`, итог `PASS: ADR-028 N/N` и строку
-# с проверенной ревизией (REF) — её и надо присылать в чат.
+# Печатает PASS/FAIL по каждому пункту, `::error::` на нарушениях и итог
+# `PASS: ADR-028 7/7 | режим --post | ревизия <REF>` — эту строку и присылают в чат.
 set -uo pipefail
 
 MODE="post"
@@ -31,75 +29,111 @@ esac
 REF="${REF:-origin/main}"
 fail=0
 
-say() { printf '%-58s %s\n' "$1" "$2"; }
+say() { printf '%-62s %s\n' "$1" "$2"; }
 ok()  { say "$1" "PASS  ($2)"; }
-bad() { say "$1" "FAIL  ($2)"; fail=1; echo "::error::ADR-028: $1 — $2"; }
+bad() { say "$1" "FAIL  ($2)"; fail=1; echo "::error::ADR-028: $1 - $2"; }
 
-# Baseline считается по СУММЕ 6-msa + 9-tests и при переносе не меняется.
-# Значения одинаковы в обоих режимах (перенос не создаёт и не удаляет тесты).
-# ВАЖНО: это ИЗМЕРЕННЫЕ числа на проверяемой ревизии, а не «ожидаемые по плану» —
-# команда воспроизведения: git grep -h -c -E '\[Fact' REF -- 6-msa 9-tests | awk '{s+=$1} END{print s}'
+# Baseline атрибутов: сумма по репозиторию (6-msa + 9-tests) при перекладывании не меняется.
+# Измерено @TE на 2026-11-14: Fact 128, StandFact 20, Theory 11, ApiFact/E2EFact 17.
 BASE_FACT=128
 BASE_STAND=20
 BASE_THEORY=11
-BASE_E2E=17
+BASE_API=17
 
 echo "режим: --$MODE | ревизия: $REF"
 echo "----"
 
-# 1) .csproj в 9-tests
+# 1) В 9-tests не осталось C#-проектов (там только браузерные тесты)
 n_csproj=$(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -c '\.csproj$' || true)
-if [ "$MODE" = "post" ]; then
-  if [ "$n_csproj" = "0" ]; then
-    ok '1) .csproj в 9-tests отсутствуют' '0'
-  else
-    bad '1) .csproj в 9-tests отсутствуют' "$n_csproj — перенос не завершён"
-  fi
+if [ "${n_csproj:-0}" = "0" ]; then
+  ok '1) .csproj в 9-tests отсутствуют' '0'
 else
-  if [ "${n_csproj:-0}" -gt 0 ]; then
-    ok '1) --pre: .csproj в 9-tests ещё есть (ожидаемо)' "$n_csproj"
-  else
-    bad '1) --pre: .csproj в 9-tests ещё есть (ожидаемо)' '0 — перенос уже выполнен, --pre неприменим'
-  fi
+  bad '1) .csproj в 9-tests отсутствуют' "$n_csproj - тесты сервисов живут в 6-msa/BC-*"
 fi
 
-# 2) Все 8 целевых путей существуют в 6-msa
-missing=""
-# ADR-028 редакция 2 (@AR 2026-11-13 16:05): папка `Contract.<A>_<B>` вне `E2E` ЗАПРЕЩЕНА,
-# межсервисные black-box сценарии — в 6-msa/E2E/<pair>, шлюз — в 6-msa/ApiGateway.Tests.
-for p in \
-  '6-msa/E2E' \
-  '6-msa/ApiTests/Contract.Client_Journal' \
-  '6-msa/ApiTests/Partners_Catalog' \
-  '6-msa/ApiTests/DailyMetrics_SomaticSeries' \
-  '6-msa/ApiTests/Gateway_Portability' \
-  '6-msa/ApiTests/Analytics_Privacy' \
-  '6-msa/ApiGateway.Tests' \
-  '6-msa/BC-Journal/src/Journal.IntegrationTests'
-do
-  found=$(git ls-tree -r --name-only "$REF" -- "$p" 2>/dev/null | head -n1)
-  [ -z "$found" ] && missing="$missing $p"
+# 2) Общих тестовых бакетов нет (ADR-028 ред. 3 §3.1)
+shared=""
+for p in 6-msa/E2E 6-msa/ApiTests; do
+  if [ -n "$(git ls-tree -r --name-only "$REF" -- "$p" 2>/dev/null | head -n1)" ]; then
+    shared="$shared $p"
+  fi
 done
-if [ -z "$missing" ]; then
-  ok '2) все 8 целевых путей есть в 6-msa' '8/8'
+contract_out=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/Contract\.[^/]+/' | head -n5 || true)
+if [ -z "$shared" ] && [ -z "$contract_out" ]; then
+  ok '2) общих тестовых бакетов нет' 'ни E2E, ни ApiTests, ни Contract.<A>_<B>'
 else
-  bad '2) все 8 целевых путей есть в 6-msa' "нет:$missing"
+  bad '2) общих тестовых бакетов нет' "есть:${shared}${contract_out:+ contract: $contract_out}"
 fi
 
-# Подсказка по терминологии (ADR-028 §1.1, @AR 2026-11-13 25:50 + владелец):
-#   `E2E` = проверка ЧЕРЕЗ ФРОНТ (браузер). Тесты по API без фронта называются ApiTests.
-if [ "$MODE" = "post" ] && [ -n "$missing" ] \
-   && [ -n "$(git ls-tree -r --name-only "$REF" -- 6-msa/E2E 2>/dev/null | head -n1)" ]; then
-  echo "::error::ADR-028 §1.1: адрес ещё не переименован — в ревизии есть 6-msa/E2E, а ожидается 6-msa/ApiTests"
-fi
-# 3) Фронтовые E2E остались (единственное, что требует браузера)
-if git cat-file -e "$REF:9-tests/RnD/front-e2e/playwright.config.js" 2>/dev/null; then
-  ok '3) 9-tests/RnD/front-e2e на месте' 'playwright.config.js есть'
+# 3) Каждый *Tests.csproj лежит в 6-msa/BC-<X>/src/... или 6-msa/ApiGateway.Tests/...
+stray=""
+while IFS= read -r proj; do
+  [ -z "$proj" ] && continue
+  case "$proj" in
+    6-msa/BC-*/src/*) ;;
+    6-msa/ApiGateway.Tests/*) ;;
+    *) stray="$stray $proj" ;;
+  esac
+done <<EOF
+$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E 'Tests?\.csproj$' || true)
+EOF
+n_proj=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -cE 'Tests?\.csproj$' || true)
+if [ -z "$stray" ]; then
+  ok '3) все тестовые проекты в папках своих сервисов' "$n_proj проектов"
 else
-  bad '3) 9-tests/RnD/front-e2e на месте' 'playwright.config.js пропал'
+  bad '3) все тестовые проекты в папках своих сервисов' "вне зоны:$stray"
 fi
 
-# 4) Старые каталоги в 9-tests удалены (иначе проект существует дважды)
+# 4) В 9-tests фронтовый набор помечен и имеет браузерную зависимость
+marker_ok=0
+pkg_ok=0
+if [ -n "$(git ls-tree -r --name-only "$REF" -- 9-tests/RnD/front-e2e 2>/dev/null | grep 'front-e2e\.md$' || true)" ]; then marker_ok=1; fi
+if git show "$REF:9-tests/RnD/front-e2e/package.json" 2>/dev/null | grep -q 'playwright'; then pkg_ok=1; fi
+if [ "$marker_ok" = "1" ] && [ "$pkg_ok" = "1" ]; then
+  ok '4) front-e2e: маркер + браузерная зависимость' 'front-e2e.md + playwright'
+else
+  bad '4) front-e2e: маркер + браузерная зависимость' "маркер=$marker_ok playwright=$pkg_ok"
+fi
+
+# 5) В 9-tests нет посторонних исполняемых файлов (идея @DO 2026-11-14 06:50):
+#    разрешены RnD/front-e2e (браузер), reports/, scripts/, README.md, AGENTS.md.
+foreign=""
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    9-tests/RnD/front-e2e/*) continue ;;
+    9-tests/reports/*|9-tests/scripts/*) continue ;;
+    9-tests/README.md|9-tests/AGENTS.md) continue ;;
+    *) foreign="$foreign $f" ;;
+  esac
+done <<EOF
+$(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -E '\.(js|ps1|sh|cs)$' | grep -v '^9-tests/RnD/front-e2e/' || true)
+EOF
+if [ -z "$foreign" ]; then
+  ok '5) в 9-tests нет посторонних скриптов' '0'
+else
+  bad '5) в 9-tests нет посторонних скриптов' "лишнее:$(echo "$foreign" | tr '\n' ' ' | cut -c1-170)"
+fi
+
+# 6) Атрибуты тестов не потерялись (сумма 6-msa + 9-tests)
+count_attr() { # $1 = регулярка имени атрибута
+  { git grep -h -c -E "\[$1" "$REF" -- 6-msa 2>/dev/null
+    git grep -h -c -E "\[$1" "$REF" -- 9-tests 2>/dev/null
+  } | awk '{s+=$1} END {print s+0}'
+}
+fact_total=$(count_attr 'Fact')
+stand_total=$(count_attr 'StandFact')
+theory_total=$(count_attr 'Theory')
+api_total=$(count_attr 'ApiFact|E2EFact')
+detail="Fact=${fact_total}/${BASE_FACT} StandFact=${stand_total}/${BASE_STAND} Theory=${theory_total}/${BASE_THEORY} ApiFact=${api_total}/${BASE_API}"
+if [ "$fact_total" -ge "$BASE_FACT" ] && [ "$stand_total" -ge "$BASE_STAND" ] \
+   && [ "$theory_total" -ge "$BASE_THEORY" ] && [ "$api_total" -ge "$BASE_API" ]; then
+  ok '6) атрибуты тестов не потерялись' "$detail"
+else
+  bad '6) атрибуты тестов не потерялись' "$detail"
+fi
+
+# 7) Старые каталоги в 9-tests удалены (иначе проект существует дважды)
 left=""
 for d in \
   '9-tests/Contract.ClientJournal' '9-tests/Partners.Catalog' '9-tests/Somatic.Daily' \
@@ -111,52 +145,9 @@ do
   fi
 done
 if [ -z "$left" ]; then
-  ok '4) старые каталоги в 9-tests удалены' '0 остатков'
+  ok '7) старые каталоги в 9-tests удалены' '0 остатков'
 else
-  bad '4) старые каталоги в 9-tests удалены' "остались:$left"
-fi
-
-# 5) Число тестов не потерялось. Считаем СУММУ по репозиторию (6-msa + 9-tests): при переносе
-#    она не меняется, а при потере файла — падает. Baseline ИЗМЕРЕН на 2026-11-14 @TE:
-#    Fact 128, StandFact 20, Theory 11, E2EFact 17 (см. комментарий у BASE_FACT).
-count_attr() { # $1 = атрибут
-  { git grep -h -c -E "\[($1|E2EFact)" "$REF" -- 6-msa 2>/dev/null
-    git grep -h -c -E "\[$1" "$REF" -- 9-tests 2>/dev/null
-  } | awk '{s+=$1} END {print s+0}'
-}
-fact_total=$(count_attr 'Fact')
-stand_total=$(count_attr 'StandFact')
-theory_total=$(count_attr 'Theory')
-e2e_total=$(count_attr 'ApiFact')
-
-detail="Fact=${fact_total}/${BASE_FACT} StandFact=${stand_total}/${BASE_STAND} Theory=${theory_total}/${BASE_THEORY} ApiFact=${e2e_total}/${BASE_E2E}"
-if [ "$fact_total" -ge "$BASE_FACT" ] && [ "$stand_total" -ge "$BASE_STAND" ] \
-   && [ "$theory_total" -ge "$BASE_THEORY" ] && [ "$e2e_total" -ge "$BASE_E2E" ]; then
-  ok '5) атрибуты тестов не потерялись' "$detail"
-else
-  bad '5) атрибуты тестов не потерялись' "$detail"
-fi
-
-# 6) Запрещённая форма не появилась: `6-msa/Contract.<A>_<B>` вне `E2E` (комплаенс ADR-028 п.5)
-forbidden=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/Contract\.[^/]+/' | head -n3 || true)
-if [ -z "$forbidden" ]; then
-  ok '6) нет папки Contract.<A>_<B> вне E2E' '0'
-else
-  bad '6) нет папки Contract.<A>_<B> вне E2E' "$forbidden"
-fi
-
-# 7) Солюшен 9-tests не ссылается на переехавшие проекты (иначе он сломан:
-#    `dotnet build 9-tests/XDiary.Tests.sln` не находит файлы). Проверяются .sln в 9-tests.
-stale=""
-for s in $(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep '\.sln$' || true); do
-  hits=$(git show "$REF:$s" 2>/dev/null \
-    | grep -c -E 'Contract\.ClientJournal|Partners\.Catalog|Somatic\.Daily|Portability\.Gateway|Analytics\.Privacy|Gateways\.Api|E2E\\E2E' || true)
-  [ "${hits:-0}" -gt 0 ] && stale="$stale $s($hits)"
-done
-if [ -z "$stale" ]; then
-  ok '7) .sln в 9-tests не ссылается на переехавшие проекты' '0 ссылок'
-else
-  bad '7) .sln в 9-tests не ссылается на переехавшие проекты' "сломан:$stale"
+  bad '7) старые каталоги в 9-tests удалены' "остались:$left"
 fi
 
 echo "----"
