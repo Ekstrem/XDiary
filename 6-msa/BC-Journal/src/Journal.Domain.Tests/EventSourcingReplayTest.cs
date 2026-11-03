@@ -1,5 +1,5 @@
 using Xunit;
-using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
 
@@ -15,9 +15,9 @@ public class EventSourcingReplayTest
     public void StartManualEntry_TracksClientId_InValueObjects()
     {
         var r = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
-        Assert.True(r.IsSuccess());
+        Assert.Equal(DomainOperationResultEnum.Success, r.Result);
 
-        var vos = r.Model().GetValueObjects();
+        var vos = r.BusinessOperationData.Model.GetValueObjects();
         Assert.Contains("ClientId", vos.Keys);
         Assert.Contains("Root", vos.Keys);
     }
@@ -26,8 +26,8 @@ public class EventSourcingReplayTest
     public void Complete_TracksUpdatedAt_AndKeepsClientId()
     {
         var clientId = Guid.NewGuid();
-        var started = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId).Model();
-        var completed = Aggregate.CreateInstance(started).Complete().Model();
+        var started = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId).BusinessOperationData.Model;
+        var completed = Aggregate.CreateInstance(started).Complete().BusinessOperationData.Model;
 
         Assert.Equal(clientId, completed.ClientId);
         Assert.NotNull(completed.GetValueObjects()["ClientId"]);
