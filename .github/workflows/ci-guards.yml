@@ -40,6 +40,16 @@ jobs:
         # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
         # --strict-times — то есть на одном и том же пуше проверки расходились.
         run: python tools/chat_lint.py --config loop.config.json --check --strict-times
+      - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)
+        # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
+        # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).
+        run: python tools/check_api_index.py
+
+      - name: Внешняя поверхность = только шлюз (ADR-026)
+        # Любой сервис кроме `api-gateway` с `ports:` в compose публикует порт на хост —
+        # это реальная экспозиция, а не «риск». Внутренняя достижимость закрывается auth.
+        run: python tools/check_ports.py
+
       - name: Проверить NUL-байты и прочие C0-символы в md
         run: python tools/check_nul.py
       - name: Тесты самого сканера секретов (PDR-20)
