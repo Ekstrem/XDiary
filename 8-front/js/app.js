@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.76"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.77"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -275,15 +275,47 @@
     console.error("linkPartner: onbClientId=" + JSON.stringify(onbClientId) + ", partnerId=" + JSON.stringify(pid));
     if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); return; }
     if (!pid) { showOnbLinkError("Не удалось определить партнёра — обновите список."); return; }
-    showOnbLinkError("");
-    Api.clients.linkPartner(onbClientId, pid).then(function () {
-      toast("Это ты: " + (pname || ""));
+    // FE-033: спиннер + таймаут 10 с — иначе привязка выглядит зависшей
+    showOnbLinkError("Привязываю «это я»…");
+    withTimeout(Api.clients.linkPartner(onbClientId, pid), 10000, "TIMEOUT").then(function (res) {
+      if (res === "TIMEOUT") {
+        console.error("linkPartner: таймаут 10 c");
+        showOnbLinkError("Сервер не ответил за 10 секунд — нажмите карточку ещё раз.");
+        return;
+      }
+      toast("Это я: " + (pname || ""));
       openJournal();
     }, function (e) {
       console.error("linkPartner error:", e);
-      showOnbLinkError("Не удалось привязать «я»: " + (e && e.message ? e.message : "ошибка") + ". Попробуйте ещё раз.");
-      toast("Ошибка: " + (e && e.message ? e.message : "привязка"));
+      showOnbLinkError("Не удалось привязать «я»: " + apiErrorText(e, "ошибка") + ". Попробуйте ещё раз.");
+      toast("Ошибка: " + apiErrorText(e, "привязка"));
     });
+  }
+  function renderLinkCards(partners) {
+    var list = $("onboarding-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!partners || !partners.length) {
+      // BE-048: 401 или пусто = «своих нет» → предлагаем создать, а не пустой экран
+      var empty = document.createElement("p");
+      empty.className = "muted";
+      empty.textContent = "Своих партнёров пока нет — создайте карточку «Это я» кнопкой ниже, чтобы продолжить.";
+      list.appendChild(empty);
+      list._fe031For = onbClientId;
+      showOnbLinkError("");
+      return;
+    }
+    partners.forEach(function (p) {
+      var c = document.createElement("button");
+      c.type = "button";
+      c.className = "partner-card";
+      c.setAttribute("data-partner-id", (p && p.id) || "");
+      c.setAttribute("data-partner-name", (p && p.name) || "");
+      c.innerHTML = avatarHtml(p) + "<span>Это я: " + esc(p.name) + "</span>";
+      list.appendChild(c);
+    });
+    list._fe031For = onbClientId;
+    showOnbLinkError("");
   }
   function renderLinkPartners() {
     showOnbLinkError("");
@@ -304,18 +336,14 @@
     // FE-031: не перерисовываем список для того же клиента — элементы остаются теми же
     if (list._fe031For === onbClientId && list.children.length > 0) return;
     Api.partners.list().then(function (partners) {
-      list.innerHTML = "";
-      (partners || []).forEach(function (p) {
-        var c = document.createElement("button");
-        c.type = "button";
-        c.className = "partner-card";
-        c.setAttribute("data-partner-id", (p && p.id) || "");
-        c.setAttribute("data-partner-name", (p && p.name) || "");
-        c.innerHTML = avatarHtml(p) + "<span>" + esc(p.name) + "</span>";
-        list.appendChild(c);
-      });
-      list._fe031For = onbClientId;
-    }).catch(function (e) { showOnbLinkError("Не удалось загрузить партнёров: " + (e && e.message ? e.message : "ошибка")); });
+      renderLinkCards(partners || []);
+    }).catch(function (e) {
+      // BE-048: partners теперь [Authorize]; 401 до токена = «своих нет», а не ошибка
+      console.error("partners/list:", e);
+      if (e && e.status === 401) { renderLinkCards([]); return; }
+      showOnbLinkError("Не удалось загрузить партнёров: " + apiErrorText(e, "ошибка"));
+      renderLinkCards([]);
+    });
   }
   // P0 (2026-11-08): ошибки register/verify должны быть видны, а не глотаться
   function showOnbError(elId, text) {
