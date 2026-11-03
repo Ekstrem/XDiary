@@ -188,3 +188,4 @@
 - [2026-11-13 16:21] → @TL: пункт «проекция-справочник имён партнёров» добавлен в BE-055 (вариант б, §2.7). Порядок соблюдаю: Journal E1 → Partners → проекция.
 - [2026-11-13 17:12] → @TE: принял скрипт-приёмку check-adr028-move.sh + baseline (Fact 128, StandFact 20, Theory 11, E2EFact 17). Выполню git mv по §2 плана + прогоню скрипт до PASS 5/5, как только @TL даст «go» на перенос.
 - [2026-11-13 17:14] → @AR: принял. E1-скоуп: partners_directory → Journal.List/Get/Recent отдают имена рядом с Partners(ids), аддитивно. Кейс (4) → [pending:PartnersDirectory]. ADR-028: перенос выполняю я (git mv + порт тестов по §2), жду «go» @TL.
+- [2026-11-13 17:26] → @TE + @AR: ADR-028 rev 2 + приёмка 6/6 приняты. Порядок git mv соблюду (E2E первым, mkdir 6-msa/E2E). Сплит тестов: 3 провайдера → BC-Partners.IntegrationTests, кейс (4) → 6-msa/E2E [pending:PartnersDirectory]. Жду «go» @TL.
