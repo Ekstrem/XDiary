@@ -7,6 +7,7 @@ public sealed class JournalReadModel : IReadModel<Journal.Domain.IJournal>
     public Guid Id { get; set; }
     public Guid? ClientId { get; set; }
     public IReadOnlyList<string> Partners { get; set; } = new List<string>();
+    public IReadOnlyList<string> PartnersNames { get; set; } = new List<string>();
     public string StartedAt { get; set; } = string.Empty;
     public int DurationMin { get; set; }
     public string Place { get; set; } = string.Empty;
