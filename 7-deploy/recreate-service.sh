@@ -90,12 +90,20 @@ BODY="/tmp/recreate-$SVC.body"
 RUNNER="/tmp/recreate-$SVC.sh"
 
 python3 - "$DEPLOY_SH" "$SVC" "$BODY" <<'PY'
+import re
 import sys
 dep, svc, out = sys.argv[1:4]
 src = open(dep, encoding='utf-8').read().replace('\\\n', ' ')
 needle = 'podman run -d --name xdiary-%s ' % svc
 line = next((l for l in src.splitlines() if needle in l), '')
-open(out, 'w', encoding='utf-8').write(line.strip() + '\n')
+line = line.strip()
+# Убираем хвостовые редиректы ДО разбора «последний аргумент = образ».
+# Без этого `--image` подменял не образ, а `>/dev/null`: подмена уходила в конец,
+# а флаги `--add-host` вставали после настоящего образа → попадали в Cmd
+# контейнера, и откат «успешно» создавал контейнер на СТАРОМ образе без add-host
+# (инцидент 2026-11-09 22:50: prod client остался без link-partner).
+line = re.sub(r'(\s*(?:2?>\s*/dev/null|&>\s*/dev/null|2>&1))+\s*$', '', line)
+open(out, 'w', encoding='utf-8').write(line + '\n')
 PY
 
 [ -s "$BODY" ] || die "в $DEPLOY_SH нет команды для $SVC — контейнер не трогаю"
@@ -110,6 +118,9 @@ parts = line.rsplit(' ', 1)
 assert len(parts) == 2, 'нет образа в конце строки'
 open(path, 'w', encoding='utf-8').write(parts[0] + ' ' + img + '\n')
 PY
+  # контроль: последний токен — действительно образ (а не флаг/редирект)
+  last_tok="$(tail -1 "$BODY" | awk '{print $NF}')"
+  [ "$last_tok" = "$IMAGE_OVERRIDE" ] || die "подмена образа не удалась: в конце строки '$last_tok', ожидали '$IMAGE_OVERRIDE' — контейнер не трогаю"
   say "  образ переопределён на $IMAGE_OVERRIDE (откат)"
 fi
 
