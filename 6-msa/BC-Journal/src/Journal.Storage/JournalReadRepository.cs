@@ -1,52 +1,79 @@
 namespace Journal.Storage;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
+using Journal.Domain;
 using Journal.InternalContracts;
 using Microsoft.EntityFrameworkCore;
+
 public sealed class JournalReadRepository : IJournalQueryRepository
 {
-    private readonly ReadDbContext _db;
-    public JournalReadRepository(ReadDbContext db) => _db = db;
-    public async Task<JournalReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    private readonly IReadRepository<IJournal, JournalReadModel> _read;
+    private readonly ReadDbContext _db; // временно для GetRecent/GetPlaces/GetFantasies (TODO: в MV-проекцию)
+
+    public JournalReadRepository(IReadRepository<IJournal, JournalReadModel> read, ReadDbContext db)
     {
-        var e = await _db.Records.FirstOrDefaultAsync(x => x.Id == id, ct);
-        return e is null || e.Deleted ? null : JournalMapper.MapToReadModel(e);
+        _read = read;
+        _db = db;
     }
+
+    public async Task<JournalReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
+        => await _read.GetByIdAsync(id, ct);
+
     public async Task<IReadOnlyList<JournalReadModel>> ListAsync(Guid clientId, int? limit, int? offset, CancellationToken ct = default)
     {
-        IQueryable<RecordEntity> q = _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId).OrderByDescending(x => x.StartedAt);
+        var all = await _read.GetAllAsync(null!, ct);
+        IEnumerable<JournalReadModel> q = all.Where(x => x.ClientId == clientId);
         if (offset is > 0) q = q.Skip(offset.Value);
         if (limit is > 0) q = q.Take(limit.Value);
-        return (await q.ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
+        return q.ToList();
     }
+
     public async Task<IReadOnlyList<JournalReadModel>> ListAllAsync(int? limit, int? offset, CancellationToken ct = default)
     {
-        IQueryable<RecordEntity> q = _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt);
+        var all = await _read.GetAllAsync(null!, ct);
+        IEnumerable<JournalReadModel> q = all;
         if (offset is > 0) q = q.Skip(offset.Value);
         if (limit is > 0) q = q.Take(limit.Value);
-        return (await q.ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
+        return q.ToList();
     }
-    public async Task<int> CountAsync(CancellationToken ct = default) => await _db.Records.CountAsync(ct);
+
+    public async Task<int> CountAsync(CancellationToken ct = default)
+        => (int)await _read.CountAsync(ct);
+
     public async Task<RecentDefaultsView?> GetRecentAsync(Guid clientId, CancellationToken ct = default)
     {
-        var e = await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync(ct);
-        if (e is null) return null;
-        var partners = JournalMapper.ToList(e.PartnersJson);
+        var all = await _read.GetAllAsync(null!, ct);
+        var last = all.Where(x => x.ClientId == clientId)
+            .OrderByDescending(x => x.StartedAt)
+            .FirstOrDefault();
+        if (last is null) return null;
         return new RecentDefaultsView
         {
-            LastPartner = partners.Count > 0 ? new PartnerRef { Id = partners[0], Name = partners[0] } : null,
-            LastPlace = string.IsNullOrWhiteSpace(e.Place) ? null : e.Place,
-            LastPositions = JournalMapper.ToList(e.PositionsJson),
-            LastTags = JournalMapper.ToList(e.TagsJson),
-            LastContraceptives = JournalMapper.ToList(e.ContraceptivesJson),
-            LastFantasies = JournalMapper.ToList(e.FantasiesJson)
+            LastPartner = last.Partners.Count > 0 ? new PartnerRef { Id = last.Partners[0], Name = last.Partners[0] } : null,
+            LastPlace = string.IsNullOrWhiteSpace(last.Place) ? null : last.Place,
+            LastPositions = last.Positions.ToList(),
+            LastTags = last.Tags.ToList(),
+            LastContraceptives = last.Contraceptives.ToList(),
+            LastFantasies = last.Fantasies.ToList(),
         };
     }
+
     public async Task<IReadOnlyList<string>> GetPlacesAsync(Guid clientId, CancellationToken ct = default)
-        => (await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId && x.Place != string.Empty).Select(x => x.Place).Distinct().OrderBy(x => x).ToListAsync(ct)).ToList();
+    {
+        var all = await _read.GetAllAsync(null!, ct);
+        return all.Where(x => x.ClientId == clientId && !string.IsNullOrWhiteSpace(x.Place))
+            .Select(x => x.Place)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<string>> GetFantasiesAsync(Guid clientId, CancellationToken ct = default)
     {
-        var rows = await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId).Select(x => x.FantasiesJson).ToListAsync(ct);
-        var set = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var json in rows) foreach (var f in JournalMapper.ToList(json)) set.Add(f);
-        return set.ToList();
+        var all = await _read.GetAllAsync(null!, ct);
+        return all.Where(x => x.ClientId == clientId)
+            .SelectMany(x => x.Fantasies)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
     }
 }
