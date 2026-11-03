@@ -2,6 +2,7 @@ namespace Journal.Storage;
 public sealed class RecordEntity
 {
     public Guid Id { get; set; }
+    public Guid? ClientId { get; set; }
     public string PartnersJson { get; set; } = "[]";
     public string StartedAt { get; set; } = string.Empty;
     public int DurationMin { get; set; }

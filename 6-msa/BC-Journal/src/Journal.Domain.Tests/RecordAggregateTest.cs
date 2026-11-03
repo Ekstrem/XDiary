@@ -8,7 +8,7 @@ public class RecordAggregateTest
     [Fact]
     public void Complete_WithoutStartedAt_Fails()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry();
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
         var result = Aggregate.CreateInstance(start.Model()).Complete();
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
@@ -16,7 +16,7 @@ public class RecordAggregateTest
     [Fact]
     public void Wizard_Then_Complete_Succeeds()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry();
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
         var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
         var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1");
         var complete = Aggregate.CreateInstance(partner.Model()).Complete();
@@ -26,7 +26,7 @@ public class RecordAggregateTest
     [Fact]
     public void Solo_Complete_Succeeds()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry();
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
         var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
         var complete = Aggregate.CreateInstance(when.Model()).Complete();
         Assert.Equal(DomainOperationResultEnum.Success, complete.Result);

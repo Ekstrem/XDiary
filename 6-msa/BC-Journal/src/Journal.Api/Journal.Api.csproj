@@ -11,7 +11,7 @@
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
     <PackageReference Include="DigiTFactory.Libraries.EventBus.InMemory" Version="0.1.0" />
-    <PackageReference Include="DigiTFactory.Libraries.ReadRepository.Postgres" Version="0.1.0" />
+    <PackageReference Include="DigiTFactory.Libraries.ReadRepository.Postgres" Version="0.1.0" /><PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" /><PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
         <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 

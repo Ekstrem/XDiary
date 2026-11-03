@@ -12,6 +12,7 @@ public sealed class AnemicModel : IJournalAnemicModel
     public Guid CorrelationToken { get; set; } = Guid.NewGuid();
 
     public IRecordRoot Root { get; set; } = null!;
+    public Guid? ClientId { get; set; }
     public int DurationMin { get; set; }
     public string Place { get; set; } = string.Empty;
     public IReadOnlyList<string> Positions { get; set; } = new List<string>();

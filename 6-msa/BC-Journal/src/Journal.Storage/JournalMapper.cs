@@ -19,13 +19,13 @@ public static class JournalMapper
         m.Costumes = ToList(e.CostumesJson); m.Toys = ToList(e.ToysJson); m.Fantasies = ToList(e.FantasiesJson);
         m.Contraceptives = ToList(e.ContraceptivesJson); m.ContraceptiveCount = e.ContraceptiveCount;
         m.Orgasms = OrgasmsToList(e.OrgasmsJson).Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList();
-        m.Garmin = e.Garmin; m.GarminId = e.GarminId; m.CreatedAt = e.CreatedAt; m.UpdatedAt = e.UpdatedAt; m.Deleted = e.Deleted;
+        m.ClientId = e.ClientId; m.Garmin = e.Garmin; m.GarminId = e.GarminId; m.CreatedAt = e.CreatedAt; m.UpdatedAt = e.UpdatedAt; m.Deleted = e.Deleted;
         return m;
     }
 
     public static void MapToEntity(IJournalAnemicModel m, RecordEntity e)
     {
-        e.Id = m.Id; e.Version = m.Version; e.StartedAt = m.Root.StartedAt;
+        e.Id = m.Id; e.Version = m.Version; e.ClientId = m.ClientId; e.StartedAt = m.Root.StartedAt;
         e.PartnersJson = ToJson(m.Root.Partners); e.DurationMin = m.DurationMin; e.Place = m.Place;
         e.PositionsJson = ToJson(m.Positions); e.TagsJson = ToJson(m.Tags); e.CostumesJson = ToJson(m.Costumes);
         e.ToysJson = ToJson(m.Toys); e.FantasiesJson = ToJson(m.Fantasies); e.ContraceptivesJson = ToJson(m.Contraceptives);

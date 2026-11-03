@@ -54,7 +54,7 @@ public sealed class Aggregate
         Deleted = Model.Deleted
     };
 
-    public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry()
+    public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry(Guid clientId)
     {
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel

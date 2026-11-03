@@ -6,6 +6,7 @@ using Journal.Domain;
 using Journal.Domain.Abstraction;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using XDiary.Contracts;
 
 [ApiController]
@@ -19,7 +20,13 @@ public sealed class JournalController : ControllerBase
         => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
     [HttpPost("records")]
-    public async Task<IActionResult> StartManualEntry(CancellationToken ct) => Respond(await _mediator.Send(new StartManualEntryCommand(), ct));
+    [Authorize]
+    public async Task<IActionResult> StartManualEntry(CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
+        return Respond(await _mediator.Send(new StartManualEntryCommand(clientId), ct));
+    }
     [HttpPost("records/from-garmin")]
     public async Task<IActionResult> StartFromGarmin([FromBody] StartFromGarminCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
     [HttpPost("records/{id:guid}/when")]
@@ -45,7 +52,13 @@ public sealed class JournalController : ControllerBase
     [HttpPost("records/{id:guid}/delete")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new DeleteRecordCommand(id), ct));
     [HttpGet("records")]
-    public async Task<IActionResult> List([FromQuery] int? limit, [FromQuery] int? offset, CancellationToken ct) => Ok(await _mediator.Send(new ListRecordsQuery(limit, offset), ct));
+    [Authorize]
+    public async Task<IActionResult> List([FromQuery] int? limit, [FromQuery] int? offset, CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
+        return Ok(await _mediator.Send(new ListRecordsQuery(clientId, limit, offset), ct));
+    }
     [HttpGet("recent")]
     public async Task<IActionResult> Recent(CancellationToken ct) => Ok(await _mediator.Send(new RecentDefaultsQuery(), ct));
     [HttpGet("places")]

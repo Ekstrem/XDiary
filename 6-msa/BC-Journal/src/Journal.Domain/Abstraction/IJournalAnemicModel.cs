@@ -5,6 +5,7 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 public interface IJournalAnemicModel : IAnemicModel<IJournal>
 {
     IRecordRoot Root { get; }
+    Guid? ClientId { get; }
     int DurationMin { get; }
     string Place { get; }
     IReadOnlyList<string> Positions { get; }

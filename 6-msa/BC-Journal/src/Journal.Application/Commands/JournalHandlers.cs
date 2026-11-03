@@ -13,7 +13,7 @@ public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCo
     public StartManualEntryHandler(IRepository<IJournal, IJournalAnemicModel> repo) => _repo = repo;
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartManualEntryCommand r, CancellationToken ct)
     {
-        var result = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry();
+        var result = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(r.ClientId);
         if (result.IsSuccess()) await _repo.SaveAsync(result, ct);
         return result;
     }

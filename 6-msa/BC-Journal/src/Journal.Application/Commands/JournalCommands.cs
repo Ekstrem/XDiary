@@ -6,7 +6,7 @@ using MediatR;
 
 public sealed record OrgasmsDto(string Participant, int Count, IReadOnlyList<string> Types, int Rating);
 
-public sealed record StartManualEntryCommand : IRequest<AggregateResult<IJournal, IJournalAnemicModel>>;
+public sealed record StartManualEntryCommand(Guid ClientId) : IRequest<AggregateResult<IJournal, IJournalAnemicModel>>;
 public sealed record StartFromGarminCommand(string StartedAt, int DurationMin, string GarminId) : IRequest<AggregateResult<IJournal, IJournalAnemicModel>>;
 public sealed record SpecifyWhenCommand(Guid AggregateId, string StartedAt) : IRequest<AggregateResult<IJournal, IJournalAnemicModel>>;
 public sealed record AddPartnerCommand(Guid AggregateId, string PartnerId) : IRequest<AggregateResult<IJournal, IJournalAnemicModel>>;
