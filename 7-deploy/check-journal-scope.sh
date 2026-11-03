@@ -14,7 +14,10 @@ B=http://127.0.0.1:8080
 PG()  { sudo -n podman exec xdiary-pg psql -U client  -d client  -t -A -c "$1" 2>/dev/null | tr -d '\n'; }
 PGJ() { sudo -n podman exec xdiary-pg psql -U journal -d journal -t -A -c "$1" 2>/dev/null | tr -d '\n'; }
 say() { printf '  %s\n' "$*"; }
-jget() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"; }
+# Извлечение значения по ключу: `grep -o` устойчивее sed-подстановки — sed с жадным
+# `.*` на длинном JSON с несколькими строками возвращал пусто, и это выглядело как
+# «токена нет» (хотя verify отдавал accessToken).
+jget() { grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -1 | sed 's/.*:[[:space:]]*"//; s/"$//'; }
 jnum() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\([0-9-]*\).*/\1/p"; }
 
 host=$(hostname)
