@@ -147,3 +147,22 @@ podman exec xdiary-api-gateway grep -c ' clients$' /etc/hosts   # >= 1
 ```
 
 Иначе `GET/POST /api/v1/clients` → **502** при живом `/health`.
+
+### После `podman restart` шлюза — сразу проверять `/health` до 200
+
+`restart` шлюза — это не «мгновенно»: пока приложение поднимается, внешний вход отдаёт
+**502 на всё**, включая `/health` (Caddy: `dial tcp 127.0.0.1:8080: connection refused`).
+Реальный случай 2026-11-10: после `podman restart` я увидел 502 на всех путях и почти
+принял это за дефект — это было окно пересоздания.
+
+Правило: после `restart`/пересоздания шлюза **дождаться `/health` = 200 в цикле** и только
+потом мерить внешние коды. Иначе «restart» означает «сколько-то минут недоступности, о
+которой никто не знает».
+
+```bash
+for i in $(seq 1 18); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 6 http://127.0.0.1:8080/health)
+  [ "$code" = "200" ] && break; sleep 5
+done
+echo "health: $code"
+```
