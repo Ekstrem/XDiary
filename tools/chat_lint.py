@@ -117,6 +117,8 @@ def scan(chat_dir, known_roles):
     return problems
 
 
+ORDER_CUTOFF = datetime.datetime(2026, 11, 10, 0, 0)
+
 TS_CANON = re.compile(r"^-\s*\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]")
 
 
@@ -312,7 +314,11 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
                     global_max[name] = ts
                 if not new_scale:
                     continue
-                if prev is not None and ts < prev:
+                if prev is not None and ts < prev and ts >= ORDER_CUTOFF and prev >= ORDER_CUTOFF:
+                    # Решение @TL 2026-11-11: историю чата НЕ переписываем. Порядок
+                    # проверяем только для строк, добавленных после ORDER_CUTOFF:
+                    # старые файлы писались «по памяти» и уехали вперёд, и вечный
+                    # красный гейт на историческом — это гейт, который отключат.
                     order.append((name, raw, prev.strftime("%Y-%m-%d %H:%M")))
                 prev = ts
                 collected.append((name, raw, ts))
