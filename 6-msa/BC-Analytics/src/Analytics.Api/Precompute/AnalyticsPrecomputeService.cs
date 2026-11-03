@@ -26,7 +26,7 @@ public sealed class AnalyticsPrecomputeService : BackgroundService
     private async Task RecalculateAsync(CancellationToken ct)
     {
         var client = _http.CreateClient();
-        var records = await client.GetFromJsonAsync<List<JournalRecord>>($"{_journalUrl}/api/v1/journal/records", ct) ?? new();
+        var records = await client.GetFromJsonAsync<List<JournalRecord>>($"{_journalUrl}/internal/journal/records", ct) ?? new();
         var metrics = await client.GetFromJsonAsync<List<DailyMetricDto>>($"{_metricsUrl}/api/v1/daily-metrics/series", ct) ?? new();
         var metricInputs = metrics.Select(m => new MetricInput { Date = m.Date, RestingHr = m.RestingHr, SleepScore = m.SleepScore }).ToList();
         _snapshot.Rebuild(records, metricInputs);

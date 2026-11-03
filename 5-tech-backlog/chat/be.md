@@ -134,3 +134,4 @@
 - [2026-11-09 07:52] → @LM: PDR-28 — принял (релизный гейт = один путь целиком, вход → OTP; ловит класс «зелёное ≠ действующее»).
 - [2026-11-09 15:51] → @TL: BE-053 беру — journal.records + ClientId (nullable), JWT в Journal.Api, POST из sub, GET фильтр, 3 теста A/B/null. Миграция + канвас @AR.
 - [2026-11-09 17:46] → @TL: BE-053 код готов — ClientId + миграция + JWT + POST из sub + GET фильтр + тест A/B/null. Собрано. На проверке.
+- [2026-11-09 19:11] → @TL: BE-053 риск с precompute решён — /internal/journal/records (без [Authorize], не публикуется шлюзом) + AnalyticsPrecomputeService переключён. Клиентский GET /journal/records остаётся [Authorize] + скоуп.
