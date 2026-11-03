@@ -9,7 +9,7 @@ public class PartnerIntegrationTest
     [Fact]
     public void Command_Then_Query()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice");
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice", Guid.NewGuid());
         var profile = Aggregate.CreateInstance(start.Model()).UpdateProfile("photo", "female", "note");
         Assert.Equal(DomainOperationResultEnum.Success, profile.Result);
         var entity = new PartnerEntity { Id = profile.Model().Id };

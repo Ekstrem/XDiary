@@ -11,7 +11,7 @@ public sealed class RegisterPartnerHandler : IRequestHandler<RegisterPartnerComm
     private readonly IRepository<IPartners, IPartnerAnemicModel> _repo;
     public RegisterPartnerHandler(IRepository<IPartners, IPartnerAnemicModel> repo) => _repo = repo;
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(RegisterPartnerCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Name); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Name, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class RenamePartnerHandler : IRequestHandler<RenamePartnerCommand, AggregateResult<IPartners, IPartnerAnemicModel>>
 {

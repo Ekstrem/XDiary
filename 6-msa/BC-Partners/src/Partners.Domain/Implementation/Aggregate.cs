@@ -23,12 +23,12 @@ public sealed class Aggregate
         return new AggregateResultException<IPartners, IPartnerAnemicModel>(data, new FailedSpecification<IPartners, IPartnerAnemicModel>(e));
     }
 
-    public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name)
+    public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name, Guid clientId)
     {
         var v = new NameRequiredValidator();
         var probe = new AnemicModel { Id = Model.Id, Root = PartnerRoot.CreateInstance(name) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
-        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = PartnerRoot.CreateInstance(name) };
+        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = PartnerRoot.CreateInstance(name), ClientId = clientId };
         return Success(m);
     }
     public AggregateResult<IPartners, IPartnerAnemicModel> Rename(string name)

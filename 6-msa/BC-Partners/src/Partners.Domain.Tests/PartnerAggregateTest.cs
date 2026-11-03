@@ -8,7 +8,7 @@ public class PartnerAggregateTest
     [Fact]
     public void Register_Then_Rename_Then_Remove()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice");
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice", Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, start.Result);
         var rename = Aggregate.CreateInstance(start.Model()).Rename("Bob");
         Assert.Equal(DomainOperationResultEnum.Success, rename.Result);
@@ -19,14 +19,14 @@ public class PartnerAggregateTest
     [Fact]
     public void Register_WithoutName_Fails()
     {
-        var result = Aggregate.CreateInstance(new AnemicModel()).Register("");
+        var result = Aggregate.CreateInstance(new AnemicModel()).Register("", Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
     public void UpdateProfile_BadGender_Fails()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice");
+        var start = Aggregate.CreateInstance(new AnemicModel()).Register("Alice", Guid.NewGuid());
         var result = Aggregate.CreateInstance(start.Model()).UpdateProfile("photo", "x", "note");
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }

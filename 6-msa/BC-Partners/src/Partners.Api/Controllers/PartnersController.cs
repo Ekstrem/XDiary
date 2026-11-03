@@ -18,7 +18,13 @@ public sealed class PartnersController : ControllerBase
     private IActionResult Respond(AggregateResult<IPartners, IPartnerAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
     [HttpPost]
-    public async Task<IActionResult> Register([FromBody] RegisterPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    [Authorize]
+    public async Task<IActionResult> Register([FromBody] RegisterPartnerCommand c, CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
+        return Respond(await _mediator.Send(c with { ClientId = clientId }, ct));
+    }
     [HttpPost("{id:guid}/name")]
     public async Task<IActionResult> Rename(Guid id, [FromBody] RenamePartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("{id:guid}/profile")]
