@@ -65,9 +65,45 @@ PY
   say "  образ переопределён на $IMAGE_OVERRIDE (откат)"
 fi
 
+# DO-048: сервисы обращаются к соседям по КОРОТКОМУ имени (`journal:8080`), а CNI-DNS
+# отдаёт только `xdiary-journal.dns.podman`. В `deploy.sh` `--add-host` есть ТОЛЬКО у
+# api-gateway, поэтому у analytics падал precompute:
+# `SocketException: Name or service not known (journal:8080)`.
+# Добавляем add-host автоматически из gen-hosts.py --add-host — для любого сервиса.
+GEN=""
+for cand in /opt/xdiary/tools/gen-hosts.py "$(dirname "$DEPLOY_SH")/gen-hosts.py"; do
+  [ -f "$cand" ] && { GEN="$cand"; break; }
+done
+ADD_HOSTS=""
+if [ -n "$GEN" ]; then
+  ADD_HOSTS="$(python3 "$GEN" --add-host 2>/dev/null || true)"
+  # сам себя в hosts не нужен
+  ADD_HOSTS="$(printf '%s' "$ADD_HOSTS" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${SVC}:" | tr '\n' ' ')"
+fi
+
 { echo 'set -u'; echo 'NET=xdiary'
   echo 'LBL="--label io.containers.autoupdate=registry"'
-  echo 'TAG=single'; cat "$BODY"; } > "$RUNNER"
+  echo 'TAG=single'
+  cat "$BODY"; } > "$RUNNER"
+
+if [ -n "$ADD_HOSTS" ]; then
+  # вставляем --add-host ... перед образом (последний аргумент строки)
+  python3 - "$RUNNER" "$ADD_HOSTS" <<'PY'
+import sys
+runner, hosts = sys.argv[1:3]
+lines = open(runner, encoding='utf-8').read().splitlines()
+out = []
+for l in lines:
+    if 'podman run -d --name' in l:
+        parts = l.rsplit(' ', 1)
+        if len(parts) == 2:
+            add = ' '.join('--add-host ' + h for h in hosts.split() if ':' in h)
+            l = parts[0] + ' ' + add + ' ' + parts[1]
+    out.append(l)
+open(runner, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
+PY
+  say "  add-host добавлен для $SVC ($(printf '%s' "$ADD_HOSTS" | wc -w) хостов)"
+fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
 
