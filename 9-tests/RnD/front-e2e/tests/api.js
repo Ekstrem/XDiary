@@ -208,10 +208,37 @@ async function seedSessionOnce(page) {
     };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
 
+  if (!seeded.ok) {
+    throw new Error('seedSession: шаг ' + seeded.step + ' вернул ' + seeded.status);
+  }
+  await page.goto('/');
+  await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
+
+  // TE-048-проба (@TL 2026-11-09 01:05): без этих трёх полей мы двое суток не могли
+  // отличить «нет токена» от «экран блокировки остался из-за легаси-PIN».
+  // Предикат pinVerified — ровно как во фронте (`app.js:154/246`): сначала `pin.verified`,
+  // затем `pin.lastSuccess`; `pin.verified` фронт пока НИКОГДА не пишет, пишет `lastSuccess`
+  // (app.js:507) — поэтому читаем оба, иначе поле всегда false и снова вводит в заблуждение.
+  const screen = await page.evaluate(async () => {
+    const out = { lockVisible: null, hasPin: null, pinVerified: null };
+    try {
+      const l = document.getElementById('view-lock');
+      out.lockVisible = !!l && !l.classList.contains('hidden');
+    } catch (e) {}
+    try {
+      out.hasPin = await window.Pin.hasPin();
+    } catch (e) {}
+    try {
+      out.pinVerified = !!localStorage.getItem('xdiary.pin.verified') ||
+                        !!localStorage.getItem('xdiary.pin.lastSuccess');
+    } catch (e) {}
+    return out;
+  }).catch(() => null);
+
   if (seeded.ok) {
     const tokenAccepted = seeded.partnersStatus === 200;
     console.log('::warning::' + JSON.stringify({
-      title: 'seedSession: auth-контур /partners',
+      title: 'seedSession: auth-контур /partners + экран',
       anonStatus: seeded.anonStatus,              // ожидание после BE-048: 401
       withTokenStatus: seeded.partnersStatus,     // ожидание: 200
       authEnforced: seeded.anonStatus === 401,
@@ -219,6 +246,9 @@ async function seedSessionOnce(page) {
       partnersCount: seeded.partnersCount,
       partnerCreated: seeded.partnerCreated,
       partnersOwnVisible: seeded.partnersOwn,
+      lockVisible: screen && screen.lockVisible,  // если true при tokenAccepted — это UI, не auth
+      hasPin: screen && screen.hasPin,
+      pinVerified: screen && screen.pinVerified,
     }));
     // Падаем только по делу: если client-JWT не принимается — это auth, а не «скрытый экран».
     if (!tokenAccepted) {
@@ -226,6 +256,17 @@ async function seedSessionOnce(page) {
         'client-JWT не принят: GET /partners с токеном вернул ' + seeded.partnersStatus +
         ' (без токена: ' + seeded.anonStatus + '). Это auth-контур, а не hidden-экран (TE-047).'
       );
+    }
+    // TE-048: токен принят, но приложение осталось на замке — это дефект фронта (FE-032),
+    // и в логе он должен быть назван, а не выглядеть как «фикстура не залогинилась».
+    if (screen && screen.lockVisible && screen.hasPin && !screen.pinVerified) {
+      console.log('::warning::' + JSON.stringify({
+        title: 'seedSession: замок при валидном токене',
+        verdict: 'UI: view-lock видим, токен принят (200), PIN есть, но не подтверждён — легаси-PIN (FE-032)',
+        hasPin: screen.hasPin,
+        pinVerified: screen.pinVerified,
+        lockVisible: screen.lockVisible,
+      }));
     }
   }
 
