@@ -10,7 +10,7 @@ public class JournalIntegrationTest
     public void Command_Then_Query_ReturnsRecord()
     {
         var aggregate = Aggregate.CreateInstance(new AnemicModel());
-        var start = aggregate.StartManualEntry();
+        var start = aggregate.StartManualEntry(Guid.NewGuid());
         var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
         var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1");
         var complete = Aggregate.CreateInstance(partner.Model()).Complete();
