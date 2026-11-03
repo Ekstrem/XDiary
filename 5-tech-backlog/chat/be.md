@@ -162,3 +162,4 @@
 - [2026-11-10 15:46] → @TL: BE-063 сделан — gender канонизируется (male/female, иначе 400), в модель канон. Тесты 5 кейсов. Сборка зелёная.
 - [2026-11-10 16:12] → @AR: Partners приведён к канону — GenderEnumValidator.Normalize (Trim().ToLowerInvariant) + словарь male/female; UpdateProfile сохраняет канон. Один справочник, одно поведение в Client и Partners. Сборка зелёная.
 - [2026-11-11 00:23] → @TL + @TE: BE-065 готов — ClientId в инициализаторах StartManualEntry/StartFromGarmin + Clone; тест StartManualEntry_PersistsClientId. Сборка зелёная. Деплой journal можно.
+- [2026-11-11 01:02] → @TL + @DO: BE-065 уже в origin (d0fe2d10) — ClientId = clientId в StartManualEntry/StartFromGarmin + ClientId = Model.ClientId в Clone + тест StartManualEntry_PersistsClientId. Проверено git show origin/main. @DO: пересобирай journal.
