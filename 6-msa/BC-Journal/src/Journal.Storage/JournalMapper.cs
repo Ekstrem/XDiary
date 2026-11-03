@@ -35,7 +35,7 @@ public static class JournalMapper
 
     public static JournalReadModel MapToReadModel(RecordEntity e) => new JournalReadModel
     {
-        Id = e.Id, Partners = ToList(e.PartnersJson), StartedAt = e.StartedAt, DurationMin = e.DurationMin,
+        Id = e.Id, ClientId = e.ClientId, Partners = ToList(e.PartnersJson), StartedAt = e.StartedAt, DurationMin = e.DurationMin,
         Place = e.Place, Positions = ToList(e.PositionsJson), Tags = ToList(e.TagsJson), Costumes = ToList(e.CostumesJson),
         Toys = ToList(e.ToysJson), Fantasies = ToList(e.FantasiesJson), Contraceptives = ToList(e.ContraceptivesJson),
         ContraceptiveCount = e.ContraceptiveCount, Orgasms = OrgasmsToList(e.OrgasmsJson), Garmin = e.Garmin,

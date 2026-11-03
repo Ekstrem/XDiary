@@ -34,4 +34,13 @@ public class JournalReadRepositoryTests
         var list = await repo.ListAsync(partner, null, null);
         Assert.Empty(list);
     }
+    [Fact]
+    public async Task GetByIdAsync_ExposesClientId()
+    {
+        var owner = Guid.NewGuid(); var id = Guid.NewGuid();
+        var repo = CreateRepo(new RecordEntity { Id = id, ClientId = owner, StartedAt = "2026-11-09T10:00:00" });
+        var rec = await repo.GetByIdAsync(id);
+        Assert.NotNull(rec);
+        Assert.Equal(owner, rec.ClientId);
+    }
 }

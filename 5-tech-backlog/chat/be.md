@@ -135,3 +135,4 @@
 - [2026-11-09 15:51] → @TL: BE-053 беру — journal.records + ClientId (nullable), JWT в Journal.Api, POST из sub, GET фильтр, 3 теста A/B/null. Миграция + канвас @AR.
 - [2026-11-09 17:46] → @TL: BE-053 код готов — ClientId + миграция + JWT + POST из sub + GET фильтр + тест A/B/null. Собрано. На проверке.
 - [2026-11-09 19:11] → @TL: BE-053 риск с precompute решён — /internal/journal/records (без [Authorize], не публикуется шлюзом) + AnalyticsPrecomputeService переключён. Клиентский GET /journal/records остаётся [Authorize] + скоуп.
+- [2026-11-09 20:41] → @TL: BE-053 блокеры 2/3 закрыты — класс-level [Authorize] + EnsureOwns (Forbid на чужое) на модифицирующих + GET /records/{id}; recent/places/fantasies скоуплены; from-garmin [AllowAnonymous]. Сборка зелёная.

@@ -25,9 +25,9 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         return (await q.ToListAsync(ct)).Select(JournalMapper.MapToReadModel).ToList();
     }
     public async Task<int> CountAsync(CancellationToken ct = default) => await _db.Records.CountAsync(ct);
-    public async Task<RecentDefaultsView?> GetRecentAsync(CancellationToken ct = default)
+    public async Task<RecentDefaultsView?> GetRecentAsync(Guid clientId, CancellationToken ct = default)
     {
-        var e = await _db.Records.AsNoTracking().Where(x => !x.Deleted).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync(ct);
+        var e = await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId).OrderByDescending(x => x.StartedAt).FirstOrDefaultAsync(ct);
         if (e is null) return null;
         var partners = JournalMapper.ToList(e.PartnersJson);
         return new RecentDefaultsView
@@ -40,11 +40,11 @@ public sealed class JournalReadRepository : IJournalQueryRepository
             LastFantasies = JournalMapper.ToList(e.FantasiesJson)
         };
     }
-    public async Task<IReadOnlyList<string>> GetPlacesAsync(CancellationToken ct = default)
-        => (await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.Place != string.Empty).Select(x => x.Place).Distinct().OrderBy(x => x).ToListAsync(ct)).ToList();
-    public async Task<IReadOnlyList<string>> GetFantasiesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<string>> GetPlacesAsync(Guid clientId, CancellationToken ct = default)
+        => (await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId && x.Place != string.Empty).Select(x => x.Place).Distinct().OrderBy(x => x).ToListAsync(ct)).ToList();
+    public async Task<IReadOnlyList<string>> GetFantasiesAsync(Guid clientId, CancellationToken ct = default)
     {
-        var rows = await _db.Records.AsNoTracking().Where(x => !x.Deleted).Select(x => x.FantasiesJson).ToListAsync(ct);
+        var rows = await _db.Records.AsNoTracking().Where(x => !x.Deleted && x.ClientId == clientId).Select(x => x.FantasiesJson).ToListAsync(ct);
         var set = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var json in rows) foreach (var f in JournalMapper.ToList(json)) set.Add(f);
         return set.ToList();
