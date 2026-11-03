@@ -1,0 +1,5 @@
+# локальные артефакты прогона Playwright (не коммитим)
+node_modules/
+test-results/
+playwright-report/
+.playwright/
