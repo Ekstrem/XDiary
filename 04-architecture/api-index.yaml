@@ -4,8 +4,8 @@ version: 1
 status: draft  # draft -> complete по DoD ниже (не «посмотрел», а гейт + пометки)
 counts:
   operations: 79
-  verified: 14
-  derived: 65
+  verified: 29
+  derived: 50
   unique_method_path: 79
   unique_operationId: 79
 source:
@@ -306,36 +306,40 @@ operations:
     operationId: Journal.Fantasies
     auth: jwt
     codes: {200: "ok", 401: "no-token"}
-    codes_status: derived
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: GET
     path: "/api/v1/journal/places"
     operationId: Journal.Places
     auth: jwt
     codes: {200: "ok", 401: "no-token"}
-    codes_status: derived
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: GET
     path: "/api/v1/journal/recent"
     operationId: Journal.Recent
     auth: jwt
-    codes: {200: "ok", 204: "no-content (журнал пуст)", 401: "no-token"}
+    codes: {200: "ok", 204: "no-content: Ok(null) при отсутствии записи (подтверждено @TE)", 401: "no-token"}
     codes_status: verified
-    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: GET
     path: "/api/v1/journal/records"
     operationId: Journal.List
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
+    codes: {200: "ok (пусто -> [])", 401: "no-token"}
     codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records"
     operationId: Journal.StartManualEntry
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
+    codes: {200: "ok", 400: "доменная ошибка", 401: "no-token"}
     codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
     request:
       required: []
       optional: []
@@ -345,92 +349,105 @@ operations:
     path: "/api/v1/journal/records/from-garmin"
     operationId: Journal.StartFromGarmin
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка", 401: "no-token"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: GET
     path: "/api/v1/journal/records/{id}"
     operationId: Journal.Get
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 403: "not-owner", 404: "not-found"}
-    codes_status: derived
+    codes: {200: "ok", 401: "no-token", 403: "чужой id (Forbid)", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/accessories"
     operationId: Journal.AddAccessories
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/complete"
     operationId: Journal.Complete
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/contraception"
     operationId: Journal.RecordContraception
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/delete"
     operationId: Journal.Delete
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/duration"
     operationId: Journal.SpecifyDuration
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/orgasms"
     operationId: Journal.RecordOrgasms
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/partners"
     operationId: Journal.AddPartner
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/partners/{partnerId}/remove"
     operationId: Journal.RemovePartner
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/place"
     operationId: Journal.SpecifyPlace
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/positions"
     operationId: Journal.AddPositions
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/when"
     operationId: Journal.SpecifyWhen
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes_status: verified
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
     method: GET
     path: "/internal/journal/records"
@@ -439,7 +456,7 @@ operations:
     internal: true
     codes: {200: "ok, изнутри сети без токена", 401: "снаружи/через шлюз"}
     codes_status: verified
-    verification: "@TE 2026-11-11 17:42 (снаружи 401) + ADR-026 §3 п.4 (внутри анонимно)"
+    verification: "код: InternalJournalController.cs ([AllowAnonymous]) + ADR-026 §3 п.4; снаружи 401 (@TE)"
   - bc: Partners
     method: GET
     path: "/api/v1/partners"

@@ -41,6 +41,31 @@
 | `updatedAt` | datetime | 1 | да | фреймворк (каждая запись) | — | — |
 | `deletedAt` | datetime? | 0..1 | нет | `Delete()` | ставится вместе с `state=Deleted` | — |
 
+**2.2.1. Как атрибут попадает в агрегат через API (AR-016: ссылки на `operationId`, без пересказа контракта).**
+Пути, коды ответов, тела запросов здесь **не дублируются** — единственный источник: `04-architecture/api-index.yaml`
+(правило: канвас описывает **модель**, контракт описывает **API**; расхождение лечится ссылкой, а не вторым текстом).
+
+| Атрибут | `operationId` (запись) | Примечание |
+|---|---|---|
+| `state` | `Journal.Complete`, `Journal.Delete`; создание — `Journal.StartManualEntry` / `Journal.StartFromGarmin` | переходы см. §3 |
+| `clientId` | — (не поле тела) | из JWT `sub` во всех командах/запросах, ADR-024 |
+| `partners[]` | `Journal.AddPartner`, `Journal.RemovePartner` | участник ≠ владелец (§2.5) |
+| `startedAt` | `Journal.SpecifyWhen`, `Journal.StartFromGarmin` | |
+| `durationMin` | `Journal.SpecifyDuration` | |
+| `place` | `Journal.SpecifyPlace` | |
+| `positions[]` | `Journal.AddPositions` | |
+| `tags[]`, `costumes[]`, `toys[]`, `fantasies[]` | `Journal.AddAccessories` | одна команда на все четыре набора |
+| `contraceptives[]`, `contraceptiveCount` | `Journal.RecordContraception` | |
+| `orgasms[]` | `Journal.RecordOrgasms` | |
+| `garmin`, `garminId` | `Journal.StartFromGarmin` | |
+| `createdAt`, `updatedAt` | — | ставит фреймворк, не API |
+| `deletedAt` | `Journal.Delete` | вместе с `state=Deleted` |
+
+**Чтение:** `Journal.List` (список), `Journal.Get` (по id), `Journal.Recent` (последняя запись),
+`Journal.Places`, `Journal.Fantasies` (подсказки), `Journal.ListAll` (внутренний контур для Analytics).
+Владение при чтении и записи: чужой `id` → 403, не найден → 404, без токена → 401 (код проверен, см. `verification`
+у операций в индексе).
+
 **2.3. Объекты-значения (VO):** атрибуты выше — поля `AnemicModel`; VO группируют их для методов и валидации
 (каждый — иммутабельный, фабрика `Create`):
 `Duration(durationMin)` · `Place(place)` · `Positions(positions[])` · `Accessories(costumes[], toys[], fantasies[], tags[])` ·
