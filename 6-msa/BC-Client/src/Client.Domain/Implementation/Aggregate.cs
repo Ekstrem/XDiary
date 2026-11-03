@@ -49,13 +49,5 @@ public sealed class Aggregate
     {
         var m = Clone(); m.OtpCode = otp; m.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes); m.OtpAttempts = 0; return Success(m);
     }
-    public AggregateResult<IClients, IClientAnemicModel> LinkPartner(Guid partnerId)
-    {
-        var m = Clone(); m.LinkedPartnerId = partnerId; return Success(m);
-    }
-    public AggregateResult<IClients, IClientAnemicModel> UnlinkPartner()
-    {
-        var m = Clone(); m.LinkedPartnerId = null; return Success(m);
-    }
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, OtpExpiresAt = Model.OtpExpiresAt, OtpAttempts = Model.OtpAttempts, Verified = Model.Verified, LinkedPartnerId = Model.LinkedPartnerId };
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, OtpExpiresAt = Model.OtpExpiresAt, OtpAttempts = Model.OtpAttempts, Verified = Model.Verified };
 }

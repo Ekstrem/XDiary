@@ -13,7 +13,6 @@ public sealed class AnemicModel : IClientAnemicModel
     public DateTime? OtpExpiresAt { get; set; }
     public int OtpAttempts { get; set; }
     public bool Verified { get; set; }
-    public Guid? LinkedPartnerId { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
 }

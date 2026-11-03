@@ -28,9 +28,6 @@ namespace Client.Storage.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("LinkedPartnerId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("OtpAttempts")
                         .HasColumnType("integer");
 

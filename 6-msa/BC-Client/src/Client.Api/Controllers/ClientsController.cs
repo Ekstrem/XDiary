@@ -43,10 +43,6 @@ public sealed class ClientsController : ControllerBase
         var pair = _tokens.Issue(clientId, phone ?? string.Empty);
         return Ok(new { accessToken = pair.AccessToken, refreshToken = pair.RefreshToken, expiresAt = pair.ExpiresAt });
     }
-    [HttpPost("{id:guid}/link-partner")]
-    public async Task<IActionResult> LinkPartner(Guid id, [FromBody] LinkClientPartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
-    [HttpPost("{id:guid}/unlink-partner")]
-    public async Task<IActionResult> UnlinkPartner(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new UnlinkClientPartnerCommand(id), ct));
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListClientsQuery(), ct));
     [HttpGet("me")]

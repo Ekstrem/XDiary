@@ -7,6 +7,5 @@ public sealed class ClientEntity
     public DateTime? OtpExpiresAt { get; set; }
     public int OtpAttempts { get; set; }
     public bool Verified { get; set; }
-    public Guid? LinkedPartnerId { get; set; }
     public long Version { get; set; }
 }

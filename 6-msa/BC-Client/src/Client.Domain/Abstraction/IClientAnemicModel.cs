@@ -7,5 +7,4 @@ public interface IClientAnemicModel : IAnemicModel<IClients>
     DateTime? OtpExpiresAt { get; }
     int OtpAttempts { get; }
     bool Verified { get; }
-    Guid? LinkedPartnerId { get; }
 }
