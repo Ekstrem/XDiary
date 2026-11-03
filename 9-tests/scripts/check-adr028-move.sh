@@ -69,11 +69,11 @@ missing=""
 # межсервисные black-box сценарии — в 6-msa/E2E/<pair>, шлюз — в 6-msa/ApiGateway.Tests.
 for p in \
   '6-msa/E2E' \
-  '6-msa/E2E/Contract.Client_Journal' \
-  '6-msa/E2E/Partners_Catalog' \
-  '6-msa/E2E/DailyMetrics_SomaticSeries' \
-  '6-msa/E2E/Gateway_Portability' \
-  '6-msa/E2E/Analytics_Privacy' \
+  '6-msa/ApiTests/Contract.Client_Journal' \
+  '6-msa/ApiTests/Partners_Catalog' \
+  '6-msa/ApiTests/DailyMetrics_SomaticSeries' \
+  '6-msa/ApiTests/Gateway_Portability' \
+  '6-msa/ApiTests/Analytics_Privacy' \
   '6-msa/ApiGateway.Tests' \
   '6-msa/BC-Journal/src/Journal.IntegrationTests'
 do
@@ -86,6 +86,12 @@ else
   bad '2) все 8 целевых путей есть в 6-msa' "нет:$missing"
 fi
 
+# Подсказка по терминологии (ADR-028 §1.1, @AR 2026-11-13 25:50 + владелец):
+#   `E2E` = проверка ЧЕРЕЗ ФРОНТ (браузер). Тесты по API без фронта называются ApiTests.
+if [ "$MODE" = "post" ] && [ -n "$missing" ] \
+   && [ -n "$(git ls-tree -r --name-only "$REF" -- 6-msa/E2E 2>/dev/null | head -n1)" ]; then
+  echo "::error::ADR-028 §1.1: адрес ещё не переименован — в ревизии есть 6-msa/E2E, а ожидается 6-msa/ApiTests"
+fi
 # 3) Фронтовые E2E остались (единственное, что требует браузера)
 if git cat-file -e "$REF:9-tests/RnD/front-e2e/playwright.config.js" 2>/dev/null; then
   ok '3) 9-tests/RnD/front-e2e на месте' 'playwright.config.js есть'
@@ -114,16 +120,16 @@ fi
 #    она не меняется, а при потере файла — падает. Baseline ИЗМЕРЕН на 2026-11-14 @TE:
 #    Fact 128, StandFact 20, Theory 11, E2EFact 17 (см. комментарий у BASE_FACT).
 count_attr() { # $1 = атрибут
-  { git grep -h -c -E "\[$1" "$REF" -- 6-msa 2>/dev/null
+  { git grep -h -c -E "\[($1|E2EFact)" "$REF" -- 6-msa 2>/dev/null
     git grep -h -c -E "\[$1" "$REF" -- 9-tests 2>/dev/null
   } | awk '{s+=$1} END {print s+0}'
 }
 fact_total=$(count_attr 'Fact')
 stand_total=$(count_attr 'StandFact')
 theory_total=$(count_attr 'Theory')
-e2e_total=$(count_attr 'E2EFact')
+e2e_total=$(count_attr 'ApiFact')
 
-detail="Fact=${fact_total}/${BASE_FACT} StandFact=${stand_total}/${BASE_STAND} Theory=${theory_total}/${BASE_THEORY} E2EFact=${e2e_total}/${BASE_E2E}"
+detail="Fact=${fact_total}/${BASE_FACT} StandFact=${stand_total}/${BASE_STAND} Theory=${theory_total}/${BASE_THEORY} ApiFact=${e2e_total}/${BASE_E2E}"
 if [ "$fact_total" -ge "$BASE_FACT" ] && [ "$stand_total" -ge "$BASE_STAND" ] \
    && [ "$theory_total" -ge "$BASE_THEORY" ] && [ "$e2e_total" -ge "$BASE_E2E" ]; then
   ok '5) атрибуты тестов не потерялись' "$detail"
