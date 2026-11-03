@@ -285,7 +285,7 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
         пишут в своей зоне, и если опора смотрит только в проверяемую зону,
         любая свежая метка выглядит «впереди» на дни.
     """
-    future, order = [], []
+    future, order, grandfathered = [], [], []
     collected = []
     global_max = {}
     for name in sorted(os.listdir(chat_dir)):
@@ -314,12 +314,14 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
                     global_max[name] = ts
                 if not new_scale:
                     continue
-                if prev is not None and ts < prev and ts >= ORDER_CUTOFF and prev >= ORDER_CUTOFF:
-                    # Решение @TL 2026-11-11: историю чата НЕ переписываем. Порядок
-                    # проверяем только для строк, добавленных после ORDER_CUTOFF:
-                    # старые файлы писались «по памяти» и уехали вперёд, и вечный
-                    # красный гейт на историческом — это гейт, который отключат.
-                    order.append((name, raw, prev.strftime("%Y-%m-%d %H:%M")))
+                if prev is not None and ts < prev:
+                    # Решение @TL 2026-11-11: историю НЕ переписываем. Строки ДО ORDER_CUTOFF —
+                    # grandfathered: печатаются как след, но rc не красят. После cutoff — проверяются.
+                    item = (name, raw, prev.strftime("%Y-%m-%d %H:%M"))
+                    if ts >= ORDER_CUTOFF and prev >= ORDER_CUTOFF:
+                        order.append(item)
+                    else:
+                        grandfathered.append(item)
                 prev = ts
                 collected.append((name, raw, ts))
 
@@ -334,7 +336,7 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
         if ts > reference + datetime.timedelta(minutes=tolerance_min):
             lag = ts - reference
             future.append((name, raw, int(lag.total_seconds() // 3600)))
-    return future, order
+    return future, order, grandfathered
 
 def scan_invalid_times(chat_dir, known_roles):
     """Метки с невозможным временем (час > 23, минута > 59).
@@ -477,8 +479,8 @@ def main():
     # там оно осмысленно и ловит метку, уехавшую вперёд по ошибке.
     # Шкала чата — канон и локально, и в CI: сравниваем с максимумом по чату и по часам.
     invalid = scan_invalid_times(chat_dir, set(titles.keys()))
-    future, order = scan_times(chat_dir, set(titles.keys()), now_project, tolerance, shift,
-                               use_clock=False)
+    future, order, grandfathered = scan_times(chat_dir, set(titles.keys()), now_project,
+                                               tolerance, shift, use_clock=False)
 
     if args.report or args.check:
         print("нераспознанных строк: %d (новых: %d)" % (len(problems), len(fresh)))
@@ -499,6 +501,11 @@ def main():
                 print("  %s: %s — на %d ч впереди шкалы" % (name, raw, days))
             for name, raw, prev in order[:5]:
                 print("  %s: %s после %s — порядок нарушен" % (name, raw, prev))
+        if grandfathered:
+            print("метки времени: [grandfathered] %d нарушений порядка ДО %s — как след, rc не красят"
+                  % (len(grandfathered), ORDER_CUTOFF.strftime("%Y-%m-%dT%H:%M")))
+            for name, raw, prev in grandfathered[:5]:
+                print("  [grandfathered] %s: %s после %s" % (name, raw, prev))
         if invalid:
             print("невалидное время: %d (час/минута вне диапазона) — это ошибка, не предупреждение"
                   % len(invalid))
