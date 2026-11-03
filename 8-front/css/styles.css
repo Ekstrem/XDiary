@@ -41,7 +41,8 @@ body {
 }
 .appbar h1 { flex: 1; margin: 0; font-size: 20px; font-weight: 600; }
 .appbar-actions { display: flex; gap: 6px; align-items: center; }
-.app-version-inline { color: var(--muted); font-size: 12px; }
+/* FE-035: версия должна быть заметной — 14px, контраст ≥ 4.5:1 (--muted на --bg ~8:1), отступ от сердечек */
+.app-version-inline { color: var(--muted); font-size: 14px; font-weight: 600; margin-left: 10px; letter-spacing: .3px; }
 .hearts { font-size: 17px; line-height: 1; letter-spacing: 1px; }
 
 .icon-btn {

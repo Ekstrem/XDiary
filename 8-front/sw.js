@@ -1,5 +1,5 @@
 /* XDiary — service worker: офлайн и установка */
-var CACHE = "xdiary-v78"; // синхронизировать с APP_VERSION в app.js
+var CACHE = "xdiary-v79"; // синхронизировать с APP_VERSION в app.js
 var ASSETS = [
   "./",
   "./index.html",
@@ -35,6 +35,28 @@ self.addEventListener("fetch", function (e) {
   if (req.method !== "GET") return;
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  // FE-035: код (навигация/js/css/html/manifest) — сначала СЕТЬ, иначе обновление страницы
+  // не доезжает: старый app.js отдавался из кэша до ручной очистки
+  var isCode = req.mode === "navigate" || /\.(?:js|css|html|webmanifest)$/.test(url.pathname);
+  if (isCode) {
+    e.respondWith(
+      fetch(req).then(function (res) {
+        if (res && res.status === 200) {
+          var copy = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, copy); });
+        }
+        return res;
+      }).catch(function () {
+        return caches.match(req).then(function (cached) {
+          if (cached) return cached;
+          if (req.mode === "navigate") return caches.match("./index.html");
+          return new Response("", { status: 503, statusText: "offline" });
+        });
+      })
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(req).then(function (cached) {

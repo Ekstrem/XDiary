@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.78"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.79"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -363,7 +363,8 @@
     if (e && e.status >= 500) parts.push("сервер ответил " + e.status + ", повторите");
     if (e && e.base && String(msg).indexOf(e.base) === -1) parts.push("адрес: " + e.base);
     if (msg) parts.push(String(msg).slice(0, 200));
-    return (fallback ? fallback + ": " : "") + (parts.length ? parts.join(" · ") : "неизвестная ошибка");
+    // FE-035: версия сборки в тексте — скриншот владельца сразу говорит, какая сборка
+    return (fallback ? fallback + ": " : "") + (parts.length ? parts.join(" · ") : "неизвестная ошибка") + " [v" + APP_VERSION + "]";
   }
   function showOtpStep(phone) {
     $("onb-phone").classList.add("hidden");
