@@ -313,7 +313,17 @@ public sealed class ContractChainTests
             "GET /api/v1/clients без токена вернул " + (int)anonStatus +
             " — список клиентов с телефонами не должен быть анонимным (@TL 04:45)");
 
-        var tokenA = await api.RegisterAndVerifyAsync();
+        // Клиент A создаётся явно (а не через хелпер), чтобы сохранить его id:
+        // нужен **позитивный контроль** «своя → 200». Без него тест проверял бы только запреты,
+        // а «владелец не видит своё» — это ровно тот класс, что выстрелил в журнале (BE-065).
+        var (aId, aStatus) = await api.RegisterAsync(ClientStandApi.UniquePhone());
+        Assert.Equal(HttpStatusCode.OK, aStatus);
+        var (aVerifyBody, _) = await api.VerifyAsync(aId);
+        var tokenA = ReadString(aVerifyBody, "accessToken");
+        Assert.False(string.IsNullOrWhiteSpace(tokenA), "verify должен вернуть accessToken");
+
+        var ownStatus = await api.GetAsync("api/v1/clients/" + aId, tokenA);
+        Assert.Equal(HttpStatusCode.OK, ownStatus);
 
         // Реальный чужой клиент: `RegisterAsync` возвращает его id, значит `GET /clients/{bId}`
         // токеном A — это существующий чужой ресурс, и по ADR-026 §3 обязано быть **403**.
