@@ -81,6 +81,19 @@ public sealed class ContractChainTests
             "link-partner вернул " + (int)status + " (Deprecation: " + (deprecation ?? "нет") +
             ") — ожидали 200+Deprecation: true (no-op), либо 404/410 (удалён), либо до-E7 200 без заголовка");
 
+        if (isRemoved)
+        {
+            // Половина E7 = удалили маршрут, но профиля не сделали. На проде это значит:
+            // старый фронт зовёт link-partner → 404, и заменить нечем (онбординг сломан).
+            // Именно это уехало на прод 2026-11-09 22:50 и было откачено @DO — поэтому
+            // проверка обязана падать, а не считать «404 = легальный E7».
+            var (profileStatus, _) = await api.UpdateProfileAsync(access, "ТЕ-проверка", "male");
+            Assert.True(
+                profileStatus != HttpStatusCode.NotFound && profileStatus != HttpStatusCode.MethodNotAllowed,
+                "E7 не завершён: link-partner уже 404, а профиля (update-profile) нет — " +
+                "онбординг некуда вести (profile → " + (int)profileStatus + ")");
+        }
+
         if (isPreE7)
         {
             Console.WriteLine(
