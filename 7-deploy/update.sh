@@ -41,6 +41,25 @@ case " $IMAGES " in
      echo "update.sh: compose на диске без clients — образ клиента добавлен явно" >&2 ;;
 esac
 
+# DO-051: `deploy.sh` в репозитории — СНИМОК серверного файла, и он разойдётся.
+# Сверяем отредактированный (с масками паролей) серверный файл с эталонным хешем,
+# который обновляется при каждом осознанном изменении снимка. Расхождение — падаем:
+# иначе «аудит репозитория» проверяет не то, что исполняется.
+DEPLOY_SH=/home/deploy/deploy.sh
+DEPLOY_HASH_FILE=/home/deploy/.xdiary-deploy-sh.sha256
+if [ -f "$DEPLOY_SH" ]; then
+  CUR=$(sed -E 's/Password=[^;"]*/Password=__REDACTED__/g' "$DEPLOY_SH" | sha256sum | cut -d' ' -f1)
+  WANT=$(cat "$DEPLOY_HASH_FILE" 2>/dev/null || echo "")
+  if [ -z "$WANT" ]; then
+    echo "$CUR" > "$DEPLOY_HASH_FILE"
+    echo "update.sh: эталонный хеш deploy.sh создан (первый запуск)" >&2
+  elif [ "$CUR" != "$WANT" ]; then
+    echo "update.sh: ОШИБКА — /home/deploy/deploy.sh разошёлся со снимком (sha256 $CUR != $WANT)" >&2
+    echo "update.sh: если изменение осознанное — обнови эталон: sed -E 's/Password=[^;\"]*/Password=__REDACTED__/g' $DEPLOY_SH | sha256sum | cut -d' ' -f1 > $DEPLOY_HASH_FILE" >&2
+    exit 1
+  fi
+fi
+
 PULL_FAILED=0
 for img in $IMAGES; do
   if ! podman pull "$img" >/dev/null 2>&1; then

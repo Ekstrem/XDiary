@@ -83,6 +83,31 @@ PY
 }
 
 
+wait_healthy() {
+  # Таймер не должен оставлять прод лежать: после пересоздания ждём /health,
+  # при неудаче пробуем поднять ещё раз, и только потом кричим.
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    if curl -fsS -m 5 "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+      say "  post-check: /health = 200"
+      return 0
+    fi
+    sleep 6
+  done
+  say "  post-check: /health НЕ отвечает — повторно пересоздаю контейнер"
+  recreate_container || true
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    if curl -fsS -m 5 "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
+      say "  post-check после повтора: /health = 200"
+      return 0
+    fi
+    sleep 6
+  done
+  say "КРИТИЧНО: /health не поднялся. Восстановить: bash /tmp/xdiary-client-recreate.sh"
+  return 1
+}
+
+
 probe_api() {
   # возвращает строку с результатом: есть ли otpCode в ответе регистрации
   local phone resp attempt
@@ -136,7 +161,8 @@ case "${1:-}" in
     say "причина: $reason"
     say "перезапуск $CONTAINER…"
     recreate_container
-    sleep 25
+    sleep 10
+    wait_healthy || true
     say "== проверка =="
     if ! probe_api; then
       say ""
@@ -161,7 +187,8 @@ recreate_container
     mv "$ENV_FILE.tmp" "$ENV_FILE"
     say "снято: $FLAG_ALLOW, $FLAG_CODE"
     recreate_container
-    sleep 25
+    sleep 10
+    wait_healthy || true
     say "== проверка =="
     probe_api
     say ""
