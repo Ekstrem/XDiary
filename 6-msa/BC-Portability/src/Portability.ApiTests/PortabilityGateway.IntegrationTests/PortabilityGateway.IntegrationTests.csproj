@@ -16,9 +16,9 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\6-msa\BC-Portability\src\Portability.Application\Portability.Application.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-Portability\src\Portability.Domain\Portability.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\ApiGateway\ApiGateway.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
+    <ProjectReference Include="..\..\Portability.Application\Portability.Application.csproj" />
+    <ProjectReference Include="..\..\Portability.Domain\Portability.Domain.csproj" />
+    <ProjectReference Include="..\..\..\..\ApiGateway\ApiGateway.csproj" />
+    <ProjectReference Include="..\..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>
