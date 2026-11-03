@@ -30,6 +30,11 @@
       "synced_at": "2026-11-03",
       "upstream": "tools/check_nul.py"
     },
+    "check_openapi.py": {
+      "sha256": "18130be2d64d25db00157fdf724c1bf0ac6b6829d7988d7f4e9101a47b659bc5",
+      "synced_at": "2026-11-03",
+      "upstream": "tools/check_openapi.py"
+    },
     "check_owner_chat.py": {
       "sha256": "4c78f33178be286a1b4868e535c1a11c4fe96f27f7023784c302b844f9461824",
       "synced_at": "2026-11-03",
@@ -119,6 +124,11 @@
       "sha256": "f50a9b0bd05559f74d0807ce20399c72e74a93a5cc19f3883f7ddd76aa138a3e",
       "synced_at": "2026-11-03",
       "upstream": "tools/keycmp.py"
+    },
+    "latency.py": {
+      "sha256": "96c7ccde809456af24e2366cbf14c4aa2243b9ac58ac10a21b8125ff65533fd1",
+      "synced_at": "2026-11-03",
+      "upstream": "tools/latency.py"
     },
     "merge_chat.py": {
       "sha256": "2933b8e10cc06ef8367ce4b08bdeedd94d4e25c9824e39a264ad9f6a17a6b900",
