@@ -6,7 +6,7 @@ using Xunit;
 namespace XDiary.Tests.E2E;
 
 /// <summary>TE-008: E2E журнал — создание записи через цепочку команд → чтение журнала/детали.</summary>
-public class JournalE2ETests
+public class JournalApiTests
 {
     [ApiFact]
     public async Task CreateRecord_Then_ReadJournalAndDetail()

@@ -4,7 +4,7 @@ using Xunit;
 namespace XDiary.Tests.E2E;
 
 /// <summary>TE-009: E2E соматика + аналитика (срез, сводка, корреляции).</summary>
-public class SomaticAnalyticsE2ETests
+public class SomaticAnalyticsApiTests
 {
     [ApiFact]
     public async Task SomaticSlice_ReturnsData()

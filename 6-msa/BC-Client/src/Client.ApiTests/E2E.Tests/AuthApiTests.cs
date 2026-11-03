@@ -9,7 +9,7 @@ namespace XDiary.Tests.E2E;
 /// Раньше набор ходил в legacy `POST /privacy/token {pin}` и был выключен через `Skip`;
 /// теперь проверяется рабочий контур: `/clients` → `/verify` → client-JWT → `/refresh`.
 /// </summary>
-public class AuthE2ETests
+public class AuthApiTests
 {
     [ApiFact]
     public async Task Login_ReturnsAccessAndRefresh()
