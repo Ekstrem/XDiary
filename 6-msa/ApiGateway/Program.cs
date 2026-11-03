@@ -36,7 +36,7 @@ app.Use(async (context, next) =>
 
     // Анонимны только health + онбординг (создание/верификация клиента) + refresh (сам refresh-токен = credential) + stateless verify-token.
     // PIN (pin/set|has|token) требует JWT — валидацию делает сервис (BE-038).
-    var anonymous = GatewayRoutes.IsAnonymous(path, context.Request.Method);
+    var anonymous = GatewayRoutes.IsAnonymous(context.Request.Method, path);
 
     if (anonymous)
     {
