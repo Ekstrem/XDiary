@@ -28,7 +28,7 @@ public class RegisterClientHandlerTests
     [Fact]
     public async Task Register_DuplicatePhone_ReturnsPhoneTaken()
     {
-        var handler = new RegisterClientHandler(new FakeRepo(), new FakeQuery { HasPhone = true }, new FakeSender(), null!);
+        var handler = new RegisterClientHandler(new FakeRepo(), new FakeQuery { HasPhone = true }, new FakeSender(), null!, Microsoft.Extensions.Logging.Abstractions.NullLogger<RegisterClientHandler>.Instance);
         var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
         Assert.False(res.IsSuccess());
         Assert.Contains("phone_taken", res.ErrorMessage());
