@@ -75,6 +75,15 @@ def check(root):
             if len(parts) < 2 or not parts[1].startswith("single-"):
                 v.append(("3", LOCK, "строка не формата `<service> single-<sha>`: %s" % line[:60]))
 
+    # (4) `always()` в deploy.yml допустим только как ОФОРМЛЕННОЕ исключение (@AR 32:30):
+    # в ранбуке должны быть и владелец, и условие снятия — иначе это «дыра по месту».
+    if wf and "always()" in wf:
+        gate_rb = read(root, "7-deploy/runbooks/release-gate.md") or ""
+        has_owner = "Владелец:" in gate_rb and "Условие снятия" in gate_rb
+        if not has_owner:
+            v.append(("4", WORKFLOW, "`always()` без оформленного исключения в "
+                                     "7-deploy/runbooks/release-gate.md (нужны «Владелец» и «Условие снятия»)"))
+
     for rel in RUNBOOKS:
         txt = read(root, rel)
         if not txt:
