@@ -81,11 +81,18 @@ def scan(root):
         is_test = ".Tests" in rel or "IntegrationTests" in rel or "/E2E/" in rel
 
         # б) тест не ссылается на чужой BC
+        # ВАЖНО (@TE 2026-11-14 19:13): один csproj может ссылаться на чужой BC несколькими
+        # ProjectReference — печатать строку на каждую ссылку значит выдавать «8 нарушений»
+        # там, где проблемных проектов 3. Агрегируем по проекту: один проект = одна строка.
         if is_test and my_bc:
+            foreign_bcs = []
             for r in refs:
                 target_bc = bc_of(r.replace("\\", "/"))
-                if target_bc and target_bc != my_bc:
-                    violations.append(("б", rel, "ProjectReference на чужой %s" % target_bc))
+                if target_bc and target_bc != my_bc and target_bc not in foreign_bcs:
+                    foreign_bcs.append(target_bc)
+            if foreign_bcs:
+                violations.append(("б", rel, "ProjectReference на чужой BC: %s"
+                                   % ", ".join(foreign_bcs)))
 
         # е) тестовый проект лежит в папке своего сервиса (или 6-msa/ApiGateway.Tests)
         if ".Tests" in rel or "Tests/" in rel:
@@ -153,9 +160,10 @@ def main():
     v = scan(root)
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
-    print("check_test_isolation: нарушений %d (б: чужие ProjectReference, в: ссылка сервиса "
-          "на E2E, д: запрещённые общие папки 6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>)"
-          % len(v))
+    projects = sorted({rel for _, rel, _ in v})
+    print("check_test_isolation: нарушений %d в %d проект(ах) — б: чужие ProjectReference, "
+          "в: ссылка сервиса на E2E, д: запрещённые общие папки "
+          "(6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>)" % (len(v), len(projects)))
     return 1 if v else 0
 
 
