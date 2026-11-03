@@ -41,7 +41,7 @@
       "upstream": "tools/check_owner_chat.py"
     },
     "check_paths.py": {
-      "sha256": "3470c1b2400592abf4d43e749908145339be311c7bfdd2c766c35920ead0d66c",
+      "sha256": "778d11d0761691c24dedc7dbe621ee96b6d9df4ca9e8c8afa85eac41aeb587c4",
       "synced_at": "2026-11-03",
       "upstream": "tools/check_paths.py"
     },
@@ -56,7 +56,7 @@
       "upstream": "tools/check_rule_docs.py"
     },
     "check_secrets.py": {
-      "sha256": "68d3ffc0cb9fc6238bbbf34a4cedd7875c52b09d14081b808359049d78eb24c8",
+      "sha256": "3509098e05d214713d18cf6110f6ffc76a225a568c1037041aa4ad8b5cbd5f28",
       "synced_at": "2026-11-03",
       "upstream": "tools/check_secrets.py"
     },
@@ -126,7 +126,7 @@
       "upstream": "tools/keycmp.py"
     },
     "latency.py": {
-      "sha256": "96c7ccde809456af24e2366cbf14c4aa2243b9ac58ac10a21b8125ff65533fd1",
+      "sha256": "f018ec5e52aeab3e13079adb405fe1f56e0494146f2d7bb0dedbae36bec7cd2d",
       "synced_at": "2026-11-03",
       "upstream": "tools/latency.py"
     },
