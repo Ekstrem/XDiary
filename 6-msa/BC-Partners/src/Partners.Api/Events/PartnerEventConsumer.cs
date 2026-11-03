@@ -7,6 +7,7 @@ using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
+using Partners.Domain.Implementation;
 using Partners.InternalContracts;
 
 /// <summary>
@@ -68,11 +69,15 @@ public static class PartnerProjection
         var vos = domainEvent.ChangedValueObjects;
         if (vos is null) return null;
         var root = vos.TryGetValue("Root", out var r) ? r as IPartnerRoot : null;
+        var clientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv ? cv.Value : null;
+        var deletedAt = vos.TryGetValue("DeletedAt", out var d) && d is DeletedAtValueObject dv ? dv.Value : null;
 
         return new PartnersReadModel
         {
             Id = domainEvent.Id,
             Name = root?.Name ?? string.Empty,
+            ClientId = clientId,
+            DeletedAt = deletedAt,
         };
     }
 }

@@ -15,5 +15,10 @@ public sealed class AnemicModel : IPartnerAnemicModel
     public Guid? ClientId { get; set; }
     public DateTime? DeletedAt { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["ClientId"] = new ClientIdValueObject(ClientId),
+        ["DeletedAt"] = new DeletedAtValueObject(DeletedAt),
+    };
 }
