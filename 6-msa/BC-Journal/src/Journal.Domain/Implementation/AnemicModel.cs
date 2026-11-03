@@ -32,5 +32,9 @@ public sealed class AnemicModel : IJournalAnemicModel
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
 
     public IDictionary<string, IValueObject> GetValueObjects()
-        => new Dictionary<string, IValueObject> { ["Root"] = Root };
+        => new Dictionary<string, IValueObject>
+        {
+            ["Root"] = Root,
+            ["ClientId"] = new ClientIdValueObject(ClientId),
+        };
 }
