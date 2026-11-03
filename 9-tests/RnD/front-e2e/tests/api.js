@@ -178,12 +178,16 @@ async function seedSessionOnce(page) {
     }));
     const profileOk = prof.status >= 200 && prof.status < 300;
     const profileMode = profileOk ? "profile" : (prof.status === 404 || prof.status === 405 ? "pre-profile-image" : "profile-rejected:" + prof.status);
-    // партнёр-«я» + привязка (легаси-путь: нужен до 0.88 и спекам, ожидающим партнёра)
+    // @FE 2026-11-12 09:25: в 0.88 онбординг = профиль → журнал; партнёр — ОТДЕЛЬНОЕ действие.
+    // Партнёра создаём всегда: это функция спек add-partner/wizard-record, а не путь онбординга.
+    // Шим `link-partner` зовём ТОЛЬКО на старом образе (profileMode !== "profile"):
+    // на 0.88+ он не нужен, и `grep -rn "linkPartner" 8-front` в сдаче @FE = 0.
     const p = await j(await fetch(base + '/api/v1/partners', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({ name: partnerName }),
     }));
-    if (p.data && p.data.id) {
+    const shimUsed = profileMode !== "profile";
+    if (shimUsed && p.data && p.data.id) {
       await fetch(base + '/api/v1/clients/' + clientId + '/link-partner', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
@@ -211,6 +215,7 @@ async function seedSessionOnce(page) {
       ok: true,
       clientId,
       profileMode,
+      shimUsed,
       partnerId: p.data && p.data.id,
       partnerCreated: !!(p.data && p.data.id),
       hasRefresh: !!refreshToken,
