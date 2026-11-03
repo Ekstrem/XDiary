@@ -8,7 +8,7 @@ namespace XDiary.Tests.E2E;
 /// <summary>TE-008: E2E журнал — создание записи через цепочку команд → чтение журнала/детали.</summary>
 public class JournalE2ETests
 {
-    [E2EFact]
+    [ApiFact]
     public async Task CreateRecord_Then_ReadJournalAndDetail()
     {
         var c = E2EInfra.Client();
@@ -41,7 +41,7 @@ public class JournalE2ETests
         Assert.Equal(20, detail.GetProperty("durationMin").GetInt32());
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task InvalidDuration_GivesError()
     {
         var c = E2EInfra.Client();

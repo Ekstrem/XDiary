@@ -18,7 +18,7 @@ namespace XDiary.Tests.E2E;
 ///   5. (перенесено в доменные тесты @BE) «старые строки без `DeletedAt` читаются» — проверить
 ///      через HTTP нельзя, это состояние БД; у @BE есть `Partners.Domain.Tests`.
 ///
-/// Формат — как у остального E2E (`[E2EFact]`, `E2EInfra`): без `XDIARY_E2E_BASE_URL` тесты
+/// Формат — как у остального E2E (`[ApiFact]`, `E2EInfra`): без `XDIARY_E2E_BASE_URL` тесты
 /// пропускаются с причиной, а не падают. Удаление партнёра — **необратимое** на уровне данных,
 /// поэтому каждый тест создаёт собственного партнёра и не трогает чужих.
 /// </summary>
@@ -57,7 +57,7 @@ public class PartnerSoftDeleteTests
         return ids;
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Remove_PartnerDisappearsFromList()
     {
         var (c, _) = await SessionAsync();
@@ -74,7 +74,7 @@ public class PartnerSoftDeleteTests
         Assert.DoesNotContain(id, after);
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Remove_IsIdempotent_SecondCallIsNotServerError()
     {
         var (c, _) = await SessionAsync();
@@ -91,7 +91,7 @@ public class PartnerSoftDeleteTests
         Assert.DoesNotContain(id, after);
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Remove_ThenGet_ReturnsNotFoundOrForbidden_NotOk()
     {
         var (c, _) = await SessionAsync();
@@ -123,7 +123,7 @@ public class PartnerSoftDeleteTests
     ///     мягкого удаления. Пропажа имени — красный тест, а не тихое предупреждение.
     /// Шаблон тот же, что `XDIARY_STRICT_UNKNOWN_FIELDS=1` в `Point9b`.
     /// </summary>
-    [E2EFact]
+    [ApiFact]
     public async Task Remove_PartnerInExistingJournalRecord_StillResolvable()
     {
         var projectionReady = (Environment.GetEnvironmentVariable("XDIARY_PARTNERS_DIRECTORY") ?? "").Trim() == "1";

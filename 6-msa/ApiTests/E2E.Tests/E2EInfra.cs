@@ -144,9 +144,9 @@ public static class E2EInfra
 /// TE-038 (@TL 2026-11-09 20:40): пропуск должен быть **громким** — `::warning::` в логе,
 /// иначе зелёный прогон в `ci-backend` (где стенда нет) читается как «контракт проверен».
 /// </summary>
-public sealed class E2EFactAttribute : FactAttribute
+public sealed class ApiFactAttribute : FactAttribute
 {
-    public E2EFactAttribute()
+    public ApiFactAttribute()
     {
         if (!E2EInfra.Enabled)
         {

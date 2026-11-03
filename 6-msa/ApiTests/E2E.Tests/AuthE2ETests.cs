@@ -11,7 +11,7 @@ namespace XDiary.Tests.E2E;
 /// </summary>
 public class AuthE2ETests
 {
-    [E2EFact]
+    [ApiFact]
     public async Task Login_ReturnsAccessAndRefresh()
     {
         var c = E2EInfra.Client();
@@ -22,7 +22,7 @@ public class AuthE2ETests
         Assert.NotEqual(Guid.Empty, session.ClientId);
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Anonymous_IsRejected_401_WithWwwAuthenticate()
     {
         var c = E2EInfra.Client();
@@ -34,7 +34,7 @@ public class AuthE2ETests
             "401 должен содержать заголовок WWW-Authenticate (BE-044)");
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task ValidToken_AllowsAccess()
     {
         var c = E2EInfra.Client();
@@ -45,7 +45,7 @@ public class AuthE2ETests
         Assert.True(me.TryGetProperty("id", out _) || me.TryGetProperty("Id", out _), "GET /clients/me вернул клиента");
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Refresh_ReturnsNewPair()
     {
         var c = E2EInfra.Client();
@@ -57,7 +57,7 @@ public class AuthE2ETests
         Assert.False(string.IsNullOrWhiteSpace(refresh), "refresh выдал новый refreshToken");
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Logout_ClearsTokens_ThenAnonymous401()
     {
         var c = E2EInfra.Client();
@@ -71,7 +71,7 @@ public class AuthE2ETests
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Journal_Anonymous_IsRejected_401()
     {
         var c = E2EInfra.Client();
@@ -79,7 +79,7 @@ public class AuthE2ETests
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
-    [E2EFact]
+    [ApiFact]
     public async Task Journal_WithClientToken_AllowsAccess()
     {
         var c = E2EInfra.Client();
