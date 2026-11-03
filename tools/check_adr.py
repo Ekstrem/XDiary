@@ -177,10 +177,9 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Гейт формата ADR")
     ap.add_argument("--dir", default=None, help="папка ADL (по умолчанию 04-architecture/ADL)")
-    ap.add_argument("--cutoff", default=CUTOFF_DEFAULT,
-                    help="ADR, созданные раньше этой даты, грандфазерятся (warning)")
-    ap.add_argument("--since", default=None,
-                    help="УСТАРЕЛО и игнорируется: критерий новизны один — дата создания в git")
+    ap.add_argument("--cutoff", "--since", dest="cutoff", default=CUTOFF_DEFAULT,
+                    help="ADR, созданные раньше этой даты, грандфазерятся (warning). "
+                         "--since — алиас для совместимости с документацией (AGENTS §5.2)")
     ap.add_argument("--strict", action="store_true", help="предупреждения считать ошибками")
     ap.add_argument("--range", default=None,
                     help="git-диапазон (a..b): проверять только изменённые ADR")
@@ -212,8 +211,6 @@ def main():
             print("check_adr: в диапазоне %s изменённых ADR нет" % args.range)
             return 0
 
-    if args.since:
-        print("check_adr: --since устарел и игнорируется (критерий один — дата создания в git)")
     cutoff = datetime.date.fromisoformat(args.cutoff)
     cmap = creation_map(adr_dir)
     checked = skipped = downgraded = 0
