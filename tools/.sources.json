@@ -31,7 +31,7 @@
       "upstream": "tools/check_paths.py"
     },
     "check_pdr.py": {
-      "sha256": "649b74474a307db6139dcdc6658155a88d723ceece29e66411bf883eea88bdf9",
+      "sha256": "3bb3ebeaac17aea52ddddd163cdaca5e8165ed60ad0ad9830c9952fca425270f",
       "synced_at": "2026-11-03",
       "upstream": "tools/check_pdr.py"
     },
