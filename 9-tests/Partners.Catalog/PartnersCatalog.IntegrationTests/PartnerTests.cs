@@ -14,7 +14,7 @@ public class PartnerTests
 {
     private static IPartnerAnemicModel Register(string name)
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).Register(name);
+        var r = Aggregate.CreateInstance(new AnemicModel()).Register(name, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         return r.Model();
     }
@@ -29,7 +29,7 @@ public class PartnerTests
     [Fact]
     public void Register_EmptyName_Fails()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).Register("   ");
+        var r = Aggregate.CreateInstance(new AnemicModel()).Register("   ", Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
