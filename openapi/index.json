@@ -1,0 +1,8 @@
+{
+  "generated": "2026-11-09",
+  "source": "dev swagger /swagger/v1/swagger.json",
+  "services": {
+    "client": { "file": "client.json", "rev": "176c5f15446e8e33fb8783949a410e4ccb81a68c", "paths": 7, "title": "Client.Api" },
+    "analytics": { "file": "analytics.json", "rev": "cd83126ea1ee0bef321ded93d3ff3f3c8d1fdc07", "paths": 8, "title": "Analytics Microservice API" }
+  }
+}

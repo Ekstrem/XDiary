@@ -1,3 +1,4 @@
+using XDiary.Contracts;
 using Analytics.Api.Precompute;
 using Analytics.Application.Queries;
 using Microsoft.OpenApi.Models;
@@ -24,11 +25,7 @@ builder.Services.AddHostedService<AnalyticsPrecomputeService>();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment() || app.Environment.EnvironmentName == "Single")
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseXdiarySwagger();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();

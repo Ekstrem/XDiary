@@ -38,7 +38,7 @@ using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
 }
-if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+app.UseXdiarySwagger();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
