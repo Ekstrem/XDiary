@@ -39,6 +39,15 @@ if [ -z "$GEN" ]; then
   exit 1
 fi
 ADD_HOSTS="$(python3 "$GEN" --add-host)"
+# Страховка от дрейфа compose на сервере: если развёрнутый podman-compose.yml старее
+# репозитория и в нём нет `clients`, генератор не вернёт этот хост — gateway
+# пересоздастся без маршрута к клиентскому сервису. Именно так мы уже ловили
+# «clients не обновляется» (P0 03.11). Добавляем явно.
+case " $ADD_HOSTS " in
+  *"clients:"*) ;;
+  *) ADD_HOSTS="$ADD_HOSTS --add-host clients:10.89.9.31"
+     echo "heal-network: в compose нет clients — хост добавлен явно" >&2 ;;
+esac
 if [ -z "$ADD_HOSTS" ]; then
   echo "heal-network: gen-hosts.py вернул пустой список --add-host — выхожу" >&2
   exit 1
