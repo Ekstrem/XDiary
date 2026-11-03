@@ -8,9 +8,9 @@ source:
 change_rule: >-
   Новый или изменённый пункт = правка этого файла + гейт в ОДНОМ коммите. Гейт сверяет: (1) набор операций индекса == набор в коде; (2) у каждой операции заполнены codes; (3) анонимность только по allow-list. Иначе rc=1.
 auth_rule: >-
-  deny-by-default (ADR-026): анонимны только POST /api/v1/clients, POST /api/v1/clients/{id}/verify, POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token, GET /health. Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026). GET /health в индексе отсутствует намеренно: это не действие контроллера (даёт фреймворк), гейт исключает его из сверки.
+  deny-by-default (ADR-026): анонимны только POST /api/v1/clients, POST /api/v1/clients/{id}/verify, POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token, GET /health. Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026). auth: anonymous-inside = внутренний контур /internal/** (ADR-026 §3 п.4): изнутри сети без токена, снаружи 401; гейт не должен требовать токен для internal.
 codes_legend: >-
-  codes: {код: смысл}. verified = сверено с контрактом/тестами (ADR-026, BE-053, BE-064); derived = выведено правилом (401 deny-by-default; 400 валидация POST; 403 чужой id; 404 не найден при GET по id) и ждёт сверки с контрактом/тестом. request: обязательные поля только там, где контракт зафиксирован; полная схема тел живёт в реестре OpenAPI (BE-050/T4), индекс её не дублирует.
+  codes: {код: смысл}. verified = сверено с контрактом/тестами, у операции есть verification (кто/когда/контур); derived = выведено правилом (401 deny-by-default; 400 валидация POST; 403 чужой id; 404 не найден при GET по id) и ждёт сверки. request: обязательные поля только там, где контракт зафиксирован; полная схема тел — в реестре OpenAPI (BE-050/T4), индекс её не дублирует. contract_note: известная асимметрия/долг контракта.
 operations:
   - bc: Analytics
     method: GET
@@ -158,8 +158,9 @@ operations:
     path: "/api/v1/clients"
     operationId: Client.Register
     auth: anonymous
-    codes: {201: "created", 400: "validation"}
+    codes: {200: "created (факт; 201 допустим, если сервис поменяют)", 400: "validation"}
     codes_status: verified
+    verification: "@TE 2026-11-11 17:42, dev 71f2f91d + прод"
     request:
       required: [phone]
       optional: []
@@ -168,15 +169,17 @@ operations:
     path: "/api/v1/clients/me"
     operationId: Client.Me
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
+    codes: {200: "ok, профиль без linkedPartnerId (E7)", 401: "no-token"}
     codes_status: verified
+    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
   - bc: Client
     method: POST
     path: "/api/v1/clients/me/profile"
     operationId: Client.UpdateProfile
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
+    codes: {200: "ok, gender канонизирован", 400: "validation (Other/other/м/пусто)", 401: "no-token"}
     codes_status: verified
+    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
     request:
       required: [displayName, gender]
       optional: [photoUrl]
@@ -306,8 +309,9 @@ operations:
     path: "/api/v1/journal/recent"
     operationId: Journal.Recent
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
-    codes_status: derived
+    codes: {200: "ok", 204: "no-content (журнал пуст)", 401: "no-token"}
+    codes_status: verified
+    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
   - bc: Journal
     method: GET
     path: "/api/v1/journal/records"
@@ -421,10 +425,11 @@ operations:
     method: GET
     path: "/internal/journal/records"
     operationId: Journal.ListAll
-    auth: jwt
+    auth: anonymous-inside
     internal: true
-    codes: {200: "ok, internal: без токена, только изнутри сети"}
+    codes: {200: "ok, изнутри сети без токена", 401: "снаружи/через шлюз"}
     codes_status: verified
+    verification: "@TE 2026-11-11 17:42 (снаружи 401) + ADR-026 §3 п.4 (внутри анонимно)"
   - bc: Partners
     method: GET
     path: "/api/v1/partners"
@@ -437,8 +442,10 @@ operations:
     path: "/api/v1/partners"
     operationId: Partners.Register
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
-    codes_status: derived
+    codes: {200: "ok (gender не принимается этим эндпоинтом)", 401: "no-token"}
+    codes_status: verified
+    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
+    contract_note: "RegisterPartnerCommand(name, clientId) не содержит gender: поле молча игнорируется. gender задаётся через POST /partners/{id}/profile. Асимметрия контракта — P2 (@BE): либо отклонять неизвестные поля, либо принимать необязательный gender при создании."
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
@@ -465,8 +472,9 @@ operations:
     path: "/api/v1/partners/{id}/profile"
     operationId: Partners.UpdateProfile
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok, gender канонизирован", 400: "validation (Other)", 401: "no-token"}
+    codes_status: verified
+    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/remove"
