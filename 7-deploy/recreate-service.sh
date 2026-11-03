@@ -31,7 +31,55 @@ if [ "${1:-}" = "--list" ]; then
 fi
 
 SVC="${1:-}"
-[ -n "$SVC" ] || die "нужно: <service> [--image <id>]"
+
+# ---------- ожидаемый набор add-host ----------
+gen_expected() {
+  # ожидаемый список хостов для сервиса $1 (без самого себя)
+  local svc="${1:-$SVC}" gen="" raw=""
+  for cand in /opt/xdiary/tools/gen-hosts.py "$(dirname "$DEPLOY_SH")/gen-hosts.py"; do
+    [ -f "$cand" ] && { gen="$cand"; break; }
+  done
+  [ -n "$gen" ] || return 0
+  raw="$(python3 "$gen" --add-host 2>/dev/null || true)"
+  printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | tr '\n' ' '
+}
+
+# ---------- пост-проверка «флаги реально попали в podman» ----------
+# Именно этого не хватило 03.11: `--add-host` встал ПОСЛЕ образа (хвостовой `>/dev/null`),
+# скрипт печатал «добавлен», а ExtraHosts оставался пустым. Теперь проверяем конфиг.
+check_hosts() {
+  local svc="$1" expected actual
+  expected="$(gen_expected "$svc" | wc -w)"
+  if [ "$expected" -eq 0 ]; then
+    say "  check-hosts $svc: ожиданий нет (генератор недоступен) — пропуск"
+    return 0
+  fi
+  if ! podman ps --format '{{.Names}}' | grep -qx "xdiary-$svc"; then
+    say "  check-hosts $svc: контейнера нет" >&2
+    return 1
+  fi
+  actual="$(podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  if [ "${actual:-0}" -lt "$expected" ]; then
+    say "ОШИБКА: $svc ExtraHosts=$actual, ожидалось $expected — флаги попали НЕ в podman" >&2
+    return 1
+  fi
+  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected) — ok"
+  return 0
+}
+
+# ---------- режимы проверки (до разбора <service>) ----------
+if [ "${1:-}" = "--check-hosts-all" ]; then
+  rc=0
+  for s in $SVCS_ALL; do check_hosts "$s" || rc=1; done
+  exit $rc
+fi
+if [ "${1:-}" = "--check-hosts" ]; then
+  [ -n "${2:-}" ] || die "нужно: --check-hosts <service>"
+  check_hosts "$2"
+  exit $?
+fi
+
+SVC="${1:-}"
 IMAGE_OVERRIDE=""
 if [ "${2:-}" = "--image" ]; then IMAGE_OVERRIDE="${3:-}"; [ -n "$IMAGE_OVERRIDE" ] || die "пустой --image"; fi
 
@@ -74,19 +122,14 @@ GEN=""
 for cand in /opt/xdiary/tools/gen-hosts.py "$(dirname "$DEPLOY_SH")/gen-hosts.py"; do
   [ -f "$cand" ] && { GEN="$cand"; break; }
 done
-ADD_HOSTS=""
-if [ -n "$GEN" ]; then
-  ADD_HOSTS="$(python3 "$GEN" --add-host 2>/dev/null || true)"
-  # сам себя в hosts не нужен
-  ADD_HOSTS="$(printf '%s' "$ADD_HOSTS" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${SVC}:" | tr '\n' ' ')"
-fi
+ADD_HOSTS="$(gen_expected)"
 
 { echo 'set -u'; echo 'NET=xdiary'
   echo 'LBL="--label io.containers.autoupdate=registry"'
   echo 'TAG=single'
   cat "$BODY"; } > "$RUNNER"
 
-if [ -n "$ADD_HOSTS" ]; then
+if [ -n "$ADD_HOSTS" ] && ! grep -q -- '--add-host' "$RUNNER"; then
   # вставляем --add-host ... перед образом (последний аргумент строки)
   python3 - "$RUNNER" "$ADD_HOSTS" <<'PY'
 import sys
@@ -103,6 +146,8 @@ for l in lines:
 open(runner, 'w', encoding='utf-8').write('\n'.join(out) + '\n')
 PY
   say "  add-host добавлен для $SVC ($(printf '%s' "$ADD_HOSTS" | wc -w) хостов)"
+elif grep -q -- '--add-host' "$RUNNER"; then
+  say "  add-host уже в команде $SVC — не дублирую"
 fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
@@ -114,6 +159,7 @@ while [ "$attempt" -le 3 ]; do
     sleep 3
     if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
       say "  OK: $CONTAINER пересоздан"
+      check_hosts "$SVC" || exit 1
       exit 0
     fi
   fi
