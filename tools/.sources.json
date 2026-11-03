@@ -15,6 +15,11 @@
       "synced_at": "2026-11-02",
       "upstream": "tools/chat_rotate.py"
     },
+    "check_adr.py": {
+      "sha256": "daa44325876966bc1236bb63a07441634080f4f1b9b8308dacc9229734d5b745",
+      "synced_at": "2026-11-03",
+      "upstream": "tools/check_adr.py"
+    },
     "check_docs_size.py": {
       "sha256": "e2b39f3837855f590bf4f8f495227b1f4e9016b01d66dde78bc50cbd4641a0be",
       "synced_at": "2026-11-02",
