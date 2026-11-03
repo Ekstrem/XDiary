@@ -27,7 +27,22 @@ if ! curl -fsS -m 5 http://127.0.0.1:8080/health >/dev/null 2>&1; then
   echo "$(ts) gateway /health failed, recreating" >> "$LOG"
   # DO-034: список хостов берём из gen-hosts.py (он читает podman-compose.yml),
   # а не хардкодим — иначе снова забудем сервис, как забыли clients.
-  ADD_HOSTS="$(python3 "$(cd "$(dirname "$0")" && pwd)/gen-hosts.py" --add-host 2>/dev/null)"
+  # DO-050: раньше здесь было `2>/dev/null` — при отсутствии генератора gateway
+# пересоздавался БЕЗ --add-host, и резолв внутри сети разваливался молча.
+GEN_DIR="$(cd "$(dirname "$0")" && pwd)"
+GEN=""
+for cand in "$GEN_DIR/gen-hosts.py" "$GEN_DIR/../tools/gen-hosts.py" "/opt/xdiary/tools/gen-hosts.py"; do
+  [ -f "$cand" ] && { GEN="$cand"; break; }
+done
+if [ -z "$GEN" ]; then
+  echo "heal-network: не найден gen-hosts.py — пересоздавать gateway без --add-host нельзя" >&2
+  exit 1
+fi
+ADD_HOSTS="$(python3 "$GEN" --add-host)"
+if [ -z "$ADD_HOSTS" ]; then
+  echo "heal-network: gen-hosts.py вернул пустой список --add-host — выхожу" >&2
+  exit 1
+fi
   if [ -z "$ADD_HOSTS" ]; then
     echo "$(ts) gen-hosts недоступен — НЕ пересоздаю шлюз (иначе потеряю сервисы)" >> "$LOG"
     exit 0

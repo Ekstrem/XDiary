@@ -63,7 +63,15 @@ jobs:
       - id: d
         run: |
           set -euo pipefail
-          changed="$(git diff --name-only HEAD~1 HEAD || true)"
+          # DO-050: раньше `git diff ... || true` превращал ОШИБКУ diff в пустой
+          # список, а пустой список = «изменений нет» → деплой молча пропускался.
+          if ! base="$(git rev-parse HEAD~1 2>/dev/null)"; then
+            echo "::error::diff-paths: не могу определить HEAD~1 — считаю, что изменилось всё"
+            changed="ALL"
+          elif ! changed="$(git diff --name-only "$base" HEAD 2>/dev/null)"; then
+            echo "::error::diff-paths: git diff упал — не отличаю «нет изменений» от ошибки"
+            exit 1
+          fi
           echo "=== changed files ==="
           echo "$changed"
           api=false; front=false

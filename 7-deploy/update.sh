@@ -54,7 +54,23 @@ if [ "$PULL_FAILED" -gt 0 ]; then
   exit 1
 fi
 
-NEWHASH=$(for img in $IMAGES; do podman image inspect "$img" --format '{{.Id}}' 2>/dev/null; done | sha256sum | cut -d' ' -f1)
+# DO-050: пустой ID раньше «растворялся» в хеше и был неотличим от «образа нет».
+HASH_PARTS=""
+MISSING=0
+for img in $IMAGES; do
+  id="$(podman image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
+  if [ -z "$id" ]; then
+    echo "update.sh: ОШИБКА — образ $img отсутствует локально после pull" >&2
+    MISSING=$((MISSING + 1))
+    continue
+  fi
+  HASH_PARTS="$HASH_PARTS$id"
+done
+if [ "$MISSING" -gt 0 ]; then
+  echo "update.sh: $MISSING образ(ов) не найдено — не деплою" >&2
+  exit 1
+fi
+NEWHASH=$(printf '%s' "$HASH_PARTS" | sha256sum | cut -d' ' -f1)
 OLDHASH=$(cat "$HASHFILE" 2>/dev/null || echo "")
 # DO-050: «deploy прошёл» != «на сервере новый образ». Проверяем фактически:
 # образ каждого контейнера должен совпадать с локальным тегом, который мы только что
