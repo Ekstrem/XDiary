@@ -132,6 +132,14 @@ def selftest():
         ({"6-msa/BC-Journal/src/Journal.Tests/x.csproj": "<Project />"}, 0),
         ({"6-msa/Stray.Tests/x.csproj": "<Project />"}, 1),
         ({"6-msa/ApiGateway.Tests/x.csproj": "<Project />"}, 0),
+        # (з) Compile Include тянет исходник чужого BC (@TE 2026-11-14 23:22)
+        ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
+          '<Project><ItemGroup><Compile Include="../../../BC-B/src/B.cs" /></ItemGroup></Project>',
+          "6-msa/BC-B/src/B.cs": "// code"}, 1),
+        # (з)+(ж): чужой исходник и пути нет — два нарушения
+        ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
+          '<Project><ItemGroup><Compile Include="../../../BC-B/src/Missing.cs" /></ItemGroup></Project>'},
+         2),
         # (б) уточнение @TL 2026-11-14 28:11: ссылка на 6-msa/Shared/** РАЗРЕШЕНА
         # (общий пакет контрактов), запрещена только реализация чужого BC.
         ({"6-msa/BC-A/src/A.Tests/A.Tests.csproj":
@@ -152,7 +160,8 @@ def selftest():
             full = os.path.join(case, rel.replace("/", os.sep))
             os.makedirs(os.path.dirname(full), exist_ok=True)
             open(full, "w", encoding="utf-8").write(content)
-        got = len(scan(case)) + len(scan_broken_refs(case))
+        got = (len(scan(case)) + len(scan_broken_refs(case))
+               + len(scan_compile_includes(case)))
         if got == expect:
             ok += 1
         else:
@@ -160,6 +169,49 @@ def selftest():
     shutil.rmtree(base, ignore_errors=True)
     print("check_test_isolation --selftest: %d/%d" % (ok, len(cases)))
     return 0 if ok == len(cases) else 1
+
+
+def scan_compile_includes(root):
+    """(з) `<Compile Include>` не тянет исходник чужого BC, и цель существует (ж).
+
+    Почему: `Compile Include="..\\BC-Client\\src\\Client.ApiTests\\...E2EInfra.cs"` — это
+    чужой код в тесте **мимо** `ProjectReference`, гейт (б) его не видит. Плюс после
+    переименования папки такой путь устаревает и проект **не собирается** (CS2001) —
+    то есть ошибка проявляется как «тест есть, но CI падает на сборке».
+    Идея — @TE 2026-11-14 23:22.
+    """
+    out = []
+    base = os.path.join(root, "6-msa")
+    if not os.path.isdir(base):
+        return out
+    pattern = re.compile(r'<Compile\s+Include="([^"]+)"', re.I)
+    for dirpath, _dirs, names in os.walk(base):
+        for name in names:
+            if not name.endswith(".csproj"):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                txt = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            rel_proj = os.path.relpath(path, root).replace(os.sep, "/")
+            my_bc = _bc_of_path(rel_proj)
+            for inc in pattern.findall(txt):
+                if "*" in inc or "?" in inc:
+                    continue
+                target = os.path.normpath(os.path.join(dirpath, inc.replace("\\", os.sep)))
+                rel_target = os.path.relpath(target, root).replace(os.sep, "/")
+                foreign = _bc_of_path(rel_target)
+                if foreign and my_bc and foreign != my_bc:
+                    out.append(("з", rel_proj, "Compile Include в чужой BC: %s" % rel_target))
+                if not os.path.isfile(target):
+                    out.append(("ж", rel_proj, "Compile Include на несуществующий путь: %s" % inc))
+    return out
+
+
+def _bc_of_path(rel):
+    m = re.search(r'(?:^|/)6-msa/(BC-[A-Za-z0-9]+)/', rel)
+    return m.group(1) if m else None
 
 
 def scan_broken_refs(root):
@@ -204,6 +256,8 @@ def main():
     v = scan(root)
     for rel_proj, inc in scan_broken_refs(root):
         v.append(("ж", rel_proj, "ProjectReference на несуществующий путь: %s" % inc))
+    for kind, rel_proj, why in scan_compile_includes(root):
+        v.append((kind, rel_proj, why))
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
     projects = sorted({rel for _, rel, _ in v})
