@@ -25,7 +25,9 @@ services:
   management-api:
     image: docker.io/graviteeio/apim-management-api:4.4
     container_name: xdiary-apim-management
-    mem_limit: 512m
+    # 768 МБ, а не 512: на 512 RSS упирался в потолок (511/536) и контейнер выходил;
+    # ручной пробник на 768 МБ поднялся и дошёл до инициализаторов (проверено 17:20).
+    mem_limit: 768m
     restart: unless-stopped
     depends_on: [mongo]
     environment:
@@ -59,4 +61,7 @@ volumes:
 
 networks:
   apim:
-    driver: bridge
+    # ВАЖНО: сеть создаётся `podman network create apim` (up.sh), а не podman-compose.
+    # Сгенерированный compose CNI-конфиг содержит plugin firewall v1.0.0, который
+    # podman 3.4 не понимает → контейнеры создаются (Created), но не стартуют.
+    external: true
