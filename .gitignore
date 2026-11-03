@@ -20,3 +20,11 @@ obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# Секреты инфраструктуры: VLESS-ссылка и конфиг xray (uuid/pbk/sid).
+# Не коммитить ни при каких условиях (публичный репозиторий).
+.env.vless
+.env.*
+.xray-client.json
+xray-client.json
+*.vless
