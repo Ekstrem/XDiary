@@ -338,18 +338,20 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
             future.append((name, raw, int(lag.total_seconds() // 3600)))
     return future, order, grandfathered
 
-def scan_invalid_times(chat_dir, known_roles):
+def scan_invalid_times(chat_dir, known_roles, since=None):
     """Метки с невозможным временем (час > 23, минута > 59).
 
     Почему отдельно от scan_times: `strptime("%H:%M")` на `25:30` бросает ValueError,
-    а scan_times такие строки **молча пропускает** (`except ValueError: continue`) —
-    то есть гейт их не видел вообще. Практика 2026-11-11: пятнадцать строк с `24:00`,
-    `24:30`, `25:00`, `25:30` прошли все проверки, включая сортировку по времени.
+    а scan_times такие строки молча пропускает — гейт их не видел вообще.
 
-    Возвращает [(файл, метка)].
+    Грандфазеринг (@LM 2026-11-11): метка с датой РАНЬШЕ порога — [grandfathered]
+    (печатается, rc не красит); с датой порога и позже — ошибка.
+
+    Возвращает (errors, grandfathered) — списки [(файл, метка)].
     """
-    bad = []
+    errors, grand = [], []
     stamp = re.compile(r"^-\s*\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\]")
+    cutoff_date = (since or ORDER_CUTOFF).date()
     for name in sorted(os.listdir(chat_dir)):
         if not name.endswith(".md") or name.lower() in SKIP:
             continue
@@ -360,11 +362,21 @@ def scan_invalid_times(chat_dir, known_roles):
                 m = stamp.match(line.strip())
                 if not m:
                     continue
-                _, month, day, hour, minute = m.groups()
-                if int(hour) > 23 or int(minute) > 59 or not (1 <= int(month) <= 12) \
-                        or not (1 <= int(day) <= 31):
-                    bad.append((name, m.group(0)[3:-1]))
-    return bad
+                year, month, day, hour, minute = (int(x) for x in m.groups())
+                invalid = hour > 23 or minute > 59 or month > 12 or month < 1 or day > 31 or day < 1
+                if not invalid:
+                    continue
+                try:
+                    date = datetime.date(year, month if 1 <= month <= 12 else 1,
+                                         day if 1 <= day <= 31 else 1)
+                except ValueError:
+                    date = datetime.date(year, 1, 1)
+                item = (name, m.group(0)[3:-1])
+                if date < cutoff_date:
+                    grand.append(item)
+                else:
+                    errors.append(item)
+    return errors, grand
 
 
 def notice(role, titles, line, now):
@@ -478,7 +490,12 @@ def main():
     # «будущим». Вне CI (машина в TZ проекта) остаётся сравнение с текущим временем —
     # там оно осмысленно и ловит метку, уехавшую вперёд по ошибке.
     # Шкала чата — канон и локально, и в CI: сравниваем с максимумом по чату и по часам.
-    invalid = scan_invalid_times(chat_dir, set(titles.keys()))
+    _since_raw = getattr(args, "since", None) or "2026-11-10T00:00"
+    try:
+        order_since = datetime.datetime.strptime(_since_raw, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        order_since = ORDER_CUTOFF
+    invalid, invalid_grand = scan_invalid_times(chat_dir, set(titles.keys()), order_since)
     future, order, grandfathered = scan_times(chat_dir, set(titles.keys()), now_project,
                                                tolerance, shift, use_clock=False)
 
@@ -511,6 +528,11 @@ def main():
                   % len(invalid))
             for name, raw in invalid[:10]:
                 print("  %s: [%s] — час 0–23, минута 0–59" % (name, raw))
+        if invalid_grand:
+            print("невалидное время: [grandfathered] %d меток ДО порога — печатаются как след,"
+                  " rc не красят (@LM 2026-11-11)" % len(invalid_grand))
+            for name, raw in invalid_grand[:5]:
+                print("  [grandfathered] %s: [%s]" % (name, raw))
         bad = problems or bool(invalid) or ((future or order) and args.strict_times)
         return 1 if bad and args.check else 0
 

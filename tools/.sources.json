@@ -6,7 +6,7 @@
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "133dc0bd1388faca56da60a48368a9bc1bcafc5b3d4c9bf560ebafe78c9ef97a",
+      "sha256": "35507ee576784c00c96e9e9302eec3cf1657eddb82dfce6de22517eeb5f94637",
       "synced_at": "2026-11-03",
       "upstream": "tools/chat_lint.py"
     },
@@ -151,7 +151,7 @@
       "upstream": "tools/stats.py"
     },
     "status_lint.py": {
-      "sha256": "ff7e6e3ddd212a666b0e9fbe1ffbd9e8c48f7cf739c37d4f8caa1cf59436142b",
+      "sha256": "96eefc968e85c92887a8c02f865fdee1c6f857e7d94e1ebfe0f1bfa15f63a8b5",
       "synced_at": "2026-11-03",
       "upstream": "tools/status_lint.py"
     },
