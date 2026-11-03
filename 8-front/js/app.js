@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.71"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.72"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -357,7 +357,7 @@
           onbClientId = cid;
           try { localStorage.setItem("xdiary.clientId", cid); } catch (err) {}
           showOtpStep(phone);
-          showOnbError("onb-otp-error", "Номер уже зарегистрирован — код отправлен, введите его из SMS.");
+          showOnbError("onb-otp-error", "Номер уже зарегистрирован — код отправлен, введите его из Telegram. Если код не пришёл — нажмите «Запросить код заново».");
           return;
         }
       }
@@ -368,7 +368,7 @@
   function submitOnbOtp() {
     var code = $("onb-otp-input").value.trim();
     showOnbError("onb-otp-error", "");
-    if (!code) { showOnbError("onb-otp-error", "Введите код из SMS"); return; }
+    if (!code) { showOnbError("onb-otp-error", "Введите код из Telegram"); return; }
     Api.clients.verify(onbClientId, code).then(function (res) {
       // FE-028: BE-041 — /verify отдаёт пару accessToken + refreshToken (+ token для совместимости)
       var token = (res && (res.accessToken || res.token)) || "";
