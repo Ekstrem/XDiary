@@ -95,6 +95,11 @@
       "synced_at": "2026-11-03",
       "upstream": "tools/sweep.py"
     },
+    "sync_tools.py": {
+      "sha256": "4dead7885adcbd512bc974493549ab050d319aa25857f1a85942e6135f5cfa43",
+      "synced_at": "2026-11-03",
+      "upstream": "tools/sync_tools.py"
+    },
     "test_check_secrets.py": {
       "sha256": "25210af0620ab96b2978e8eca04376f338ba5ca21db706a2a187b7e5ed4dfb49",
       "synced_at": "2026-11-03",
