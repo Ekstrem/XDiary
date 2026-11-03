@@ -371,7 +371,11 @@ def main():
                 else:
                     node_id = None
                     failed += 1
-            project_items.append((node_id, status_key))
+            # DO-022 (@TL 2026-11-13 10:10, п.3): в Project добавляем ТОЛЬКО открытые
+            # карточки. Закрытые на доске не нужны: именно они раздували её до 1800
+            # элементов при 237 карточках.
+            if status_key != "закрыта":
+                project_items.append((node_id, status_key))
 
     print("sync-board: created=%d updated=%d failed=%d" % (created, updated, failed))
     if failed:
