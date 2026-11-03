@@ -185,8 +185,33 @@ async function seedSessionOnce(page) {
       if (refreshToken) localStorage.setItem('xdiary.refreshToken', refreshToken);
       localStorage.setItem('xdiary.apiBase', base);
     } catch (e) {}
-    return { ok: true, clientId, partnerId: p.data && p.data.id, hasRefresh: !!refreshToken };
+    // TE-047-разбор (@DO/@FE 18:00): после BE-048 `GET /partners` фильтруется по `sub`.
+    // Проверяем ЭТИМ ЖЕ токеном, что созданный партнёр виден клиенту — иначе следующий
+    // прогон снова придётся разбирать «401 или пустой список?» по догадкам.
+    const lp = await j(await fetch(base + '/api/v1/partners', {
+      headers: { Authorization: 'Bearer ' + token },
+    }));
+    return {
+      ok: true,
+      clientId,
+      partnerId: p.data && p.data.id,
+      partnerCreated: !!(p.data && p.data.id),
+      hasRefresh: !!refreshToken,
+      partnersStatus: lp.status,
+      partnersCount: Array.isArray(lp.data) ? lp.data.length : null,
+      partnersOwn: Array.isArray(lp.data) ? lp.data.some((x) => x && x.id === (p.data && p.data.id)) : null,
+    };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
+
+  if (seeded.ok) {
+    console.log('::warning::' + JSON.stringify({
+      title: 'seedSession: партнёры',
+      partnersStatus: seeded.partnersStatus,
+      partnersCount: seeded.partnersCount,
+      partnerCreated: seeded.partnerCreated,
+      partnersOwnVisible: seeded.partnersOwn,
+    }));
+  }
 
   if (!seeded.ok) {
     throw new Error('seedSession: шаг ' + seeded.step + ' вернул ' + seeded.status);
