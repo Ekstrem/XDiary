@@ -147,10 +147,10 @@ AppleHealth, см. раздел «Имя проекта ≠ имя сервис�
 |---|---|
 | `GET /health` | 200, без авторизации |
 | `GET /api/v1/clients/me` без токена | **401** + `WWW-Authenticate: Bearer` |
-| `GET /api/v1/clients/me` с токеном | 200, проксирует ответ сервиса (`verified`, наличие `linkedPartnerId`) |
+| `GET /api/v1/clients/me` с токеном | 200, проксирует ответ сервиса; **после E7/ADR-024** `linkedPartnerId` в ответе **отсутствует** (проверено 2026-11-11: поля `id, phone, displayName, gender, photoUrl, verified`) |
 | `POST /api/v1/clients` | 200/201, тело доходит до сервиса |
 | `POST /api/v1/clients/refresh` | **анонимен** — 401 не возвращает |
-| неизвестный путь (`/api/v1/does-not-exist`) | **404**, а не 502 |
+| неизвестный путь (`/api/v1/does-not-exist`) | **401** (не 502/504) — фактическое поведение с 2026-11-11; клиент не отличает «маршрута нет» от «не авторизован», находка зафиксирована в `Gateways.Api` (B6) |
 | апстрим недоступен | **502** (соединение отклонено) или **504** (таймаут) |
 | `Authorization` | прокидывается **как есть** в апстрим (проверять на стороне сервиса) |
 
@@ -162,10 +162,10 @@ AppleHealth, см. раздел «Имя проекта ≠ имя сервис�
 ```
 POST /api/v1/clients                    создание
 POST /api/v1/clients/{id}/verify        OTP → client-JWT
-POST /api/v1/clients/{id}/link-partner  привязка «я»
-GET  /api/v1/clients/me                 verified + linkedPartnerId  ← ключевой для onboarding
+POST /api/v1/clients/{id}/link-partner  шим ADR-024: 200 + `Deprecation: true`, удаляется после 0.88
+GET  /api/v1/clients/me                 verified (+ профиль `displayName`/`gender`); `linkedPartnerId` **больше нет** (E7)
 POST /api/v1/clients/refresh            обмен refresh → новая пара
-```
+GET  /api/v1/clients                    **маршрут удалён**: анонимно 401, с токеном 405 (ADR-026 §3)
 **Журнал (BC-Journal):**
 ```
 POST /api/v1/journal/records
@@ -175,11 +175,8 @@ GET  /api/v1/journal/fantasies
 ```
 **Партнёры/каталог:** `POST|GET /api/v1/partners`, `GET /api/v1/catalog`.
 
-**Главный контрактный тест** — цепочка онбординга: `POST /clients` → `/verify` →
-`POST /partners` → `/clients/{id}/link-partner` → **`GET /clients/me`** и проверка, что
-`verified === true` и `linkedPartnerId` **непустой**. Именно это отличает «продукт» от
-«фикстуры» в споре про `onboarding`/`no-pin` (`#view-journal` hidden).
-
+**Главный контрактный тест** (актуальная форма, `Point1` + `Point2b` в `Contract.ClientJournal`): `POST /clients` → `/verify` → **`POST /clients/me/profile`** (`displayName` + `gender` по канону `male`/`female`) → **`GET /clients/me`**, где `verified === true`, `gender` — канонический, а `linkedPartnerId` **отсутствует**.
+Историческая форма (до E7) шла через `POST /partners` + `link-partner` — оставлена только как шим (`Deprecation: true`) и **не** является цепочкой онбординга.
 ### 3. Где это живёт
 
 - маршруты шлюза → **новый** `9-tests/Gateways.Api` (создаёт @BE по задаче от @TL);
