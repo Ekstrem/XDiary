@@ -129,6 +129,18 @@ public sealed class ContractChainTests
             meBody.TryGetProperty("displayName", out var dn) && dn.GetString() == "ТЕ-профиль",
             "displayName не сохранился в профиле: " + meBody.ToString());
 
+        // @BE 2026-11-10 04:12: `gender` обязателен и непустой (жёсткого enum нет — принимается любая
+        // непустая строка). Значит пустые значения обязана отклонять валидация домена, а не сохранять.
+        var (emptyName, _) = await api.UpdateProfileAsync(access, string.Empty, "male");
+        Assert.True(
+            emptyName is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
+            "пустой displayName должен отклоняться 400, а вернул " + (int)emptyName);
+
+        var (emptyGender, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", string.Empty);
+        Assert.True(
+            emptyGender is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
+            "пустой gender должен отклоняться 400, а вернул " + (int)emptyGender);
+
         var (anonStatus, _) = await api.UpdateProfileAsync(string.Empty, "Аноним", "male");
         Assert.Equal(HttpStatusCode.Unauthorized, anonStatus);
     }
