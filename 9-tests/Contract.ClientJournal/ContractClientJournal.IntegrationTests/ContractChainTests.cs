@@ -517,23 +517,23 @@ public sealed class ContractChainTests
     }
 
     /// <summary>
-    /// Строгая ветка `Point9`: требует **только 400** на лишнее поле в `POST /partners`.
+    /// Строгая ветка `Point9` (@TL 2026-11-11 23:11, @AR 21:28): требует **только 400** на лишнее поле в `POST /partners`.
     ///
     /// Зачем отдельный тест, а не «когда-нибудь поправим Point9» (@AR 2026-11-11 21:28):
     /// иначе после выкатки `Disallow` `Point9` остался бы **разрешающим**, и регресс «вернули игнор»
     /// прошёл бы зелёным — тот же класс, что `continue-on-error` без даты снятия.
     ///
-    /// Включается **фактом выкатки**, а не правкой кода: `XDIARY_STRICT_UNKNOWN_FIELDS=1`.
+    /// Включается **фактом выкатки**, а не правкой кода: `XDIARY_STRICT_UNKNOWN_FIELDS=1` (условие — `POST /partners` с `gender` отдаёт 400 на dev).
     /// Пока переменная не задана — печатаем `::notice::` с условием и выходим: это видимый долг
     /// в логе прогона, а не «зелёный навсегда».
     /// </summary>
     [StandFact]
-    public async Task Point9b_Partners_RejectsUnknownFields_Strict()
+    public async Task Point9b_RejectsUnknownFields_AfterDisallow()
     {
         if (Environment.GetEnvironmentVariable("XDIARY_STRICT_UNKNOWN_FIELDS") is not "1")
         {
             Console.WriteLine(
-                "::notice::[spec] Point9b выключен: выставьте XDIARY_STRICT_UNKNOWN_FIELDS=1 после выкатки " +
+                "::notice::[spec][pending:BE-Disallow] Point9b выключен: выставьте XDIARY_STRICT_UNKNOWN_FIELDS=1 после выкатки " +
                 "UnmappedMemberHandling.Disallow (@BE, BC-Partners/02 §10) — тогда лишнее поле обязано давать 400");
             return;
         }
