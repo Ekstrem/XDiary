@@ -54,6 +54,14 @@ public sealed class ClientsController : ControllerBase
         var r = await _mediator.Send(new GetClientByIdQuery(id), ct);
         return r is null ? NotFound() : Ok(r);
     }
+    [HttpPost("me/profile")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileCommand c, CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var id)) return Unauthorized();
+        return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    }
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     { var r = await _mediator.Send(new GetClientByIdQuery(id), ct); return r is null ? NotFound() : Ok(r); }

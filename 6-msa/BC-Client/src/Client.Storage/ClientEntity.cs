@@ -6,6 +6,9 @@ public sealed class ClientEntity
     public string OtpCode { get; set; } = string.Empty;
     public DateTime? OtpExpiresAt { get; set; }
     public int OtpAttempts { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string Gender { get; set; } = string.Empty;
+    public string? PhotoUrl { get; set; }
     public bool Verified { get; set; }
     public long Version { get; set; }
 }

@@ -45,9 +45,13 @@ public sealed class Aggregate
     {
         var m = Clone(); m.OtpAttempts = Model.OtpAttempts + 1; return Success(m);
     }
+    public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl)
+    {
+        var m = Clone(); m.DisplayName = displayName; m.Gender = gender; m.PhotoUrl = photoUrl; return Success(m);
+    }
     public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp)
     {
         var m = Clone(); m.OtpCode = otp; m.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes); m.OtpAttempts = 0; return Success(m);
     }
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, OtpExpiresAt = Model.OtpExpiresAt, OtpAttempts = Model.OtpAttempts, Verified = Model.Verified };
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, OtpExpiresAt = Model.OtpExpiresAt, OtpAttempts = Model.OtpAttempts, DisplayName = Model.DisplayName, Gender = Model.Gender, PhotoUrl = Model.PhotoUrl, Verified = Model.Verified };
 }
