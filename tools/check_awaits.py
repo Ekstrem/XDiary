@@ -42,7 +42,7 @@ def parse_awaits(path):
             continue
         if all(set(c) <= set("-: ") for c in cells if c):
             continue  # разделитель
-        idx_role = idx_what = idx_stamp = None
+        idx_role = idx_what = idx_stamp = idx_status = None
         for i, h in enumerate(header):
             if idx_role is None and ("кому" in h or "адресат" in h or "роль" in h):
                 idx_role = i
@@ -50,13 +50,20 @@ def parse_awaits(path):
                 idx_what = i
             elif idx_stamp is None and ("метк" in h or "когда" in h or "выдач" in h):
                 idx_stamp = i
+            elif idx_status is None and ("статус" in h or "состояни" in h):
+                idx_status = i
         if None in (idx_role, idx_what, idx_stamp) or len(cells) <= max(idx_role, idx_what, idx_stamp):
             continue
         m = STAMP.search(cells[idx_stamp])
         mr = ROLE.search(cells[idx_role].lower())
         if not m or not mr:
             continue
-        rows.append((mr.group(1), cells[idx_what], m.group(1), n))
+        done = False
+        if idx_status is not None and idx_status < len(cells):
+            cell = cells[idx_status].strip().lower()
+            done = ("✅" in cell or "сделано" in cell or "закрыт" in cell or "принято" in cell
+                    or "готово" in cell)
+        rows.append((mr.group(1), cells[idx_what], m.group(1), n, done))
     return rows
 
 
@@ -95,13 +102,17 @@ def check(root, use_git=True):
     протекает в кейсы, и проверка проверяет не то)."""
     rows = parse_awaits(os.path.join(root, AWAIT))
     hanging = []
-    for role, what, stamp, _ in rows:
+    done_rows = 0
+    for role, what, stamp, _, done in rows:
+        if done:
+            done_rows += 1
+            continue
         ok = chat_accepts(root, role, stamp)
         if not ok and use_git:
             ok = commit_artifacts(root, role, what)
         if not ok:
             hanging.append((role, what, stamp))
-    return rows, hanging
+    return rows, hanging, done_rows
 
 
 def selftest():
@@ -116,7 +127,7 @@ def selftest():
         "| кому | что | метка |\n|---|---|---|\n| @TE | ADR-028 перенос | 2026-11-13 19:00 |\n")
     open(os.path.join(base, "5-tech-backlog", "chat", "te.md"), "w", encoding="utf-8").write(
         "- [2026-11-13 19:30] → @TL: принял, делаю\n")
-    rows, hanging = check(base, use_git=False)
+    rows, hanging, _done = check(base, use_git=False)
     if len(rows) == 1 and not hanging:
         ok += 1
     else:
@@ -124,7 +135,7 @@ def selftest():
 
     open(os.path.join(base, "5-tech-backlog", "chat", "te.md"), "w", encoding="utf-8").write(
         "- [2026-11-13 18:00] → @TL: принял (ДО метки — не считается)\n")
-    rows, hanging = check(base, use_git=False)
+    rows, hanging, _done = check(base, use_git=False)
     if len(hanging) == 1:
         ok += 1
     else:
@@ -135,15 +146,30 @@ def selftest():
         "| @DO | гейт awaited | 2026-11-13 19:30 |\n")
     open(os.path.join(base, "5-tech-backlog", "chat", "do.md"), "w", encoding="utf-8").write(
         "- [2026-11-13 19:40] → @TL: принято, беру\n")
-    rows, hanging = check(base, use_git=False)
+    rows, hanging, _done = check(base, use_git=False)
     if len(rows) == 2 and len(hanging) == 1 and hanging[0][0] == "te":
         ok += 1
     else:
         print("  [FAIL] смешанный случай: rows=%d hanging=%s" % (len(rows), hanging))
 
     shutil.rmtree(base, ignore_errors=True)
-    print("check_awaits --selftest: %d/3" % ok)
-    return 0 if ok == 3 else 1
+    # кейс: строка с ✅ в колонке «Статус» не считается висящей даже без подтверждения
+    os.makedirs(os.path.dirname(os.path.join(base, AWAIT)), exist_ok=True)
+    os.makedirs(os.path.join(base, "5-tech-backlog", "chat"), exist_ok=True)
+    open(os.path.join(base, AWAIT), "w", encoding="utf-8").write(
+        "| кому | что | метка | статус |\n|---|---|---|---|\n"
+        "| @DO | нечто | 2026-11-13 19:00 | ✅ сделано |\n")
+    open(os.path.join(base, "5-tech-backlog", "chat", "do.md"), "w", encoding="utf-8").write("")
+    rows, hanging, done = check(base, use_git=False)
+    if len(rows) == 1 and not hanging and done == 1:
+        ok += 1
+    else:
+        print("  [FAIL] ✅-строка учтена как висящая: rows=%d hanging=%s done=%d"
+              % (len(rows), hanging, done))
+
+    shutil.rmtree(base, ignore_errors=True)
+    print("check_awaits --selftest: %d/4" % ok)
+    return 0 if ok == 4 else 1
 
 
 def main():
@@ -156,13 +182,14 @@ def main():
         return selftest()
 
     root = os.path.abspath(a.root)
-    rows, hanging = check(root)
+    rows, hanging, done_rows = check(root)
     if not rows:
         print("check_awaits: AWAIT.md нет или таблица пуста — висящих решений 0")
         return 0
     for role, what, stamp in hanging:
         print("::warning::висит: @%s — «%s» (выдано %s, подтверждения нет)" % (role, what, stamp))
-    print("check_awaits: решений в AWAIT.md %d, висит %d" % (len(rows), len(hanging)))
+    print("check_awaits: решений в AWAIT.md %d (закрыто по статусу %d), висит %d"
+          % (len(rows), done_rows, len(hanging)))
     if a.strict and hanging:
         return 1
     return 0

@@ -40,6 +40,11 @@ jobs:
         # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
         # --strict-times — то есть на одном и том же пуше проверки расходились.
         run: python tools/chat_lint.py --config loop.config.json --check --strict-times
+      - name: Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)
+        # Решение считается выданным только после подтверждения адресатом (строка «принято»
+        # в его outbox или коммит/артефакт). Строки со ✅ в колонке «Статус» не проверяются.
+        run: python tools/check_awaits.py --strict
+
       - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)
         # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
         # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).
