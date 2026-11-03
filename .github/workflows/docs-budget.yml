@@ -55,8 +55,10 @@ jobs:
           if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] \
              && git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
             RANGE="$BASE..${{ github.sha }}"
-          elif git rev-parse --verify --quiet "HEAD~1^{commit}" >/dev/null; then
-            RANGE="HEAD~1..HEAD"
+          elif git rev-parse --verify --quiet "origin/main^{commit}" >/dev/null; then
+            # origin/main..HEAD, а НЕ HEAD~1..HEAD: при пуше из нескольких коммитов
+            # ADR во втором коммите иначе не проверится — зелёное на непроверенном.
+            RANGE="origin/main..HEAD"
           fi
           if [ -z "$RANGE" ]; then
             echo "::warning::ADR-гейт не проверял: нет базовой ревизии (первый коммит). Самопроверка выше пройдена."
