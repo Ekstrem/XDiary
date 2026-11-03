@@ -30,3 +30,5 @@ xray-client.json
 *.vless
 
 # авто-сводка чата: генерируется workflow, в git не живёт
+
+5-tech-backlog/chat/_dialogue.md
