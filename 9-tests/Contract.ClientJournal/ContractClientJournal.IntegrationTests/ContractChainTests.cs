@@ -303,4 +303,71 @@ public sealed class ContractChainTests
             anonForeign is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
             "GET /clients/{id} без токена вернул " + (int)anonForeign + " — ожидали 401");
     }
+
+    // Пункт 7 — матрица ADR-026 §3 (@AR 2026-11-10 08:33 + 09:02, @TL 08:31 + 09:01).
+    // Ключ анонимности — ПАРА (метод, путь); всё остальное deny-by-default.
+    //
+    // Порядок строк намеренно от сильного к слабому: сначала «посторонний» маршрут анонимно
+    // (без него deny-by-default нечем доказать), потом allow-list по смыслу, потом внутренний контур.
+    [StandFact]
+    public async Task Point7_Adr026_Anonymous_Matrix()
+    {
+        using var api = new ClientStandApi();
+
+        // (1) «Посторонний» маршрут анонимно → 401/404. `GET /clients` по ADR-026 удаляется,
+        //     поэтому 404 — валидный исход; важно, что НЕ 200.
+        var strangers = new[]
+        {
+            "api/v1/clients",
+            "api/v1/journal/records",
+            "api/v1/partners",
+        };
+        foreach (var path in strangers)
+        {
+            var status = await api.GetAsync(path, null);
+            Assert.True(
+                status is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound or HttpStatusCode.Forbidden,
+                "GET " + path + " без токена вернул " + (int)status +
+                " — deny-by-default не работает (ADR-026 §3)");
+        }
+
+        // (2) Allow-list анонимно — по смыслу, онбординг обязан работать без токена.
+        var (_, regStatus) = await api.RegisterAsync(ClientStandApi.UniquePhone());
+        Assert.True(
+            regStatus is HttpStatusCode.OK or HttpStatusCode.Created or HttpStatusCode.BadRequest,
+            "POST /clients без токена вернул " + (int)regStatus +
+            " — онбординг не должен требовать токен (ADR-026 allow-list)");
+
+        var (_, verifyStatus) = await api.VerifyAsync(Guid.NewGuid(), "000000");
+        Assert.True(
+            verifyStatus is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized or HttpStatusCode.NotFound,
+            "POST /clients/{id}/verify без токена вернул " + (int)verifyStatus +
+            " — ожидали 400/401/404 по смыслу (не 405 и не 500)");
+
+        var (refreshBody, refreshStatus) = await api.RefreshAsync("not-a-jwt");
+        _ = refreshBody;
+        Assert.True(
+            refreshStatus is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized or HttpStatusCode.UnprocessableEntity,
+            "POST /clients/refresh без токена вернул " + (int)refreshStatus +
+            " — ожидали 400/401 (не 405: маршрут должен существовать)");
+
+        Assert.Equal(HttpStatusCode.OK, await api.GetAsync("health", null));
+
+        // (3) Внутренний контур: `GET /internal/journal/records` анонимно → 200.
+        //     Им Analytics обновляет «Тренды». Если @BE включит default-deny без исключения
+        //     для `/internal/**`, «Тренды» замрут молча — это и ловит строка.
+        //     Через шлюз маршрут может быть не опубликован (шлюз публикует только `/api/v1/**`),
+        //     и тогда проверка честно говорит, что её надо делать внутри сети (зона @DO).
+        var internalStatus = await api.GetAsync("internal/journal/records", null);
+        if (internalStatus == HttpStatusCode.NotFound)
+        {
+            Console.WriteLine(
+                "::warning::[infra] GET /internal/journal/records через шлюз = 404 (маршрут не публикуется) — " +
+                "проверка внутреннего контура возможна только изнутри сети, зона @DO");
+        }
+        else
+        {
+            Assert.Equal(HttpStatusCode.OK, internalStatus);
+        }
+    }
 }
