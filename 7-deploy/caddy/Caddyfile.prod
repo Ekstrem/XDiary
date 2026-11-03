@@ -12,5 +12,14 @@
 
 xdiary-vps1.taile0b6ee.ts.net {
 	tls /etc/caddy/xdiary-vps1.taile0b6ee.ts.net.crt /etc/caddy/xdiary-vps1.taile0b6ee.ts.net.key
+
+	# ЗАСЛОНКА (P0 2026-11-10, инцидент INCIDENT-2026-11-10-PII): снаружи список
+	# клиентов не отдаётся вовсе. Раньше `GET /api/v1/clients` уходил в сервис и
+	# отдавал 9 записей с телефонами. Шлюз уже отвечает здесь 401 (ADR-026), но
+	# второй слой на краю не даёт «одной строке в шлюзе» снова открыть список.
+	# Снять — только после BE-064 (маршрут списка удалён) и явного решения @TL.
+	@clients_list method GET && path /api/v1/clients*
+	respond @clients_list 404
+
 	reverse_proxy 127.0.0.1:8080
 }
