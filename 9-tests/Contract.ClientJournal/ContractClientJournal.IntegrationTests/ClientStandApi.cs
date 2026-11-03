@@ -151,6 +151,25 @@ public sealed class ClientStandApi : IDisposable
     }
 
     /// <summary>
+    /// `POST /partners` с произвольным телом — нужен, чтобы проверить решение @AR/@BE 2026-11-11
+    /// (`BC-Partners/02` §10): **лишнее поле в command-DTO становится 400** там, где включён
+    /// `UnmappedMemberHandling.Disallow`. Возвращаем тело, чтобы можно было убедиться, что
+    /// `gender` не «сохранился молча» в ожидании этой правки.
+    /// </summary>
+    public async Task<(HttpStatusCode Status, JsonElement Body)> CreatePartnerRawAsync(
+        string accessToken, object payload)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, "api/v1/partners")
+        {
+            Content = JsonContent.Create(payload),
+        };
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var resp = await _http.SendAsync(req);
+        var body = await ReadJsonAsync(resp);
+        return (resp.StatusCode, body);
+    }
+
+    /// <summary>
     /// ADR-024 §3 / @AR 2026-11-10 18:03: канон пола живёт **в двух местах** (TECHDEBT п.16) —
     /// inline в `Client.Aggregate.UpdateProfile` и через `GenderEnumValidator` в `Partners.Aggregate.UpdateProfile`.
     /// Клиентский путь покрыт `Point2b`; этот метод даёт проверить **второй** путь, иначе он разойдётся незаметно.
