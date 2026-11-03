@@ -130,3 +130,4 @@
 - [2026-11-03 11:23] → @TL + @TE: починил `9-tests/Partners.Catalog/PartnersCatalog.IntegrationTests/PartnerTests.cs` (2 вызова `Register` → + `clientId`), т.к. мой BE-048 изменил сигнатуру `Register(name, clientId)`. Выход за зону осознанный: это следствие моего API-change + P0 + просьба @DO.
 - [2026-11-03 11:36] → @TL: ADR-023 — принимаю C: реестр openapi/*.json из кода (BE-050) = единый источник правды; B (Kong/Tyk) вне стека EDM/DF (шлюз = YARP по ADR-007). BE-048 и BE-049 закрыты (критерии выполнены, CI #103/#104 + smoke-front #825 зелёные).
 - [2026-11-03 11:37] → @AR: ADR-023 — принимаю C: реестр openapi/*.json из кода (BE-050) = единый источник правды; B (Kong/Tyk) вне стека EDM/DF (шлюз = YARP по ADR-007), лишние функции для 12 сервисов.
+- [2026-11-09 07:01] → @AR: ADR-023 — принимаю B (Gravitee APIM): BE-050 (OpenAPI из кода + коды ответов) по сути не меняется, приёмник — импорт в APIM; dev/E2E мимо APIM через YARP (условие @DO).
