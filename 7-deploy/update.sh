@@ -47,9 +47,46 @@ done
 
 NEWHASH=$(for img in $IMAGES; do podman image inspect "$img" --format '{{.Id}}' 2>/dev/null; done | sha256sum | cut -d' ' -f1)
 OLDHASH=$(cat "$HASHFILE" 2>/dev/null || echo "")
+# DO-050: «deploy прошёл» != «на сервере новый образ». Проверяем фактически:
+# образ каждого контейнера должен совпадать с локальным тегом, который мы только что
+# подтянули. Именно этого не хватило 03.11: update.sh «успешно» отработал, а
+# xdiary-client 33 часа жил на образе от 01.11, потому что pull тихо падал.
+verify_running_images() {
+  # Смысл: сравнить ID образа, из которого РЕАЛЬНО запущен контейнер, с ID,
+  # на который сейчас указывает его тег (его мы только что подтянули).
+  # Совпало — новый образ доехал; не совпало — контейнер остался старым.
+  local fail=0 cname tag actual_id tag_id
+  for cname in $(podman ps --format '{{.Names}}' 2>/dev/null); do
+    case "$cname" in xdiary-*) ;; *) continue ;; esac
+    tag="$(podman inspect "$cname" --format '{{.ImageName}}' 2>/dev/null || true)"
+    actual_id="$(podman inspect "$cname" --format '{{.Image}}' 2>/dev/null || true)"
+    if [ -z "$tag" ] || [ -z "$actual_id" ]; then
+      echo "verify: $cname — не смог прочитать образ/ID" >&2
+      fail=1
+      continue
+    fi
+    tag_id="$(podman image inspect "$tag" --format '{{.Id}}' 2>/dev/null || true)"
+    if [ -z "$tag_id" ]; then
+      echo "verify: $cname — тег $tag отсутствует локально" >&2
+      fail=1
+      continue
+    fi
+    if [ "$actual_id" != "$tag_id" ]; then
+      echo "verify: $cname работает на СТАРОМ образе (${actual_id:0:12} != ${tag_id:0:12}, тег $tag)" >&2
+      fail=1
+    fi
+  done
+  return $fail
+}
+
+
 if [ "$NEWHASH" != "$OLDHASH" ]; then
   echo "$(date +%F_%T) image change detected, redeploying" >> "$HOME/update.log"
   bash /opt/xdiary/7-deploy/deploy.sh "$TAG" >> "$HOME/update.log" 2>&1
+  if ! verify_running_images; then
+    echo "$(date +%F_%T) ВНИМАНИЕ: после деплоя образы контейнеров не совпали с локальными" >> "$HOME/update.log"
+    echo "update.sh: ВНИМАНИЕ — образы контейнеров не совпали, см. $HOME/update.log" >&2
+  fi
   echo "$NEWHASH" > "$HASHFILE"
 else
   echo "$(date +%F_%T) no changes" >> "$HOME/update.log"
