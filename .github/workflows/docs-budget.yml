@@ -13,6 +13,8 @@ on:
       - 'RULES.md'
       - 'loop.config.json'
       - 'tools/check_docs_size.py'
+      - 'tools/check_adr.py'
+      - '04-architecture/ADL/**'
       - '.github/workflows/docs-budget.yml'
   workflow_dispatch:
 
@@ -37,3 +39,19 @@ jobs:
         run: python tools/check_test_map.py
       - name: Формат PDR и индекс
         run: python tools/check_pdr.py
+      # D-17/ADR-шаблон: гейт формата ADR (AGENTS.md §5.2 ссылается на этот скрипт).
+      # Порядок важен: --selftest доказывает, что гейт УМЕЕТ падать — иначе это
+      # «правило, которое выглядит работающим» (класс, который ловили весь день).
+      - name: Самопроверка гейта ADR (негативный контроль)
+        run: python tools/check_adr.py --selftest
+      - name: Формат новых/изменённых ADR
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.before }}"
+          if [ -n "$BASE" ] && [ "$BASE" != "0000000000000000000000000000000000000000" ] && git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
+            echo "проверяю ADR в диапазоне $BASE..${{ github.sha }}"
+            python tools/check_adr.py --range "$BASE..${{ github.sha }}"
+          else
+            echo "нет базовой ревизии (первый пуш или force-push) — проверяю по дате"
+            python tools/check_adr.py --since "$(date -u -d '-2 days' +%F)"
+          fi
