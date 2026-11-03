@@ -16,6 +16,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\..\..\BC-Client\src\Client.ApiTests\ApiTests\E2EInfra.cs" Link="E2EInfra.cs" />
+    <Compile Remove="AnalyticsPrivacy.IntegrationTests/**/*.cs" />
   </ItemGroup>
 </Project>

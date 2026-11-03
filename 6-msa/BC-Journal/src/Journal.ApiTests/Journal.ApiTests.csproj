@@ -15,7 +15,5 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="..\..\..\BC-Client\src\Client.ApiTests\ApiTests\E2EInfra.cs" Link="E2EInfra.cs" />
-  </ItemGroup>
+  
 </Project>
