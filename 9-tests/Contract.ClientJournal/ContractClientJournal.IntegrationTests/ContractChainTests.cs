@@ -158,6 +158,16 @@ public sealed class ContractChainTests
         var (femaleOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", "female");
         Assert.Equal(HttpStatusCode.OK, femaleOk);
 
+        // Нормализация — часть согласованной формы фикса (@AR 2026-11-10 05:43:
+        // `Trim().ToLowerInvariant()` + словарь в агрегате). Поэтому `"Male"` и `" female "`
+        // обязаны приниматься (это те же значения после нормализации), а не отклоняться.
+        // Если @BE сделает словарь без нормализации — тест скажет об этом, а не «промолчит».
+        var (caseOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", "Male");
+        Assert.Equal(HttpStatusCode.OK, caseOk);
+
+        var (spacedOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", " female ");
+        Assert.Equal(HttpStatusCode.OK, spacedOk);
+
         var (anonStatus, _) = await api.UpdateProfileAsync(string.Empty, "Аноним", "male");
         Assert.Equal(HttpStatusCode.Unauthorized, anonStatus);
     }
