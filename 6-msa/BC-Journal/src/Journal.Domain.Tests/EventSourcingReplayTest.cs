@@ -1,4 +1,5 @@
 using Xunit;
+using XDiary.Contracts;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
 
