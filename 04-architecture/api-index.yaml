@@ -452,8 +452,9 @@ operations:
     auth: jwt
     codes: {200: "ok (gender не принимается этим эндпоинтом)", 401: "no-token"}
     codes_status: verified
+    target_codes: {400: "validation: неизвестное поле (целевое, задача @BE)"}
     verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
-    contract_note: "RegisterPartnerCommand(name, clientId) не содержит gender: поле молча игнорируется. gender задаётся через POST /partners/{id}/profile. Асимметрия контракта — P2 (@BE): либо отклонять неизвестные поля, либо принимать необязательный gender при создании."
+    contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400 (UnmappedMemberHandling.Disallow), а не молчаливый игнор. target: codes.400 на лишнее поле появится после задачи @BE; сейчас 400 по этому основанию НЕ отдаётся."
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
