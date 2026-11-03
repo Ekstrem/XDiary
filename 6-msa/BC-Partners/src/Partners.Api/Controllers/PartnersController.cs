@@ -2,6 +2,7 @@ namespace Partners.Api.Controllers;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Partners.Application.Commands;
 using Partners.Application.Queries;
 using Partners.Domain;
@@ -29,7 +30,13 @@ public sealed class PartnersController : ControllerBase
     [HttpPost("{id:guid}/unlink-client")]
     public async Task<IActionResult> UnlinkClient(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new UnlinkPartnerClientCommand(id), ct));
     [HttpGet]
-    public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListPartnersQuery(), ct));
+    [Authorize]
+    public async Task<IActionResult> List(CancellationToken ct)
+    {
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
+        return Ok(await _mediator.Send(new ListPartnersQuery(clientId), ct));
+    }
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     { var r = await _mediator.Send(new GetPartnerByIdQuery(id), ct); return r is null ? NotFound() : Ok(r); }
