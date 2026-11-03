@@ -141,16 +141,22 @@ public sealed class ContractChainTests
             emptyGender is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
             "пустой gender должен отклоняться 400, а вернул " + (int)emptyGender);
 
-        // gender-канон (@AR 2026-11-10 03:42 + решение владельца): словарь `male`/`female`,
-        // неизвестное значение → 400. @BE в 04:12 реализовал «свободную строку» (принимает `other`),
-        // и @FE в 04:20 просит это развести. Проверка фиксирует **канон**, поэтому пока расхождение
-        // не устранено — она падает и называет причину. Если владелец изменит решение, ассерт меняется
-        // вместе с ADR, а не «подкручивается» под бэкенд.
-        var (otherGender, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", "other");
-        Assert.True(
-            otherGender is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
-            "gender='other' должен отклоняться 400 по канону male/female (@AR 03:42), а вернул " +
-            (int)otherGender + " — бэкенд пока принимает свободную строку (@BE 04:12), нужно развести");
+        // gender-канон (@AR 2026-11-10 03:12): словарь `male`/`female`, неизвестное значение → 400.
+        // Идея @AR: «тест на неизвестное значение ценнее, чем на известное — он ловит момент,
+        // когда словарь снова станет свободной строкой». Поэтому проверяем не одно значение,
+        // а три варианта написания, которыми дрейф и проявлялся (`Other` / `other` / `м`).
+        foreach (var bad in new[] { "Other", "other", "м" })
+        {
+            var (badGender, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", bad);
+            Assert.True(
+                badGender is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity,
+                "gender='" + bad + "' должен отклоняться 400 по словарю male/female (@AR 03:12), а вернул " +
+                (int)badGender + " — контракт всё ещё принимает свободную строку (@BE 04:12)");
+        }
+
+        // Известное значение по-прежнему принимается (иначе «валидация» сломала бы онбординг).
+        var (femaleOk, _) = await api.UpdateProfileAsync(access, "ТЕ-профиль", "female");
+        Assert.Equal(HttpStatusCode.OK, femaleOk);
 
         var (anonStatus, _) = await api.UpdateProfileAsync(string.Empty, "Аноним", "male");
         Assert.Equal(HttpStatusCode.Unauthorized, anonStatus);
