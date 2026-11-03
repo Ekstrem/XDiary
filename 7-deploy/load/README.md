@@ -53,3 +53,19 @@ load.ps1  origin/main:7-deploy/load/load.ps1 = 8265e671…  ==  a67bf6ab^:9-test
 ```bash
 git rev-parse origin/main:7-deploy/load/load.js a67bf6ab^:9-tests/Load/load.js
 ```
+### Как проследить историю (проверено)
+
+`git log --follow` здесь **не работает** и это не дефект переноса: файл не «переименован»
+одним коммитом, а **удалён** (`a67bf6ab`) и позже **создан заново** (`a5b428e9`) — для git
+это два разных события, связи в одном коммите нет. Проверено: `git log --follow --oneline --
+7-deploy/load/load.js` показывает только `a5b428e9`.
+
+Рабочий способ — по blob'у:
+
+```bash
+git log --oneline --find-object=05360565a00d   # load.js: a5b428e9, a67bf6ab, 9a6684fe
+git log --oneline --find-object=8265e6711832   # load.ps1: a5b428e9, a67bf6ab, 250fe08a
+```
+
+То есть провенанс держится на трёх вещах: **равенство blob'ов**, **ссылка на `a67bf6ab^`
+в сообщении коммита** и **этот раздел** — а не на `--follow`.
