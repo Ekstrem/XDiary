@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.80"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.81"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -233,6 +233,8 @@
 
   // FE-018 ч.2: клиент-идентификация — телефон → SMS OTP → client-JWT → link-partner
   var onbClientId = "";
+  // FE-033: предупреждение о неудачном link-client после создания партнёра
+  var partnerLinkWarning = "";
   // FE-031: clientId есть и в localStorage — onbClientId мог сброситься (openOnboarding)
   function storedClientId() { try { return localStorage.getItem("xdiary.clientId") || ""; } catch (e) { return ""; } }
   function afterAuth() {
@@ -1209,12 +1211,24 @@
         var cid = onbClientId || storedClientId();
         if (!pid || !cid) return created;
         return Api.partners.linkClient(pid, cid).then(function () { return created; }, function (e) {
+          // FE-033: ошибку связи НЕ глотаем — иначе «создал, а списка нет» без причины
           console.error("linkClient after create:", e);
+          partnerLinkWarning = "Партнёр создан, но не связан с вами: " + apiErrorText(e, "ошибка") + ". Нажмите «Создать партнёра» ещё раз.";
           return created;
         });
       });
     }
     promise.then(function () {
+      if (partnerLinkWarning) {
+        var warn = partnerLinkWarning;
+        partnerLinkWarning = "";
+        toast(warn);
+        if (partnerEditReturn === "onboarding") {
+          showLinkStep();
+          setTimeout(function () { showOnbError("onb-link-error", warn); }, 0);
+        }
+        return;
+      }
       toast("Сохранено");
       if (partnerEditReturn === "wizard") {
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
