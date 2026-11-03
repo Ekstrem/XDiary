@@ -191,6 +191,10 @@ async function seedSessionOnce(page) {
     const lp = await j(await fetch(base + '/api/v1/partners', {
       headers: { Authorization: 'Bearer ' + token },
     }));
+    // TE-047 (P0, @TL 18:45): явная проверка auth-контура — «200 с токеном / 401 без».
+    // Запрос БЕЗ Authorization: после BE-048 должен быть 401, и это видно по числу,
+    // а не по `hidden`-экрану.
+    const anon = await j(await fetch(base + '/api/v1/partners'));
     return {
       ok: true,
       clientId,
@@ -198,19 +202,31 @@ async function seedSessionOnce(page) {
       partnerCreated: !!(p.data && p.data.id),
       hasRefresh: !!refreshToken,
       partnersStatus: lp.status,
+      anonStatus: anon.status,
       partnersCount: Array.isArray(lp.data) ? lp.data.length : null,
       partnersOwn: Array.isArray(lp.data) ? lp.data.some((x) => x && x.id === (p.data && p.data.id)) : null,
     };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
 
   if (seeded.ok) {
+    const tokenAccepted = seeded.partnersStatus === 200;
     console.log('::warning::' + JSON.stringify({
-      title: 'seedSession: партнёры',
-      partnersStatus: seeded.partnersStatus,
+      title: 'seedSession: auth-контур /partners',
+      anonStatus: seeded.anonStatus,              // ожидание после BE-048: 401
+      withTokenStatus: seeded.partnersStatus,     // ожидание: 200
+      authEnforced: seeded.anonStatus === 401,
+      tokenAccepted,
       partnersCount: seeded.partnersCount,
       partnerCreated: seeded.partnerCreated,
       partnersOwnVisible: seeded.partnersOwn,
     }));
+    // Падаем только по делу: если client-JWT не принимается — это auth, а не «скрытый экран».
+    if (!tokenAccepted) {
+      throw new Error(
+        'client-JWT не принят: GET /partners с токеном вернул ' + seeded.partnersStatus +
+        ' (без токена: ' + seeded.anonStatus + '). Это auth-контур, а не hidden-экран (TE-047).'
+      );
+    }
   }
 
   if (!seeded.ok) {
