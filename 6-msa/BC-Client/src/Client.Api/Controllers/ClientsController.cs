@@ -43,6 +43,20 @@ public sealed class ClientsController : ControllerBase
         var pair = _tokens.Issue(clientId, phone ?? string.Empty);
         return Ok(new { accessToken = pair.AccessToken, refreshToken = pair.RefreshToken, expiresAt = pair.ExpiresAt });
     }
+    [HttpPost("{id:guid}/link-partner")]
+    [Authorize]
+    public IActionResult LinkPartnerDeprecated(Guid id)
+    {
+        Response.Headers["Deprecation"] = "true";
+        return Ok(new { deprecated = true });
+    }
+    [HttpPost("{id:guid}/unlink-partner")]
+    [Authorize]
+    public IActionResult UnlinkPartnerDeprecated(Guid id)
+    {
+        Response.Headers["Deprecation"] = "true";
+        return Ok(new { deprecated = true });
+    }
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) => Ok(await _mediator.Send(new ListClientsQuery(), ct));
     [HttpGet("me")]
