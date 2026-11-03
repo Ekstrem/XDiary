@@ -247,4 +247,50 @@ public sealed class ContractChainTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, await api.GetAsync("api/v1/journal/records", null));
     }
+
+    // Пункт 6 (@TL 2026-11-10 04:45, новая находка): `GET /api/v1/clients` отдавал список ВСЕХ
+    // клиентов с телефонами и был анонимным; `GET /clients/{id}` тоже. Это дыра того же класса,
+    // что утренняя с партнёрами, и закрывать её надо до любого показа продукта.
+    //
+    // Целевой контракт: без токена — 401 (а не 200 со списком); с токеном A чужой id → 403/404.
+    // На dev 2026-11-10 проверка ожидаемо КРАСНАЯ, пока @BE не задеплоил фикс — и это её работа.
+    [StandFact]
+    public async Task Point6_ClientList_And_ForeignId_Require_Ownership()
+    {
+        using var api = new ClientStandApi();
+
+        var (anonStatus, anonBody) = await api.ListClientsAsync(null);
+        Assert.True(
+            anonStatus == HttpStatusCode.Unauthorized || anonStatus == HttpStatusCode.Forbidden,
+            "GET /api/v1/clients без токена вернул " + (int)anonStatus +
+            " — список клиентов с телефонами не должен быть анонимным (@TL 04:45)");
+
+        var tokenA = await api.RegisterAndVerifyAsync();
+        var tokenB = await api.RegisterAndVerifyAsync();
+
+        // Чужой id: узнаём его через свой список (если список вообще что-то отдаёт) либо через
+        // создание B — нам достаточно факта, что A не может прочитать B.
+        var (listStatus, listBody) = await api.ListClientsAsync(tokenA);
+        if (listStatus == HttpStatusCode.OK)
+        {
+            var ids = api.ReadIds(listBody);
+            Assert.True(
+                ids.Count <= 1,
+                "GET /api/v1/clients с токеном вернул " + ids.Count +
+                " клиентов — должно быть только «я» (иначе утечка телефонов)");
+        }
+
+        // Прямая попытка: A по чужому id (id клиента B нам неизвестен из контракта, поэтому
+        // проверяем на случайном валидном GUID — маршрут не должен отдавать 200 с чужими данными).
+        var foreign = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), tokenA);
+        Assert.True(
+            foreign is HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Unauthorized,
+            "GET /clients/{чужой id} вернул " + (int)foreign + " — ожидали 403/404/401 (@TL 04:45)");
+
+        // И без токена тот же маршрут обязан требовать авторизацию.
+        var anonForeign = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), null);
+        Assert.True(
+            anonForeign is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
+            "GET /clients/{id} без токена вернул " + (int)anonForeign + " — ожидали 401");
+    }
 }

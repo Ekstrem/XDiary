@@ -120,6 +120,21 @@ public sealed class ClientStandApi : IDisposable
         return resp.StatusCode;
     }
 
+    /// <summary>
+    /// TE-038 / @TL 2026-11-10 04:45: `GET /api/v1/clients` в `BC-Client` был **анонимным**
+    /// и отдавал список всех клиентов с телефонами. Возвращаем и тело, чтобы тест мог проверить
+    /// не только статус, но и отсутствие чужих данных.
+    /// </summary>
+    public async Task<(HttpStatusCode Status, JsonElement Body)> ListClientsAsync(string? accessToken)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, "api/v1/clients");
+        if (!string.IsNullOrEmpty(accessToken))
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var resp = await _http.SendAsync(req);
+        var body = await ReadJsonAsync(resp);
+        return (resp.StatusCode, body);
+    }
+
     public async Task<(Guid Id, HttpStatusCode Status)> CreatePartnerAsync(string accessToken, string name)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, "api/v1/partners")
