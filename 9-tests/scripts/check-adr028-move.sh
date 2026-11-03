@@ -40,7 +40,7 @@ BASE_STAND=20
 BASE_THEORY=11
 BASE_API=17
 
-echo "режим: --$MODE | ревизия: $REF"
+echo "REF=$REF | режим: --$MODE"
 echo "----"
 
 # 1) В 9-tests не осталось C#-проектов (там только браузерные тесты)
@@ -180,9 +180,9 @@ fi
 echo "----"
 checks=8
 if [ "$fail" -eq 0 ]; then
-  echo "PASS: ADR-028 ${checks}/${checks} | режим --$MODE | ревизия $REF"
+  echo "REF=$REF | PASS: ADR-028 ${checks}/${checks} | режим --$MODE"
   exit 0
 else
-  echo "FAIL: см. ::error:: выше | режим --$MODE | ревизия $REF"
+  echo "REF=$REF | FAIL: см. ::error:: выше | режим --$MODE"
   exit 1
 fi
