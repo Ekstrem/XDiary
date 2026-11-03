@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.74"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.75"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -156,13 +156,19 @@
     if (!any) { showView("lock"); lock(); return; }
     var lockEl = $("view-lock");
     if (lockEl && !lockEl.classList.contains("hidden")) {
+      // FE-032: неизвестный hasPin (сбой IndexedDB) считаем «PIN нет», иначе вечный экран без выхода
+      var goNoPin = function (why) {
+        console.log("ensureView: hasPin=unknown (" + why + ") -> fallback: считаем, что PIN нет");
+        if (!Api.config.token()) { openOnboarding(); return; }
+        afterAuth();
+      };
       withTimeout(Pin.hasPin(), 5000, false).then(function (hasPin) {
         if (!hasPin) {
           console.log("ensureView: view-lock показан, но Pin.hasPin=false -> онбординг");
           if (!Api.config.token()) { openOnboarding(); return; }
           afterAuth();
         }
-      }, function (e) { console.error("ensureView/hasPin:", e); });
+      }, function (e) { console.error("ensureView/hasPin:", e); goNoPin("err"); });
     }
   }
 
@@ -413,7 +419,7 @@
     // FE-025/026: без client-JWT — только онбординг (PIN — локальный замок поверх сессии)
     var hasClient = !!localStorage.getItem("xdiary.clientId") && !!Api.config.token();
     if (!hasClient) { openOnboarding(); return; }
-    // FE-027: hasPin не должен вешать экран блокировки
+    // FE-027: hasPin не должен вешать экран блокировки; FE-032: ошибка = «PIN нет»
     withTimeout(Pin.hasPin(), 5000, false).then(function (hasPin) {
       if (hasPin) { showLockScreen(); return; }
       afterAuth();
@@ -2241,6 +2247,11 @@
     if ($("app-version-inline")) $("app-version-inline").textContent = "v" + APP_VERSION;
 
     $("pin-submit").addEventListener("click", unlock);
+    // FE-032: явный выход с экрана блокировки — сброс локального PIN и онбординг
+    $("btn-pin-forgot").addEventListener("click", function () {
+      console.log("lock: «Забыли PIN» -> сброс локального PIN, онбординг");
+      withTimeout(Pin.removePin(), 3000, null).then(function () { openOnboarding(); }, function (e) { console.error("forgotPin:", e); openOnboarding(); });
+    });
     $("pin-input").addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
 
     $("btn-new").addEventListener("click", function () { openWizard(null); });
