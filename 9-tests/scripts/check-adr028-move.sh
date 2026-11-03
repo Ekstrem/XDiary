@@ -90,12 +90,33 @@ pkg_ok=0
 if [ -n "$(git ls-tree -r --name-only "$REF" -- 9-tests/RnD/front-e2e 2>/dev/null | grep 'front-e2e\.md$' || true)" ]; then marker_ok=1; fi
 if git show "$REF:9-tests/RnD/front-e2e/package.json" 2>/dev/null | grep -q 'playwright'; then pkg_ok=1; fi
 if [ "$marker_ok" = "1" ] && [ "$pkg_ok" = "1" ]; then
-  ok '4) front-e2e: маркер + браузерная зависимость' 'front-e2e.md + playwright'
+  ok '5) front-e2e: маркер + браузерная зависимость' 'front-e2e.md + playwright'
 else
-  bad '4) front-e2e: маркер + браузерная зависимость' "маркер=$marker_ok playwright=$pkg_ok"
+  bad '5) front-e2e: маркер + браузерная зависимость' "маркер=$marker_ok playwright=$pkg_ok"
 fi
 
-# 5) В 9-tests нет посторонних исполняемых файлов (идея @DO 2026-11-14 06:50):
+# 4) Все 7 адресов из карты ADR-028 §3.1 на месте (положительная проверка: не «ничего лишнего»,
+#    а «всё нужное приехало»). Ожидание — дословно из таблицы §3.1, не по памяти.
+missing4=""
+for t in \
+  '6-msa/BC-Client/src/Client.ApiTests' \
+  '6-msa/BC-Catalog/src/Catalog.ApiTests' \
+  '6-msa/BC-DailyMetrics/src/DailyMetrics.ApiTests' \
+  '6-msa/BC-Portability/src/Portability.ApiTests' \
+  '6-msa/BC-Analytics/src/Analytics.ApiTests' \
+  '6-msa/BC-Journal/src/Journal.ApiTests' \
+  '6-msa/ApiGateway.Tests/ApiGateway.Tests.csproj'
+do
+  if [ -z "$(git ls-tree -r --name-only "$REF" -- "$t" 2>/dev/null | head -n1)" ]; then
+    missing4="$missing4 ${t#6-msa/}"
+  fi
+done
+if [ -z "$missing4" ]; then
+  ok '4) все 7 адресов карты ADR-028 3.1 на месте' '7/7'
+else
+  bad '4) все 7 адресов карты ADR-028 3.1 на месте' "нет:${missing4}"
+fi
+# 6) В 9-tests нет посторонних исполняемых файлов (идея @DO 2026-11-14 06:50):
 #    разрешены RnD/front-e2e (браузер), reports/, scripts/, README.md, AGENTS.md.
 foreign=""
 while IFS= read -r f; do
@@ -110,9 +131,9 @@ done <<EOF
 $(git ls-tree -r --name-only "$REF" -- 9-tests 2>/dev/null | grep -E '\.(js|ps1|sh|cs)$' | grep -v '^9-tests/RnD/front-e2e/' || true)
 EOF
 if [ -z "$foreign" ]; then
-  ok '5) в 9-tests нет посторонних скриптов' '0'
+  ok '6) в 9-tests нет посторонних скриптов' '0'
 else
-  bad '5) в 9-tests нет посторонних скриптов' "лишнее:$(echo "$foreign" | tr '\n' ' ' | cut -c1-170)"
+  bad '6) в 9-tests нет посторонних скриптов' "лишнее:$(echo "$foreign" | tr '\n' ' ' | cut -c1-170)"
 fi
 
 # 6) Атрибуты тестов не потерялись (сумма 6-msa + 9-tests)
@@ -128,9 +149,9 @@ api_total=$(count_attr 'ApiFact|E2EFact')
 detail="Fact=${fact_total}/${BASE_FACT} StandFact=${stand_total}/${BASE_STAND} Theory=${theory_total}/${BASE_THEORY} ApiFact=${api_total}/${BASE_API}"
 if [ "$fact_total" -ge "$BASE_FACT" ] && [ "$stand_total" -ge "$BASE_STAND" ] \
    && [ "$theory_total" -ge "$BASE_THEORY" ] && [ "$api_total" -ge "$BASE_API" ]; then
-  ok '6) атрибуты тестов не потерялись' "$detail"
+  ok '7) атрибуты тестов не потерялись' "$detail"
 else
-  bad '6) атрибуты тестов не потерялись' "$detail"
+  bad '7) атрибуты тестов не потерялись' "$detail"
 fi
 
 # 7) Старые каталоги в 9-tests удалены (иначе проект существует дважды)
@@ -145,13 +166,13 @@ do
   fi
 done
 if [ -z "$left" ]; then
-  ok '7) старые каталоги в 9-tests удалены' '0 остатков'
+  ok '8) старые каталоги в 9-tests удалены' '0 остатков'
 else
-  bad '7) старые каталоги в 9-tests удалены' "остались:$left"
+  bad '8) старые каталоги в 9-tests удалены' "остались:$left"
 fi
 
 echo "----"
-checks=7
+checks=8
 if [ "$fail" -eq 0 ]; then
   echo "PASS: ADR-028 ${checks}/${checks} | режим --$MODE | ревизия $REF"
   exit 0
