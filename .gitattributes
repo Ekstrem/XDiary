@@ -1,0 +1,35 @@
+# .gitattributes — единые правила EOL для общего дерева (DO-069, @AR 2026-11-13 18:50).
+#
+# Зачем: у ролей разные `core.autocrlf` (у @AR = true). Без этого файла файл, записанный
+# с CRLF, попадает в `git status` как ` M`, хотя содержимое идентично `origin` — и это
+# трижды за день блокировало merge, требуя ручной сверки `hash-object`.
+#
+# Правило: в репозитории храним LF, рабочее дерево — как удобно ОС (`text=auto`).
+# Явные типы нужны, чтобы git не угадывал: .md/.cs/.sh/.json/.yml — всегда LF.
+#
+# ВАЖНО: этот файл НЕ делает массовую ренормализацию. Старые файлы с CRLF в индексе
+# перепишутся при следующей правке (`git add --renormalize <файл>`), а не одним большим
+# коммитом — иначе чужие зоны перезапишутся под моим именем.
+
+* text=auto
+
+*.md    text eol=lf
+*.cs    text eol=lf
+*.sh    text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.csproj text eol=lf
+*.sln   text eol=lf
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+
+# Бинарное — не трогать
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.dump  binary
