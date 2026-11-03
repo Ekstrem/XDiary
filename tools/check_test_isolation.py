@@ -91,7 +91,8 @@ def scan(root):
                 if target_bc and target_bc != my_bc and target_bc not in foreign_bcs:
                     foreign_bcs.append(target_bc)
             if foreign_bcs:
-                violations.append(("б", rel, "ProjectReference на чужой BC: %s"
+                violations.append(("б", rel, "ProjectReference на чужой BC: %s "
+                                   "(разрешена только ссылка на 6-msa/Shared/**)"
                                    % ", ".join(foreign_bcs)))
 
         # е) тестовый проект лежит в папке своего сервиса (или 6-msa/ApiGateway.Tests)
@@ -207,7 +208,7 @@ def main():
         print("::error::(%s) %s: %s" % (kind, rel, why))
     projects = sorted({rel for _, rel, _ in v})
     print("check_test_isolation: нарушений %d в %d проект(ах) — б: чужие ProjectReference, "
-          "в: ссылка сервиса на E2E, д: запрещённые общие папки "
+          "б: чужой BC, кроме 6-msa/Shared/**; в: ссылка сервиса на E2E; д: общие папки "
           "(6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>), ж: ProjectReference в никуда"
           % (len(v), len(projects)))
     return 1 if v else 0

@@ -338,6 +338,43 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
             future.append((name, raw, int(lag.total_seconds() // 3600)))
     return future, order, grandfathered
 
+def scan_multiline_messages(chat_dir, known_roles, since=None):
+    """Предупреждения: сообщение «оборвано» и продолжается прозой на следующих строках.
+
+    Норма §4: одна строка = одно сообщение. Многострочное сообщение не попадает в
+    сводку `_dialogue.md` целиком — читатель видит обрыв (случай @TL 2026-11-14 28:11,
+    `chat/tl.md` 1584-1587, обрыв на «…а „контракт“:»). Аргумент @AR 2026-11-14 28:25.
+
+    Почему предупреждение, а не ошибка: в истории чата есть и `code`-блоки, и списки
+    внутри одного сообщения (pasted YAML в `te.md` — сотни строк). Жёсткое правило
+    сделало бы гейт красным на истории, поэтому ловим только явный признак обрыва:
+    строка сообщения заканчивается на `:` или `:**`, а следующая строка — проза.
+    """
+    import re as _re
+    warnings = []
+    stamp = _re.compile(r"^-\s*\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\]")
+    for name in sorted(os.listdir(chat_dir)):
+        if not name.endswith(".md") or name.lower() in SKIP:
+            continue
+        if name[:-3].lower() not in known_roles:
+            continue
+        path = os.path.join(chat_dir, name)
+        with open(path, encoding="utf-8-sig", errors="replace") as handle:
+            lines = handle.read().splitlines()
+        for i, line in enumerate(lines):
+            m = stamp.match(line.strip())
+            if not m:
+                continue
+            body = line.strip()
+            if not _re.search(r"(:|\*\*:)\s*$", body):
+                continue
+            nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            if not nxt or nxt.startswith(("- [", "#", "|", ">", "```")):
+                continue
+            warnings.append((name, i + 1, "%s-%s-%s %s:%s" % m.groups()))
+    return warnings
+
+
 def scan_invalid_times(chat_dir, known_roles, since=None):
     """Метки с невозможным временем (час > 23, минута > 59).
 
@@ -498,6 +535,16 @@ def main():
     invalid, invalid_grand = scan_invalid_times(chat_dir, set(titles.keys()), order_since)
     future, order, grandfathered = scan_times(chat_dir, set(titles.keys()), now_project,
                                                tolerance, shift, use_clock=False)
+
+    multi = scan_multiline_messages(chat_dir, set(titles.keys()), order_since)
+    if (args.report or args.check) and multi:
+        print("многострочные сообщения (норма §4: одна строка = одно сообщение): %d"
+              % len(multi))
+        for name, line, stamp in multi[:10]:
+            print("  %s:%d — метка %s обрывается на ':' и продолжается прозой" % (name, line, stamp))
+        for name, line, stamp in multi[:10]:
+            print("::warning title=[chat] многострочное сообщение::%s:%d (%s)"
+                  % (name, line, stamp))
 
     if args.report or args.check:
         print("нераспознанных строк: %d (новых: %d)" % (len(problems), len(fresh)))
