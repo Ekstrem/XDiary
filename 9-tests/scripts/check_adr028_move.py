@@ -74,7 +74,7 @@ def count_attr(ref: str, pattern: str) -> int:
     """Сумма вхождений атрибута по 6-msa + 9-tests (как в bash-версии через git grep -c)."""
     total = 0
     for scope in ("6-msa", "9-tests"):
-        out = git("grep", "-h", "-c", "-E", pattern, ref, "--", scope)
+        out = git("grep", "-h", "-c", "-E", pattern, ref, "--", f":(glob){scope}/**/*.cs")
         for ln in out.splitlines():
             try:
                 total += int(ln.strip())
@@ -207,7 +207,47 @@ def main() -> int:
             print(f"::error::ADR-028 §1.1: ссылка на чужой BC в тестах — {v}")
         bad("9) изоляция тестов: нет ссылок на чужой BC", f"{len(set(viol))} проект(ов)")
 
-    checks = 9
+    # 10) СБОРКА каждого тестового проекта (@AR 2026-11-14 28:55).
+    #     Тест, который не собирается, = молча потерянное покрытие: он выглядит существующим.
+    #     Классификация ошибок, чтобы не краснеть от офлайна:
+    #       * `error CS2001` (не найден явно включённый файл) — структурный дефект, FAIL;
+    #       * `NU1xxx`/`DigiTFactory`/`Unable to load` — restore/сеть, НЕ проверено (SKIP);
+    #       * остальные `error CS…` при успешном restore — FAIL.
+    #     `ADR028_SKIP_BUILD=1` отключает проверку локально (печатается SKIP, не PASS).
+    build_fail: list[str] = []
+    build_skip = 0
+    build_ok = 0
+    if os.environ.get("ADR028_SKIP_BUILD") == "1":
+        print("10) сборка тестовых проектов" + " " * 36 + "SKIP  (ADR028_SKIP_BUILD=1)")
+    else:
+        import subprocess as _sp
+        for proj in [p for p in tree(ref, "6-msa") if re.search(r"Tests?\.csproj$", p)]:
+            if not os.path.exists(proj):
+                build_skip += 1
+                continue
+            r = _sp.run(["dotnet", "build", proj, "-v", "q", "--nologo"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            out = (r.stdout or "") + (r.stderr or "")
+            if r.returncode == 0:
+                build_ok += 1
+                continue
+            if "error CS2001" in out:
+                build_fail.append(proj + ": CS2001 (не найден включённый файл)")
+                continue
+            if ("NU1" in out) or ("DigiTFactory" in out) or ("Unable to load" in out) or ("Не удалось загрузить индекс" in out):
+                build_skip += 1
+                continue
+            if "error CS" in out:
+                build_fail.append(proj + ": ошибка компиляции")
+            else:
+                build_skip += 1
+        if not build_fail:
+            ok("10) сборка тестовых проектов", f"rc=0 у {build_ok}, не проверено {build_skip}")
+        else:
+            for b in build_fail:
+                print(f"::error::ADR-028 §6: тестовый проект не собирается — {b}")
+            bad("10) сборка тестовых проектов", f"{len(build_fail)} не собирается (ok {build_ok}, skip {build_skip})")
+
+    checks = 10
     if failures == 0:
         print(f"REF={ref} | PASS: ADR-028 {checks}/{checks} | режим --{mode}")
         return 0
