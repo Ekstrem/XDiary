@@ -35,18 +35,44 @@ require_env() {
   [ -f "$ENV_FILE" ] || die "нет файла $ENV_FILE"
 }
 
+recreate_container() {
+  # ВАЖНО: `podman restart` НЕ перечитывает --env-file, поэтому env-правки
+  # применяются только пересозданием. Команду берём из prod-скрипта deploy.sh,
+  # чтобы конфиг контейнера (IP, сеть, лимиты) остался ровно тем же.
+  local body="/tmp/xdiary-client-run.sh"
+  python3 - <<'PY' > "$body"
+import re
+src = open('/home/deploy/deploy.sh', encoding='utf-8').read().replace('\\\n', ' ')
+line = next(l for l in src.splitlines() if 'podman run -d --name xdiary-client' in l).strip()
+print(line)
+PY
+  { echo 'set -u'; echo 'NET=xdiary'
+    echo 'LBL="--label io.containers.autoupdate=registry"'
+    echo 'TAG=single'; cat "$body"; } > /tmp/xdiary-client-recreate.sh
+  podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  bash /tmp/xdiary-client-recreate.sh >/dev/null 2>&1
+}
+
 probe_api() {
   # возвращает строку с результатом: есть ли otpCode в ответе регистрации
-  local phone resp
-  phone="+7999$(date +%H%M%S)"
-  resp="$(curl -s -m 20 -X POST "$API/api/v1/clients" \
-    -H 'Content-Type: application/json' \
-    -d "{\"phone\":\"$phone\",\"name\":\"testotp-probe\"}" || true)"
-  if printf '%s' "$resp" | grep -q '"otpCode"'; then
-    say "  ответ API: otpCode ПРИСУТСТВУЕТ (тестовый код активен)"
+  local phone resp attempt
+  phone="+7999$(date +%H%M%S)$RANDOM"
+  phone="${phone:0:12}"
+  for attempt in 1 2 3 4 5; do
+    resp="$(curl -s -m 20 -X POST "$API/api/v1/clients" \
+      -H 'Content-Type: application/json' \
+      -d "{\"phone\":\"$phone\",\"name\":\"testotp-probe\"}" || true)"
+    [ -n "$resp" ] && break
+    say "  (попытка $attempt: пустой ответ, жду 4 c)"
+    sleep 4
+  done
+  # ВАЖНО: `otpCode` есть в ЛЮБОМ успешном ответе (он часть агрегата).
+  # Признак активного тестового кода — именно значение 000000, иначе проверка врёт.
+  if printf '%s' "$resp" | grep -q '"otpCode":"000000"'; then
+    say "  ответ API: otpCode=000000 (тестовый код АКТИВЕН)"
     return 0
   fi
-  say "  ответ API: otpCode ОТСУТСТВУЕТ (обычный режим)"
+  say "  ответ API: otpCode != 000000 (обычный режим)"
   say "  фрагмент ответа: $(printf '%s' "$resp" | head -c 160)"
   return 1
 }
@@ -62,7 +88,7 @@ case "${1:-}" in
     ;;
 
   on)
-    reason="${3:-}"; confirm="${5:-}"
+    reason="${3:-}"; confirm="${4:-}"
     [ "${2:-}" = "--reason" ] || die "нужно: on --reason \"...\" --confirm"
     [ -n "$reason" ] || die "пустая причина"
     [ "$confirm" = "--confirm" ] || die "нужен --confirm (осознанное включение ослабления на проде)"
@@ -79,8 +105,8 @@ case "${1:-}" in
     say "включено: $FLAG_ALLOW=true, $FLAG_CODE=$CODE"
     say "причина: $reason"
     say "перезапуск $CONTAINER…"
-    podman restart "$CONTAINER" >/dev/null
-    sleep 12
+    recreate_container
+    sleep 25
     say "== проверка =="
     if ! probe_api; then
       say ""
@@ -89,7 +115,7 @@ case "${1:-}" in
       say "!! Откатываю, чтобы не оставлять «меру, которая не работает»."
       grep -vE "^($FLAG_ALLOW|$FLAG_CODE)=" "$ENV_FILE" > "$ENV_FILE.tmp"
       mv "$ENV_FILE.tmp" "$ENV_FILE"
-      podman restart "$CONTAINER" >/dev/null
+recreate_container
       die "тестовый код не активировался — нужна правка @BE и деплой"
     fi
     say ""
@@ -104,8 +130,8 @@ case "${1:-}" in
     grep -vE "^($FLAG_ALLOW|$FLAG_CODE)=" "$ENV_FILE" > "$ENV_FILE.tmp"
     mv "$ENV_FILE.tmp" "$ENV_FILE"
     say "снято: $FLAG_ALLOW, $FLAG_CODE"
-    podman restart "$CONTAINER" >/dev/null
-    sleep 12
+    recreate_container
+    sleep 25
     say "== проверка =="
     probe_api
     say ""
