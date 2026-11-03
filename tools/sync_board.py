@@ -227,7 +227,12 @@ def fetch_issues():
 def build_issue_index(issues):
     """task_id -> канонический issue (с минимальным номером = самый старый)."""
     idx = {}
+    total_dups = len(issues)
+    seen_n = 0
     for i in issues:
+        seen_n += 1
+        if seen_n % 100 == 0 or seen_n == total_dups:
+            print("    дубликаты: обработано %d/%d" % (seen_n, total_dups))
         if i.get("pull_request"):
             continue
         tid = task_id_of(i)
