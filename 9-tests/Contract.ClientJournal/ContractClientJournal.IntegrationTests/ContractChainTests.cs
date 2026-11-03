@@ -473,4 +473,45 @@ public sealed class ContractChainTests
             "gender='Other' в профиле партнёра должен отклоняться 400, а вернул " + (int)otherStatus +
             " — канон @AR реализован только в Client, второй путь отстал (TECHDEBT п.16)");
     }
+
+    // Пункт 9 (@AR + @TL + @BE 2026-11-11 20:12-20:14, `BC-Partners/02` §10):
+    // «двухшаговый контракт» — `POST /partners` принимает ТОЛЬКО `name`, пол идёт через `/profile`.
+    // Решение: лишнее поле в command-DTO становится **400** (`UnmappedMemberHandling.Disallow`),
+    // а в `api-index.yaml` записано как `target_codes` — то есть 400 начнёт отдаваться после правки @BE.
+    //
+    // Поэтому проверяем **инвариант, а не дату выкатки**:
+    //   * 400 — решение реализовано (это цель);
+    //   * 200 — допустимо ТОЛЬКО если поле не сохранилось (`gender` пуст/отсутствует).
+    // Третий исход — 200 и `gender` записан — это «молчаливая потеря данных»: её и ловим.
+    // Так тест не краснеет на корректной реализации до выкатки и сразу краснеет, если поле начнут писать.
+    [StandFact]
+    public async Task Point9_Partners_CreateRejectsOrIgnoresUnknownGender()
+    {
+        using var api = new ClientStandApi();
+        var token = await api.RegisterAndVerifyAsync();
+
+        var (status, body) = await api.CreatePartnerRawAsync(token, new
+        {
+            name = "TE-038 extra-field " + DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            gender = "Male",
+        });
+
+        if (status is HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity)
+        {
+            return; // решение @AR реализовано: лишнее поле отклоняется 400
+        }
+
+        Assert.Equal(HttpStatusCode.OK, status);
+
+        var stored = body.TryGetProperty("gender", out var g) ? (g.GetString() ?? string.Empty) : string.Empty;
+        Assert.True(
+            stored.Length == 0,
+            "POST /partners принял лишнее поле `gender` и сохранил его ('" + stored + "'). " +
+            "По BC-Partners/02 §10 допустимо только: 400 на лишнее поле (Disallow) " +
+            "или игнор без сохранения — иначе пол попадает в обход канона /profile");
+
+        Console.WriteLine(
+            "::notice::[spec] POST /partners: лишнее поле `gender` пока игнорируется (200, gender пуст); " +
+            "target_codes по BC-Partners/02 §10 — 400 после включения UnmappedMemberHandling.Disallow (@BE)");
+    }
 }
