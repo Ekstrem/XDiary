@@ -18,9 +18,16 @@ import argparse
 import datetime
 import json
 import os
+import statistics
 import sys
+import time
+import urllib.error
+import urllib.request
 
 INTERACTIVE = ("clients", "partners", "journal", "catalog", "analytics/summary")
+
+# Учёт «пустой реестр» и «нет замеров» как ОШИБКИ, а не как зелёный: гейт, который
+# молчит на отсутствии данных, — дефект гейта (2026-11-12, DO-068-класс).
 BUDGET_P95_MS = 1000
 BUDGET_OVERHEAD_MS = 100
 
@@ -111,6 +118,58 @@ def load_ops(registry):
     return ops
 
 
+def probe(url, method="GET", timeout=10):
+    """Один запрос; возвращает (код, мс). Код 0 = сеть/таймаут."""
+    req = urllib.request.Request(url, method=method)
+    body = None
+    if method == "POST":
+        req.add_header("Content-Type", "application/json")
+        body = b"{}"
+    t0 = time.perf_counter()
+    try:
+        with urllib.request.urlopen(req, data=body, timeout=timeout) as r:
+            r.read(2048)
+            code = r.status
+    except urllib.error.HTTPError as e:
+        e.read(2048)
+        code = e.code
+    except Exception:
+        code = 0
+    return code, (time.perf_counter() - t0) * 1000.0
+
+
+def summarize(times):
+    if not times:
+        return {"n": 0, "p50": None, "p95": None, "max": None}
+    ordered = sorted(times)
+    return {"n": len(times),
+            "p50": round(pct(ordered, 50), 1),
+            "p95": round(pct(ordered, 95), 1),
+            "max": round(max(ordered), 1)}
+
+
+def measure(ops, gateway, direct, repeat):
+    rows = []
+    for op in ops:
+        method, path = op.split(" ", 1)
+        path = path.replace("{id}", "00000000-0000-0000-0000-000000000000")
+        gw, dr = [], []
+        for _ in range(repeat):
+            c, ms = probe(gateway.rstrip("/") + path, method)
+            if c:
+                gw.append(ms)
+            if direct:
+                c2, ms2 = probe(direct.rstrip("/") + path, method)
+                if c2:
+                    dr.append(ms2)
+        g = summarize(gw)
+        d = summarize(dr)
+        overhead = (round(g["p50"] - d["p50"], 1)
+                    if g["p50"] is not None and d["p50"] is not None else None)
+        rows.append({"op": op, "via_gateway": g, "direct": d, "overhead_p50": overhead})
+    return rows
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Латентность API: через шлюз vs напрямую (DO-060)")
     ap.add_argument("--registry", default="openapi")
@@ -119,6 +178,9 @@ def main(argv=None):
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--reports", default="reports")
+    ap.add_argument("--gateway", default=os.environ.get("XDIARY_GATEWAY", "http://127.0.0.1:8080"))
+    ap.add_argument("--direct", default=os.environ.get("XDIARY_DIRECT", ""))
+    ap.add_argument("--limit", type=int, default=0, help="ограничить число операций")
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -130,12 +192,28 @@ def main(argv=None):
         print("latency: реестр пуст — нечего обходить (BE-050: реестр собирает @BE)")
         return 2
 
-    rows = [{"op": op, "via_gateway": [], "direct": []} for op in ops]
+    if args.limit:
+        ops = ops[: args.limit]
+    rows = measure(ops, args.gateway, args.direct or None, args.repeat)
+    measured = [r for r in rows if r["via_gateway"]["n"]]
+    print("%-46s %8s %8s %8s %8s" % ("операция", "gw p50", "gw p95", "dir p50", "надб."))
+    for r in rows:
+        g, d = r["via_gateway"], r["direct"]
+        print("%-46s %8s %8s %8s %8s" % (
+            r["op"][:46],
+            g["p50"] if g["p50"] is not None else "-",
+            g["p95"] if g["p95"] is not None else "-",
+            d["p50"] if d["p50"] is not None else "-",
+            r["overhead_p50"] if r["overhead_p50"] is not None else "-"))
+    if not measured:
+        print("latency: ни одного успешного замера — это ОШИБКА, а не «нарушений 0»")
+        return 2
     if args.check:
         bad = verdict(rows)
         for b in bad:
             print("✗ %s" % b)
-        print("latency: бюджеты — нарушений %d" % len(bad))
+        print("latency: замеров %d из %d операций, нарушений бюджета %d"
+              % (len(measured), len(rows), len(bad)))
         return 1 if bad else 0
 
     os.makedirs(args.reports, exist_ok=True)
