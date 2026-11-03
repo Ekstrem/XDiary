@@ -28,14 +28,16 @@ fi
 
 # 2) Все 8 целевых путей существуют в 6-msa
 missing=""
+# ADR-028 редакция 2 (@AR 2026-11-13 16:05): папка `Contract.<A>_<B>` вне `E2E` ЗАПРЕЩЕНА,
+# межсервисные black-box сценарии — в 6-msa/E2E/<pair>, шлюз — в 6-msa/ApiGateway.Tests.
 for p in \
-  '6-msa/Contract.Client_Journal' \
-  '6-msa/Contract.Catalog_Partners' \
-  '6-msa/Contract.DailyMetrics_SomaticSeries' \
-  '6-msa/Contract.Gateway_Portability' \
-  '6-msa/Contract.Analytics_Privacy' \
-  '6-msa/Gateways' \
   '6-msa/E2E' \
+  '6-msa/E2E/Contract.Client_Journal' \
+  '6-msa/E2E/Partners_Catalog' \
+  '6-msa/E2E/DailyMetrics_SomaticSeries' \
+  '6-msa/E2E/Gateway_Portability' \
+  '6-msa/E2E/Analytics_Privacy' \
+  '6-msa/ApiGateway.Tests' \
   '6-msa/BC-Journal/src/Journal.IntegrationTests'
 do
   found=$(git ls-tree -r --name-only "$REF" -- "$p" 2>/dev/null | head -n1)
@@ -91,9 +93,17 @@ else
   bad '5) атрибуты тестов не потерялись' "$detail"
 fi
 
+# 6) Запрещённая форма не появилась: `6-msa/Contract.<A>_<B>` вне `E2E` (комплаенс ADR-028 п.5)
+forbidden=$(git ls-tree -r --name-only "$REF" -- 6-msa 2>/dev/null | grep -E '^6-msa/Contract\.[^/]+/' | head -n3 || true)
+if [ -z "$forbidden" ]; then
+  ok '6) нет папки Contract.<A>_<B> вне E2E' '0'
+else
+  bad '6) нет папки Contract.<A>_<B> вне E2E' "$forbidden"
+fi
+
 echo "----"
 if [ "$fail" -eq 0 ]; then
-  echo "PASS: ADR-028 5/5 (ревизия $REF)"
+  echo "PASS: ADR-028 6/6 (ревизия $REF)"
   exit 0
 else
   echo "FAIL: см. строки выше (ревизия $REF)"
