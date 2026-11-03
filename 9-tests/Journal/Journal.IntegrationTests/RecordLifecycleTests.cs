@@ -20,7 +20,7 @@ public class RecordLifecycleTests
     }
 
     private static IJournalAnemicModel StartManual()
-        => Step(new AnemicModel(), a => a.StartManualEntry());
+        => Step(new AnemicModel(), a => a.StartManualEntry(Guid.NewGuid()));
 
     private static JournalReadModel ToReadModel(IJournalAnemicModel model)
     {

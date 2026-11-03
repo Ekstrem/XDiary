@@ -11,7 +11,7 @@ namespace XDiary.Tests.Journal;
 public class RecordInvariantTests
 {
     private static IJournalAnemicModel StartManual()
-        => Aggregate.CreateInstance(new AnemicModel()).StartManualEntry().Model();
+        => Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid()).Model();
 
     // ---- WhenRequired: Complete невозможен без startedAt ----
     [Fact]

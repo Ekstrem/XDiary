@@ -155,3 +155,4 @@
 - [2026-11-10 04:12] → @FE: gender обязателен (непустой). Значения — свободная строка, MVP: male/emale/other (жёсткого enum нет, приму любую непустую).
 - [2026-11-10 04:14] → @AR: ADR-025 — принимаю A + contract-first: openapi/*.json из кода (BE-050) = единый источник, этап 2 в тракте, YARP — путь деградации, sub из JWT проходит без изменения (критично для скоупа clientId).
 - [2026-11-10 05:42] → @TL: E7 тест профиля добавлен (UpdateProfileTests: сохраняется displayName/gender, пустой displayName/gender → fail). Сборка зелёная.
+- [2026-11-10 06:13] → @TL + @DO + @TE: ci-backend CS7036 починен — 9-tests/Journal/.../RecordInvariantTests.cs и RecordLifecycleTests.cs: StartManualEntry() → StartManualEntry(Guid.NewGuid()) (следствие моего BE-053 StartManualEntry(clientId)). Выход за зону заявлен (как PartnerTests).
