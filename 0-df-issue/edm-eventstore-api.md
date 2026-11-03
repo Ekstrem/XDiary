@@ -1,31 +1,53 @@
-# DF Issue: API event-store (SaveEventAsync) не читается офлайн
+# DF API event-store / event-bus (извлечено через dotnet-reflection, 2026-11-14)
 
-## Суть
-Для E1 нужно переключить `JournalCommandRepository.SaveAsync` с `_db.SaveChangesAsync`
-на DF `SaveEventAsync` (event sourcing). Но точная сигнатура `SaveEventAsync` и тип
-события (`IDomainEvent` / конверт) не извлекаются из DLL офлайн:
-- `GetTypes()` падает с `ReflectionTypeLoadException` (не грузится зависимость
-  `Microsoft.Extensions.DependencyInjection.Abstractions`).
-- `strings` даёт только имена (`SaveEventAsync`, `GetByIdAndVersion`,
-  `GetByCorrelationToken`, `GetEventCountAsync`, `SaveSnapshotAsync`) без параметров.
-- XML-doc в пакетах `commandrepository.postgres` / `eventbus.*` / `readrepository.postgres`
-  отсутствует (только DLL).
+## Стенд
+`dotnet run` на кэшированных пакетах (offline, `--no-restore` не нужен — пакеты в кэше).
+Чтение через `Assembly.Load` + `GetTypes()`. Способ рабочий — он закрыл блокер чтения API.
 
-## Что известно (достоверно, по ошибкам компилятора)
-- `AddEventStorePostgres<TBoundedContext, TAnemicModel>(IServiceCollection, string, Action<EventStoreOptions>?)`
-- `AddEventBusInMemory()` — без generic-аргументов.
-- `AddReadStorePostgres<TBoundedContext, TReadModel, TDbContext>(IServiceCollection, string, Action<PostgresReadStoreOptions>)`
-  где `TReadModel : DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IReadModel<TBC>`.
-- Репозитории пакета: `FullEventSourcingRepository`, `SnapshotRepository`, `StateOnlyRepository`
-  (пространства `...Repositories.*`).
+## Event store (`CommandRepository.Postgres`)
 
-## Конверт события (из @AR 2026-11-14 08:55, до выхода `event-delivery.md`)
-`eventId`, `type`, `schemaVersion`, `aggregateId`, `version`, `clientId`, `occurredAt`,
-`correlationToken`, `payload`. `clientId` обязателен.
+`IEventStoreRepository<TBC, TAnemicModel>` (регистрируется `AddEventStorePostgres<TBC,TModel>`):
+- `Task SaveEventAsync(DomainEventEntry entry, CancellationToken)`
+- `Task SaveSnapshotAsync(Guid id, Int64 version, String aggregateJson, CancellationToken)`
+- `Task<Int64> GetEventCountAsync(Guid id, CancellationToken)`
+- `Task<TModel?> GetById(Guid id, CancellationToken)` / `GetByIdAndVersion(Guid, Int64)` /
+  `GetByCorrelationToken(Guid)`
 
-## Разблокирует
-1. `04-architecture/event-delivery.md` в origin (контракт доставки + точный тип события).
-2. ИЛИ рабочий `dotnet`-стенд с восстановлением пакетов (прочитать сигнатуры через reflection).
+Репозитории: `FullEventSourcingRepository`, `SnapshotRepository`, `StateOnlyRepository`
+(стратегия — `EventStoreOptions.Strategy`).
+
+### `DomainEventEntry` (запись в store)
+`Guid Id`, `Int64 Version`, `Guid CorrelationToken`, `String BoundedContext`,
+`String CommandName`, `String SubjectName`, `String ChangedValueObjectsJson`,
+`String Result`, `DateTime CreatedAt`.
+
+## Event bus (`EventBus.InMemory` → `SeedWorks.Events`)
+
+`IEventBusProducer`:
+- `void Publish(IDomainEvent<TAggregate> domainEvent)` / `Task PublishAsync(...)`
+
+### `DomainEvent<TCommand>` (событие агрегата)
+`Guid Id`, `Guid CorrelationToken`, `Int64 Version`, `ICommandToAggregate Command`,
+`IDictionary ChangedValueObjects`, `String BoundedContext`, `String ContextName`,
+`Int32 MicroserviceVersion`, `DomainOperationResultEnum Result`, `String Reason`.
+
+## Маппинг на конверт @AR (08:55)
+- `eventId` → `DomainEvent.Id`
+- `version` → `Version`; `aggregateId` → `Id`/`CorrelationToken` (уточнить)
+- `correlationToken` → `CorrelationToken`
+- `type` → `BoundedContext` + `CommandName` + `SubjectName`
+- `occurredAt` → `CreatedAt`
+- `payload` → `ChangedValueObjects` (VO) / `ChangedValueObjectsJson`
+- **`clientId`** — в DF нет отдельного поля → входит в `ChangedValueObjects` (скаляр `ClientId`
+  должен попасть в `GetValueObjects()`, иначе выпадет из события).
+
+## Следствие для E1
+E1 = вернуть наследование DF-базы (как в `0-df-issue/edm-own-implementations.md`):
+команда → `IAggregateProvider.GetAggregate` → `AggregateBusinessOperation.Handle` →
+`IEventBusProducer.Publish(DomainEvent)` → consumer → `SaveEventAsync` + `UpsertAsync`.
+Свой `IRepository`/`JournalCommandRepository.SaveChangesAsync` — заменить на
+`IEventStoreRepository.SaveEventAsync` (command-path перестаёт писать через EF).
 
 ## Статус
-Открыт. E1 (переключение `SaveAsync` → store) стоит на этом.
+API прочитан. E1 разблокирован по сигнатурам; жду `04-architecture/event-delivery.md`
+для контракта доставки (outbox/диспетчер/идемпотентность).
