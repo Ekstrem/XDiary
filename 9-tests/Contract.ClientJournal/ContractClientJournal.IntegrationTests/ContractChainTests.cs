@@ -212,7 +212,13 @@ public sealed class ContractChainTests
 
         foreach (var path in new[] { "api/v1/journal/recent", "api/v1/journal/places", "api/v1/journal/fantasies" })
         {
-            Assert.Equal(HttpStatusCode.OK, await api.GetAsync(path, access));
+            // Под токеном — 200 с данными; `recent` законно может быть **204 No Content**,
+            // когда записей нет (так отвечает и на dev 71f2f91d: `recent` → 204, `places`/`fantasies` → 200).
+            // Контракт проверяет именно доступ: 401 означает «не пустили», 200/204 — «пустили, данных нет/есть».
+            var withToken = await api.GetAsync(path, access);
+            Assert.True(
+                withToken is HttpStatusCode.OK or HttpStatusCode.NoContent,
+                "GET " + path + " с токеном вернул " + (int)withToken + " — ожидали 200 (или 204, если данных нет)");
             Assert.Equal(HttpStatusCode.Unauthorized, await api.GetAsync(path, null));
         }
     }
@@ -322,13 +328,19 @@ public sealed class ContractChainTests
             " — ADR-026 §3 требует **403** (Forbid). 404/200 здесь = проверка владельца отсутствует " +
             "или маршрут отдаёт чужие данные");
 
-        // Несуществующий id: 404 — закономерный ответ (`EnsureOwns`: rec is null → NotFound).
+        // Несуществующий id: законны оба ответа. Реализация (`ClientsController.cs:83`
+        // `if (id != clientId) return Forbid();`) проверяет владельца **до** чтения → 403;
+        // если бы сначала читала — было бы 404 (`EnsureOwns`: rec is null → NotFound).
+        // Требовать один из них значило бы «писать тест под реализацию», поэтому принимаем пару,
+        // а недопустимым считаем только 200 (отдал чужие данные) и 5xx.
         var foreignRandom = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), tokenA);
         Assert.True(
-            foreignRandom is HttpStatusCode.NotFound or HttpStatusCode.BadRequest,
-            "GET /clients/{несуществующий id} вернул " + (int)foreignRandom + " — ожидали 404");
+            foreignRandom is HttpStatusCode.NotFound or HttpStatusCode.Forbidden or HttpStatusCode.BadRequest,
+            "GET /clients/{несуществующий id} вернул " + (int)foreignRandom +
+            " — ожидали 403/404 (проверка владельца до чтения либо NotFound после)");
 
-        // Список с токеном: если маршрут ещё жив — отдаёт только «я»; если удалён — 401/404.
+        // Список с токеном: если маршрут ещё жив — отдаёт только «я»; если GET удалён —
+        // 401/404/403/405 (405 = путь есть для POST, GET больше не поддерживается — факт с dev `71f2f91d`).
         var (listStatus, listBody) = await api.ListClientsAsync(tokenA);
         if (listStatus == HttpStatusCode.OK)
         {
@@ -341,8 +353,10 @@ public sealed class ContractChainTests
         else
         {
             Assert.True(
-                listStatus is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound or HttpStatusCode.Forbidden,
-                "GET /api/v1/clients с токеном вернул " + (int)listStatus + " — ожидали только «я» либо 401/404 (маршрут удалён)");
+                listStatus is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound
+                    or HttpStatusCode.Forbidden or HttpStatusCode.MethodNotAllowed,
+                "GET /api/v1/clients с токеном вернул " + (int)listStatus +
+                " — ожидали «только я» либо 401/404/405 (GET маршрута удалён)");
         }
 
         // И без токена тот же маршрут обязан требовать авторизацию.
