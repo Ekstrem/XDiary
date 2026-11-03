@@ -39,44 +39,77 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
+        with:
+          # нужна история: зона считается по `git diff` между базой и головой
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Run integration tests (9-tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-          for proj in $(find 9-tests -name '*.IntegrationTests.csproj' | sort); do
-            echo "=== $proj ==="
-            dotnet test "$proj" --verbosity minimal
-          done
-      # DO-045: тесты @BE живут в 6-msa и не запускались нигде — `smoke-api` их не покрывает,
-      # а 8 из 9 его тестов помечены skip (TE-041), то есть контракт не проверялся.
-      # Прогоняем ВСЕ проекты и возвращаем общий код: `set -e` обрывал на первом падении,
-      # и падение Client скрывало результаты ApiGateway.
-      - name: Run BC tests (Client, ApiGateway — DO-045)
+      # ADR-028 + @TL 2026-11-14 11:11: тесты сервисов переехали в `6-msa/BC-<X>/src/*Tests`,
+      # поэтому прежний шаг (`find 9-tests -name '*.IntegrationTests.csproj'`) находил НОЛЬ
+      # проектов и тихо проходил. Теперь зона считается по изменённым BC.
+      - name: Определить зону (какие BC изменились)
+        id: zone
         shell: bash
         run: |
           set -uo pipefail
+          base="${{ github.event.before }}"
+          head="${{ github.sha }}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          fi
+          all=0
+          # новый пуш без предка / dispatch / изменения общих файлов -> весь набор
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || [ "${{ github.event_name }}" = "workflow_dispatch" ] || ! git cat-file -e "$base" 2>/dev/null; then
+            all=1
+          else
+            changed=$(git diff --name-only "$base" "$head" || true)
+            echo "изменено файлов: $(printf '%s\n' "$changed" | grep -c . || true)"
+            if printf '%s\n' "$changed" | grep -qE '^6-msa/(Directory\.|.*\.sln|.*\.props|.*\.targets|shared/)'; then
+              echo "изменены общие файлы 6-msa -> весь набор"
+              all=1
+            fi
+          fi
+          if [ "$all" = "1" ]; then
+            echo "bc_list=ALL" >> "$GITHUB_OUTPUT"
+            echo "зона: ALL"
+          else
+            bcs=$(printf '%s\n' "$changed" | grep -oE '^6-msa/BC-[A-Za-z0-9]+' | cut -d/ -f2 | sort -u | tr '\n' ' ')
+            echo "bc_list=${bcs:-NONE}" >> "$GITHUB_OUTPUT"
+            echo "зона: ${bcs:-NONE}"
+          fi
+
+      - name: Тесты изменённых BC (без соседей — изоляция ADR-028)
+        shell: bash
+        run: |
+          set -uo pipefail
+          zone="${{ steps.zone.outputs.bc_list }}"
+          if [ "$zone" = "NONE" ]; then
+            echo "изменений в BC нет — тесты BC не требуются"
+            exit 0
+          fi
           fail=0
           found=0
-          for proj in \
-            6-msa/BC-Client/src/Client.IntegrationTests/Client.IntegrationTests.csproj \
-            6-msa/ApiGateway.Tests/ApiGateway.Tests.csproj; do
-            if [ -f "$proj" ]; then
-              found=1
-              echo "=== $proj ==="
-              dotnet test "$proj" --verbosity minimal || fail=1
-            else
-              echo "::warning title=[tests] проекта нет::$proj — пропуск"
-            fi
+          if [ "$zone" = "ALL" ]; then
+            projects=$(find 6-msa -name '*Tests*.csproj' | sort)
+          else
+            projects=""
+            for bc in $zone; do
+              projects="$projects $(find "6-msa/$bc" -name '*Tests*.csproj' 2>/dev/null | sort | tr '\n' ' ')"
+            done
+          fi
+          for proj in $projects; do
+            found=1
+            echo "=== $proj ==="
+            dotnet test "$proj" --verbosity minimal || fail=1
           done
           if [ "$found" -eq 0 ]; then
-            echo "::error title=[tests] нечего запускать::DO-045: оба проекта отсутствуют"
-            exit 1
+            echo "::warning title=[tests] тестов в зоне нет::в изменённых BC нет *Tests*.csproj"
           fi
           if [ "$fail" -ne 0 ]; then
             echo "::error title=[tests] есть падения::см. вывод dotnet test выше"
             exit 1
           fi
-          echo "все BC-тесты зелёные"
+          echo "тесты зоны зелёные" 
+
