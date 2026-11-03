@@ -119,19 +119,57 @@ def iter_adrs(adr_dir):
             yield name, os.path.join(adr_dir, name)
 
 
-def file_creation_epoch(path):
-    """Время первого добавления файла в git (committer-time), None если не git/нет.
+CUTOFF_DEFAULT = "2026-11-08"   # ADR, созданные раньше, грандфазерятся (warning, не error)
 
-    Это и есть ответ на «создан ли ADR после шаблона» (@AR 08:42, вариант 3):
-    `git log --diff-filter=A` даёт дату создания, а не «дату последней правки» и не
-    поле `**Дата:**` (которое можно сдвинуть при правке старого ADR).
+
+def parse_creation_log(text):
+    """Разбор `git log --diff-filter=AR --name-status --format=@@%ct`.
+
+    Возвращает путь → epoch ПЕРВОГО появления (A — добавлен, R — переименован).
+    Для R в name-status две строки-пути (старый и новый) — учитываем оба, иначе
+    переименованный старый ADR считался бы новым и молча получал error (@AR 09:26 п.3).
     """
-    out = subprocess.run(["git", "log", "--diff-filter=A", "--format=%ct", "--", path],
+    m = {}
+    ts = None
+    for line in text.splitlines():
+        if line.startswith("@@"):
+            ts = int(line[2:].strip() or 0)
+            continue
+        if not line.strip() or ts is None:
+            continue
+        parts = line.split("\t")
+        for p in parts[1:]:
+            if p.endswith(".md"):
+                m[p] = min(m.get(p, ts), ts)
+    return m
+
+
+def creation_map(adr_dir):
+    """ОДИН git-вызов на весь каталог (кэш), а не O(N) вызовов в цикле (@AR 09:26 п.1)."""
+    out = subprocess.run(["git", "log", "--diff-filter=AR", "--name-status",
+                          "--format=@@%ct", "--", adr_dir],
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
+        return {}
+    return parse_creation_log(out.stdout)
+
+
+def created_date(path, cmap):
+    """Дата создания: сначала пакетная карта, потом одиночный git, потом поле «Дата»."""
+    rel = path.replace(os.sep, "/")
+    epoch = cmap.get(rel)
+    if epoch is None:
+        out = subprocess.run(["git", "log", "--diff-filter=A", "--format=%ct", "--", path],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace")
+        times = [int(x) for x in (out.stdout or "").split() if x.strip().isdigit()]
+        epoch = times[-1] if times else None
+    if epoch is not None:
+        return datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc).date()
+    dm = DATE_RE.search(open(path, encoding="utf-8-sig").read())
+    try:
+        return datetime.date.fromisoformat(dm.group(1)) if dm else None
+    except ValueError:
         return None
-    times = [int(x) for x in out.stdout.split() if x.strip().lstrip("-").isdigit()]
-    return times[-1] if times else None
 
 
 def main():
@@ -139,7 +177,10 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Гейт формата ADR")
     ap.add_argument("--dir", default=None, help="папка ADL (по умолчанию 04-architecture/ADL)")
-    ap.add_argument("--since", default="2026-11-09", help="проверять ADR с этой даты")
+    ap.add_argument("--cutoff", default=CUTOFF_DEFAULT,
+                    help="ADR, созданные раньше этой даты, грандфазерятся (warning)")
+    ap.add_argument("--since", default=None,
+                    help="УСТАРЕЛО и игнорируется: критерий новизны один — дата создания в git")
     ap.add_argument("--strict", action="store_true", help="предупреждения считать ошибками")
     ap.add_argument("--range", default=None,
                     help="git-диапазон (a..b): проверять только изменённые ADR")
@@ -171,23 +212,18 @@ def main():
             print("check_adr: в диапазоне %s изменённых ADR нет" % args.range)
             return 0
 
-    since = datetime.date.fromisoformat(args.since)
+    if args.since:
+        print("check_adr: --since устарел и игнорируется (критерий один — дата создания в git)")
+    cutoff = datetime.date.fromisoformat(args.cutoff)
+    cmap = creation_map(adr_dir)
     checked = skipped = downgraded = 0
     bad = 0
     for name, path in iter_adrs(adr_dir):
         if ranged is not None and name not in ranged:
             continue
-        # «новый vs старый» — по дате создания файла в git (вариант @AR), фолбэк — поле «Дата».
-        created = file_creation_epoch(path)
-        if created is not None:
-            is_old = datetime.datetime.fromtimestamp(
-                created, datetime.timezone.utc).date() < since
-        else:
-            dm = DATE_RE.search(open(path, encoding="utf-8-sig").read())
-            try:
-                is_old = dm and datetime.date.fromisoformat(dm.group(1)) < since
-            except ValueError:
-                is_old = False
+        # «новый vs старый» — ТОЛЬКО дата создания в git (кэш), фолбэк — поле «Дата».
+        created = created_date(path, cmap)
+        is_old = created is not None and created < cutoff
         if ranged is None and is_old:
             skipped += 1
             continue
@@ -200,7 +236,7 @@ def main():
             warnings = warnings + [
                 "старый ADR (создан до %s): ошибки понижены до предупреждений — "
                 "полный шаблон нужен только при содержательном переписывании"
-                % args.since] + errors
+                % args.cutoff] + errors
             errors = []
             downgraded += 1
         if errors or (args.strict and warnings):
