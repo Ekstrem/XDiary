@@ -291,8 +291,11 @@ public sealed class ContractChainTests
     // клиентов с телефонами и был анонимным; `GET /clients/{id}` тоже. Это дыра того же класса,
     // что утренняя с партнёрами, и закрывать её надо до любого показа продукта.
     //
-    // Целевой контракт: без токена — 401 (а не 200 со списком); с токеном A чужой id → 403/404.
-    // На dev 2026-11-10 проверка ожидаемо КРАСНАЯ, пока @BE не задеплоил фикс — и это её работа.
+    // @AR 2026-11-10 18:42 уточнил ожидания и поправил мою проверку по существу:
+    //   * список `GET /clients` — **удаляется** → анонимно 401/404 (не 200);
+    //   * `GET /clients/{id}` — **остаётся** под `[Authorize]`, чужой **существующий** id → **403**.
+    // Важно: несуществующий id (случайный GUID) даёт **404 закономерно** (`EnsureOwns`: `rec is null → NotFound`),
+    // поэтому требовать 403 на случайный GUID было бы ошибкой теста. Берём реальный id второго клиента.
     [StandFact]
     public async Task Point6_ClientList_And_ForeignId_Require_Ownership()
     {
@@ -305,10 +308,27 @@ public sealed class ContractChainTests
             " — список клиентов с телефонами не должен быть анонимным (@TL 04:45)");
 
         var tokenA = await api.RegisterAndVerifyAsync();
-        var tokenB = await api.RegisterAndVerifyAsync();
 
-        // Чужой id: узнаём его через свой список (если список вообще что-то отдаёт) либо через
-        // создание B — нам достаточно факта, что A не может прочитать B.
+        // Реальный чужой клиент: `RegisterAsync` возвращает его id, значит `GET /clients/{bId}`
+        // токеном A — это существующий чужой ресурс, и по ADR-026 §3 обязано быть **403**.
+        var (bId, bStatus) = await api.RegisterAsync(ClientStandApi.UniquePhone());
+        Assert.Equal(HttpStatusCode.OK, bStatus);
+        Assert.NotEqual(Guid.Empty, bId);
+
+        var foreignReal = await api.GetAsync("api/v1/clients/" + bId, tokenA);
+        Assert.True(
+            foreignReal == HttpStatusCode.Forbidden,
+            "GET /clients/{существующий чужой id} вернул " + (int)foreignReal +
+            " — ADR-026 §3 требует **403** (Forbid). 404/200 здесь = проверка владельца отсутствует " +
+            "или маршрут отдаёт чужие данные");
+
+        // Несуществующий id: 404 — закономерный ответ (`EnsureOwns`: rec is null → NotFound).
+        var foreignRandom = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), tokenA);
+        Assert.True(
+            foreignRandom is HttpStatusCode.NotFound or HttpStatusCode.BadRequest,
+            "GET /clients/{несуществующий id} вернул " + (int)foreignRandom + " — ожидали 404");
+
+        // Список с токеном: если маршрут ещё жив — отдаёт только «я»; если удалён — 401/404.
         var (listStatus, listBody) = await api.ListClientsAsync(tokenA);
         if (listStatus == HttpStatusCode.OK)
         {
@@ -318,30 +338,15 @@ public sealed class ContractChainTests
                 "GET /api/v1/clients с токеном вернул " + ids.Count +
                 " клиентов — должно быть только «я» (иначе утечка телефонов)");
         }
-
-        // Прямая попытка: A по чужому id (id клиента B нам неизвестен из контракта, поэтому
-        // проверяем на случайном валидном GUID — маршрут не должен отдавать 200 с чужими данными).
-        var foreign = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), tokenA);
-        Assert.True(
-            foreign is HttpStatusCode.Forbidden or HttpStatusCode.NotFound or HttpStatusCode.Unauthorized,
-            "GET /clients/{чужой id} вернул " + (int)foreign + " — ожидали 403/404/401 (@TL 04:45)");
-
-        // ADR-026 (после @AR 2026-11-10 14:52) фиксирует по каждому маршруту отдельно:
-        //   `GET /api/v1/clients` (список) — УДАЛИТЬ → анонимно 401/404;
-        //   `GET /api/v1/clients/{id}`     — оставить, [Authorize] + только «себя», иначе **403**.
-        // Поэтому 404 на чужой id — не «допустимый диапазон», а признак того, что проверка
-        // владельца, вероятно, отсутствует: забыли `Forbid` — получили 404 и «всё в порядке».
-        if (foreign == HttpStatusCode.NotFound)
+        else
         {
-            Console.WriteLine(
-                "::warning::[spec] маршрут GET /api/v1/clients/{id} (чужой id) → 404; " +
-                "требование ADR-026 §3 / BE-064: [Authorize] + только «себя», иначе **403**. " +
-                "404 на существующий чужой ресурс = проверка владельца, вероятно, отсутствует " +
-                "(забыли Forbid — и расхождение не видно)");
+            Assert.True(
+                listStatus is HttpStatusCode.Unauthorized or HttpStatusCode.NotFound or HttpStatusCode.Forbidden,
+                "GET /api/v1/clients с токеном вернул " + (int)listStatus + " — ожидали только «я» либо 401/404 (маршрут удалён)");
         }
 
         // И без токена тот же маршрут обязан требовать авторизацию.
-        var anonForeign = await api.GetAsync("api/v1/clients/" + Guid.NewGuid(), null);
+        var anonForeign = await api.GetAsync("api/v1/clients/" + bId, null);
         Assert.True(
             anonForeign is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
             "GET /clients/{id} без токена вернул " + (int)anonForeign + " — ожидали 401");
