@@ -1,5 +1,5 @@
 namespace Partners.InternalContracts;
-using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 public sealed class PartnersReadModel : IReadModel<Partners.Domain.IPartners>
 {
     public Guid Id { get; set; }
