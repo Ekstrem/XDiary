@@ -5,19 +5,17 @@ on:
     branches: [ main ]
     paths:
       - '6-msa/BC-Client/**'
-      # ADR-028 этап 1 (@TL 2026-11-13 19:11): правка Client гоняет ЕГО контрактные
-      # тесты. Пока пара лежит в общем наборе — путь указываем здесь; когда тест
-      # переедет внутрь сервиса, строка ниже станет не нужна.
-      - '6-msa/E2E/Contract.Client_Journal/**'
+      # ADR-028 ред. 3: тест пары (consumer-driven) живёт ВНУТРИ сервиса-потребителя
+      # (`BC-Client/src/Client.ApiTests`), поэтому отдельный путь не нужен:
+      # он уже покрыт `6-msa/BC-Client/**`.
       - '.github/workflows/ci-client.yml'
   pull_request:
     branches: [ main ]
     paths:
       - '6-msa/BC-Client/**'
-      # ADR-028 этап 1 (@TL 2026-11-13 19:11): правка Client гоняет ЕГО контрактные
-      # тесты. Пока пара лежит в общем наборе — путь указываем здесь; когда тест
-      # переедет внутрь сервиса, строка ниже станет не нужна.
-      - '6-msa/E2E/Contract.Client_Journal/**'
+      # ADR-028 ред. 3: тест пары (consumer-driven) живёт ВНУТРИ сервиса-потребителя
+      # (`BC-Client/src/Client.ApiTests`), поэтому отдельный путь не нужен:
+      # он уже покрыт `6-msa/BC-Client/**`.
       - '.github/workflows/ci-client.yml'
   workflow_dispatch:
 
@@ -48,20 +46,20 @@ jobs:
 
     # ADR-028: тесты сервиса живут в нём и бегут при его изменении.
     # До 2026-11-13 у Client не было НИ ОДНОГО шага тестов — сборка считалась проверкой.
+    # Прогоняем ВСЕ тестовые проекты сервиса (`*.Domain.Tests`, `*.IntegrationTests`,
+    # `*.ApiTests` — в т.ч. consumer-driven ожидания пары), а не один захардкоженный:
+    # иначе новый тест молча не запускается.
     - name: Тесты Client (в папке сервиса)
-      run: dotnet test src/Client.IntegrationTests/Client.IntegrationTests.csproj --no-build --configuration Release --verbosity normal
-
-    # Контрактные ожидания потребителя (пара Client↔Journal). Путь временный:
-    # по ADR-028 они должны переехать внутрь BC-Client; шаг исчезнет вместе с переносом.
-    - name: Контракт Client↔Journal (если есть)
-      if: hashFiles('6-msa/E2E/Contract.Client_Journal/**/*.csproj') != ''
-      working-directory: .
       run: |
         set -e
-        for p in 6-msa/E2E/Contract.Client_Journal/**/*.csproj; do
+        found=0
+        for p in src/*Tests*/*.csproj; do
+          [ -e "$p" ] || continue
+          found=1
           echo "== $p"
           dotnet test "$p" --configuration Release --verbosity normal
         done
+        [ "$found" = "1" ] || { echo "::error::в BC-Client нет тестовых проектов"; exit 1; }
 
   docker:
     needs: build-and-test
