@@ -41,9 +41,18 @@ case " $IMAGES " in
      echo "update.sh: compose на диске без clients — образ клиента добавлен явно" >&2 ;;
 esac
 
+PULL_FAILED=0
 for img in $IMAGES; do
-  podman pull "$img" >/dev/null 2>&1 || echo "update.sh: pull не удался: $img" >&2
+  if ! podman pull "$img" >/dev/null 2>&1; then
+    echo "update.sh: ОШИБКА pull: $img" >&2
+    PULL_FAILED=$((PULL_FAILED + 1))
+  fi
 done
+if [ "$PULL_FAILED" -gt 0 ]; then
+  # Раньше здесь стояло `|| echo`: 33 часа прод жил на старом образе, а «деплой» был зелёным.
+  echo "update.sh: не удалось подтянуть $PULL_FAILED образ(ов) — выхожу, чтобы не деплоить частичный набор" >&2
+  exit 1
+fi
 
 NEWHASH=$(for img in $IMAGES; do podman image inspect "$img" --format '{{.Id}}' 2>/dev/null; done | sha256sum | cut -d' ' -f1)
 OLDHASH=$(cat "$HASHFILE" 2>/dev/null || echo "")
@@ -84,8 +93,9 @@ if [ "$NEWHASH" != "$OLDHASH" ]; then
   echo "$(date +%F_%T) image change detected, redeploying" >> "$HOME/update.log"
   bash /opt/xdiary/7-deploy/deploy.sh "$TAG" >> "$HOME/update.log" 2>&1
   if ! verify_running_images; then
-    echo "$(date +%F_%T) ВНИМАНИЕ: после деплоя образы контейнеров не совпали с локальными" >> "$HOME/update.log"
-    echo "update.sh: ВНИМАНИЕ — образы контейнеров не совпали, см. $HOME/update.log" >&2
+    echo "$(date +%F_%T) ОШИБКА: после деплоя образы контейнеров не совпали с локальными" >> "$HOME/update.log"
+    echo "update.sh: ОШИБКА — контейнеры работают не на тех образах, что подтянуты (см. выше)" >&2
+    exit 1
   fi
   echo "$NEWHASH" > "$HASHFILE"
 else
