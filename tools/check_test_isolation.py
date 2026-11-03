@@ -260,11 +260,27 @@ def main():
         v.append((kind, rel_proj, why))
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
+    # Форма отчёта — требование @TL 2026-11-14 34:11: ДВА числа и дедуп по пути.
+    # «8 нарушений» читается как «8 проблемных проектов», хотя их 3, и следующий читатель
+    # делает неверный вывод об объёме работы. Канон: `нарушений 8 (3 проекта): (б) …`.
     projects = sorted({rel for _, rel, _ in v})
-    print("check_test_isolation: нарушений %d в %d проект(ах) — б: чужие ProjectReference, "
-          "б: чужой BC, кроме 6-msa/Shared/**; в: ссылка сервиса на E2E; д: общие папки "
-          "(6-msa/E2E, 6-msa/ApiTests, Contract.<A>_<B>), ж: ProjectReference в никуда"
-          % (len(v), len(projects)))
+    if v:
+        import collections
+        kinds = collections.Counter(k for k, _, _ in v)
+        titles = {"б": "ProjectReference на чужой BC", "в": "ссылка сервиса на E2E",
+                  "д": "запрещённая общая папка", "е": "тест вне папки сервиса",
+                  "ж": "include в никуда", "з": "Compile Include чужого BC"}
+        parts = []
+        for kind, count in sorted(kinds.items()):
+            in_proj = len({rel for k, rel, _ in v if k == kind})
+            parts.append("(%s) %s — %d в %d проект(ах)" % (kind, titles.get(kind, kind),
+                                                           count, in_proj))
+        print("check_test_isolation: нарушений %d (%d %s): %s"
+              % (len(v), len(projects),
+                 "проект" if len(projects) == 1 else "проекта" if len(projects) < 5 else "проектов",
+                 "; ".join(parts)))
+    else:
+        print("check_test_isolation: нарушений 0 (0 проектов): изоляция и раскладка по ADR-028 в норме")
     return 1 if v else 0
 
 
