@@ -25,6 +25,11 @@
       "synced_at": "2026-11-03",
       "upstream": "tools/check_docs_size.py"
     },
+    "check_owner_chat.py": {
+      "sha256": "cd8a114a9e97e7f2699d4aa9e70c40db5febb8d7baff493ceb87ea3586c6c1dd",
+      "synced_at": "2026-11-03",
+      "upstream": "tools/check_owner_chat.py"
+    },
     "check_paths.py": {
       "sha256": "3470c1b2400592abf4d43e749908145339be311c7bfdd2c766c35920ead0d66c",
       "synced_at": "2026-11-03",
