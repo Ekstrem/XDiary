@@ -1,163 +1,158 @@
 # api-index.yaml — машиночитаемый реестр операций API (ADR-025, AR-016)
 # Владелец: @AR (модель и контракт). Сверка индекса с кодом — гейт @DO.
 version: 1
-status: "draft"  # draft -> complete: все операции покрыты codes, гейт зелёный
+status: "draft  # draft -> complete: codes verified по BC, гейт @DO зелёный"
 source:
   canvases: "03-ddd/BC-*/03-command-api.md, 04-query-api.md (AR-017 §2.2)"
   code: "6-msa/BC-*/**/*Controller.cs (фактические маршруты и operationId = имя действия)"
 change_rule: >-
-  Новый или изменённый пункт = правка этого файла + гейт в ОДНОМ коммите.
-  Гейт сверяет: (1) набор операций индекса == набор в коде; (2) у каждой операции заполнены codes;
-  (3) анонимность только по allow-list. Иначе rc=1.
+  Новый или изменённый пункт = правка этого файла + гейт в ОДНОМ коммите. Гейт сверяет: (1) набор операций индекса == набор в коде; (2) у каждой операции заполнены codes; (3) анонимность только по allow-list. Иначе rc=1.
 auth_rule: >-
-  deny-by-default (ADR-026): анонимны только POST /api/v1/clients, POST /api/v1/clients/{id}/verify,
-  POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token, GET /health.
-  Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026).
-  GET /health в индексе отсутствует намеренно: это не действие контроллера (даёт фреймворк), гейт исключает его из сверки.
+  deny-by-default (ADR-026): анонимны только POST /api/v1/clients, POST /api/v1/clients/{id}/verify, POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token, GET /health. Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026). GET /health в индексе отсутствует намеренно: это не действие контроллера (даёт фреймворк), гейт исключает его из сверки.
 codes_legend: >-
-  codes: {код: смысл}. baseline = 200/400/401 по общему правилу; verified = сверено с контрактом/тестами.
+  codes: {код: смысл}. verified = сверено с контрактом/тестами (ADR-026, BE-053, BE-064); derived = выведено правилом (401 deny-by-default; 400 валидация POST; 403 чужой id; 404 не найден при GET по id) и ждёт сверки с контрактом/тестом. request: обязательные поля только там, где контракт зафиксирован; полная схема тел живёт в реестре OpenAPI (BE-050/T4), индекс её не дублирует.
 operations:
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/correlations"
     operationId: Analytics.Correlations
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/distribution"
     operationId: Analytics.Distribution
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: POST
     path: "/api/v1/analytics/events"
     operationId: Analytics.Events
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/physio"
     operationId: Analytics.Physio
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/summary"
     operationId: Analytics.Summary
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/thresholds"
     operationId: Analytics.Thresholds
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/tops"
     operationId: Analytics.Tops
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Analytics
     method: GET
     path: "/api/v1/analytics/trends"
     operationId: Analytics.Trends
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: ApiGateway
     method: GET
     path: "/api/v1/bff/analytics-summary"
     operationId: ApiGateway.AnalyticsSummary
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
     deprecated: "мораторий на BFF (ADR-007): мёртвый код, удаляется; не часть клиентского контракта"
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: AppleHealthGateway
     method: POST
     path: "/api/v1/apple-health/configure"
     operationId: AppleHealthGateway.Configure
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: AppleHealthGateway
     method: POST
     path: "/api/v1/apple-health/import"
     operationId: AppleHealthGateway.ImportFile
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: AppleHealthGateway
     method: GET
     path: "/api/v1/apple-health/state"
     operationId: AppleHealthGateway.State
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Catalog
     method: GET
     path: "/api/v1/catalog"
     operationId: Catalog.List
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Catalog
     method: POST
     path: "/api/v1/catalog"
     operationId: Catalog.Add
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Catalog
     method: GET
     path: "/api/v1/catalog/{id}"
     operationId: Catalog.Get
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token", 403: "not-owner", 404: "not-found"}
+    codes_status: derived
   - bc: Catalog
     method: POST
     path: "/api/v1/catalog/{id}/archive"
     operationId: Catalog.Archive
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Catalog
     method: POST
     path: "/api/v1/catalog/{id}/details"
     operationId: Catalog.UpdateDetails
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Catalog
     method: POST
     path: "/api/v1/catalog/{id}/name"
     operationId: Catalog.Rename
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Catalog
     method: POST
     path: "/api/v1/catalog/{id}/remove"
     operationId: Catalog.Remove
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Catalog
     method: POST
     path: "/api/v1/catalog/{id}/restore"
     operationId: Catalog.Restore
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Client
     method: POST
     path: "/api/v1/clients"
@@ -165,6 +160,9 @@ operations:
     auth: anonymous
     codes: {201: "created", 400: "validation"}
     codes_status: verified
+    request:
+      required: [phone]
+      optional: []
   - bc: Client
     method: GET
     path: "/api/v1/clients/me"
@@ -179,6 +177,10 @@ operations:
     auth: jwt
     codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: verified
+    request:
+      required: [displayName, gender]
+      optional: [photoUrl]
+      note: "gender: male|female, нормализация Trim+lower, иначе 400 (ADR-024 §3)"
   - bc: Client
     method: POST
     path: "/api/v1/clients/refresh"
@@ -186,29 +188,32 @@ operations:
     auth: anonymous
     codes: {200: "ok", 401: "bad-refresh"}
     codes_status: verified
+    request:
+      required: [refreshToken]
+      optional: []
   - bc: Client
     method: GET
     path: "/api/v1/clients/{id}"
     operationId: Client.Get
     auth: jwt
-    codes: {200: "ok", 403: "not-owner", 401: "no-token"}
+    codes: {200: "ok", 401: "no-token", 403: "not-owner"}
     codes_status: verified
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/link-partner"
     operationId: Client.LinkPartnerDeprecated
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
     deprecated: "ADR-024: deprecated no-op (200 {deprecated:true}, Deprecation: true); удаляется после 0.88"
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/unlink-partner"
     operationId: Client.UnlinkPartnerDeprecated
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
     deprecated: "ADR-024: deprecated no-op (то же)"
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/verify"
@@ -216,90 +221,93 @@ operations:
     auth: anonymous
     codes: {200: "ok", 400: "validation"}
     codes_status: verified
+    request:
+      required: [code]
+      optional: []
   - bc: DailyMetrics
     method: POST
     path: "/api/v1/daily-metrics/hrv"
     operationId: DailyMetrics.Hrv
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: DailyMetrics
     method: POST
     path: "/api/v1/daily-metrics/resting-hr"
     operationId: DailyMetrics.RestingHr
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: DailyMetrics
     method: GET
     path: "/api/v1/daily-metrics/series"
     operationId: DailyMetrics.Series
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: DailyMetrics
     method: POST
     path: "/api/v1/daily-metrics/sleep"
     operationId: DailyMetrics.Sleep
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: DailyMetrics
     method: POST
     path: "/api/v1/daily-metrics/stress"
     operationId: DailyMetrics.Stress
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: GarminGateway
     method: POST
     path: "/api/v1/garmin/connect"
     operationId: GarminGateway.Connect
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: GarminGateway
     method: POST
     path: "/api/v1/garmin/fetch-activities"
     operationId: GarminGateway.FetchActivities
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: GarminGateway
     method: GET
     path: "/api/v1/garmin/state"
     operationId: GarminGateway.State
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: GarminGateway
     method: POST
     path: "/api/v1/garmin/sync"
     operationId: GarminGateway.Sync
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Journal
     method: GET
     path: "/api/v1/journal/fantasies"
     operationId: Journal.Fantasies
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Journal
     method: GET
     path: "/api/v1/journal/places"
     operationId: Journal.Places
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Journal
     method: GET
     path: "/api/v1/journal/recent"
     operationId: Journal.Recent
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Journal
     method: GET
     path: "/api/v1/journal/records"
@@ -314,105 +322,109 @@ operations:
     auth: jwt
     codes: {200: "ok", 401: "no-token"}
     codes_status: verified
+    request:
+      required: []
+      optional: []
+      note: "clientId из JWT sub, телом не задаётся (BE-053)"
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/from-garmin"
     operationId: Journal.StartFromGarmin
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Journal
     method: GET
     path: "/api/v1/journal/records/{id}"
     operationId: Journal.Get
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token", 403: "not-owner", 404: "not-found"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/accessories"
     operationId: Journal.AddAccessories
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/complete"
     operationId: Journal.Complete
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/contraception"
     operationId: Journal.RecordContraception
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/delete"
     operationId: Journal.Delete
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/duration"
     operationId: Journal.SpecifyDuration
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/orgasms"
     operationId: Journal.RecordOrgasms
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/partners"
     operationId: Journal.AddPartner
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/partners/{partnerId}/remove"
     operationId: Journal.RemovePartner
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/place"
     operationId: Journal.SpecifyPlace
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/positions"
     operationId: Journal.AddPositions
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: POST
     path: "/api/v1/journal/records/{id}/when"
     operationId: Journal.SpecifyWhen
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Journal
     method: GET
     path: "/internal/journal/records"
     operationId: Journal.ListAll
     auth: jwt
-    internal: true  # не публикуется шлюзом, доступ только изнутри сети (ADR-026)
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    internal: true
+    codes: {200: "ok, internal: без токена, только изнутри сети"}
+    codes_status: verified
   - bc: Partners
     method: GET
     path: "/api/v1/partners"
@@ -425,134 +437,134 @@ operations:
     path: "/api/v1/partners"
     operationId: Partners.Register
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
     operationId: Partners.Get
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token", 403: "not-owner", 404: "not-found"}
+    codes_status: derived
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/link-client"
     operationId: Partners.LinkClient
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/name"
     operationId: Partners.Rename
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/profile"
     operationId: Partners.UpdateProfile
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/remove"
     operationId: Partners.Remove
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/unlink-client"
     operationId: Partners.UnlinkClient
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes_status: derived
   - bc: Portability
     method: GET
     path: "/api/v1/portability/document"
     operationId: Portability.Document
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Portability
     method: POST
     path: "/api/v1/portability/export"
     operationId: Portability.Export
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Portability
     method: POST
     path: "/api/v1/portability/import/records"
     operationId: Portability.ImportRecords
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Portability
     method: POST
     path: "/api/v1/portability/import/somatic"
     operationId: Portability.ImportSomatic
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/pin/change"
     operationId: Privacy.ChangePin
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: GET
     path: "/api/v1/privacy/pin/has"
     operationId: Privacy.HasPin
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/pin/lock"
     operationId: Privacy.Lock
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/pin/remove"
     operationId: Privacy.Remove
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/pin/set"
     operationId: Privacy.SetPin
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/pin/unlock"
     operationId: Privacy.Unlock
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/pin/verify"
     operationId: Privacy.VerifyPin
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/token"
     operationId: Privacy.Token
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: Privacy
     method: POST
     path: "/api/v1/privacy/verify-token"
@@ -565,12 +577,12 @@ operations:
     path: "/api/v1/somatic-series/points"
     operationId: SomaticSeries.RecordPoint
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {400: "validation", 401: "no-token"}
+    codes_status: derived
   - bc: SomaticSeries
     method: GET
     path: "/api/v1/somatic-series/slice"
     operationId: SomaticSeries.Slice
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: baseline  # TODO: сверить с контрактом и тестами
+    codes: {200: "ok", 401: "no-token"}
+    codes_status: derived
