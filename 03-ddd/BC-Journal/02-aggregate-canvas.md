@@ -10,52 +10,53 @@
 - **Завершается когда:** удаление записи или полная очистка данных.
 
 ## 2. Description (Описание)
-Агрегат защищает целостность одной фиксации акта. Хранится в IndexedDB `records`.
+Агрегат защищает целостность одной фиксации акта. Read-model: IndexedDB `records` (после E1 — MV).
 
-**Идентификатор агрегата (DF):**
-- Составной ключ `<guid, long>` — `guid` идентифицирует агрегат, `long` — его версию. Технический, для **быстрого поиска**. **НЕ входит в сущность.**
+**2.1. Идентификатор и корень (DF):**
+- Составной ключ `<guid, long>`: `guid` идентифицирует агрегат, `long` — версия. Даёт фреймворк
+  (`IAggregateRoot`), **доменным полем не является** — поэтому в таблице ниже его нет.
+- Корень: `IRecordRoot : IAggregateRoot<IRecord>`. Состояние — `AnemicModel` (контейнер VO, фабричный `Create`).
 
-**Сущность (Entity — корень агрегата):**
-- **Record** — совокупность признаков, идентифицирующих запись (**кто и во сколько**):
-  - `clientId` (uuid) — **владелец записи** (клиент-автор; берётся из JWT `sub`, НЕ из тела запроса)
-  - `partners[]` (uuid[]) — «кто» (партнёры-участники; 0 = соло, N = несколько)
-  - `startedAt` («YYYY-MM-DDTHH:mm») — «во сколько»
+**2.2. Состояние (`AnemicModel`) — атрибуты корня агрегата.** Это и есть ответ на «какие поля у агрегата»:
 
-> **Владение и участие — разные вещи.** Владелец записи — **клиент-автор** (`clientId`); участники акта —
-> «я» (владелец, неявный) + `partners[]`. **Партнёр — участник, а не владелец:** он не получает доступ к записи
-> и не становится её автором (ADR-024; `03-ddd/01-entity-map.md`).
->
-> **`clientId` обязателен для новых записей.** `NULL` допустим **только для легаси-строк**, созданных до BE-053:
-> они не отдаются никому (`GET /journal` фильтрует по `sub`) и не «прилипают» к первому клиенту. Это состояние
-> миграции, а не элемент модели — новые записи без владельца невозможны.
+| Атрибут | Тип | Кард. | Обяз. | Задаётся | Инвариант | Источник |
+|---|---|---|---|---|---|---|
+| `state` | enum `Draft` \| `Recorded` \| `Deleted` | 1 | да | фабрики → `Complete()` → `Delete()` | см. §3 (переходы) | — |
+| `clientId` | uuid | 1 (новые) | да | из JWT `sub`, **не из тела** | RecordOwnedByClient, AuthorFromToken | ADR-024 |
+| `partners[]` | uuid[] | 0..N | нет (0 = соло) | `AddPartner` / `RemovePartner` | PartnersCardinality, PartnersAreParticipants | US-02 |
+| `startedAt` | datetime (`YYYY-MM-DDTHH:mm`) | 1 | да (до `Complete`) | `SpecifyWhen` / `StartFromGarmin` | WhenRequired | US-01 |
+| `durationMin` | int | 1 | да (до `Complete`) | `SpecifyDuration` | DurationPositive (≥ 1) | US-06 |
+| `place` | string? | 0..1 | нет | `SpecifyPlace` | — | US-03 |
+| `positions[]` | string[] | 0..N | нет | `AddPositions` | — | US-04 |
+| `tags[]` | string[] | 0..N | нет | `AddAccessories` | — | US-05 |
+| `costumes[]` | string[] | 0..N | нет | `AddAccessories` | — | KS-02 |
+| `toys[]` | string[] | 0..N | нет | `AddAccessories` | — | IT-02 |
+| `fantasies[]` | string[] | 0..N | нет | `AddAccessories` | — | FZ-03 |
+| `contraceptives[]` | string[] | 0..N | нет | `RecordContraception` | — | CP-01 |
+| `contraceptiveCount` | int | 1 (если контрацепция указана) | нет | `RecordContraception` | ≥ 0 | CP-01 |
+| `orgasms[]` | `{participant, count, types[], rating}` | 0..N | нет | `RecordOrgasms` | RatingRange (0..5), participant уникален | US-07 |
+| `garmin` | bool | 1 | да (default `false`) | `StartFromGarmin` | GarminPrefilled | инк. 3 |
+| `garminId` | string? | 0..1 | нет | `StartFromGarmin` | GarminPrefilled | инк. 3 |
+| `createdAt` | datetime | 1 | да | фреймворк (при создании) | — | — |
+| `updatedAt` | datetime | 1 | да | фреймворк (каждая запись) | — | — |
+| `deletedAt` | datetime? | 0..1 | нет | `Delete()` | ставится вместе с `state=Deleted` | — |
 
-**Объект-значения (Value Objects):**
-- **Duration**: durationMin (int) — длительность
-- **Place**: place (string)
-- **Positions**: positions[] (string)
-- **Accessories**: costumes[], toys[], fantasies[], tags[]
-- **Contraception**: contraceptives[] (string), contraceptiveCount (int)
-- **Orgasms**: orgasms[] — по участнику: { participant («me» | partnerId), count (int), types[] (string), rating (int 0–5) }
-- **Origin**: garmin (bool), garminId (string), createdAt, updatedAt
+**2.3. Объекты-значения (VO):** атрибуты выше — поля `AnemicModel`; VO группируют их для методов и валидации
+(каждый — иммутабельный, фабрика `Create`):
+`Duration(durationMin)` · `Place(place)` · `Positions(positions[])` · `Accessories(costumes[], toys[], fantasies[], tags[])` ·
+`Contraception(contraceptives[], contraceptiveCount)` · `Orgasms(orgasms[])` · `When(startedAt)` · `Origin(garmin, garminId)`.
 
-### Кардинальность полей (из US/CJM)
-| Поле | Кардинальность | Источник |
-|---|---|---|
-| startedAt | 1 (обязательно) | US-01 |
-| partners[] | 0..N (0 = соло) | US-02 «если есть» + «участников» |
-| place | 0..1 (можно пропустить) | US-03 |
-| positions[] | 0..N («одну или несколько») | US-04 |
-| tags[] | 0..N | US-05 |
-| durationMin | 1 | US-06 |
-| orgasms[] | 0..N участников («кто и сколько») | US-07 |
-| costumes[] | 0..N | KS-02 |
-| toys[] | 0..N | IT-02 |
-| fantasies[] | 0..N | FZ-03 |
-| contraceptives[] + count | 0..N | CP-01 |
+**2.4. Что НЕ хранится в агрегате (и почему):**
+- **Имя/пол партнёра** — живут в `Partner` (иначе одно имя в двух местах и расходится, ADR-024);
+- **Список участников отдельным полем** — он **производный**: «я» (неявно) + `partners[]`; дублировать нельзя;
+- **Автор отдельным полем** — автор и есть `clientId`;
+- **Аналитика (сводки/тренды)** — MV в `BC-Analytics`, не состояние записи;
+- **Соматика** — `SomaticSeries`/`DailyMetrics`, ссылки по времени, не встраиваются.
 
-> **«Клиент» ≠ «Партнёр»** (ADR-024): клиент — аккаунт приложения (владелец записи, PIN, соматика), партнёр —
-> участник акта (другой человек). Раньше эти понятия смешивались («партнёр-«я»») — это отменено: «я» в акте
-> неявный автор, а не запись партнёра.
+**2.5. Владение и участие.** Владелец записи — **клиент-автор** (`clientId`); участники акта — «я» (неявный)
++ `partners[]`. **Партнёр — участник, не владелец:** доступа к записи не получает (ADR-024; `01-entity-map.md`).
+`clientId` обязателен для новых записей; `NULL` — **только легаси-строки** до BE-053, они не отдаются никому
+и не «прилипают» к первому клиенту (состояние миграции, не модель).
 
 ## 3. State Transitions (Переходы состояний)
 ```
