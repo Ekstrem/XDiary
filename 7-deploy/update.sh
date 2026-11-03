@@ -1,138 +1,161 @@
 #!/usr/bin/env bash
-# DO-034: список сервисов берётся из tools/gen-hosts.py (он читает podman-compose.yml),
-# а НЕ перечисляется руками. Иначе снова забудем сервис — как забыли `clients`:
-# образ клиента не тянулся 18 часов, BE-038 не доехал, front-e2e падал с 401.
+# update.sh — обновление прода: pull образов, пересоздание ТОЛЬКО изменённых (DO-052).
 #
-# Использование (на VPS): bash update.sh [tag]
+# История (почему так, а не иначе):
+#   * DO-034: список сервисов брать из compose, а не перечислять руками — иначе снова
+#     забудем сервис (как забыли `clients`: образ не тянулся 18 часов, BE-038 не доехал).
+#   * P0 03.11: имя образа != `xdiary-<service>` (`clients` -> `xdiary-client`), пулл
+#     `xdiary-clients` давал 403, ошибка глоталась `|| true` → прод 33 часа жил на старом
+#     образе, а «деплой» был зелёным. Теперь pull обязателен и валит скрипт.
+#   * DO-050: после деплоя проверяем, что контейнеры реально на новых образах.
+#   * DO-052: агрегатный хеш заменён на по-образный; пересоздаём только изменённые
+#     сервисы (front-only коммит не должен перезапускать бэкенд); откат по компоненту.
+#
+# Использование (на VPS):
+#   bash update.sh [tag] [--dry-run]
+#   bash update.sh --rollback <service> <image-id>
 set -uo pipefail
 TAG="${1:-single}"
-cd /opt/xdiary/7-deploy || exit 1
-HASHFILE="$HOME/.xdiary-images.sha256"
+DRY=0
+[ "${2:-}" = "--dry-run" ] && DRY=1
 
-# генератор может лежать в трёх местах: рядом со скриптом, в tools/ репозитория
-# или в развёрнутом /opt/xdiary/tools. Ищем первый существующий, чтобы скрипт
-# не зависел от того, как именно разложен деплой.
+DEPLOY_DIR=/opt/xdiary/7-deploy
+DEPLOY_SH=/home/deploy/deploy.sh
+RECREATE=/opt/xdiary/7-deploy/recreate-service.sh
+HASHFILE="$HOME/.xdiary-images.sha256"
+IDFILE="$HOME/.xdiary-image-ids"
+DEPLOY_HASH_FILE="$HOME/.xdiary-deploy-sh.sha256"
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'update.sh: ОШИБКА: %s\n' "$*" >&2; exit 1; }
+
+if [ "${1:-}" = "--rollback" ]; then
+  svc="${2:-}"; img="${3:-}"
+  [ -n "$svc" ] && [ -n "$img" ] || die "нужно: --rollback <service> <image-id>"
+  [ -x "$RECREATE" ] || die "нет $RECREATE"
+  say "ОТКАТ $svc на $img"
+  bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
+  exit 0
+fi
+
+cd "$DEPLOY_DIR" || die "нет каталога $DEPLOY_DIR"
+
+# ---------- генератор образов ----------
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GEN=""
 for cand in "$HERE/gen-hosts.py" "$HERE/../tools/gen-hosts.py" "/opt/xdiary/tools/gen-hosts.py"; do
-  if [ -f "$cand" ]; then GEN="$cand"; break; fi
+  [ -f "$cand" ] && { GEN="$cand"; break; }
 done
-SVCS="$(python3 "$GEN" --svcs 2>/dev/null || true)"
-if [ -z "$SVCS" ]; then
-  echo "update.sh: не смог получить список сервисов из $GEN — выхожу, чтобы не обновить неполный набор" >&2
-  exit 1
-fi
-echo "update.sh: сервисов $(echo "$SVCS" | wc -w) (из gen-hosts.py): $SVCS"
+[ -n "$GEN" ] || die "не найден gen-hosts.py"
 
-# P0 03.11: имя образа != `xdiary-<service>` (сервис `clients` -> образ `xdiary-client`).
-# Раньше здесь собиралось имя из сервиса, пулл `xdiary-clients` давал 403, ошибка
-# глоталась `|| true`, и контейнер клиента 33 часа жил на старом образе.
-IMAGES="$(python3 "$GEN" --images 2>/dev/null || true)"
-if [ -z "$IMAGES" ]; then
-  echo "update.sh: не смог получить образы из $GEN — выхожу" >&2
-  exit 1
-fi
-# Страховка от дрейфа compose на сервере: если развёрнутый podman-compose.yml
-# старее репозитория и в нём нет сервиса `clients`, генератор не вернёт образ
-# клиента. Именно так прод 33 часа жил на старом образе. Добавляем явно.
-case " $IMAGES " in
-  *"xdiary-client:"*) ;;
-  *) IMAGES="$IMAGES ghcr.io/ekstrem/xdiary-client:$TAG"
-     echo "update.sh: compose на диске без clients — образ клиента добавлен явно" >&2 ;;
-esac
-
-# DO-051: `deploy.sh` в репозитории — СНИМОК серверного файла, и он разойдётся.
-# Сверяем отредактированный (с масками паролей) серверный файл с эталонным хешем,
-# который обновляется при каждом осознанном изменении снимка. Расхождение — падаем:
-# иначе «аудит репозитория» проверяет не то, что исполняется.
-DEPLOY_SH=/home/deploy/deploy.sh
-DEPLOY_HASH_FILE=/home/deploy/.xdiary-deploy-sh.sha256
+# ---------- сверка deploy.sh со снимком (DO-051) ----------
 if [ -f "$DEPLOY_SH" ]; then
   CUR=$(sed -E 's/Password=[^;"]*/Password=__REDACTED__/g' "$DEPLOY_SH" | sha256sum | cut -d' ' -f1)
   WANT=$(cat "$DEPLOY_HASH_FILE" 2>/dev/null || echo "")
   if [ -z "$WANT" ]; then
     echo "$CUR" > "$DEPLOY_HASH_FILE"
-    echo "update.sh: эталонный хеш deploy.sh создан (первый запуск)" >&2
+    say "эталонный хеш deploy.sh создан (первый запуск)"
   elif [ "$CUR" != "$WANT" ]; then
-    echo "update.sh: ОШИБКА — /home/deploy/deploy.sh разошёлся со снимком (sha256 $CUR != $WANT)" >&2
-    echo "update.sh: если изменение осознанное — обнови эталон: sed -E 's/Password=[^;\"]*/Password=__REDACTED__/g' $DEPLOY_SH | sha256sum | cut -d' ' -f1 > $DEPLOY_HASH_FILE" >&2
+    say "/home/deploy/deploy.sh разошёлся со снимком (sha256 $CUR != $WANT)"
+    say "если изменение осознанное — обнови эталон: sed -E 's/Password=[^;\"]*/Password=__REDACTED__/g' $DEPLOY_SH | sha256sum | cut -d' ' -f1 > $DEPLOY_HASH_FILE"
     exit 1
   fi
 fi
 
+# ---------- образы из compose ----------
+IMAGES="$(python3 "$GEN" --images 2>/dev/null || true)"
+[ -n "$IMAGES" ] || die "gen-hosts.py не вернул образы"
+case " $IMAGES " in
+  *"xdiary-client:"*) ;;
+  *) IMAGES="$IMAGES ghcr.io/ekstrem/xdiary-client:$TAG"
+     say "compose на диске без clients — образ клиента добавлен явно" >&2 ;;
+esac
+
+# ---------- pull (обязателен) ----------
 PULL_FAILED=0
-for img in $IMAGES; do
-  if ! podman pull "$img" >/dev/null 2>&1; then
-    echo "update.sh: ОШИБКА pull: $img" >&2
-    PULL_FAILED=$((PULL_FAILED + 1))
-  fi
-done
-if [ "$PULL_FAILED" -gt 0 ]; then
-  # Раньше здесь стояло `|| echo`: 33 часа прод жил на старом образе, а «деплой» был зелёным.
-  echo "update.sh: не удалось подтянуть $PULL_FAILED образ(ов) — выхожу, чтобы не деплоить частичный набор" >&2
-  exit 1
+if [ "$DRY" = "1" ]; then
+  say "DRY-RUN: pull пропущен"
+else
+  for img in $IMAGES; do
+    if ! podman pull "$img" >/dev/null 2>&1; then
+      say "pull не удался: $img" >&2
+      PULL_FAILED=$((PULL_FAILED + 1))
+    fi
+  done
+  [ "$PULL_FAILED" -eq 0 ] || die "не удалось подтянуть $PULL_FAILED образ(ов) — не деплою частичный набор"
 fi
 
-# DO-050: пустой ID раньше «растворялся» в хеше и был неотличим от «образа нет».
-HASH_PARTS=""
+# ---------- по-образные ID и сравнение с прошлым состоянием ----------
+declare -A CUR_IDS=()
+NEW_STATE=""
 MISSING=0
 for img in $IMAGES; do
   id="$(podman image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
   if [ -z "$id" ]; then
-    echo "update.sh: ОШИБКА — образ $img отсутствует локально после pull" >&2
+    say "образ $img отсутствует локально" >&2
     MISSING=$((MISSING + 1))
     continue
   fi
-  HASH_PARTS="$HASH_PARTS$id"
+  svc="$(printf '%s' "$img" | sed -E 's#.*/xdiary-([a-z-]+):.*#\1#')"
+  CUR_IDS["$svc"]="$id"
+  NEW_STATE="${NEW_STATE}${svc} ${id}"$'\n'
 done
-if [ "$MISSING" -gt 0 ]; then
-  echo "update.sh: $MISSING образ(ов) не найдено — не деплою" >&2
+[ "$MISSING" -eq 0 ] || die "$MISSING образ(ов) не найдено — не деплою"
+
+OLD_STATE="$(cat "$IDFILE" 2>/dev/null || true)"
+
+# ---------- какие сервисы изменились ----------
+CHANGED=""
+for svc in "${!CUR_IDS[@]}"; do
+  old_id="$(printf '%s' "$OLD_STATE" | awk -v s="$svc" '$1==s {print $2}')"
+  if [ "$old_id" != "${CUR_IDS[$svc]}" ]; then
+    CHANGED="$CHANGED $svc"
+  fi
+done
+CHANGED="$(echo "$CHANGED" | tr ' ' '\n' | sed '/^$/d' | sort | tr '\n' ' ')"
+
+if [ -z "$CHANGED" ]; then
+  say "изменений нет (по-образное сравнение): деплой не требуется"
+  [ "$DRY" = "1" ] || printf '%s' "$NEW_STATE" > "$IDFILE"
+  exit 0
+fi
+say "изменились: $CHANGED"
+if [ "$DRY" = "1" ]; then
+  say "DRY-RUN: пересоздание не выполняется"
+  exit 0
+fi
+
+# ---------- пересоздание только изменённых, в порядке: сервисы → шлюз ----------
+ORDER="journal partners catalog somatic-series daily-metrics garmin-gateway apple-health-gateway analytics privacy portability client api-gateway"
+FAILED=""
+for svc in $ORDER; do
+  case " $CHANGED " in *" $svc "*) ;; *) continue ;; esac
+  say "  пересоздаю $svc"
+  if ! bash "$RECREATE" "$svc"; then
+    say "  $svc не поднялся — прекращаю и откатываю остальные"
+    FAILED="$svc"
+    break
+  fi
+done
+
+# ---------- пост-проверка ----------
+if [ -n "$FAILED" ]; then
+  say "провал на $FAILED: откат на предыдущие образы"
+  for svc in $ORDER; do
+    case " $CHANGED " in *" $svc "*) ;; *) continue ;; esac
+    old_id="$(printf '%s' "$OLD_STATE" | awk -v s="$svc" '$1==s {print $2}')"
+    [ -n "$old_id" ] || continue
+    say "  откат $svc → $old_id"
+    bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
+  done
   exit 1
 fi
-NEWHASH=$(printf '%s' "$HASH_PARTS" | sha256sum | cut -d' ' -f1)
-OLDHASH=$(cat "$HASHFILE" 2>/dev/null || echo "")
-# DO-050: «deploy прошёл» != «на сервере новый образ». Проверяем фактически:
-# образ каждого контейнера должен совпадать с локальным тегом, который мы только что
-# подтянули. Именно этого не хватило 03.11: update.sh «успешно» отработал, а
-# xdiary-client 33 часа жил на образе от 01.11, потому что pull тихо падал.
-verify_running_images() {
-  # Смысл: сравнить ID образа, из которого РЕАЛЬНО запущен контейнер, с ID,
-  # на который сейчас указывает его тег (его мы только что подтянули).
-  # Совпало — новый образ доехал; не совпало — контейнер остался старым.
-  local fail=0 cname tag actual_id tag_id
-  for cname in $(podman ps --format '{{.Names}}' 2>/dev/null); do
-    case "$cname" in xdiary-*) ;; *) continue ;; esac
-    tag="$(podman inspect "$cname" --format '{{.ImageName}}' 2>/dev/null || true)"
-    actual_id="$(podman inspect "$cname" --format '{{.Image}}' 2>/dev/null || true)"
-    if [ -z "$tag" ] || [ -z "$actual_id" ]; then
-      echo "verify: $cname — не смог прочитать образ/ID" >&2
-      fail=1
-      continue
-    fi
-    tag_id="$(podman image inspect "$tag" --format '{{.Id}}' 2>/dev/null || true)"
-    if [ -z "$tag_id" ]; then
-      echo "verify: $cname — тег $tag отсутствует локально" >&2
-      fail=1
-      continue
-    fi
-    if [ "$actual_id" != "$tag_id" ]; then
-      echo "verify: $cname работает на СТАРОМ образе (${actual_id:0:12} != ${tag_id:0:12}, тег $tag)" >&2
-      fail=1
-    fi
-  done
-  return $fail
-}
 
-
-if [ "$NEWHASH" != "$OLDHASH" ]; then
-  echo "$(date +%F_%T) image change detected, redeploying" >> "$HOME/update.log"
-  bash /opt/xdiary/7-deploy/deploy.sh "$TAG" >> "$HOME/update.log" 2>&1
-  if ! verify_running_images; then
-    echo "$(date +%F_%T) ОШИБКА: после деплоя образы контейнеров не совпали с локальными" >> "$HOME/update.log"
-    echo "update.sh: ОШИБКА — контейнеры работают не на тех образах, что подтянуты (см. выше)" >&2
-    exit 1
-  fi
-  echo "$NEWHASH" > "$HASHFILE"
-else
-  echo "$(date +%F_%T) no changes" >> "$HOME/update.log"
+if ! curl -fsS -m 8 http://127.0.0.1:8080/health >/dev/null 2>&1; then
+  say "после деплоя /health не 200 — это дефект доставки, разбираемся (не «докручиваем на живом»)"
+  exit 1
 fi
+
+printf '%s' "$NEW_STATE" > "$IDFILE"
+printf '%s' "$(echo "$NEW_STATE" | sha256sum | cut -d' ' -f1)" > "$HASHFILE"
+say "OK: обновлены $CHANGED; /health 200"
