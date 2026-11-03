@@ -80,8 +80,7 @@
      dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj
    ```
    Без `XDIARY_E2E_BASE_URL` тесты пропускаются (skipped), не падают.
-3. **Нагрузка** (TE-010..011): `k6 run -e XDIARY_E2E_BASE_URL=... -e XDIARY_E2E_TOKEN=... 9-tests/Load/load.js`
-   или PowerShell: `./9-tests/Load/load.ps1 -Minutes 10 -Out report.csv`.
+3. **Нагрузка** (TE-010..011, задачи **отклонены PO 31.10**: нагрузочное тестирование не нужно) — скрипты переезжают в `7-deploy/load/` (перенос @DO, ADR-028 ред. 3: в `9-tests` только браузерные тесты). До переноса файлы лежат в `9-tests/Load/`: `k6 run -e XDIARY_E2E_BASE_URL=... -e XDIARY_E2E_TOKEN=... <путь>/load.js`
 4. Метрики стенда: `podman stats` по контейнерам + `pg_stat_activity`; отчёт — по шаблону `Load/README.md`.
 5. **Известный блокер TE-009:** шлюз роутит `/api/v1/somatic-series/**`, а контроллер — `/api/v1/somatic` → 404. Пока не выровнено, E2E-срез соматики будет падать.
 
