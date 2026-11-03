@@ -166,7 +166,10 @@ def measure(ops, gateway, direct, repeat):
         d = summarize(dr)
         overhead = (round(g["p50"] - d["p50"], 1)
                     if g["p50"] is not None and d["p50"] is not None else None)
-        rows.append({"op": op, "via_gateway": g, "direct": d, "overhead_p50": overhead})
+        # via_gateway/direct — СЫРЫЕ списки мс (их ждёт verdict/stats),
+        # gw/dr — сводки для печати. Смешивать нельзя: verdict(stats) ждёт список.
+        rows.append({"op": op, "via_gateway": gw, "direct": dr,
+                     "gw": g, "dr": d, "overhead_p50": overhead})
     return rows
 
 
@@ -195,10 +198,10 @@ def main(argv=None):
     if args.limit:
         ops = ops[: args.limit]
     rows = measure(ops, args.gateway, args.direct or None, args.repeat)
-    measured = [r for r in rows if r["via_gateway"]["n"]]
+    measured = [r for r in rows if r["gw"]["n"]]
     print("%-46s %8s %8s %8s %8s" % ("операция", "gw p50", "gw p95", "dir p50", "надб."))
     for r in rows:
-        g, d = r["via_gateway"], r["direct"]
+        g, d = r["gw"], r["dr"]
         print("%-46s %8s %8s %8s %8s" % (
             r["op"][:46],
             g["p50"] if g["p50"] is not None else "-",
