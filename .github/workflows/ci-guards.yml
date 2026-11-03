@@ -90,3 +90,19 @@ jobs:
           fi
           echo "range: ${range}"
           python tools/check_secrets.py --config loop.config.json --range "$range"
+
+      # DO-050/инцидент 05:00: минутный нерабочий update.sh на проде.
+      # Синтаксис серверных скриптов и python-инструментов проверяется ДО деплоя.
+      - name: Синтаксис скриптов (bash -n / py_compile)
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in $(git ls-files '7-deploy/*.sh' 'tools/*.sh' '*.sh'); do
+            [ -f "$f" ] || continue
+            if ! bash -n "$f"; then echo "::error file=$f::bash -n failed"; fail=1; fi
+          done
+          for f in $(git ls-files 'tools/*.py' '7-deploy/*.py'); do
+            [ -f "$f" ] || continue
+            if ! python3 -m py_compile "$f"; then echo "::error file=$f::py_compile failed"; fail=1; fi
+          done
+          exit $fail
