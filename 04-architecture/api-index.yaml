@@ -16,7 +16,7 @@ change_rule: >-
 dod_complete: >-
   status: complete ставится только когда: (1) гейт DO-064 зелёный (индекс == код, у всех codes, анонимность = allow-list + internal без токена); (2) каждая операция помечена: verified с источником (тест/контракт/замер с контуром) ИЛИ derived с явной пометкой «сверка не делалась». «Я посмотрел» — не критерий.
 target_rule: >-
-  target_codes = целевое поведение, ещё не реализованное. У каждой такой записи обязательны target_owner и target_until. Как только поведение реализовано: код переносится в codes, target_codes/target_owner/target_until удаляются. «Целевое» без срока и владельца — запрещено: это то же, что continue-on-error без даты снятия. Канон процесса — 5-tech-backlog/tl/ITERATION-PLAN.md §8 «Правило временного» (правило одно, здесь — его применение к индексу; при расхождении побеждает §8, и это правится одним коммитом).
+  target_codes = целевое поведение, ещё не реализованное. У каждой такой записи обязательны target_owner и target_until. Как только поведение реализовано: код переносится в codes, target_codes/target_owner/target_until удаляются. «Целевое» без срока и владельца — запрещено: это то же, что continue-on-error без даты снятия. Требование к target_until: условие снятия должно быть МАШИННО-ПРОВЕРЯЕМЫМ (env/флаг/конкретный ответ), а не прозой — иначе через месяц никто не поймёт, сработало ли оно. Пример правильной формы: «XDIARY_STRICT_UNKNOWN_FIELDS=1 ставит @DO в smoke-api» (см. Partners.Register). Канон процесса — 5-tech-backlog/tl/ITERATION-PLAN.md §8; при расхождении побеждает §8.
 auth_rule: >-
   deny-by-default (ADR-026): анонимны только POST /api/v1/clients, POST /api/v1/clients/{id}/verify, POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token, GET /health. Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026). auth: anonymous-inside = внутренний контур /internal/** (ADR-026 §3 п.4): изнутри сети без токена, снаружи 401; гейт не должен требовать токен для internal.
 codes_legend: >-
@@ -456,9 +456,9 @@ operations:
     codes_status: verified
     target_codes: {400: "validation: неизвестное поле (целевое)"}
     target_owner: "@BE: UnmappedMemberHandling.Disallow для command-моделей"
-    target_until: "СНЯТЬ как только 400 отдаётся: перенести в codes, target_codes удалить"
+    target_until: "ТРИГГЕР (машинно-проверяемый): @DO ставит XDIARY_STRICT_UNKNOWN_FIELDS=1 в job smoke-api, когда @BE выкатит Disallow. С этого момента Point9b требует только 400, а Point9 перестаёт быть разрешающим. Тогда: код 400 переносится в codes, target_codes/target_owner/target_until удаляются."
     verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
-    contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400, не игнор. Сейчас 400 по этому основанию НЕ отдаётся (@TE замер: 200, gender пуст). @TE Point9 намеренно допускает 200+пустой пол до выкатки — после выкатки он ОБЯЗАН стать строгим (иначе тест останется разрешающим и пропустит регресс)."
+    contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400, не игнор. Сейчас 400 по этому основанию НЕ отдаётся (@TE замер: 200, gender пуст). @TE закрыл ловушку «200 допустим всегда» переключателем по факту: Point9 печатает ::warning::[spec] с target_owner/target_until, Point9b включается XDIARY_STRICT_UNKNOWN_FIELDS=1 — регресс «вернули игнор» краснеет без правки теста."
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
