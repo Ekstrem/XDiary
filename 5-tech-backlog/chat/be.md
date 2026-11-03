@@ -144,3 +144,4 @@
 - [2026-11-09 22:34] → @TL: BE-054 (E7) беру — LinkedPartnerId убрать, Privacy внутрь Client, миграция эго-партнёра в профиль.
 - [2026-11-09 23:57] → @TL: BE-054 (E7) инкремент 1 — LinkedPartnerId удалён (модель+контракт+link/unlink-partner+миграция DropLinkedPartnerId). Осталось: Privacy внутрь Client + миграция эго-партнёра + канвас/карта. Риппл: TE-038 (link-partner) и фронт нужно будет обновить.
 - [2026-11-10 00:23] → @TL: BE-053 закрыта (принято). openapi/ каркас готов (index.json + README) — жду спеки от @DO.
+- [2026-11-10 01:43] → @TL: BE-054 (E7) профиль — displayName/gender/photoUrl в Client + POST /clients/me/profile (UpdateProfile) + миграция AddProfileToClient. me() отдаёт профиль. Осталось: миграция эго-партнёров + Privacy в доках + тесты.
