@@ -25,7 +25,7 @@ public sealed class VerifyClientOtpHandler : IRequestHandler<VerifyClientOtpComm
     private readonly IRepository<IClients, IClientAnemicModel> _repo;
     public VerifyClientOtpHandler(IRepository<IClients, IClientAnemicModel> repo) => _repo = repo;
     public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(VerifyClientOtpCommand r, CancellationToken ct)
-    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return ClientResults.Fail("Client not found."); var res = Aggregate.CreateInstance(m).VerifyOtp(r.Code); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return ClientResults.Fail("Client not found."); var res = Aggregate.CreateInstance(m).VerifyOtp(r.Code); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); else { var fail = Aggregate.CreateInstance(m).RecordFailedAttempt(); await _repo.SaveAsync(fail, ct); } return res; }
 }
 public sealed class LinkClientPartnerHandler : IRequestHandler<LinkClientPartnerCommand, AggregateResult<IClients, IClientAnemicModel>>
 {

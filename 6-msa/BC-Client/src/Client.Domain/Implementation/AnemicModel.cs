@@ -10,6 +10,8 @@ public sealed class AnemicModel : IClientAnemicModel
     public Guid CorrelationToken { get; set; } = Guid.NewGuid();
     public IClientRoot Root { get; set; } = null!;
     public string OtpCode { get; set; } = string.Empty;
+    public DateTime? OtpExpiresAt { get; set; }
+    public int OtpAttempts { get; set; }
     public bool Verified { get; set; }
     public Guid? LinkedPartnerId { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();

@@ -4,6 +4,8 @@ public interface IClientAnemicModel : IAnemicModel<IClients>
 {
     IClientRoot Root { get; }
     string OtpCode { get; }
+    DateTime? OtpExpiresAt { get; }
+    int OtpAttempts { get; }
     bool Verified { get; }
     Guid? LinkedPartnerId { get; }
 }
