@@ -36,22 +36,48 @@ require_env() {
 }
 
 recreate_container() {
-  # ВАЖНО: `podman restart` НЕ перечитывает --env-file, поэтому env-правки
-  # применяются только пересозданием. Команду берём из prod-скрипта deploy.sh,
-  # чтобы конфиг контейнера (IP, сеть, лимиты) остался ровно тем же.
+  # ИНЦИДЕНТ 03.11: первая версия удаляла контейнер ДО того, как убедилась, что
+  # команда запуска корректна; при сбое генерации прод остался без сервиса clients.
+  # Теперь порядок обратный: собрать и проверить команду -> только потом удалять.
   local body="/tmp/xdiary-client-run.sh"
+  local runner="/tmp/xdiary-client-recreate.sh"
+
   python3 - <<'PY' > "$body"
 import re
 src = open('/home/deploy/deploy.sh', encoding='utf-8').read().replace('\\\n', ' ')
-line = next(l for l in src.splitlines() if 'podman run -d --name xdiary-client' in l).strip()
-print(line)
+line = next((l for l in src.splitlines() if 'podman run -d --name xdiary-client' in l), '')
+print(line.strip())
 PY
+
+  if [ ! -s "$body" ]; then
+    echo "КРИТИЧНО: не удалось извлечь команду запуска clients из deploy.sh — контейнер НЕ трогаю" >&2
+    return 1
+  fi
   { echo 'set -u'; echo 'NET=xdiary'
     echo 'LBL="--label io.containers.autoupdate=registry"'
-    echo 'TAG=single'; cat "$body"; } > /tmp/xdiary-client-recreate.sh
+    echo 'TAG=single'; cat "$body"; } > "$runner"
+  if ! bash -n "$runner"; then
+    echo "КРИТИЧНО: собранная команда не проходит bash -n — контейнер НЕ трогаю" >&2
+    return 1
+  fi
+
   podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  bash /tmp/xdiary-client-recreate.sh >/dev/null 2>&1
+  local attempt
+  for attempt in 1 2 3; do
+    if bash "$runner" >/dev/null 2>&1; then
+      sleep 3
+      if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+        return 0
+      fi
+    fi
+    echo "  попытка $attempt не удалась, повтор…" >&2
+    sleep 5
+  done
+  echo "КРИТИЧНО: контейнер $CONTAINER не поднят. Восстановить:" >&2
+  echo "  bash $runner" >&2
+  return 1
 }
+
 
 probe_api() {
   # возвращает строку с результатом: есть ли otpCode в ответе регистрации
