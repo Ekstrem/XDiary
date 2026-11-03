@@ -33,13 +33,19 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>
 {
     private readonly IEventStoreRepository<IJournal, IJournalAnemicModel> _store;
     private readonly IReadModelStore<IJournal, JournalReadModel> _readStore;
+    private readonly IReadModelStore<IJournal, JournalDefaultsReadModel> _defaultsStore;
+    private readonly IReadRepository<IJournal, JournalDefaultsReadModel> _defaultsRead;
 
     public JournalEventHandler(
         IEventStoreRepository<IJournal, IJournalAnemicModel> store,
-        IReadModelStore<IJournal, JournalReadModel> readStore)
+        IReadModelStore<IJournal, JournalReadModel> readStore,
+        IReadModelStore<IJournal, JournalDefaultsReadModel> defaultsStore,
+        IReadRepository<IJournal, JournalDefaultsReadModel> defaultsRead)
     {
         _store = store;
         _readStore = readStore;
+        _defaultsStore = defaultsStore;
+        _defaultsRead = defaultsRead;
     }
 
     public void Handle(IDomainEvent<IJournal> domainEvent)
@@ -63,6 +69,34 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>
         var read = JournalProjection.Project(domainEvent);
         if (read is not null)
             _readStore.UpsertAsync(read).GetAwaiter().GetResult();
+
+        // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
+        MergeDefaults(domainEvent);
+    }
+
+    private void MergeDefaults(IDomainEvent<IJournal> domainEvent)
+    {
+        var vos = domainEvent.ChangedValueObjects;
+        if (vos is null) return;
+        var clientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv ? cv.Value : null;
+        if (clientId is null) return;
+
+        var current = _defaultsRead.GetByIdAsync(clientId.Value, default).GetAwaiter().GetResult();
+        var place = vos.TryGetValue("Place", out var p) && p is StringValueObject sv ? sv.Value : string.Empty;
+        var fantasies = vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fl ? fl.Value : Array.Empty<string>();
+        var positions = vos.TryGetValue("Positions", out var pp) && pp is StringListValueObject pl ? pl.Value : Array.Empty<string>();
+        var tags = vos.TryGetValue("Tags", out var tg) && tg is StringListValueObject tl ? tl.Value : Array.Empty<string>();
+        var contraceptives = vos.TryGetValue("Contraceptives", out var cp) && cp is StringListValueObject cl ? cl.Value : Array.Empty<string>();
+
+        var defaults = current ?? new JournalDefaultsReadModel { Id = clientId.Value, ClientId = clientId.Value };
+        if (!string.IsNullOrWhiteSpace(place)) defaults.LastPlace = place;
+        defaults.Places = (defaults.Places ?? Array.Empty<string>()).Concat(string.IsNullOrWhiteSpace(place) ? Array.Empty<string>() : new[] { place }).Distinct().ToList();
+        defaults.Fantasies = (defaults.Fantasies ?? Array.Empty<string>()).Concat(fantasies).Distinct().ToList();
+        defaults.Positions = (defaults.Positions ?? Array.Empty<string>()).Concat(positions).Distinct().ToList();
+        defaults.Tags = (defaults.Tags ?? Array.Empty<string>()).Concat(tags).Distinct().ToList();
+        defaults.Contraceptives = (defaults.Contraceptives ?? Array.Empty<string>()).Concat(contraceptives).Distinct().ToList();
+
+        _defaultsStore.UpsertAsync(defaults).GetAwaiter().GetResult();
     }
 }
 
