@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.84"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.85"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -147,6 +147,23 @@
   }
   // FE-022: гарантируем, что при любом состоянии виден ровно один экран
   // FE-029: и что замок не висит, если PIN фактически нет
+  // FE-032: легаси-PIN (создан старой сборкой, ни разу не подтверждён) — снимаем и не запираем.
+  // cb(true) — запись была легаси и снята; cb(false) — PIN реальный (запираем как обычно).
+  function resolvePinGate(cb) {
+    var verified = false;
+    try { verified = !!localStorage.getItem("xdiary.pin.verified") || !!localStorage.getItem("xdiary.pin.lastSuccess"); } catch (e) {}
+    Pin.pinInfo().then(function (info) {
+      if (info && info.legacy && !verified) {
+        console.log("pin-gate: легаси-PIN без schema и не подтверждён — снимаем, экран PIN не показываем");
+        withTimeout(Pin.removePin(), 2000, null).then(function () {
+          toast("Старый PIN сброшен — вы не устанавливали его");
+          cb(true);
+        }, function () { cb(true); });
+        return;
+      }
+      cb(false);
+    }, function (e) { console.error("pin-gate/pinInfo:", e); cb(false); });
+  }
   function ensureView() {
     var any = false;
     for (var i = 0; i < VIEWS.length; i++) {
@@ -167,7 +184,14 @@
           console.log("ensureView: view-lock показан, но Pin.hasPin=false -> онбординг");
           if (!Api.config.token()) { openOnboarding(); return; }
           afterAuth();
+          return;
         }
+        // FE-032: hasPin=true мог быть легаси-записью — снимаем, если PIN не подтверждали
+        resolvePinGate(function (cleared) {
+          if (!cleared) return; // настоящий PIN — экран ввода остаётся
+          if (!Api.config.token()) { openOnboarding(); return; }
+          afterAuth();
+        });
       }, function (e) { console.error("ensureView/hasPin:", e); goNoPin("err"); });
     }
   }
