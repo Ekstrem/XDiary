@@ -18,7 +18,7 @@
 // писали тестовые записи/меняли PIN в реальном дневнике. Здесь жёсткий предохранитель:
 // ни один прогон не стартует, если стенд не dev/локальный.
 const { request } = require('@playwright/test');
-const { API_BASE } = require('./api');
+const { API_BASE, TEST_OTP } = require('./api');
 
 const ALLOWED_HOSTS = ['xdiary-vps2.taile0b6ee.ts.net', 'localhost', '127.0.0.1'];
 const WAIT_MS = 60_000; // TE-035: сколько ждём подъёма стенда после передеплоя
@@ -113,7 +113,79 @@ async function checkApi() {
       );
     }
     console.log('API жив: /health=200, /clients доступен, /partners без токена=401 (client-JWT обязателен)');
+    await checkContract(ctx);
   } finally {
     await ctx.dispose();
   }
 }
+
+// TE-039: «стенд жив, но старой сборки» — отдельный класс, который за сутки стоил трёх
+// разборов (образ `clients` без BE-038 → 401 и 16 красных; без BE-041 → 405 на refresh;
+// шлюз без `--add-host clients` → 502). `/health`=200 такие состояния не ловит.
+//
+// Проверяем ровно ПОВЕДЕНИЕ, а не версию в заголовке: версии у сервисов нет, а контракт
+// виден по статусам и полям. Метка `[infra]` в тексте ошибки — чтобы падение в globalSetup
+// не приняли за регрессию продукта (оно до спеков, и это экономит 9–14 минут).
+//
+// Границы (см. TE-039): DO-050 — «запущенный образ ↔ коммит», DO-056 — «openapi-артефакт ↔ APIM».
+// Здесь — только рантайм-контракт стенда.
+async function checkContract(ctx) {
+  const stale = (what) => new Error('[infra] stale-image: ' + what + ' (стенд ' + API_BASE + ')');
+
+  // 2) BE-041: маршрут `POST /clients/refresh` существует и отвечает 4xx на битый токен.
+  const refresh = await ctx.post(API_BASE + '/api/v1/clients/refresh', {
+    data: { refreshToken: 'not-a-jwt' },
+  });
+  const rs = refresh.status();
+  if (rs === 405 || rs === 404) {
+    throw stale('маршрута POST /api/v1/clients/refresh нет (' + rs + ') — образ clients до BE-041');
+  }
+  if (![400, 401, 403, 422].includes(rs)) {
+    throw new Error(
+      '[infra] POST /clients/refresh на битый токен вернул ' + rs + ', ожидали 400/401 — контракт не тот'
+    );
+  }
+
+  // 3) BE-041: `verify` отдаёт refreshToken (нет поля — образ до BE-041).
+  let phone = '+7999' + String(Date.now()).slice(-7);
+  const reg = await ctx.post(API_BASE + '/api/v1/clients', { data: { phone } });
+  if (![200, 201].includes(reg.status())) {
+    throw new Error('[infra] POST /clients вернул ' + reg.status() + ' — стенд не принимает регистрацию');
+  }
+  const regJson = await reg.json().catch(() => null);
+  const clientId = regJson && regJson.id;
+  if (!clientId) throw stale('POST /clients не вернул id — контракт регистрации другой');
+  const verify = await ctx.post(API_BASE + '/api/v1/clients/' + clientId + '/verify', {
+    data: { code: TEST_OTP },
+  });
+  if (!verify.ok()) {
+    throw new Error(
+      '[infra] verify вернул ' + verify.status() + ' на тестовом OTP — проверь CLIENTS__TESTOTP=000000 на стенде ' +
+      '(это не stale-image, это выключенный тестовый канал)'
+    );
+  }
+  const vj = await verify.json().catch(() => null);
+  if (!vj || !vj.refreshToken) {
+    throw stale('/clients/{id}/verify без refreshToken — образ clients до BE-041');
+  }
+
+  // 4) BE-038/BE-044: `/clients/me` под авторизацией, 401 с `WWW-Authenticate`.
+  const me = await ctx.get(API_BASE + '/api/v1/clients/me');
+  if (me.status() === 200) {
+    throw stale('GET /clients/me без токена = 200 — авторизация не включена (BE-038)');
+  }
+  if (me.status() === 404) {
+    throw stale('маршрута GET /clients/me нет (404) — образ clients до BE-038');
+  }
+  if (me.status() !== 401) {
+    throw new Error('[infra] GET /clients/me без токена вернул ' + me.status() + ', ожидали 401');
+  }
+  if (!me.headers()['www-authenticate']) {
+    throw stale('401 на /clients/me без заголовка WWW-Authenticate — образ clients до BE-044');
+  }
+
+  console.log(
+    'контракт стенда ок: refresh≠405 (' + rs + '), verify→refreshToken, /clients/me=401+WWW-Authenticate'
+  );
+}
+
