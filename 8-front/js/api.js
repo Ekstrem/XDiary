@@ -60,7 +60,8 @@
     return refreshInflight;
   }
 
-  function request(method, path, body, isRetry, useFallback) {
+  function request(method, path, body, isRetry, useFallback, netRetry) {
+    if (netRetry === undefined) netRetry = 0;
     var primary = baseUrl();
     var base = useFallback ? (FALLBACK_BASE || primary) : primary;
     var headers = { "Accept": "application/json" };
@@ -75,7 +76,12 @@
       console.error("API network error:", method, base + path, err && err.message);
       if (!useFallback && FALLBACK_BASE && FALLBACK_BASE !== primary) {
         console.error("API: основной адрес недоступен, одна попытка на запасной", FALLBACK_BASE);
-        return request(method, path, body, isRetry, true);
+        return request(method, path, body, isRetry, true, netRetry);
+      }
+      // heal пересоздаёт gateway каждые ~60-90 с: повтор через 500 мс часто попадает в живой сервис
+      if (netRetry < 2) {
+        return new Promise(function (resolve) { setTimeout(resolve, 500); })
+          .then(function () { return request(method, path, body, isRetry, useFallback, netRetry + 1); });
       }
       var e = new Error("Нет связи с сервером (" + base + ") — проверьте VPN/Tailscale/сеть");
       e.status = 0;
