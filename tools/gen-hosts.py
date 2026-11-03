@@ -37,6 +37,26 @@ SERVICE_IPS = {
     "clients": "10.89.9.31",
 }
 
+# ЕДИНСТВЕННОЕ место с псевдонимами имён (DO-051, @TL 11:45).
+# Сервис в compose называется `clients`, контейнер — `xdiary-client`, код шлюза ходит по
+# `clients`. Пока это знание жило в двух скриптах, пересоздание шлюза «по именам
+# контейнеров» теряло `clients` → `/api/v1/clients` = 502 (прод, 2026-11-10).
+ALIASES = {
+    "clients": ("client",),   # clients -> дополнительно client
+}
+
+
+def hosts_for(services):
+    """[(имя, IP)] для --add-host: сервисы + псевдонимы, без api-gateway."""
+    pairs = []
+    for svc in services:
+        if svc == "api-gateway" or svc not in SERVICE_IPS:
+            continue
+        pairs.append((svc, SERVICE_IPS[svc]))
+        for alias in ALIASES.get(svc, ()):
+            pairs.append((alias, SERVICE_IPS[svc]))
+    return pairs
+
 
 def compose_images():
     """Карта service -> image из compose. Причина (P0 03.11): имя образа НЕ всегда
@@ -114,14 +134,25 @@ def main():
     if "--check" in args:
         extra = [s for s in SERVICE_IPS if s not in svcs]
         if extra:
-            print(f"gen-hosts: в compose нет сервисов {extra} (есть в SERVICE_IPS)", file=sys.stderr)
+            # Не ошибка: IP есть в SERVICE_IPS, --add-host их выдаст. Это дрейф compose
+            # (DO-051) — сообщаем громко, но не блокируем пересоздание шлюза.
+            print(f"::warning::gen-hosts: в compose нет сервисов {extra} (есть в SERVICE_IPS)")
+        pairs = hosts_for(sorted(set(svcs) | set(SERVICE_IPS)))
+        if "clients" not in [n for n, _ in pairs]:
+            print("gen-hosts: ОШИБКА — в списке нет псевдонима `clients`", file=sys.stderr)
             return 1
-        print(f"gen-hosts: OK — {len(svcs)} сервисов, у всех есть IP")
+        print(f"gen-hosts: OK — {len(svcs)} сервисов, --add-host {len(pairs)} записей, `clients` есть")
         return 0
 
     if "--add-host" in args:
-        # шлюзу не нужен --add-host на самого себя
-        print(" ".join(f"--add-host {s}:{SERVICE_IPS[s]}" for s in svcs if s != "api-gateway"))
+        # Объединение: compose может НЕ содержать `clients` (прод, дрейф DO-051), но IP
+        # для него есть в SERVICE_IPS — иначе шлюз теряет псевдоним и вход ломается.
+        unknown = [s for s in svcs if s not in SERVICE_IPS]
+        if unknown:
+            print(f"gen-hosts: нет IP для {unknown} — добавь в SERVICE_IPS", file=sys.stderr)
+            return 1
+        pairs = hosts_for(sorted(set(svcs) | set(SERVICE_IPS)))
+        print(" ".join(f"--add-host {name}:{ip}" for name, ip in pairs))
     elif "--images" in args:
         imgs = compose_images()
         print(" ".join(imgs[s] for s in svcs if s in imgs))

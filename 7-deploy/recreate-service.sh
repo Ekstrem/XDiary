@@ -63,7 +63,11 @@ check_hosts() {
     say "ОШИБКА: $svc ExtraHosts=$actual, ожидалось $expected — флаги попали НЕ в podman" >&2
     return 1
   fi
-  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected) — ok"
+  if [ "$svc" = "api-gateway" ]; then
+    podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
+      || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
+  fi
+  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected), clients есть — ok"
   return 0
 }
 
@@ -171,6 +175,18 @@ while [ "$attempt" -le 3 ]; do
     if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
       say "  OK: $CONTAINER пересоздан"
       check_hosts "$SVC" || exit 1
+      # DO-051 п.2 (@TL 11:45): «пересоздал» = «проверил». Только для шлюза:
+      # ExtraHosts=12 ещё не значит, что вход отвечает (псевдоним `clients` мог
+      # потеряться -> 502 при живом /health). Проверяем функционально.
+      if [ "$SVC" = "api-gateway" ]; then
+        sleep 3
+        g=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/api/v1/clients || echo 000)
+        p=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X POST -H 'Content-Type: application/json' \
+              -d '{}' http://127.0.0.1:8080/api/v1/clients || echo 000)
+        case "$g" in 200|401) ;; *) say "ОШИБКА: GET /api/v1/clients = $g (ждали 200/401; 502 = нет псевдонима clients)" >&2; exit 1;; esac
+        case "$p" in 200|201|400) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400; 502 = нет псевдонима clients)" >&2; exit 1;; esac
+        say "  вход отвечает: GET /clients=$g, POST /clients=$p"
+      fi
       exit 0
     fi
   fi
