@@ -8,15 +8,18 @@ public sealed class JournalReadRepository : IJournalQueryRepository
 {
     private readonly IReadRepository<IJournal, JournalReadModel> _read;
     private readonly IReadRepository<IJournal, PartnersDirectoryReadModel> _dir;
-    private readonly ReadDbContext _db; // временно для GetRecent/GetPlaces/GetFantasies (TODO: в MV-проекцию)
+    private readonly IReadRepository<IJournal, JournalDefaultsReadModel> _defaults;
+    private readonly ReadDbContext _db; // временно для GetRecent (TODO: в MV-проекцию)
 
     public JournalReadRepository(
         IReadRepository<IJournal, JournalReadModel> read,
         IReadRepository<IJournal, PartnersDirectoryReadModel> dir,
+        IReadRepository<IJournal, JournalDefaultsReadModel> defaults,
         ReadDbContext db)
     {
         _read = read;
         _dir = dir;
+        _defaults = defaults;
         _db = db;
     }
 
@@ -87,21 +90,13 @@ public sealed class JournalReadRepository : IJournalQueryRepository
 
     public async Task<IReadOnlyList<string>> GetPlacesAsync(Guid clientId, CancellationToken ct = default)
     {
-        var all = await _read.GetAllAsync(null!, ct);
-        return all.Where(x => x.ClientId == clientId && !string.IsNullOrWhiteSpace(x.Place))
-            .Select(x => x.Place)
-            .Distinct()
-            .OrderBy(x => x)
-            .ToList();
+        var d = await _defaults.GetByIdAsync(clientId, ct);
+        return d?.Places.ToList() ?? new List<string>();
     }
 
     public async Task<IReadOnlyList<string>> GetFantasiesAsync(Guid clientId, CancellationToken ct = default)
     {
-        var all = await _read.GetAllAsync(null!, ct);
-        return all.Where(x => x.ClientId == clientId)
-            .SelectMany(x => x.Fantasies)
-            .Distinct()
-            .OrderBy(x => x)
-            .ToList();
+        var d = await _defaults.GetByIdAsync(clientId, ct);
+        return d?.Fantasies.ToList() ?? new List<string>();
     }
 }
