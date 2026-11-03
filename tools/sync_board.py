@@ -66,6 +66,52 @@ STATUS_TO_OPTION = {
 }
 
 
+CALL_TIMEOUT = int(os.environ.get("SYNC_TIMEOUT", "30"))
+RETRIES = int(os.environ.get("SYNC_RETRIES", "2"))
+_stats = {"calls": 0, "retries": 0}
+
+
+def _call(fn, *args, **kwargs):
+    """Вызов с таймаутом и backoff-ретраями (DO-071).
+
+    Почему: прогон «висит без вывода» 25+ минут — это не «долго», а «непонятно, жив ли».
+    Печатаем ретраи, чтобы прогон нельзя было принять за зависший.
+    """
+    import time as _time
+    import urllib.error as _uerr
+    _stats["calls"] += 1
+    last = None
+    # Ретраим ТОЛЬКО временные сбои: таймаут/обрыв/429/5xx. 404 и 4xx — не временные:
+    # повтор 404 (например, DELETE issue без прав) только раздувает прогон (DO-071).
+    transient_codes = {429, 500, 502, 503, 504}
+    for attempt in range(RETRIES + 1):
+        try:
+            return fn(*args, **kwargs)
+        except _uerr.HTTPError as exc:
+            last = exc
+            if exc.code not in transient_codes or attempt >= RETRIES:
+                raise
+            _stats["retries"] += 1
+            delay = 2 ** attempt
+            print("  ~ ретрай %d/%d через %ds: HTTP %d" % (attempt + 1, RETRIES, delay,
+                                                          exc.code), file=sys.stderr)
+            _time.sleep(delay)
+        except Exception as exc:          # таймаут, обрыв соединения
+            last = exc
+            if attempt >= RETRIES:
+                break
+            _stats["retries"] += 1
+            delay = 2 ** attempt
+            print("  ~ ретрай %d/%d через %ds: %s" % (attempt + 1, RETRIES, delay,
+                                                     str(exc)[:80]), file=sys.stderr)
+            _time.sleep(delay)
+    raise last
+
+
+def stats():
+    return dict(_stats)
+
+
 def rest(method, path, data=None, token=None):
     req = urllib.request.Request(API + path, method=method)
     req.add_header("Authorization", "Bearer " + (token or TOKEN))
@@ -76,7 +122,7 @@ def rest(method, path, data=None, token=None):
         body = json.dumps(data).encode("utf-8")
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, body) as resp:
+        with _call(urllib.request.urlopen, req, body, timeout=CALL_TIMEOUT) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         print("  ! HTTP %s: %s" % (e.code, e.read().decode("utf-8", "ignore")[:200]),
@@ -95,7 +141,7 @@ def rest_status(method, path, data=None, token=None):
         body = json.dumps(data).encode("utf-8")
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, body) as resp:
+        with _call(urllib.request.urlopen, req, body, timeout=CALL_TIMEOUT) as resp:
             resp.read()
             return resp.status
     except urllib.error.HTTPError as e:
@@ -109,7 +155,7 @@ def graphql(query, variables, token):
     req.add_header("Content-Type", "application/json")
     body = json.dumps({"query": query, "variables": variables}).encode("utf-8")
     try:
-        with urllib.request.urlopen(req, body) as resp:
+        with _call(urllib.request.urlopen, req, body, timeout=CALL_TIMEOUT) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         print("  ! GraphQL HTTP %s: %s" % (e.code, e.read().decode("utf-8", "ignore")[:300]),
@@ -317,6 +363,13 @@ def sync_project(items, token, owner, number):
     return done
 
 
+def progress(i, total, every=25):
+    """Печать каждые `every` карточек (DO-071): прогон не должен молчать."""
+    every = max(1, int(every))
+    if i % every == 0 or i == total:
+        print("  обработано %d/%d" % (i, total))
+
+
 def main():
     for name, color in {**ROLE_COLORS, **STATUS_LABELS}.items():
         ensure_label(name, color)
@@ -336,7 +389,7 @@ def main():
     if dups:
         print("dedup: закрыто %d дублей" % dups)
 
-    created = updated = failed = 0
+    created = updated = failed = unchanged = 0
     project_items = []  # (issue_node_id, status_key)
     for role_dir, role_label in ROLES.items():
         base = os.path.join("5-tech-backlog", role_dir)
@@ -357,11 +410,21 @@ def main():
             existing = find_issue(task_id)
             if existing:
                 n = existing["number"]
-                rest("PATCH", "/repos/%s/issues/%d" % (REPO, n),
-                     {"title": issue_title, "labels": labels,
-                      "state": "closed" if status_key == "закрыта" else "open"})
-                updated += 1
-                node_id = existing.get("node_id")
+                want_state = "closed" if status_key == "закрыта" else "open"
+                cur_labels = {l.get("name") if isinstance(l, dict) else l
+                              for l in (existing.get("labels") or [])}
+                # DO-071: если метки/заголовок/состояние уже такие — PATCH не нужен.
+                # Раньше вызов шёл на каждую карточку и это был основной объём запросов.
+                if (cur_labels.issuperset(set(labels))
+                        and existing.get("state") == want_state
+                        and (existing.get("title") or "") == issue_title):
+                    unchanged += 1
+                    node_id = existing.get("node_id")
+                else:
+                    rest("PATCH", "/repos/%s/issues/%d" % (REPO, n),
+                         {"title": issue_title, "labels": labels, "state": want_state})
+                    updated += 1
+                    node_id = existing.get("node_id")
             else:
                 r = rest("POST", "/repos/%s/issues" % REPO,
                          {"title": issue_title, "body": body, "labels": labels})
@@ -377,7 +440,8 @@ def main():
             if status_key != "закрыта":
                 project_items.append((node_id, status_key))
 
-    print("sync-board: created=%d updated=%d failed=%d" % (created, updated, failed))
+    print("sync-board: created=%d updated=%d unchanged=%d failed=%d"
+          % (created, updated, unchanged, failed))
     if failed:
         print("  ! не удалось создать %d Issue — см. строки '! HTTP' выше" % failed,
               file=sys.stderr)
