@@ -51,6 +51,9 @@ def csproj_files(root):
     return out
 
 
+API_GATEWAY_TESTS = os.path.join("6-msa", "ApiGateway.Tests")
+
+
 def scan(root):
     violations = []
     e2e_dir = os.path.join(root, "6-msa", "E2E")
@@ -84,6 +87,13 @@ def scan(root):
                 if target_bc and target_bc != my_bc:
                     violations.append(("б", rel, "ProjectReference на чужой %s" % target_bc))
 
+        # е) тестовый проект лежит в папке своего сервиса (или 6-msa/ApiGateway.Tests)
+        if ".Tests" in rel or "Tests/" in rel:
+            in_bc = bool(re.search(r"^6-msa/BC-[^/]+/", rel))
+            in_gw = rel.replace("\\", "/").startswith("6-msa/ApiGateway.Tests/")
+            if not (in_bc or in_gw):
+                violations.append(("е", rel, "тест вне папки сервиса (ADR-028 ред.3 §3.1)"))
+
         # в) E2E не подключён к сервису
         if not is_test:
             for r in refs:
@@ -108,8 +118,10 @@ def selftest():
           "6-msa/E2E/E2E.csproj": "<Project />"}, 2),
         ({"6-msa/Contract.Client_Journal/x.csproj": "<Project />"}, 1),
         ({"6-msa/E2E/x.csproj": "<Project />"}, 1),
-        ({"6-msa/ApiTests/x.csproj": "<Project />"}, 1),
+        ({"6-msa/ApiTests/x.csproj": "<Project />"}, 2),
         ({"6-msa/BC-Journal/src/Journal.Tests/x.csproj": "<Project />"}, 0),
+        ({"6-msa/Stray.Tests/x.csproj": "<Project />"}, 1),
+        ({"6-msa/ApiGateway.Tests/x.csproj": "<Project />"}, 0),
     ]
     shutil.rmtree(base, ignore_errors=True)
     for files, expect in cases:

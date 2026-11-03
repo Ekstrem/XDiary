@@ -13,6 +13,11 @@
 Зачем: без гейта API-тесты возвращаются в `9-tests` «по привычке», и зона @TE снова
 становится «все тесты», что и было отменено ADR-028.
 
+Обратная проверка (@AR 2026-11-14 06:50): гейт смотрел только «есть ли маркер у проекта»
+и не замечал **постороннее** — например `9-tests/Load/` (нагрузочные `*.js`/`*.ps1` без
+браузера). Теперь в `9-tests/**` разрешён только предсказуемый набор, а любой исполняемый
+каталог без Playwright — ошибка.
+
     python tools/check_front_e2e.py            # по репозиторию
     python tools/check_front_e2e.py --root d   # другой корень (негативный контроль)
     python tools/check_front_e2e.py --selftest
@@ -24,7 +29,12 @@ import re
 import sys
 
 MARKER = "front-e2e.md"
-SKIP_DIRS = {".git", "node_modules", "bin", "obj", ".loopmaker", "reports"}
+SKIP_DIRS = {".git", "node_modules", "bin", "obj", ".loopmaker", ".tmp-front-e2e"}
+# Что вообще может лежать в 9-tests (верхний уровень): только фронтовые E2E и служебное.
+ALLOWED_TOP = {"RnD", "scripts", "reports", "Load"}
+ALLOWED_FILES = {"README.md", "AGENTS.md", "front-e2e.md", "package.json", "package-lock.json",
+                 "playwright.config.js", "playwright.config.ts", ".gitignore"}
+EXEC_EXT = (".js", ".mjs", ".cjs", ".ts", ".ps1", ".sh", ".cs", ".csproj", ".py")
 PLAYWRIGHT_CS = re.compile(r"Microsoft\.Playwright", re.I)
 
 
@@ -77,6 +87,35 @@ def scan(root):
     return res
 
 
+def foreign_in_tests(root):
+    """Каталоги/файлы в 9-tests, которые не обязаны быть фронтовыми.
+
+    Правило @AR: `9-tests` — только браузерные E2E. Каталог, где есть исполняемые файлы,
+    но НЕТ Playwright (ни в package.json, ни в csproj) — посторонний.
+    """
+    base = os.path.join(root, "9-tests")
+    out = []
+    if not os.path.isdir(base):
+        return out
+    for top in sorted(os.listdir(base)):
+        full = os.path.join(base, top)
+        if not os.path.isdir(full):
+            if top not in ALLOWED_FILES and top.endswith(EXEC_EXT):
+                out.append(("9-tests/" + top, "исполняемый файл вне разрешённого набора"))
+            continue
+        if top not in ALLOWED_TOP:
+            rel = "9-tests/" + top
+            out.append((rel, "каталог не из разрешённого набора (%s)" % ", ".join(sorted(ALLOWED_TOP))))
+            continue
+        # Load: нагрузочные скрипты в 9-tests — расхождение с ADR-028 (место — 7-deploy/load)
+        if top == "Load":
+            ex = [f for dp, dn, fn in os.walk(full) for f in fn if f.endswith(EXEC_EXT)]
+            if ex:
+                out.append(("9-tests/Load", "нагрузочные скрипты (%d исполняемых) — место "
+                                            "7-deploy/load по ADR-028" % len(ex)))
+    return out
+
+
 def selftest():
     import shutil
     ok = 0
@@ -105,6 +144,18 @@ def selftest():
             ok += 1
         else:
             print("  [FAIL] %s -> good=%s, ждали %s" % (sorted(files), good, expect_ok))
+    # обратная проверка: Load с исполняемым скриптом и без браузера — посторонний
+    shutil.rmtree(base, ignore_errors=True)
+    load = os.path.join(base, "case", "9-tests", "Load")
+    os.makedirs(load)
+    open(os.path.join(load, "load.js"), "w", encoding="utf-8").write("// load\n")
+    found = foreign_in_tests(os.path.join(base, "case"))
+    if any(p == "9-tests/Load" for p, _ in found):
+        ok += 1
+    else:
+        print("  [FAIL] Load не распознан как посторонний: %s" % found)
+    cases.append(("foreign", None))
+
     shutil.rmtree(base, ignore_errors=True)
     print("check_front_e2e --selftest: %d/%d" % (ok, len(cases)))
     return 0 if ok == len(cases) else 1
@@ -129,7 +180,13 @@ def main():
             why.append("нет браузерной зависимости (Playwright)")
         print("::error::%s: %s — по ADR-028 тесты без фронта живут в `6-msa/**`"
               % (rel, ", ".join(why)))
-    print("check_front_e2e: проектов в 9-tests %d, нарушений %d" % (len(found), len(bad)))
+    foreign = foreign_in_tests(root)
+    for rel, why in foreign:
+        print("::error::%s: %s — в `9-tests` допустимы только браузерные E2E (ADR-028)"
+              % (rel, why))
+    print("check_front_e2e: проектов в 9-tests %d, нарушений %d, посторонних %d"
+          % (len(found), len(bad), len(foreign)))
+    bad += foreign
     return 1 if bad else 0
 
 
