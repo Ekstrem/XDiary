@@ -12,21 +12,21 @@
 | 6 | Шлюз Garmin (GarminGateway) | Supporting | Gateway |
 | 7 | Шлюз Apple Health (AppleHealthGateway) | Supporting | Gateway |
 | 8 | Аналитика (Analytics) | Supporting | Analysis |
-| 9 | Приватность и доступ (Privacy) | Generic | Execution |
-| 10 | Переносимость данных (Portability) | Generic | Execution |
-| 11 | Клиент (Client) | Supporting | Execution |
+| 9 | Переносимость данных (Portability) | Generic | Execution |
+| 10 | Клиент (Client) — **включает политику приватности и PIN** | Supporting | Execution |
 
-> **Privacy — часть контекста `Client`** (ADR-024, 2026-11-09): профиль «я», политика приватности и PIN живут
-> в одном контексте-аккаунте. Отдельного мелкого BC не выделяем — «нет смысла дробить контексты» (владелец).
-> `BC-Privacy/*` сохранён как описание агрегата `PinCredential` внутри `Client`.
+**Контекстов — 10, не 11.** `Privacy` больше не отдельный контекст: по ADR-024 (2026-11-09) профиль «я»,
+политика приватности и PIN — часть контекста-аккаунта `Client` («нет смысла дробить контексты» — владелец).
+`BC-Privacy/*` сохранён как описание агрегата `PinCredential` **внутри** `Client`; отдельного сервиса/деплоя нет.
 
 ## Диаграмма
 
 ```mermaid
 flowchart TD
-    PR["Приватность и доступ<br/>(PIN, блокировка)"] -->|gatekeeper| J["Журнал интимной активности"]
+    CL["Клиент<br/>(аккаунт: номер, профиль, PIN, соматика)"]
+    CL -->|gatekeeper: PIN/блокировка| J["Журнал интимной активности"]
     P["Партнёры"] -->|Customer/Supplier| J
-    CL["Клиент<br/>(номер, идентификация)"] -->|ссылка clientId| P
+    CL -->|scope владения: мои партнёры| P
     C["Каталог и инвентарь"] -->|Customer/Supplier| J
     J -->|Customer/Supplier| SS["Соматика (минутные точки)"]
     J -->|событие «акт записан»| A["Аналитика"]
@@ -62,7 +62,7 @@ flowchart TD
 | Шлюз Garmin | Garmin (внешний) | Anti-Corruption Layer | Personal API (прокси/CSV) |
 | Шлюз Apple Health | Apple Health (внешний) | Anti-Corruption Layer | ручной экспорт `export.xml`/CSV |
 | Перенос данных | Журнал / Соматика / Дневные метрики / Каталог | Published Language | CSV (общий формат) |
-| Все контексты | Приватность и доступ | Gatekeeper | PIN (сквозной) |
+| Все контексты | **Клиент (`Client`)** | Gatekeeper | PIN/блокировка — **политика внутри `Client`**, а не отдельный контекст (ADR-024) |
 
 ## Shared Kernel (общее ядро)
 
@@ -78,4 +78,6 @@ flowchart TD
 - **Gatekeeper** — сквозной контроль доступа перед входом в приложение.
 
 ## Принцип «1 агрегат = 1 контекст»
-Каждый контекст владеет ровно одним агрегатом записи: Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument, Client. Аналитика — read-only проекционный контекст (без агрегата записи).
+Каждый контекст владеет ровно одним агрегатом записи: Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, CsvDocument, Client.
+`PinCredential` — **второй агрегат внутри `Client`** (политика приватности того же контекста, ADR-024), а не отдельный контекст.
+Аналитика — read-only проекционный контекст (без агрегата записи).
