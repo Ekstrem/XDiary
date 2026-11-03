@@ -5,11 +5,13 @@ on:
     branches: [ main ]
     paths:
       - '6-msa/BC-Journal/**'
+      - '6-msa/E2E/**'
       - '.github/workflows/ci-journal.yml'
   pull_request:
     branches: [ main ]
     paths:
       - '6-msa/BC-Journal/**'
+      - '6-msa/E2E/**'
       - '.github/workflows/ci-journal.yml'
   workflow_dispatch:
 
@@ -43,6 +45,20 @@ jobs:
 
     - name: Integration Tests
       run: dotnet test src/Journal.IntegrationTests/Journal.IntegrationTests.csproj --configuration Release --verbosity normal
+
+    # ADR-028 этап 1 (@AR 2026-11-13 19:25): пара Client↔Journal должна бежать при
+    # изменении ЛЮБОЙ из сторон. Пока она лежит в общем наборе (`6-msa/E2E/...`),
+    # запускаем её отсюда; после переноса к потребителю (`BC-Client/src/Client.ApiTests`)
+    # шаг станет no-op (hashFiles = '') и его удалит следующая правка.
+    - name: Пара Client↔Journal (переходно, до переноса к потребителю)
+      if: hashFiles('6-msa/E2E/Contract.Client_Journal/**/*.csproj') != ''
+      run: |
+        set -e
+        for p in 6-msa/E2E/Contract.Client_Journal/**/*.csproj; do
+          [ -e "$p" ] || continue
+          echo "== $p"
+          dotnet test "$p" --configuration Release --verbosity normal
+        done
 
   docker:
     needs: build-and-test
