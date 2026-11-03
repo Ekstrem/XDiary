@@ -1,6 +1,6 @@
 namespace Journal.InternalContracts;
 
-using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
 public sealed class JournalReadModel : IReadModel<Journal.Domain.IJournal>
 {
