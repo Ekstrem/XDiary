@@ -4,8 +4,8 @@ version: 1
 status: draft  # draft -> complete по DoD ниже (не «посмотрел», а гейт + пометки)
 counts:
   operations: 79
-  verified: 29
-  derived: 50
+  verified: 31
+  derived: 48
   unique_method_path: 79
   unique_operationId: 79
 source:
@@ -168,9 +168,9 @@ operations:
     path: "/api/v1/clients"
     operationId: Client.Register
     auth: anonymous
-    codes: {200: "created (факт; 201 допустим, если сервис поменяют)", 400: "validation"}
+    codes: {200: "ok", 400: "validation (телефон/OTP)"}
     codes_status: verified
-    verification: "@TE 2026-11-11 17:42, dev 71f2f91d + прод"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [phone]
       optional: []
@@ -179,17 +179,17 @@ operations:
     path: "/api/v1/clients/me"
     operationId: Client.Me
     auth: jwt
-    codes: {200: "ok, профиль без linkedPartnerId (E7)", 401: "no-token"}
+    codes: {200: "ok", 401: "no-token", 404: "клиент не найден"}
     codes_status: verified
-    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/me/profile"
     operationId: Client.UpdateProfile
     auth: jwt
-    codes: {200: "ok, gender канонизирован", 400: "validation (Other/other/м/пусто)", 401: "no-token"}
+    codes: {200: "ok, gender канонизирован", 400: "validation (Other/м/пусто)", 401: "no-token"}
     codes_status: verified
-    verification: "@TE 2026-11-11 17:42, dev 71f2f91d"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [displayName, gender]
       optional: [photoUrl]
@@ -199,8 +199,9 @@ operations:
     path: "/api/v1/clients/refresh"
     operationId: Client.Refresh
     auth: anonymous
-    codes: {200: "ok", 401: "bad-refresh"}
+    codes: {200: "ok (новая пара токенов)", 401: "bad-refresh"}
     codes_status: verified
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [refreshToken]
       optional: []
@@ -209,31 +210,35 @@ operations:
     path: "/api/v1/clients/{id}"
     operationId: Client.Get
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 403: "not-owner"}
+    codes: {200: "ok", 401: "no-token", 403: "чужой id (Forbid)", 404: "не найден"}
     codes_status: verified
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/link-partner"
     operationId: Client.LinkPartnerDeprecated
     auth: jwt
     deprecated: "ADR-024: deprecated no-op (200 {deprecated:true}, Deprecation: true); удаляется после 0.88"
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok {deprecated:true} — no-op", 401: "no-token"}
+    codes_status: verified
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/unlink-partner"
     operationId: Client.UnlinkPartnerDeprecated
     auth: jwt
     deprecated: "ADR-024: deprecated no-op (то же)"
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
-    codes_status: derived
+    codes: {200: "ok {deprecated:true} — no-op", 401: "no-token"}
+    codes_status: verified
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/verify"
     operationId: Client.Verify
     auth: anonymous
-    codes: {200: "ok", 400: "validation"}
+    codes: {200: "ok (access+refresh)", 400: "bad-otp"}
     codes_status: verified
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [code]
       optional: []
