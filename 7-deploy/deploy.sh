@@ -12,7 +12,16 @@
 #   * снимок НЕ исполняется напрямую: источник истины пока серверный файл.
 #!/usr/bin/env bash
 set -euo pipefail
-TAG="${1:-single}"
+# DO-066 / ADR-027: ручной тег при деплое ЗАПРЕЩЁН. Источник правды — 7-deploy/images.lock,
+# который лежит в git: откат = revert коммита с этим файлом, а не `podman tag` на сервере.
+if [ "$#" -gt 0 ]; then
+  echo "запрещено: тег задаётся только images.lock (см. 7-deploy/images.lock, DO-066)" >&2
+  exit 2
+fi
+LOCK_FILE="$(dirname "$0")/images.lock"
+[ -f "$LOCK_FILE" ] || { echo "нет $LOCK_FILE — деплой невоспроизводим" >&2; exit 2; }
+TAG="$(awk '!/^#/ && NF>=2 {print $2; exit}' "$LOCK_FILE")"
+[ -n "$TAG" ] || { echo "в $LOCK_FILE нет тегов" >&2; exit 2; }
 cd /opt/xdiary/7-deploy
 NET=xdiary
 LBL='--label io.containers.autoupdate=registry'

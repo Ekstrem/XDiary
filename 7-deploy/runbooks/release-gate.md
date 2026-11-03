@@ -87,7 +87,9 @@ gh run list --workflow deploy.yml --limit 5
 
 ```bash
 # прод: вернуть предыдущий digest образа и пересоздать контейнер
-ssh <прод> "sudo podman tag <предыдущий-digest> ghcr.io/ekstrem/xdiary-client:single"
+# DO-066: ручной `podman tag` больше не путь отката.
+# Откат = revert коммита, изменившего 7-deploy/images.lock:
+git revert <lock-commit> && git push   # деплой сам возьмёт теги из lock
 ssh <прод> "sudo bash /opt/xdiary/7-deploy/deploy.sh single"
 # и зафиксировать инцидент задачей — «откатились молча» запрещено (§5.4)
 ```

@@ -46,6 +46,14 @@ jobs:
         if: always()
         run: python tools/check_awaits.py --strict
 
+      - name: Деплой только по images.lock — ADR-027/DO-066
+        # Три пункта @TL 2026-11-14 32:11: скрипты не принимают тег, у workflow нет inputs.tag,
+        # откат — revert lock-коммита, а не `podman tag` на сервере.
+        if: always()
+        run: |
+          python tools/check_lock.py
+          python tools/gen_images_lock.py --check
+
       - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)
         # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
         # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).

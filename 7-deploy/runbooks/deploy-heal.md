@@ -116,6 +116,8 @@ sudo podman ps                                 # НЕПРАВИЛЬНО: пус�
 ```bash
 # вернуть предыдущий образ сервиса
 sudo podman pull ghcr.io/ekstrem/xdiary-client:single   # нужен конкретный digest для откатa
-sudo podman tag <digest> ghcr.io/ekstrem/xdiary-client:single
+# DO-066: ручной `podman tag` больше не путь отката.
+# Откат = revert коммита, изменившего 7-deploy/images.lock:
+git revert <lock-commit> && git push   # деплой сам возьмёт теги из lock
 sudo bash /opt/xdiary/7-deploy/deploy.sh single
 ```

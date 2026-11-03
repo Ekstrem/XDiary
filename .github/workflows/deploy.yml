@@ -21,10 +21,6 @@ on:
       - '**/*.md'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Image tag (empty = single/latest)'
-        required: false
-        default: ''
 
 # Один деплой за раз (несколько пушей агентов не гоняют параллельно).
 concurrency:
@@ -36,10 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     steps:
-      - name: Compute tag
-        run: echo "TAG=${TAG_INPUT:-single}" >> "$GITHUB_ENV"
+      # DO-066: тег берётся ТОЛЬКО из 7-deploy/images.lock (он в git) — ручного входа нет.
+      - name: Tag из images.lock
+        run: |
+          first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
+          [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
+          echo "TAG=$first" >> "$GITHUB_ENV"
         env:
-          TAG_INPUT: ${{ inputs.tag }}
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
@@ -154,10 +153,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     steps:
-      - name: Compute tag
-        run: echo "TAG=${TAG_INPUT:-single}" >> "$GITHUB_ENV"
+      # DO-066: тег берётся ТОЛЬКО из 7-deploy/images.lock (он в git) — ручного входа нет.
+      - name: Tag из images.lock
+        run: |
+          first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
+          [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
+          echo "TAG=$first" >> "$GITHUB_ENV"
         env:
-          TAG_INPUT: ${{ inputs.tag }}
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         env:

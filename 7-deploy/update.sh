@@ -24,7 +24,20 @@ for a in "$@"; do
     *) ARGS+=("$a") ;;
   esac
 done
-TAG="${ARGS[0]:-single}"
+# DO-066 / ADR-027: тег из аргумента запрещён — читаем 7-deploy/images.lock (он в git).
+if [ "${#ARGS[@]}" -gt 0 ] && [ -n "${ARGS[0]:-}" ]; then
+  echo "запрещено: тег задаётся только images.lock (DO-066)" >&2
+  exit 2
+fi
+LOCK_FILE="${LOCK_FILE:-$(dirname "$0")/images.lock}"
+TAG="single"
+if [ -f "$LOCK_FILE" ]; then
+  first="$(awk '!/^#/ && NF>=2 {print $2; exit}' "$LOCK_FILE")"
+  [ -n "$first" ] && TAG="$first"
+else
+  echo "update.sh: нет $LOCK_FILE — деплой невоспроизводим" >&2
+  exit 2
+fi
 DRY="${DRY:-0}"
 
 DEPLOY_DIR=/opt/xdiary/7-deploy
