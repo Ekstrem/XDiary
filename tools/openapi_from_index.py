@@ -159,16 +159,21 @@ def main():
             written.append((slug, len(spec['paths'])))
 
     if not a.check:
-        # _meta.json: rev = хеш содержимого всех спек, чтобы реестр был адресуемым
+        # Провенанс (правка по замечанию @AR 2026-11-04 12:30):
+        #   rev           — sha256 САМОГО файла спеки (проверяется независимо, без запуска генератора);
+        #   index_sha256  — sha256 04-architecture/api-index.yaml, из которого выведена спека;
+        #   derived_from  — путь к источнику.
+        # Раньше во всех записях лежал один общий хеш конкатенации спек — это нельзя было
+        # проверить снаружи и это вводило в заблуждение (замечание @AR принято).
         import hashlib
-        h = hashlib.sha256()
-        for slug, _ in sorted(written):
-            h.update((OUT / f'{slug}.json').read_bytes())
+        index_sha = hashlib.sha256(INDEX.read_bytes()).hexdigest()
         meta_out = {}
         for bc, items in sorted(by_bc.items()):
             slug = SLUG[bc]
+            spec_sha = hashlib.sha256((OUT / f'{slug}.json').read_bytes()).hexdigest()
             meta_out[slug] = {
-                'rev': h.hexdigest(),
+                'rev': spec_sha,
+                'index_sha256': index_sha,
                 'paths': len({o['path'] for o in items}),
                 'title': TITLES.get(bc, bc),
                 'operations': len(items),
@@ -176,7 +181,7 @@ def main():
             }
         (OUT / '_meta.json').write_text(
             json.dumps(meta_out, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-        print(f'записано спек: {len(written)}, путей всего: {total_paths}, rev: {h.hexdigest()[:12]}')
+        print(f'записано спек: {len(written)}, путей всего: {total_paths}, index_sha256: {index_sha[:12]}')
         for slug, n in written:
             print(f'  {slug}: {n} путей')
     return 0
