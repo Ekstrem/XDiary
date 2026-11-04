@@ -1,37 +1,49 @@
 #!/usr/bin/env python3
-"""check_front_specs_base.py — ни одна спека `front-e2e` не должна открывать приложение
-без E2E-фикстуры.
+"""check_front_specs_base.py — спека `front-e2e` не открывает приложение без E2E-фикстуры,
+и фронт обязан поддерживать её контракт.
 
-Зачем: после FE-024 (`0.57`) фронт читает `localStorage.xdiary.apiBase` **только** если
+Зачем. После FE-024 (`0.57`) фронт читает `localStorage.xdiary.apiBase` **только** если
 `window.__XDIARY_E2E__ === true`; иначе ключ вычищается и `baseUrl()` отдаёт `DEFAULT_BASE`
-(прод, VPS-1 — реальный дневник владельца). Флаг ставит `installBase()` через
-`page.addInitScript`. Значит спека, которая делает `page.goto('/')`, не пройдя через
-`installBase()` (сама или через `loginWithPin`/`seedSession`), уводит **браузерные** запросы
-на прод. `global-setup.js` проверяет только `XDIARY_E2E_BASE_URL` (env) и такой случай
-не ловит — он про API-базу теста, а не про то, куда смотрит страница.
+(`8-front/js/api.js:12` — прод VPS-1, реальный дневник владельца). Флаг ставит `installBase()`
+через `page.addInitScript` (`9-tests/RnD/front-e2e/tests/api.js:72-78`), а `seedSessionOnce`
+зовёт её **первым шагом** до `page.goto` (`:145`). Значит:
 
-Правило проверки: если в `*.spec.js` есть `page.goto(`, то в том же файле обязано быть
-одно из: `installBase(`, `loginWithPin(`, `seedSession(`.
+  1) спека, которая делает `page.goto('/')`, не пройдя через `installBase()` (сама или через
+     `loginWithPin`/`seedSession`), уводит **браузерные** запросы на прод;
+  2) если фронт перестанет читать `__XDIARY_E2E__`, `installBase` станет бесполезной —
+     тесты молча уедут на `DEFAULT_BASE`, а `global-setup.js` этого не увидит
+     (он валидирует `XDIARY_E2E_BASE_URL`, то есть API-базу теста, а не адрес страницы).
 
 Использование (из корня репозитория):
-    python 9-tests/scripts/check_front_specs_base.py           # origin/main
-    REF=HEAD python 9-tests/scripts/check_front_specs_base.py
-Код возврата: 0 — все спеки с навигацией используют фикстуру; 1 — есть нарушители.
+    python 9-tests/scripts/check_front_specs_base.py                # по origin/main
+    REF=<sha> python 9-tests/scripts/check_front_specs_base.py      # по ревизии
+    REF=WORKTREE python 9-tests/scripts/check_front_specs_base.py   # по рабочему дереву
+Код возврата: 0 — обе части в порядке; 1 — нарушение; 2 — ревизия не резолвится.
 """
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 import subprocess
 import sys
 
 TESTS_DIR = "9-tests/RnD/front-e2e/tests"
+FRONT_API = "8-front/js/api.js"
 FIXTURE_MARKERS = ("installBase(", "loginWithPin(", "seedSession(")
+FLAG = "__XDIARY_E2E__"
 
 
 def git(*args: str) -> str:
     r = subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     return r.stdout if r.returncode == 0 else ""
+
+
+def read_file(ref: str, path: str, worktree_mode: bool) -> str:
+    if worktree_mode:
+        p = pathlib.Path(path)
+        return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+    return git("show", f"{ref}:{path}")
 
 
 def main() -> int:
@@ -40,8 +52,8 @@ def main() -> int:
     if not worktree_mode and not git("rev-parse", "--verify", f"{ref}^{{commit}}"):
         print(f"REF={ref} | FAIL: ревизия не резолвится")
         return 2
+
     if worktree_mode:
-        import pathlib
         specs = sorted(str(x).replace("\\", "/") for x in pathlib.Path(TESTS_DIR).glob("*.spec.js"))
     else:
         specs = [p for p in git("ls-tree", "-r", "--name-only", ref, "--", TESTS_DIR).splitlines()
@@ -50,14 +62,11 @@ def main() -> int:
         print(f"REF={ref} | FAIL: не найдено ни одной спеки в {TESTS_DIR}")
         return 1
 
-    offenders = []
+    # Часть 1: спека с навигацией обязана проходить через фикстуру.
+    offenders: list[str] = []
     navigated = 0
     for spec in sorted(specs):
-        if worktree_mode:
-            import pathlib
-            body = pathlib.Path(spec).read_text(encoding="utf-8", errors="replace")
-        else:
-            body = git("show", f"{ref}:{spec}")
+        body = read_file(ref, spec, worktree_mode)
         if not re.search(r"page\.goto\(", body):
             continue
         navigated += 1
@@ -71,7 +80,14 @@ def main() -> int:
         print(f"REF={ref} | FAIL: {len(offenders)} спек(и) без installBase/loginWithPin/seedSession")
         return 1
 
-    print(f"REF={ref} | PASS: все спеки с навигацией проходят через E2E-фикстуру (флаг __XDIARY_E2E__)")
+    # Часть 2: контракт фикстуры обязан жить во фронте (FE-024, подтверждён @FE 2026-11-15 06:15).
+    front_body = read_file(ref, FRONT_API, worktree_mode)
+    if FLAG not in front_body:
+        print(f"::error::front-e2e: контракт фикстуры снят во фронте — {FRONT_API} не читает {FLAG}")
+        print(f"REF={ref} | FAIL: фронт не поддерживает E2E-флаг (тесты уйдут на DEFAULT_BASE = прод)")
+        return 1
+
+    print(f"REF={ref} | PASS: все спеки с навигацией через E2E-фикстуру, контракт {FLAG} во фронте на месте")
     return 0
 
 
