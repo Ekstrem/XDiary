@@ -31,18 +31,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     steps:
+      - uses: actions/checkout@v4
       # DO-066: тег берётся ТОЛЬКО из 7-deploy/images.lock (он в git) — ручного входа нет.
-      # @AR 2026-11-14 37:30: «на сервере новая версия» должно доказываться, а не
-      # предполагаться — после копирования скриптов проверяем отказ от тега.
-      - name: Скрипты на сервере — версия с отказом от тега (DO-066)
+      # Правка 2026-11-04: гейт раньше проверял `/home/deploy/*` НА RUNNER'е (этих путей там
+      # нет) — падал всегда и блокировал деплой (P0). Теперь: репозиторные скрипты здесь,
+      # серверные — внутри ssh-шага, где они реально существуют.
+      - name: Скрипты в репозитории — версия с отказом от тега (DO-066)
         run: |
-          for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
+          for f in 7-deploy/deploy.sh 7-deploy/update.sh; do
             if ! grep -q 'запрещено: тег задаётся только images.lock' "$f"; then
               echo "::error::$f без отказа от аргумента-тега (DO-066)"
               exit 1
             fi
           done
-          echo "скрипты на сервере: DO-066 применён"
+          echo "репозиторные скрипты: DO-066 применён"
 
       - name: Tag из images.lock
         run: |
@@ -57,6 +59,11 @@ jobs:
           key: ${{ secrets.DEV_SSH_KEY }}
           envs: TAG
           script: |
+            set -eu
+            for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
+              grep -q 'запрещено: тег задаётся только images.lock' "$f" \
+                || { echo "на VPS $f без DO-066 — поставь шим из 7-deploy/legacy-shims.sh"; exit 1; }
+            done
             cd /opt/xdiary/7-deploy
             bash update.sh
             sleep 20
