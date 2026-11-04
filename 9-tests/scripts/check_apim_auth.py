@@ -34,7 +34,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import pathlib
 import re
 import shutil
 import socket
@@ -196,13 +198,38 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
         body = f"{label}UNKNOWN защищено={passed}/{total} (не засчитывается)"
     # `contract` — подкласс нарушителя для счёта (@TL `01:45`): PASS требует 0 нарушителей
     # ВКЛЮЧАЯ contract, но отдельное число нужно, чтобы в ADR-026 было видно, КАКОЙ это дефект.
-    line = (f"REF={ref} | {body} | нарушителей={violators + contracts} "
-            f"(в т.ч. contract={contracts}) | неизвестно={unknown} | rc={rc}")
+    # `V` и `C` печатаются РАЗДЕЛЬНО (ADR-026 §7): `B = V + C` — производное, и если печатать
+    # только его, сумму `N+V+C+U` нельзя проверить («выпавшая группа» спрячется за агрегацией).
+    line = (f"REF={ref} | {body} | нарушителей={violators} | contract={contracts} "
+            f"| неизвестно={unknown} | rc={rc}")
     # Тождество `N+V+C+U == total` (@AR/@TL `01:58`): печатаем сумму всегда — «выпавшая группа»
     # видна сразу, без ревью. Если сумма не сходится, main возвращает `rc=2` (недействительна).
     line += f" | сумма={passed + violators + contracts + unknown}/{total}"
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
+    line += f" | tool={tool_id()}"
     return line
+
+
+def tool_id() -> str:
+    """`tool=<путь>@<sha256 скрипта[:12]>` (ADR-026 §7, @AR `19:40`).
+
+    `REF` доказывает версию **репозитория**, но не версию **скрипта**: его могли править в рабочем
+    дереве. Классификация менялась трижды за сутки, поэтому «16 защищено» и «21 защищено» — числа
+    из разных определений; без `tool=` их нельзя сравнивать даже через `REF`.
+    """
+    import os
+    path = __file__
+    try:
+        path = os.path.relpath(path)          # короткий путь, если запускали из корня репо
+        if path.startswith(".."):
+            path = "9-tests/scripts/check_apim_auth.py"
+    except (ValueError, OSError):
+        path = "9-tests/scripts/check_apim_auth.py"
+    try:
+        digest = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:12]
+    except OSError:
+        digest = "НЕ ОПРЕДЕЛЁН"
+    return f"{path.replace(os.sep, '/')}@{digest}"
 
 
 def resolve_host(svc_map: dict, bc: str, template: str) -> str:
@@ -436,11 +463,14 @@ def selftest() -> int:
         good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog",
                             0, 0, 0, "journal:abc123")
         unk = receipt_line("ii-b", "abc1234", 44, 76, 2, "", 22, 10, 20, "")
-        if ("PASS защищено=76/76" in good and "нарушителей=0 (в т.ч. contract=0)" in good
-                and "неизвестно=0" in good and "rc=0" in good
+        tool_ok = bool(re.search(r"tool=[^@|]+@[0-9a-f]{12}", good))
+        if ("PASS защищено=76/76" in good and "нарушителей=0" in good and "contract=0" in good
+                and "неизвестно=0" in good and "rc=0" in good and "сумма=76/76" in good
                 and "where=podman exec xdiary-catalog" in good and "images=journal:abc123" in good
+                and tool_ok
                 and "UNKNOWN" in unk and "не засчитывается" in unk
-                and "нарушителей=32 (в т.ч. contract=10)" in unk and "неизвестно=20" in unk
+                and "нарушителей=22" in unk and "contract=10" in unk and "неизвестно=20" in unk
+                and "сумма=96/76" in unk
                 and "where=НЕ УКАЗАНО" in unk and "images=НЕ УКАЗАНО" in unk):
             ok += 1
         else:
