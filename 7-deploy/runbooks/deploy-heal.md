@@ -200,3 +200,24 @@ table_name='partners'` → `DeletedAt` есть; `select "MigrationId" from "__E
 **Что ещё нужно (следующий шаг, не сделано):** автоматическое применение миграций при
 деплое (`dotnet ef database update` в образе SDK или app-side `Database.Migrate()`).
 Пока порядок ручной и это зафиксировано здесь, чтобы «забыли применить» не повторялось.
+
+## PIN и `/api/v1/privacy/token`: нужен JWT клиента (2026-11-15)
+
+**Симптом-ловушка:** `curl -X POST /api/v1/privacy/token -d '{"pin":"1234"}'` без
+авторизации → **401**. Это **не** «неверный PIN»: контроллер берёт `clientId` из JWT
+(`PrivacyController.Token` → `CurrentClientId()`; `Guid.Empty` → `Unauthorized`).
+Поэтому проверять вход надо **с токеном клиента**, а не «голым» запросом.
+
+**Состояние на 2026-11-15:** на проде `privacy.pin_credential` — **1 строка** (дублей,
+как в инциденте 2026-11-03, нет); PIN привязан к клиенту (`ClientId` есть).
+
+**Сброс PIN (если реально нужен):**
+
+```bash
+bash 7-deploy/reset-pin.sh --contour dev                 # только показывает состояние
+bash 7-deploy/reset-pin.sh --contour dev --yes --pin 1234 # чистит pin_credential
+sudo -n bash 7-deploy/reset-pin.sh --contour prod --yes --sudo
+```
+
+Сам PIN ставится через API (`POST /api/v1/privacy/pin` с JWT клиента) — скрипт чистит
+таблицу и печатает следующий шаг, а не пишет хеш руками.
