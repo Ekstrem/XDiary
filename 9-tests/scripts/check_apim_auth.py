@@ -88,14 +88,28 @@ def requires_auth(op: dict) -> bool:
     return str(op.get("auth", "")).strip().lower() not in ANON
 
 
+UNKNOWN_PLACEHOLDERS: set[str] = set()
+
+
 def concrete_path(path: str) -> str:
-    """Подставляет вместо шаблонов `{...}` значения, которые проходят валидацию маршрута."""
+    """Подставляет вместо шаблонов `{...}` значения, проходящие валидацию маршрута.
+
+    Важно для класса `contract` (@AR `18:55`): если подставить в маршрут значение не того типа,
+    сервис ответит `404`, и гейт запишет это как «дефект реестра» — то есть **ложный contract**
+    из-за нашего же плейсхолдера. Поэтому незнакомые имена параметров собираем в
+    `UNKNOWN_PLACEHOLDERS` и печатаем предупреждение: тогда `contract` будет означать реестр,
+    а не подстановку.
+    """
     def sub(m: re.Match) -> str:
         name = m.group(1).lower()
-        if "date" in name or "day" in name:
+        base = name.split(":")[0]
+        if base in ("id", "partnerid", "clientid", "recordid"):
+            return GUID
+        if "date" in base or "day" in base:
             return "2026-01-01"
-        if "month" in name:
+        if "month" in base:
             return "2026-01"
+        UNKNOWN_PLACEHOLDERS.add(name)
         return GUID
     return re.sub(r"\{([^}]+)\}", sub, path)
 
@@ -373,6 +387,20 @@ def selftest() -> int:
             print(f"  [FAIL] --direct классификатор: viol={dv}, contract={dc}, unknown={du}")
 
         total += 1
+        # Подстановка параметров пути: известные (`id`/`partnerId`/`date`/`month`) — без следа,
+        # незнакомый (`{kind}`) обязан попасть в UNKNOWN_PLACEHOLDERS, иначе получим ЛОЖНЫЙ
+        # `contract` из-за нашей же подстановки (@AR `18:55`).
+        before = set(UNKNOWN_PLACEHOLDERS)
+        known = concrete_path("/api/v1/x/{id:guid}/y/{partnerId}")
+        unknown = concrete_path("/api/v1/x/{kind}")
+        if (UNKNOWN_PLACEHOLDERS - before) == {"kind"} and "00000000-0000" in known and "00000000-0000" in unknown:
+            ok += 1
+        else:
+            print(f"  [FAIL] плейсхолдеры: recorded={UNKNOWN_PLACEHOLDERS - before}, known={known}")
+        UNKNOWN_PLACEHOLDERS.clear()
+        UNKNOWN_PLACEHOLDERS.update(before)
+
+        total += 1
         # REF в квитанции не должен быть пустым (может быть `unknown`, но не пустая строка)
         if current_ref():
             ok += 1
@@ -451,6 +479,11 @@ def main() -> int:
     print(f"операций в индексе: {len(ops)}, требуют токен: {len(targets)}, "
           f"анонимных: {len(ops) - len(targets)}")
 
+    if UNKNOWN_PLACEHOLDERS:
+        print("::warning::check_apim_auth: в индексе есть неизвестные параметры пути "
+              + ", ".join(sorted(UNKNOWN_PLACEHOLDERS))
+              + " — подставлен GUID; возможен ЛОЖНЫЙ contract (404 из-за подстановки). "
+                "Добавь правило подстановки в concrete_path().")
     if args.only:
         allowed = {b.strip().lower() for b in args.only.split(",") if b.strip()}
         targets = [op for op in targets if str(op.get("bc", "")).lower() in allowed]
