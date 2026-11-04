@@ -42,5 +42,6 @@
 
 - **`accessToken` (client-JWT)** — **15 мин**, HS256, issuer `xdiary`, `sub = clientId`, claim `phone`. Тот же ключ, что и Privacy (`Jwt:SigningKey`).
 - **`refreshToken`** — **30 дней** (как Privacy, ADR-008); обновление access — `POST /api/v1/clients/refresh`.
+- **Что НЕ должно попадать в `refreshToken` (уточнение 2026-11-04):** PII. Сейчас `CreateToken(..., phone)` кладёт claim `phone` **и в access, и в refresh** (`ClientTokenService.cs:55`), а фронт хранит refresh в `localStorage` (`xdiary.refreshToken`, `api.js:9`) на **30 дней**. Итог: номер телефона лежит в браузере месяц, токен не отзывается (нет серверного состояния) — для дневника пары это лишняя экспозиция при XSS/общем устройстве/выгрузке хранилища. **Правило:** `refreshToken` несёт только `sub` + `kind`; `phone` при обновлении читается из БД (один запрос раз в 15 минут — цена нулевая). `accessToken` (15 мин) может нести `phone`, если он нужен экрану.
 - JWT идентифицирует **пользователя** (клиента), не устройство. PIN — локальный замок (ADR-008), НЕ условие выдачи токена.
 - **`sub` обязан доходить до сервиса без изменения** (ADR-025): на нём держится весь скоуп по `clientId`.
