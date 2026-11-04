@@ -13,6 +13,7 @@
 |---|---|---|
 `#view-splash`, `#view-onboarding` | `onboarding.spec.js` | первый вход: онбординг без партнёра, профиль «я» |
 `#view-lock` (PIN) | `pin-first-login.spec.js`, `no-pin.spec.js`, `change-pin.spec.js`, `remove-pin.spec.js` | установка/смена/снятие PIN, вход по PIN, режим «без PIN» |
+`#view-lock` (PIN, стенд с PIN + нет локального) | `pin-fallback.spec.js` | путь FE-007: экран PIN появляется и принимает верный PIN; стенд без PIN → skip по внешнему факту |
 `#view-journal`, `#tab-journal` | `wizard-record.spec.js`, `edit-delete-record.spec.js` | создание записи мастером, правка и удаление записи, отображение в списке |
 `#view-detail` | `edit-delete-record.spec.js`, `somatic-detail.spec.js` | карточка записи: правка, детали, соматические поля |
 `#view-partners`, `#tab-partners` | `add-partner.spec.js`, `partner-edit.spec.js`, `partner-client-link.spec.js` | добавление партнёра, переименование/профиль, привязка партнёра к клиенту |
