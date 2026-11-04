@@ -33,6 +33,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Partners.Application.Commands.RegisterPartnerCommand>());
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
+builder.Services.AddSingleton<DigiTFactory.Libraries.CommandRepository.Postgres.Configuration.EventStoreOptions>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
 builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddEventBusInMemory();
 builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
