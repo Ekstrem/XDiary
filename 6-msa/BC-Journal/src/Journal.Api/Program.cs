@@ -36,6 +36,7 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Jo
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
 builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);

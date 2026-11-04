@@ -23,9 +23,10 @@ public class PartnerHostSmokeTest
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Порядок и набор — как в Partners.Api/Program.cs (без ручной регистрации EventStoreDbContext:
-        // её регистрирует только AddEventStorePostgres, двойная регистрация = дефект).
+        // Порядок и набор — как в Partners.Api/Program.cs: AddEventStorePostgres (DF, необобщённый),
+        // затем типизированная AddDbContext<EventStoreDbContext> ПОСЛЕ (последняя регистрация выигрывает).
         services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>("Host=localhost;Database=es", null);
+        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
         services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>("Host=localhost;Database=read", null);
         services.AddDbContext<CommandDbContext>(o => o.UseNpgsql("Host=localhost;Database=cmd"));
         services.AddDbContext<ReadDbContext>(o => o.UseNpgsql("Host=localhost;Database=read"));
