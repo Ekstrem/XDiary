@@ -180,3 +180,29 @@ curl -s "http://$ip:8080/swagger/v1/swagger.json" -o catalog.json
 **Следствие:** админ «существует» для аутентификации, но API не работает, пока не пройден
 install-шаг консоли. Поэтому импорт спек (`import.sh`) запускать нечем: любой
 `POST …/apis/import` упадёт так же.
+
+## Рабочая последовательность (проверено 2026-11-04: 12/12 API STARTED)
+
+**Вход:** HTTP **Basic** `admin`/`admin` (штатный memory-провайдер `gravitee.yml`).
+**Пути:** только с контекстом — `/management/v2/organizations/DEFAULT/environments/DEFAULT/…`
+(без них платформа отвечает `500 The given id must not be null`).
+
+1. **Импорт спеки** (по одной на сервис):
+   `POST …/apis/_import/swagger` с телом
+   `{"payload": "<содержимое openapi/<svc>.json строкой>", "withDocumentation": true}`.
+   Альтернативные пути из старых версий (`/apis/import`) дают **405** — их в 4.4 нет.
+2. **План обязателен:** импортированный API создаётся **без планов**, а `POST …/apis/{id}/_start`
+   отвечает `400 api.NotDeployable: can not be started without at least one published plan`.
+   Создание плана: `POST …/apis/{id}/plans`
+   ```json
+   {"name":"Default","description":"auto","security":{"type":"KEY_LESS"},
+    "mode":"STANDARD","validation":"MANUAL","definitionVersion":"V4","flows":[]}
+   ```
+   Важно: `mode` — **`STANDARD`** (значение `PROXY` не существует и даёт ошибку десериализации);
+   `security` — **объект** `{"type":"KEY_LESS"}` (строка `"KEY_LESS"` не принимается).
+3. **Публикация плана:** `POST …/apis/{id}/plans/{planId}/_publish` → `200`.
+4. **Запуск API:** `POST …/apis/{id}/_start` → `204`.
+5. **Проверка:** `GET …/apis?page=1&per_page=10` и `page=2` (по умолчанию страница = 10,
+   `per_page` больше 10 не увеличивает её) → у всех `"state": "STARTED"`.
+
+Шлюз APIM слушает `127.0.0.1:18082`. Консоль — `127.0.0.1:18084` (`up.sh run_ui`).
