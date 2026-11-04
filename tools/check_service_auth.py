@@ -217,6 +217,16 @@ def report(results):
     return tot, bad_list
 
 
+def identity_ok(tot):
+    """`защищено + нарушителей + contract + неизвестно == операций`.
+
+    Это защита от «выпавшей группы» (@AR): если какая-то группа операций выпала из счёта
+    (именно так 13 операций с `400` когда-то ушли в `unchecked`), сумма перестанет сходиться —
+    и квитанция недействительна, а не «почти верна».
+    """
+    return (tot['protected'] + tot['violator'] + tot['contract'] + tot['unknown']) == tot['ops']
+
+
 def receipt(ref, where, tot, rc, images):
     """Строка квитанции в формате `ADR-026` §«Квитанция (ii-b)» (@TL 2026-11-05 01:56).
 
@@ -226,7 +236,10 @@ def receipt(ref, where, tot, rc, images):
     `PASS` — только при `V=0 И C=0 И U=0`; `UNKNOWN` — когда `V=C=0`, но `U>0`
     (измерено не всё, и это не «чисто»); иначе `FAIL`.
     """
-    if rc == 0:
+    valid = identity_ok(tot)
+    if not valid:
+        verdict = 'INVALID'
+    elif rc == 0:
         verdict = 'PASS'
     elif tot['violator'] == 0 and tot['contract'] == 0:
         verdict = 'UNKNOWN'
@@ -234,9 +247,11 @@ def receipt(ref, where, tot, rc, images):
         verdict = 'FAIL'
     img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
     return ('REF=%s | (ii-b) %s | защищено=%d/%d | нарушителей=%d | contract=%d | неизвестно=%d | '
-            'rc=%d | where=%s | images=%s'
+            'сумма=%d/%d | rc=%d | where=%s | images=%s'
             % (ref, verdict, tot['protected'], tot['ops'], tot['violator'], tot['contract'],
-               tot['unknown'], rc, where, img))
+               tot['unknown'],
+               tot['protected'] + tot['violator'] + tot['contract'] + tot['unknown'], tot['ops'],
+               rc, where, img))
 
 
 def selftest():
@@ -296,6 +311,17 @@ def selftest():
     else:
         print('  [FAIL] операция без ответа должна попадать в unknown: %s' % (tot_fake,))
 
+    # тождество: выпавшая группа делает квитанцию недействительной
+    broken = {'protected': 21, 'violator': 22, 'contract': 0, 'unknown': 32, 'ops': 76}
+    if not identity_ok(broken) and '(ii-b) INVALID' in receipt('abc', 'unit', broken, 1, {}):
+        ok += 1
+    else:
+        print('  [FAIL] выпавшая группа должна давать INVALID, а не PASS/FAIL')
+    if identity_ok({'protected': 40, 'violator': 8, 'contract': 0, 'unknown': 28, 'ops': 76}):
+        ok += 1
+    else:
+        print('  [FAIL] 40+8+0+28=76 — тождество должно сходиться')
+
     # живой сервер: код должен реально читаться с провода, а не из константы
     class H(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -323,7 +349,7 @@ def selftest():
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
 
-    total = len(cases) + len(rc_cases) + 7
+    total = len(cases) + len(rc_cases) + 9
     print('check_service_auth --selftest: %d/%d (классы, rc, квитанция, живой сервер)' % (ok, total))
     return 0 if ok == total else 1
 
@@ -360,6 +386,9 @@ def main():
     services = list((parse_service_map(getattr(a, 'service_map', None))).get(bc, '')
                     for bc in results)
     services = ['xdiary-' + x.split(':')[0].replace('xdiary-', '') for x in services if x]
+    if not identity_ok(tot):
+        print('::error::(ii-b) тождество N+V+C+U != 76 — квитанция недействительна (выпавшая группа операций)')
+        rc = 2
     images = collect_images(a.remote, a.key, services) if a.images != 'none' else {}
     ref = a.ref or collect_ref(a.remote, a.key)
     print()
