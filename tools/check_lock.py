@@ -40,26 +40,30 @@ WORKFLOW = ".github/workflows/deploy.yml"
 
 
 def workflow_passes_tag(root):
-    """`deploy.yml` не должен передавать тег в `update.sh`/`deploy.sh`.
+    """`deploy.yml` не должен передавать аргумент в `update.sh`/`deploy.sh`.
 
-    Реальный дефект (найден 2026-11-04): после DO-066 скрипты **отказываются** от аргумента
-    (`rc=2`), а workflow продолжал вызывать `bash update.sh "$TAG"` — то есть прод-деплой
-    падал на собственном предохранителе. Гейт ловит именно это расхождение: предохран
-    в скрипте есть, а вызывающий его обходит.
+    Реальный дефект (2026-11-04): после DO-066 скрипты **отказываются** от аргумента
+    (`rc=2`), а workflow продолжал вызывать `bash update.sh "$TAG"` — прод-деплой падал
+    на собственном предохранителе. Гейт ловит расхождение «предохран в скрипте есть,
+    а вызывающий его обходит».
+
+    Считаем только **вызовы** (`bash …/update.sh <arg>`, `sh …`, `./update.sh <arg>`);
+    комментарии и перечисления `for f in …` пропускаем — иначе гейт краснеет на своих же
+    пояснениях (проверено: первая версия ловила комментарий `# update.sh читает lock сам`).
     """
     path = os.path.join(root, WORKFLOW)
     if not os.path.exists(path):
         return []
+    call = re.compile(r'\b(?:bash|sh)\s+\S*(update|deploy)\.sh\s+(\S+)')
     bad = []
     for lineno, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
-        if line.lstrip().startswith("#"):
+        stripped = line.strip()
+        if stripped.startswith("#") or stripped.startswith("for "):
             continue
-        for script in ("update.sh", "deploy.sh"):
-            m = re.search(r'\b' + script.replace(".", r"\.") + r'\s+(?!\|)(\S+)', line)
-            if not m:
-                continue
-            arg = m.group(1).strip()
-            if arg.startswith(("--", "||", "&&", ">", "2>", "|")):
+        for m in call.finditer(line):
+            script = m.group(1) + ".sh"
+            arg = m.group(2).strip().strip("'\"")
+            if arg.startswith("--") or arg in ("&&", "||", "|", ">", "2>"):
                 continue
             bad.append((lineno, script, arg))
     return bad
@@ -130,8 +134,11 @@ def check(root):
 
 
 def check_workflow_tag(root):
-    return ["%s:%d — `%s %s` передаёт аргумент, а скрипт отказывается от него (DO-066)"
-            % (WORKFLOW, ln, script, arg) for ln, script, arg in workflow_passes_tag(root)]
+    """Возвращает нарушения в том же формате, что `check()`: (kind, путь, почему)."""
+    return [("4", WORKFLOW,
+             "строка %d: `%s %s` передаёт аргумент, а скрипт отказывается от него (DO-066)"
+             % (ln, script, arg))
+            for ln, script, arg in workflow_passes_tag(root)]
 
 
 def selftest():
@@ -177,7 +184,7 @@ def selftest():
 
     shutil.rmtree(base, ignore_errors=True)
     print("check_lock --selftest: %d/%d" % (ok, len(cases) + 1))
-    return 0 if ok == len(cases) else 1
+    return 0 if ok == len(cases) + 1 else 1
 
 
 def main():
@@ -187,11 +194,13 @@ def main():
     a = ap.parse_args()
     if a.selftest:
         return selftest()
-    v = check(os.path.abspath(a.root))
+    root = os.path.abspath(a.root)
+    v = check(root)
+    v += check_workflow_tag(root)          # DO-066: workflow не передаёт тег в update.sh
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
     print("check_lock: нарушений %d (1: скрипты не принимают тег; 2: workflow без inputs.tag; "
-          "3: lock и откат через git)" % len(v))
+          "3: lock и откат через git; 4: workflow не передаёт тег)" % len(v))
     return 1 if v else 0
 
 
