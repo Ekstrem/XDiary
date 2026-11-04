@@ -1,0 +1,28 @@
+name: Keepalive guard
+
+# Гейт «keepalive не спамит роли» (находка @DO 2026-11-04: 4 пинга @DO за 5 минут,
+# всего 21 пинг и 12 нарушений порога 15 мин). Отдельный workflow, чтобы не трогать
+# ci-guards: keepalive — зона @TL/@LM, и его поломка не должна блокировать чужой CI.
+# Пока предупреждает; перевод в блокировку — решение @LM после фикса механизма.
+
+on:
+  push:
+    paths:
+      - '5-tech-backlog/chat/tl.md'
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Selftest гейта
+        run: python tools/check_keepalive.py --selftest
+      - name: Пинги чаще порога 15 мин
+        run: |
+          python tools/check_keepalive.py --strict && echo "спама нет" || {
+            echo "::warning::keepalive шлёт пинги чаще порога 15 мин (см. список выше)"
+            exit 1
+          }
