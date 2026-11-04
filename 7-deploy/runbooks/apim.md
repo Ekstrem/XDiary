@@ -101,3 +101,32 @@ GRAVITEE_TOKEN=$(grep ^GRAVITEE_TOKEN= /opt/xdiary/secrets/apim.env | cut -d= -f
 - спек нет и APIM пуст → `rc=0` (импортировать нечего);
 - спеки есть, APIM пуст → `rc=1` (импорт не запускали — это и есть расхождение);
 - `--specs-only` — посчитать индекс/спеки без обращения к APIM (для CI и при отсутствии токена).
+## Снятие спек с dev (проверено 2026-11-04)
+
+```bash
+# 1) включить swagger в dev (флаг кода: Swagger:Enabled, по умолчанию false)
+grep -q '^Swagger__Enabled=' /opt/xdiary/7-deploy/secrets/.env || \
+  echo 'Swagger__Enabled=true' | sudo tee -a /opt/xdiary/7-deploy/secrets/.env
+
+# 2) пересоздать контейнеры штатно (env-file подхватывается только при создании)
+cd /opt/xdiary/7-deploy && sudo bash deploy.sh
+
+# 3) снять спеку с живого сервиса (curl В ХОСТЕ: в .NET-образах curl нет)
+ip=$(sudo podman inspect xdiary-catalog --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+curl -s "http://$ip:8080/swagger/v1/swagger.json" -o catalog.json
+```
+
+**Факт, который меняет сверку:** живой `swagger.json` (.NET 8 + Swashbuckle) **не содержит
+`operationId`** — только `paths` и методы. Значит реестр с кодом сверяется **по `(method, path)`**;
+`operationId` в `api-index.yaml` — производное имя действия контроллера.
+
+**Замер 2026-11-04 (dev, 9 сервисов из 12):** `analytics 8/8`, `catalog 8/8`, `client 8/8`,
+`privacy 9/9`, `daily-metrics 5/5`, `garmin-gateway 4/4`, `portability 4/4`,
+`apple-health-gateway 3/3`, `somatic-series 2/2` → **51 = 51, расхождений 0**.
+`journal`/`partners` снять нельзя: рестарт-петля (`RestartCount=20`), в логе
+`Cannot resolve parameter 'JournalEventHandler'` — дефект DI (@BE). `api-gateway` — `401`
+(swagger закрыт авторизацией).
+
+**Почему dev вообще не поднимался:** на dev, как и на проде, `clone: No space left on device`
+при свободном диске — виноваты **лимиты namespace**: `user.max_*_namespaces` подняты до
+`1048576`, после чего `deploy.sh` создал все 13 контейнеров.
