@@ -1,0 +1,33 @@
+name: Whip
+
+# «Кнут» — детектор простоя: раз в 15 мин, если 80% ролей без коммита > 15 мин —
+# пишет пинг в chat/lm.md → @TL и пушит.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  whip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Кнут — детектор простоя
+        run: python tools/whip.py --config loop.config.json
+      - name: Закоммитить пинг (если 80% простаивают)
+        run: |
+          if git diff --quiet -- 5-tech-backlog/chat/lm.md; then
+            echo "пинга нет"
+          else
+            git config user.name "whip"
+            git config user.email "whip@loopmaker"
+            git add 5-tech-backlog/chat/lm.md
+            git commit -m "chat(lm): whip - ping @TL (80% roley prostaivaet)"
+            git push
+          fi
