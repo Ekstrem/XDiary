@@ -23,6 +23,7 @@
 import argparse
 import os
 import re
+import shutil
 import sys
 
 INDEX = "04-architecture/api-index.yaml"
@@ -142,7 +143,22 @@ def selftest():
         ok += 1
     else:
         print("  [FAIL] allow-list")
-    print("check_api_index --selftest: %d/3" % ok)
+    # кейс: ссылка `BC.Method` в 03-ddd на несуществующий operationId -> ловится
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-apiidx")
+    shutil.rmtree(base, ignore_errors=True)
+    os.makedirs(base, exist_ok=True)
+    ddd_base = os.path.join(base, "03-ddd", "BC-Test")
+    os.makedirs(ddd_base, exist_ok=True)
+    with open(os.path.join(ddd_base, "02-aggregate-canvas.md"), "w", encoding="utf-8") as f:
+        f.write("| `Journal.List` | ok |\n| `Journal.NoSuchOp` | должно покраснеть |\n")
+    got = check_ddd_refs(base, {"Journal.List", "Journal.Get"})
+    if len(got) == 1 and got[0][2] == "Journal.NoSuchOp":
+        ok += 1
+    else:
+        print("  [FAIL] ddd-ссылка не поймана: %s" % (got,))
+
+    shutil.rmtree(base, ignore_errors=True)
+    print("check_api_index --selftest: %d/4" % ok)
     return 0 if ok == 3 else 1
 
 
@@ -205,6 +221,52 @@ def check_read_paths(root, ids):
     return missing
 
 
+
+DDD_DIR = "03-ddd"
+REF_TICK = re.compile(r'`([A-Za-z][A-Za-z0-9]*\.[A-Za-z][A-Za-z0-9]*(?:/[A-Za-z][A-Za-z0-9]*)*)`')
+
+
+def check_ddd_refs(root, ids):
+    """Ссылки `BC.Method` из канвасов `03-ddd/**` должны существовать в индексе.
+
+    Запрос @AR 2026-11-04 11:05: раскатка канвасов дала 100+ ссылок на `operationId`,
+    но гейт проверял только `Api.*` из `read-paths.md` — то есть ссылки в канвасах
+    не были проверены ничем. Норма — «неразрешённых 0», но без гейта это утверждение
+    живёт до первой правки.
+
+    Правила, чтобы не ловить идентификаторы кода:
+      * берём только **в бэктиках** (`Journal.List`), а не любое `X.Y` в тексте;
+      * группа (`Journal`) должна существовать в индексе — `Root.ClientId`, `Aggregate.Remove`
+        и подобные идентификаторы кода не считаются ссылками на операцию;
+      * сокращение `Journal.List/Get/Recent` раскрывается в три ссылки.
+    """
+    base = os.path.join(root, DDD_DIR)
+    if not os.path.isdir(base):
+        return []
+    groups = {i.split(".")[0] for i in ids}
+    bad = []
+    for dirpath, _dirs, files in os.walk(base):
+        for name in sorted(files):
+            if not name.endswith(".md"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, root)
+            for lineno, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+                for m in REF_TICK.finditer(line):
+                    raw = m.group(1)
+                    parts = raw.split(".")
+                    if len(parts) != 2:
+                        continue
+                    grp, tail = parts
+                    if grp not in groups:
+                        continue
+                    for meth in tail.split("/"):
+                        tok = "%s.%s" % (grp, meth)
+                        if tok not in ids:
+                            bad.append((rel, lineno, tok))
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -224,6 +286,7 @@ def main():
     ops = parse_index(index_path)
     rp_missing = check_read_paths(root, operation_ids(index_path))
     rp_db_only = db_only_rows(root)
+    ddd_bad = check_ddd_refs(root, operation_ids(index_path))
     idx = {(o.get("method", "").upper(), norm_path(o.get("path", ""))) for o in ops if o.get("method")}
     code = parse_code(root)
     code_set = {(v, p) for v, p, _, _ in code}
@@ -246,10 +309,15 @@ def main():
     for lineno, text in rp_db_only:
         print("::warning::(read-path) %s:%d — источник только `DB.*` (кеш), контракт не проверяется: %s"
               % (READ_PATHS, lineno, text))
+    for rel, lineno, tok in ddd_bad[:20]:
+        print("::error::(ddd) %s:%d — ссылка `%s` не найдена в api-index.yaml"
+              % (rel, lineno, tok))
     for call, cands in rp_missing:
         print("::error::(read-path) %s: %s — нет в индексе (ждали один из %s)"
               % (READ_PATHS, call, ", ".join(cands)))
         bad += 1
+
+    bad += len(ddd_bad)
 
     anon_idx = {(o.get("method", "").upper(), norm_path(o.get("path", "")))
                 for o in ops if (o.get("auth") or "").strip() == "anonymous"}
@@ -277,8 +345,9 @@ def main():
     for name in extended_bc:
         print("::notice::%s: добавлен auth-стек — обнови область в ADR-026 "
               "(гейт ждёт 6 BC, станет %d)" % (name, len(ok_bc) + len(extended_bc)))
-    print("check_api_index: read-path ссылок без операции: %d; строк только с DB.* (не проверяются): %d"
-          % (len(rp_missing), len(rp_db_only)))
+    print("check_api_index: read-path ссылок без операции: %d; строк только с DB.* "
+          "(не проверяются): %d; ссылок в 03-ddd без операции: %d"
+          % (len(rp_missing), len(rp_db_only), len(ddd_bad)))
     print("check_api_index: индекс %d операций, код %d маршрутов, anonymous %d, internal %d,"
           " расхождений %d" % (len(idx), len(code_set), len(anon_idx), len(internal), bad))
     print("check_api_index: auth-стек %d/%d с fallback; без auth по ADR-008: %d"
