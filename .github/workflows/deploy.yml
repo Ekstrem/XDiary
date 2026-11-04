@@ -20,7 +20,6 @@ on:
       # 2026-11-10: очередь не пустела 10 проверок подряд именно из-за доков.
       - '**/*.md'
   workflow_dispatch:
-    inputs:
 
 # Один деплой за раз (несколько пушей агентов не гоняют параллельно).
 concurrency:
@@ -50,7 +49,6 @@ jobs:
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
           echo "TAG=$first" >> "$GITHUB_ENV"
-        env:
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
@@ -171,7 +169,6 @@ jobs:
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
           echo "TAG=$first" >> "$GITHUB_ENV"
-        env:
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         env:
