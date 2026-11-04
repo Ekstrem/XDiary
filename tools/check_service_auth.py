@@ -44,11 +44,20 @@ def load_ops(root):
 
 
 def classify(code):
+    """Классификация по решению @AR (2026-11-04 17:55, занесено в ADR-026).
+
+    Почему `400` — это FAIL, а не «без проверки»: в ASP.NET `[Authorize]` выполняется
+    ДО model binding, значит `400` означает, что запрос **дошёл до бизнес-логики без токена**.
+    Открытая ручка с невалидным телом ответит `400` — это и есть открытость.
+
+    `UNKNOWN` остаётся только за `000` (нет ответа: сервис не поднят/не резолвится) —
+    иначе гейт «зеленеет на недоступном стенде», а такой гейт хуже отсутствующего.
+    """
     if code in ('401', '403'):
         return 'protected'
-    if code[:1] == '2':
-        return 'open'
-    return 'unchecked'
+    if code in ('000', '', None):
+        return 'unknown'
+    return 'open'
 
 
 def build_script(ops, svc, port='8080'):
@@ -127,35 +136,35 @@ def measure(remote, key, only=None, service_map=None):
 
 
 def report(results):
-    print('  %-20s %9s %9s %6s %9s' % ('BC', 'операций', '401/403', '2xx', 'прочее'))
-    tot = {'protected': 0, 'open': 0, 'unchecked': 0, 'ops': 0}
-    open_list, unchecked_list = [], []
+    print('  %-20s %9s %9s %6s %7s' % ('BC', 'операций', '401/403', 'open', 'unknown'))
+    tot = {'protected': 0, 'open': 0, 'unknown': 0, 'ops': 0}
+    open_list, unknown_list = [], []
     for bc, r in sorted(results.items()):
-        cls = {'protected': 0, 'open': 0, 'unchecked': 0}
+        cls = {'protected': 0, 'open': 0, 'unknown': 0}
         for name, code in r['per_op']:
             c = classify(code)
             cls[c] += 1
             if c == 'open':
                 open_list.append('%s %s -> %s' % (name, bc, code))
-            elif c == 'unchecked':
-                unchecked_list.append('%s->%s' % (name, code))
-        tot['protected'] += cls['protected']
-        tot['open'] += cls['open']
-        tot['unchecked'] += cls['unchecked']
+            elif c == 'unknown':
+                unknown_list.append('%s %s -> %s' % (name, bc, code))
+        for k in cls:
+            tot[k] += cls[k]
         tot['ops'] += r['ops']
-        print('  %-20s %9d %9d %6d %9d' % (bc, r['ops'], cls['protected'], cls['open'], cls['unchecked']))
-    print('\n  ИТОГО: операций %d | 401/403 %d | ОТКРЫТО %d | без проверки %d'
-          % (tot['ops'], tot['protected'], tot['open'], tot['unchecked']))
-    for d in open_list[:15]:
-        print('   ОТКРЫТО:', d)
+        print('  %-20s %9d %9d %6d %7d' % (bc, r['ops'], cls['protected'], cls['open'], cls['unknown']))
+    print('\n  ИТОГО: операций %d | 401/403 (защищено) %d | OPEN (нарушители) %d | UNKNOWN %d'
+          % (tot['ops'], tot['protected'], tot['open'], tot['unknown']))
+    print('  (классификация @AR 17:55: 400/404/415 = OPEN; UNKNOWN только за 000)')
+    for d in open_list[:20]:
+        print('   OPEN:', d)
     return tot, open_list
 
 
 def selftest():
     """Двойной контроль классификации: 401/403 = защита, 2xx = открыто, прочее = не проверено."""
     cases = [('401', 'protected'), ('403', 'protected'), ('200', 'open'),
-             ('201', 'open'), ('400', 'unchecked'), ('404', 'unchecked'),
-             ('415', 'unchecked'), ('000', 'unchecked')]
+             ('201', 'open'), ('400', 'open'), ('404', 'open'),
+             ('415', 'open'), ('000', 'unknown')]
     ok = 0
     for code, want in cases:
         got = classify(code)
