@@ -41,59 +41,23 @@ test('E2E: новое устройство → онбординг (без PIN-э
     await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
     await page.fill('#onb-otp-input', TEST_OTP);
     await page.click('#btn-onb-otp');
-    await expectScreen(page, '#onb-link', 'OTP принят (verify вернул 200)', 20000);
-    // TE-036 (@TL 03:50): шаг пройден = #onb-link виден И нет тоста ошибки. Если бы verify
-    // вернул 400, спека упала бы ЗДЕСЬ, а не на «#view-journal hidden» ниже.
-    await reportStep(page, 'онбординг: OTP → привязка');
-    // TE-043: карточка выбирается ДЕТЕРМИНИРОВАННО — по имени партнёра этого прогона,
-    // а не `.first()` (на стенде с сотнями карточек это произвольная старая запись).
-    const partnerName = 'e2e-auto-' + Date.now();
-    const created = await page.evaluate(async ({ base, name }) => {
-      const t = localStorage.getItem('xdiary.accessToken') || '';
-      if (!t) return { ok: false, noToken: true };
-      const r = await fetch(base + '/api/v1/partners', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
-        body: JSON.stringify({ name }),
-      });
-      const j = r.ok ? await r.json().catch(() => null) : null;
-      return { ok: r.ok, status: r.status, id: (j && j.id) || null };
-    }, { base: API_BASE, name: partnerName }).catch((e) => ({ ok: false, err: String(e).slice(0, 120) }));
-    console.log('::warning::партнёр через API: ' + JSON.stringify(created) + ' name=' + partnerName);
+    // 0.88 (E7 / FE-038): после OTP шага привязки партнёра НЕТ — онбординг спрашивает профиль
+    // «Кто вы?» (id: onb-name, onb-gender-male, btn-onb-profile). Контейнер onb-link во фронте
+    // остался, но всегда скрыт (app.js:282 и app.js:313 добавляют hidden), поэтому ожидать его
+    // видимым — гарантированное падение. Спека писалась под 0.51, где шаг привязки был живым.
+    await expectScreen(page, '#onb-name', 'OTP принят (verify вернул 200) → шаг «Кто вы?»', 20000);
+    await expectScreen(page, '#btn-onb-profile', 'шаг «Кто вы?»: кнопка «Продолжить»', 10000);
+    await expect(page.locator('#view-lock'), 'PIN-экрана на чистом устройстве нет').toBeHidden();
 
-    const allCards = page.locator('#onboarding-list .partner-card');
-    const ownCards = allCards.filter({ hasText: partnerName });
-    const countOwn = async () => await ownCards.count();
-
-    let ownCount = 0;
-    for (let i = 0; i < 10 && ownCount === 0; i++) {
-      ownCount = await countOwn();
-      if (ownCount === 0) await page.waitForTimeout(500);
-    }
-    if (ownCount === 0) {
-      await page.reload();
-      for (let i = 0; i < 30 && ownCount === 0; i++) {
-        ownCount = await countOwn();
-        if (ownCount === 0) await page.waitForTimeout(500);
-      }
-    }
-    const totalCards = await allCards.count();
-    console.log('::warning::карточек всего: ' + totalCards + ', своих по имени ' + partnerName + ': ' + ownCount);
-    if (ownCount !== 1) {
-      throw new Error(
-        'Своя карточка не найдена однозначно: совпадений ' + ownCount + ' из ' + totalCards +
-        ', партнёр создан=' + JSON.stringify(created) + ', имя=' + partnerName +
-        '. Клик не выполняется — привязка к чужому партнёру недопустима (TE-043).'
-      );
-    }
-    await ownCards.scrollIntoViewIfNeeded().catch(() => {});
-    await ownCards.click();
-    // TE-032 (@DO 08:35): падение было на этой строке — при повторе нужен активный экран,
-    // а не только «journal hidden», иначе снова гадаем «не тот экран или фронт не переключил».
-    await page.waitForTimeout(700);
-    await dumpViews(page, 'pin-first-login: после клика по карточке');
-    // skip убран из UI (решение владельца п.4 от 06.11)
-    await expectScreen(page, '#view-journal', 'PIN-less онбординг → журнал открылся', 20000);
+    await reportStep(page, 'онбординг: форма «Кто вы?» → Продолжить');
+    const displayName = 'e2e-pinless-' + Date.now();
+    await page.fill('#onb-name', displayName);
+    await page.click('#onb-gender-male');
+    await expect(page.locator('#onb-profile-error')).toBeHidden({ timeout: 5000 });
+    await page.click('#btn-onb-profile');
+    await dumpViews(page, 'pin-first-login: после формы «Кто вы?»');
+    await expectScreen(page, '#view-journal', 'PIN-less онбординг → журнал открылся', 25000);
+    await expect(page.locator('#view-onboarding')).toBeHidden();
     console.log('::notice::новое устройство: онбординг пройден без PIN-экрана, phone=' + PHONE);
   });
 
