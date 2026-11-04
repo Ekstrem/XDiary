@@ -43,6 +43,20 @@
 **2.2.2. Расхождения:** `Brand`/`FantasyPartner` не ограничены по `Kind` — можно записать бренд позиции; словарь видов нигде не
 зафиксирован машинно (только в UI) → неизвестный `kind` проходит до хранилища.
 
+**AR-016: контракт этого контекста — только `operationId`, без пересказа путей и полей.**
+Источник: `04-architecture/api-index.yaml` (гейт `check_api_index.py` сверяет индекс с маршрутами кода).
+
+| Что | `operationId` |
+|---|---|
+| запись (команда) | `Catalog.Add` |
+| запись (команда) | `Catalog.Archive` |
+| запись (команда) | `Catalog.UpdateDetails` |
+| запись (команда) | `Catalog.Rename` |
+| запись (команда) | `Catalog.Remove` |
+| запись (команда) | `Catalog.Restore` |
+| чтение | `Catalog.List` |
+| чтение | `Catalog.Get` |
+
 ## 3. State Transitions
 ```
 (нет) → [AddItem] → Active

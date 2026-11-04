@@ -39,6 +39,17 @@
 **2.2.2. Расхождения:** значения без данных (`null`) и нули не различаются на уровне типа (`int` для `Stress`), поэтому
 «нет данных» и «стресс 0» в MV неотличимы — это же увидит фронт. Нужен nullable или флаг `HasData` (`@BE`).
 
+**AR-016: контракт этого контекста — только `operationId`, без пересказа путей и полей.**
+Источник: `04-architecture/api-index.yaml` (гейт `check_api_index.py` сверяет индекс с маршрутами кода).
+
+| Что | `operationId` |
+|---|---|
+| запись (команда) | `DailyMetrics.Hrv` |
+| запись (команда) | `DailyMetrics.RestingHr` |
+| запись (команда) | `DailyMetrics.Sleep` |
+| запись (команда) | `DailyMetrics.Stress` |
+| чтение | `DailyMetrics.Series` |
+
 ## 3. State Transitions
 ```
 (нет) → [RecordX] → Stored

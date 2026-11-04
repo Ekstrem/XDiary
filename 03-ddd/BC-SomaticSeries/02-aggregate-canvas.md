@@ -36,6 +36,14 @@
 проверяется ли дубль в агрегате или во внешнем цикле, из кода не видно (`@BE` подтвердить); иначе повторный импорт
 за день удвоит ряд.
 
+**AR-016: контракт этого контекста — только `operationId`, без пересказа путей и полей.**
+Источник: `04-architecture/api-index.yaml` (гейт `check_api_index.py` сверяет индекс с маршрутами кода).
+
+| Что | `operationId` |
+|---|---|
+| запись (команда) | `SomaticSeries.RecordPoint` |
+| чтение | `SomaticSeries.Slice` |
+
 ## 3. State Transitions
 ```
 (нет) → [RecordPoint] → Stored

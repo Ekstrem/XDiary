@@ -38,6 +38,21 @@
 то есть скоуп владельца хранится дважды (в Client и здесь). Пока сервисы раздельные, это дублирование факта владения;
 при слиянии (ADR-024) должно остаться одно место.
 
+**AR-016: контракт этого контекста — только `operationId`, без пересказа путей и полей.**
+Источник: `04-architecture/api-index.yaml` (гейт `check_api_index.py` сверяет индекс с маршрутами кода).
+
+| Что | `operationId` |
+|---|---|
+| запись (команда) | `Privacy.ChangePin` |
+| запись (команда) | `Privacy.Lock` |
+| запись (команда) | `Privacy.Remove` |
+| запись (команда) | `Privacy.SetPin` |
+| запись (команда) | `Privacy.Unlock` |
+| запись (команда) | `Privacy.VerifyPin` |
+| запись (команда) | `Privacy.Token` |
+| запись (команда) | `Privacy.VerifyToken` |
+| чтение | `Privacy.HasPin` |
+
 ## 3. State Transitions
 ```
 (нет) → [SetPin] → Set

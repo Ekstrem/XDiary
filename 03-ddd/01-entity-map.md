@@ -63,7 +63,7 @@ flowchart LR
 
 | Место | Было | Стало | Статус |
 |---|---|---|---|
-| `BC-Client/02-aggregate-canvas.md` | `Client.LinkedPartnerId` — VO «партнёр-«я»», состояния `Linked`/`Unlinked` | **VO удалён**, добавлен профиль `displayName`/`gender`/`photo?`, состояния `CompleteProfile`/`UpdateProfile` | ✅ |
+| `BC-Client/02-aggregate-canvas.md` | `LinkedPartnerId` — VO «партнёр-«я»», состояния `Linked`/`Unlinked` | **VO удалён**, добавлен профиль `displayName`/`gender`/`photo?`, состояния `CompleteProfile`/`UpdateProfile` | ✅ |
 | `00-context-map.md:48` | «Клиент → Партнёры: ссылка `clientId` (партнёр-«я»)» | Client → Partners = **scope владения** («мои партнёры»), `clientId` опционален | ✅ |
 | `BC-Journal/02-aggregate-canvas.md` | «Участники акта = «я» (неявный) + `partners[]`» | совпадало; добавлено **владение** (`clientId`), инварианты PartnersAreParticipants/AuthorFromToken, `NULL` — только легаси | ✅ |
 | `BC-Partners/02-aggregate-canvas.md` | `Partner(name, photo, gender, notes)`, `clientId` без описания | `clientId` — **опционален** (партнёр может стать клиентом) | ✅ |

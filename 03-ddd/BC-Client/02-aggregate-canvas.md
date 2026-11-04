@@ -42,7 +42,7 @@
 |---|---|---|
 | `status` (`Registered`/`Verified`/`Active`/`Deleted`) | **нет поля `status`** — есть только `bool Verified` | переход в `Active` и «удалён» ничем не выражены: канвас описывает **4 состояния**, модель — **2** |
 | `deletedAt` + инвариант `DeletedAtSet` | **поля нет** | удаление аккаунта (ADR-021) не реализовано в модели; `Remove` отсутствует в агрегате |
-| `pin` (Privacy) | в `BC-Client` **нет**; PIN-логика живёт в `BC-Privacy` (`Privacy.Domain`) | канвас и код расходятся по **границе контекста**: ADR-024 относит Privacy к Client, сервис — отдельный (`6-msa/BC-Privacy`). Это вопрос распределения, а не «забыли поле» — решение @AR + @BE |
+| `pin` (Privacy) | в `BC-Client` **нет**; PIN-логика живёт в `BC-Privacy` (`BC-Privacy/Privacy.Domain`) | канвас и код расходятся по **границе контекста**: ADR-024 относит Privacy к Client, сервис — отдельный (`6-msa/BC-Privacy`). Это вопрос распределения, а не «забыли поле» — решение @AR + @BE |
 | `LinkedPartnerId` | **ещё 5 вхождений в коде** `BC-Client` | ADR-024 требует удалить; канвас уже без него — код отстаёт (долг, не архитектура) |
 
 **2.2.1. Как атрибут попадает в агрегат через API (AR-016: ссылки на `operationId`, без пересказа контракта).**
@@ -82,7 +82,7 @@ Active → [UpdateProfile(name, gender, photo?)] → Active
 | `CompleteProfile` | `ClientProfileCompleted` |
 | `UpdateProfile` | `ClientProfileUpdated` |
 
-> **Профиль «я» живёт здесь, а не в `Partner`** (ADR-024). Раньше было `Client.LinkedPartnerId` — VO «партнёр-«я»»;
+> **Профиль «я» живёт здесь, а не в `Partner`** (ADR-024). Раньше было `LinkedPartnerId` — VO «партнёр-«я»»;
 > **удалено**: «я» в акте — неявный автор записи (`participant="me"`), а не запись партнёра.
 >
 > PIN (опциональный локальный замок) — политика приватности **этого же контекста** (ADR-024: Privacy — часть `Client`;
@@ -124,7 +124,7 @@ Active → [UpdateProfile(name, gender, photo?)] → Active
 | `CompleteProfile` | `ClientProfileCompleted` |
 | `UpdateProfile` | `ClientProfileUpdated` |
 
-> **Профиль «я» живёт здесь, а не в `Partner`** (ADR-024). Раньше было `Client.LinkedPartnerId` — VO «партнёр-«я»»;
+> **Профиль «я» живёт здесь, а не в `Partner`** (ADR-024). Раньше было `LinkedPartnerId` — VO «партнёр-«я»»;
 > **удалено**: «я» в акте — неявный автор записи (`participant="me"`), а не запись партнёра.
 >
 > PIN (опциональный локальный замок) — политика приватности **этого же контекста** (ADR-024: Privacy — часть `Client`;

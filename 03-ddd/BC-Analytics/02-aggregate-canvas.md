@@ -32,6 +32,20 @@
 (б) выход — поля MV (`sessions`, `totalMinutes`, `orgasms`, коэффициенты корреляции); (в) отсутствие собственного
 состояния — `AddEventStorePostgres` для Analytics **не должен** появляться без ADR (иначе получим второй источник правды).
 
+**AR-016: контракт этого контекста — только `operationId`, без пересказа путей и полей.**
+Источник: `04-architecture/api-index.yaml` (гейт `check_api_index.py` сверяет индекс с маршрутами кода).
+
+| Что | `operationId` |
+|---|---|
+| запись (команда) | `Analytics.Events` |
+| чтение | `Analytics.Correlations` |
+| чтение | `Analytics.Distribution` |
+| чтение | `Analytics.Physio` |
+| чтение | `Analytics.Summary` |
+| чтение | `Analytics.Thresholds` |
+| чтение | `Analytics.Tops` |
+| чтение | `Analytics.Trends` |
+
 ## 3. State Transitions
 ```
 (нет) — проекции пересчитываются при открытии «Аналитики».

@@ -38,6 +38,15 @@
 истории это неограниченный рост состояния агрегата и снапшотов; нужен лимит/вытеснение (иначе через год импорт будет
 тянуть мегабайты истории файлов).
 
+**AR-016: контракт этого контекста — только `operationId`, без пересказа путей и полей.**
+Источник: `04-architecture/api-index.yaml` (гейт `check_api_index.py` сверяет индекс с маршрутами кода).
+
+| Что | `operationId` |
+|---|---|
+| запись (команда) | `AppleHealthGateway.Configure` |
+| запись (команда) | `AppleHealthGateway.ImportFile` |
+| чтение | `AppleHealthGateway.State` |
+
 ## 3. State Transitions
 ```
 (нет) → [Configure] → Configured
