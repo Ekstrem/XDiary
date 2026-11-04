@@ -16,9 +16,9 @@ on:
   workflow_dispatch:
     inputs:
       base:
-        description: "База для прогона (стенд)"
+        description: "База для живого прогона (стенд). Пусто = только офлайн-проверки"
         required: false
-        default: "https://xdiary-vps2.taile0b6ee.ts.net"
+        default: ""
   push:
     branches: [ main ]
     paths:
@@ -37,17 +37,24 @@ jobs:
           python-version: '3.12'
       - name: Зависимости гейта
         run: pip install --quiet pyyaml
+      - name: Живой прогон не запрошен
+        if: ${{ inputs.base == '' }}
+        run: |
+          echo "::notice title=APIM auth::живой прогон не запрашивался (base пуст) — выполнены только --selftest и --dry-run. Живой замер: dispatch с base или python tools/check_service_auth.py изнутри контура"
+          echo "### APIM auth coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "- живой прогон **не запрашивался** (base пуст)" >> "$GITHUB_STEP_SUMMARY"
       - name: Самопроверка гейта (без сети)
         run: python 9-tests/scripts/check_apim_auth.py --selftest
       - name: Офлайн-инвентарь целей
         run: python 9-tests/scripts/check_apim_auth.py --dry-run | tail -3
       - name: Живой прогон по базе
         id: run
+        if: ${{ inputs.base != '' }}
         env:
           BASE: ${{ inputs.base }}
         run: |
           set +e
-          base="${BASE:-https://xdiary-vps2.taile0b6ee.ts.net}"
+          base="${BASE}"
           # @TE требует provenance: без --where гейт отдаёт rc=2 UNKNOWN (и это правильно —
           # квитанция без «чем измерено» не прикладывается к релизу, ADR-026).
           python 9-tests/scripts/check_apim_auth.py --base "$base" \
