@@ -242,5 +242,23 @@
     "glob": "9-tests/**/*.csproj",
     "readme": "9-tests/README.md",
     "_comment": "карта «проект → сервисы»; гейт check_test_map.py"
+  },
+  "knout": {
+    "project": "XDiary",
+    "idle_hours": 6,
+    "idle_ratio": 0.8,
+    "interval_min": 15,
+    "chat_dir": "5-tech-backlog/chat",
+    "roles": [
+      "be",
+      "do",
+      "fe",
+      "te",
+      "ar",
+      "po",
+      "lm"
+    ],
+    "from_chat": "5-tech-backlog/chat/lm.md",
+    "to": "@TL"
   }
 }
