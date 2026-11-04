@@ -33,6 +33,23 @@ import urllib.request
 
 INDEX = "04-architecture/api-index.yaml"
 ANON = {"anonymous"}
+
+# BC в `api-index.yaml` → имя сервиса в compose (`7-deploy/podman-compose.yml`).
+# Нужен для `--direct`: условие @AR сформулировано про ПРЯМОЙ запрос в сервис, а не про YARP.
+SERVICE_BY_BC = {
+    "Journal": "journal",
+    "Partners": "partners",
+    "Catalog": "catalog",
+    "Client": "clients",
+    "Privacy": "privacy",
+    "Analytics": "analytics",
+    "DailyMetrics": "daily-metrics",
+    "SomaticSeries": "somatic-series",
+    "Portability": "portability",
+    "GarminGateway": "garmin-gateway",
+    "AppleHealthGateway": "apple-health-gateway",
+    "ApiGateway": "api-gateway",
+}
 GUID = "00000000-0000-0000-0000-000000000000"
 
 
@@ -62,9 +79,8 @@ def concrete_path(path: str) -> str:
     return re.sub(r"\{([^}]+)\}", sub, path)
 
 
-def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, str]:
-    url = base.rstrip("/") + concrete_path(str(op["path"]))
-    req = urllib.request.Request(url, method=str(op.get("method", "GET")).upper())
+def check_url(url: str, method: str = "GET", timeout: float = 8.0) -> tuple[int | None, str]:
+    req = urllib.request.Request(url, method=method.upper())
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return int(resp.status), url
@@ -72,6 +88,11 @@ def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, st
         return int(e.code), url
     except (urllib.error.URLError, socket.timeout, OSError) as e:
         return None, f"{url} ({type(e).__name__})"
+
+
+def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, str]:
+    return check_url(base.rstrip("/") + concrete_path(str(op["path"])),
+                     str(op.get("method", "GET")), timeout)
 
 
 def verdict(results: list[tuple[dict, int | None, str]]) -> tuple[int, list[str], list[str]]:
@@ -88,6 +109,11 @@ def verdict(results: list[tuple[dict, int | None, str]]) -> tuple[int, list[str]
         elif code in (404, 405):
             # маршрут не сматчился — это не «открыто», но и не доказанное 401: показываем отдельно
             unknown.append(f"{name} — {code} (маршрут не сматчился, требует ручной сверки), {url}")
+        elif code in (502, 503, 504):
+            # Инфраструктурный ответ (прокси/шлюз, сервис недоступен) — НЕ «операция открыта»
+            # и не доказательство 401. Класс `[infra]`, как в global-setup: иначе прогон извне
+            # контура обвинял бы продукт в собственной недоступности.
+            unknown.append(f"{name} — {code} [infra] (прокси/сервис недоступен), {url}")
         else:
             bad.append(f"{name} — {code} вместо 401, {url}")
     return (1 if bad else 0), bad, unknown
@@ -190,6 +216,11 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--direct", action="store_true",
+                    help="бить в СЕРВИСЫ напрямую (не через YARP): http://xdiary-<service>:8080")
+    ap.add_argument("--host-template", default="http://xdiary-{service}:8080",
+                    help="шаблон адреса сервиса для --direct (по умолчанию http://xdiary-{service}:8080)")
+    ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
     args = ap.parse_args()
 
     if args.selftest:
@@ -199,6 +230,55 @@ def main() -> int:
     targets = [op for op in ops if requires_auth(op)]
     print(f"операций в индексе: {len(ops)}, требуют токен: {len(targets)}, "
           f"анонимных: {len(ops) - len(targets)}")
+
+    if args.only:
+        allowed = {b.strip().lower() for b in args.only.split(",") if b.strip()}
+        targets = [op for op in targets if str(op.get("bc", "")).lower() in allowed]
+        print(f"фильтр --only {sorted(allowed)}: целей {len(targets)}")
+
+    # --- режим --direct: измеряем УСЛОВИЕ @AR (прямой запрос в сервис), а не прокси ---
+    if args.direct:
+        unmapped = sorted({str(op.get("bc")) for op in targets if str(op.get("bc")) not in SERVICE_BY_BC})
+        if unmapped:
+            print(f"::error::check_apim_auth: нет маппинга BC → сервис для {unmapped}")
+            return 2
+        per_service: dict[str, list[dict]] = {}
+        for op in targets:
+            per_service.setdefault(SERVICE_BY_BC[str(op.get("bc"))], []).append(op)
+        if args.dry_run:
+            for svc, lst in sorted(per_service.items()):
+                print(f"   {svc:22} {len(lst):3} операций   {args.host_template.format(service=svc)}")
+            print(f"DRY-RUN --direct: сервисов {len(per_service)}, целей {len(targets)} "
+                  f"(снаружи не видно — запускать изнутри контура, @DO)")
+            return 0
+
+        results: list[tuple[dict, int | None, str]] = []
+        for svc, lst in sorted(per_service.items()):
+            host = args.host_template.format(service=svc)
+            for op in lst:
+                url = host.rstrip("/") + concrete_path(str(op["path"]))
+                code, got = check_url(url, str(op.get("method", "GET")))
+                results.append((op, code, got))
+        rc, bad, unknown = verdict(results)
+        passed = len(targets) - len(bad) - len(unknown)
+        # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
+        # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
+        if not bad and passed == 0:
+            print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
+                  "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
+            print(f"REF=direct | FAIL: 0/{len(targets)} измерено — контур недоступен")
+            return 2
+        for svc, lst in sorted(per_service.items()):
+            svc_res = [r for r in results if SERVICE_BY_BC[str(r[0].get("bc"))] == svc]
+            svc_pass = sum(1 for _op, code, _u in svc_res if code in (401, 403))
+            print(f"   {svc:22} {svc_pass}/{len(svc_res)} дают 401 без токена")
+        for b in bad:
+            print(f"::error::apim-auth(service): {b}")
+        for u in unknown:
+            print(f"::warning::apim-auth(service): {u}")
+        print(f"{'PASS' if rc == 0 else 'FAIL'}: сервисы напрямую — {passed}/{len(targets)} "
+              f"операций дают 401 без токена")
+        return rc
 
     if args.dry_run:
         for op in targets:
