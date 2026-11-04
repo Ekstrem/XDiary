@@ -434,7 +434,12 @@ async function reportStep(page, where) {
       // Во фронте (`8-front/js/app.js:106`) `toast()` классов ошибки не ставит — только
       // `hidden`, поэтому класс смотрим на будущее, а основной признак — текст:
       // ошибочные тосты начинаются с «Ошибка:» (`app.js:279, 320, 327, 336, 341`).
-      const isError = /error|danger|fail/i.test(state.cls) || /^(ошибк|error)/i.test(text);
+      // TE-046 (уточнение): во фронте часть отказов начинается не с «Ошибка:», а с «Не удалось…»
+      // (`app.js`: «Не удалось сохранить», «Не удалось загрузить», «Не удалось привязать»).
+      // Узкий шаблон `/^(ошибк|error)/` помечал их как ::notice:: — то есть настоящая ошибка
+      // шла НИЖЕ уровня, чем информационный тост. Признак ошибки ищем по всему тексту и по коду.
+      const isError = /error|danger|fail/i.test(state.cls) ||
+        /(ошибк|не удалось|error|fail|forbidden|unauthori[sz]ed|timeout|timed out|40[13]|50[0234])/i.test(text);
       const line = 'тост (' + where + '): ' + text.slice(0, 200);
       console.log((isError ? '::warning::' : '::notice::') + line);
     } else {
