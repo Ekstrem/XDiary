@@ -97,6 +97,48 @@ def parse_service_map(raw, base=DEFAULT_SVC):
     return mapping
 
 
+
+def collect_images(remote, key, services):
+    """Образы, которые РЕАЛЬНО запущены (не теги): `images=svc:<image[:12]>`.
+
+    Зачем (@AR 2026-11-04 18:10): за сутки трижды спорили о числах, потому что «код есть,
+    образ старый». Квитанция без выкаченного образа не прикладывается к релизу.
+    """
+    names = ' '.join(sorted(set(services)))
+    inner = " ".join([
+        'for s in %s; do' % names,
+        'img=$(podman inspect "$s" --format "{{.Image}}" 2>/dev/null | cut -c1-12);',
+        'echo "$s ${img:-нет-контейнера}";',
+        'done',
+    ])
+    cmd = inner
+    out = run_remote(remote, key, cmd)
+    images = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            images[parts[0].replace('xdiary-', '')] = parts[1]
+    return images
+
+
+def collect_ref(remote, key):
+    """Короткий SHA клона на контуре — чтобы квитанция ссылалась на реально измеренное."""
+    out = run_remote(remote, key, 'git -C /home/deploy/XDiary rev-parse --short HEAD 2>/dev/null').strip()
+    return out or 'НЕ_ОПРЕДЕЛЁН'
+
+
+def receipt(ref, where, tot, rc, images):
+    """Строка квитанции ровно в формате @AR (2026-11-04 18:10), одна строка.
+
+    PASS возможен только при «нарушителей 0 И неизвестно 0» — иначе `FAIL`
+    (условие не выполнено, пока не измерены все 76).
+    """
+    verdict = 'PASS' if rc == 0 else 'FAIL'
+    img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
+    return ('REF=%s | (ii-b) %s защищено=%d/%d нарушителей=%d неизвестно=%d | rc=%d | where=%s | images=%s'
+            % (ref, verdict, tot['protected'], tot['ops'], tot['open'], tot['unknown'], rc, where, img))
+
+
 def measure(remote, key, only=None, service_map=None):
     """Замер изнутри контура: один `podman run` на BC, разбор кодов."""
     out_index = run_remote(remote, key, 'cat /tmp/api-index.yaml 2>/dev/null || cat '
@@ -210,6 +252,18 @@ def selftest():
     else:
         print('  [FAIL] чисто должно давать rc=0')
 
+    line = receipt('abc1234', 'unit', {'protected': 76, 'open': 0, 'unknown': 0, 'ops': 76}, 0,
+                   {'catalog': 'bff93d9e1234'})
+    if 'images=catalog:bff93d9e123' in line and 'where=unit' in line and '(ii-b) PASS' in line:
+        ok += 1
+    else:
+        print('  [FAIL] квитанция без images=/where= — такую нельзя приложить к релизу')
+    line2 = receipt('abc1234', 'unit', {'protected': 21, 'open': 22, 'unknown': 32, 'ops': 76}, 1, {})
+    if '(ii-b) FAIL' in line2 and 'images=НЕ_ИЗМЕРЕНО' in line2:
+        ok += 1
+    else:
+        print('  [FAIL] FAIL-квитанция не помечает отсутствие образов')
+
     srv = HTTPServer(('127.0.0.1', 0), H)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -228,7 +282,7 @@ def selftest():
         else:
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
-    total = len(cases) + 6
+    total = len(cases) + 8
     ok += live_ok
     print('check_service_auth --selftest: %d/%d (классификатор + живой сервер)' % (ok, total))
     return 0 if ok == total else 1
@@ -244,6 +298,9 @@ def main():
     ap.add_argument('--service-map', default=None,
                     help='переопределить адресацию: "Catalog=xdiary-catalog:8080,Client=client:8080"')
     ap.add_argument('--selftest', action='store_true')
+    ap.add_argument('--where', default='podman run --rm --network xdiary (изнутри контура)',
+                    help='чем измерено: обязательно попадает в квитанцию')
+    ap.add_argument('--ref', default=None, help='переопределить REF (по умолчанию — клон на контуре)')
     ap.add_argument('--json', action='store_true')
     a = ap.parse_args()
     if a.selftest:
@@ -255,9 +312,17 @@ def main():
         print('::error::(ii-b) %s' % err)
         return 2
     tot, open_list = report(results)
+    rc = exit_code(tot)
+    services = list((parse_service_map(getattr(a, 'service_map', None))).get(bc, '')
+                    for bc in results)
+    services = ['xdiary-' + x.split(':')[0].replace('xdiary-', '') for x in services if x]
+    images = collect_images(a.remote, a.key, services)
+    ref = a.ref or collect_ref(a.remote, a.key)
+    print()
+    print('  ' + receipt(ref, a.where, tot, rc, images))
     if a.json:
         print(json.dumps({'totals': tot, 'open': open_list}, ensure_ascii=False))
-    return exit_code(tot)
+    return rc
 
 
 if __name__ == '__main__':
