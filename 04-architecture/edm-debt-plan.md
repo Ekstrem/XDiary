@@ -204,3 +204,28 @@ E2 после E3, чтобы не тащить свой слой в 9 BC и по
 **Отдельно — дефект в карточке:** `DO-058` (гейт `check_edm.py`) внутри раздела «Задача» подписан **«зона @BE, `6-msa/`»**, хотя инструмент — `tools/` (зона @DO). Карточку правит @TL; при старте работ это даст «не в моей зоне» и лишний круг.
 
 **Оставшееся без карточек (решить: делаем или паркуем явно):** TECHDEBT п.5 (легаси `app/`, P3), п.6 (`0-df-issue`, по issue), п.10 (`PROJECT_PAT` scope, P2). Молчание здесь читается как «закрыто», хотя это не так.
+### Диагноз 2026-11-05 02:01: `journal`/`partners` не стартуют из-за **двойной регистрации контекста**, а не DI-хендлера
+
+**Симптом (факт @DO):** `The DbContextOptions passed to the EventStoreDbContext constructor must be a DbContextOptions<EventStoreDbContext>`
+при двух зарегистрированных контекстах; `dotnet test` этого не видит — сервис не стартует вообще.
+
+**Причина — в нашем коде, и она видна построчно:**
+
+| Файл | Строка | Что делает | Проблема |
+|---|---|---|---|
+| `BC-Journal/…/Journal.Api/Program.cs` | **39** | `AddDbContext<…Postgres.EventStoreDbContext>(o => o.UseNpgsql(…))` | **ручная** регистрация контекста библиотеки |
+| там же | **40** | `AddEventStorePostgres<IJournal, IJournalAnemicModel>(CommandDb, null)` | библиотека регистрирует тот же контекст **сама** |
+| `BC-Partners/…/Partners.Api/Program.cs` | **37** | то же самое | то же |
+| там же | **38** | то же самое | то же |
+
+Две регистрации одного типа с **разными формами опций** — побеждает последняя, и `EventStoreDbContext` получает
+`DbContextOptions` вместо `DbContextOptions<EventStoreDbContext>`. Ошибка возникает **на старте**, поэтому ни один
+`dotnet test` её не покажет: тесты не поднимают `IHostedService`-конвейер.
+
+**Правило (и оно же критерий гейта):** контекст, принадлежащий библиотеке (`EventStoreDbContext`), **регистрируется только
+`AddEventStorePostgres`**; в коде BC не должно быть `AddDbContext<…EventStoreDbContext>` — `git grep` = **0**.
+Свой контекст (`CommandDbContext`, `ReadDbContext`) — регистрируется своим `AddDbContext<CommandDbContext>` и живёт отдельно;
+смешивать их в одном типе опций нельзя.
+
+**Почему это попало в прод:** у нас не было проверки «сервис стартует». Приёмка E1 теперь включает именно это —
+`Up`, `RestartCount` не растёт, `/health` 200, и **проверяется на развёрнутом образе**, а не `git grep`-ом по коду.
