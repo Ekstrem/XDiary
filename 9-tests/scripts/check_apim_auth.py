@@ -21,6 +21,13 @@
 Коды возврата: 0 — все неанонимные операции дают 401; 1 — есть нарушения (список в выводе);
 2 — не найдена база/индекс/нет PyYAML (это не «зелено», а «не проверено»).
 
+**Честная оговорка про `--direct` (@TL `2026-11-05 00:16`, @AR `17:05`):** условие (ii-b)
+сформулировано про **прямой запрос в сервис**, поэтому `--direct` имеет смысл **только изнутри
+контура** (`podman exec`/ssh на VPS): снаружи имена `xdiary-*` не резолвятся, и прогон вернёт
+`rc=2` («не измерено»), а не «зелено». Флаг `--base` меряет **публичный вход (YARP)** — это
+условие (ii-a), и после переключения трафика (`Funnel → Caddy → APIM → сервис`) YARP в пути нет,
+значит (ii-a) ничего не гарантирует.
+
 `anonymous-inside` (`/internal/**`) считается **не** анонимным снаружи: это внутренний контур,
 снаружи он обязан отвечать 401 — поэтому входит в проверку.
 """
@@ -30,6 +37,7 @@ import argparse
 import json
 import re
 import socket
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -82,6 +90,45 @@ def concrete_path(path: str) -> str:
     return re.sub(r"\{([^}]+)\}", sub, path)
 
 
+def current_ref() -> str:
+    """`REF` для квитанции: короткий SHA репозитория (или `unknown`, если git недоступен)."""
+    r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
+    out = r.stdout.strip()
+    return out if r.returncode == 0 and out else "unknown"
+
+
+def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str, extra: str = "") -> str:
+    """Квитанция в формате @AR (`2026-11-04 17:20`): `REF=<sha> | (ii-X) N/76 → 401 | rc=N | where=…`.
+
+    Требование ADR-026 / `round-checklist §3.1`: **UNKNOWN не засчитывается никогда**, а квитанция
+    обязана содержать **чем измерено** — иначе `rc=0` снаружи физически невозможен и его нельзя
+    прочитать однозначно. Поэтому три исхода пишутся по-разному:
+      rc=0  → `PASS  N/76 → 401`
+      rc=1  → `FAIL  N/76 → 401 (нарушители выше)`
+      rc=2  → `UNKNOWN (не измерено)` — это НЕ «чисто».
+    """
+    label = f"({kind}) "
+    if rc == 0:
+        body = f"{label}PASS {passed}/{total} → 401"
+    elif rc == 1:
+        body = f"{label}FAIL {passed}/{total} → 401 (нарушители выше)"
+    else:
+        body = f"{label}UNKNOWN {passed}/{total} измерено (не засчитывается)"
+    line = f"REF={ref} | {body} | rc={rc} | where={where or 'НЕ УКАЗАНО'}"
+    return line + (f" | {extra}" if extra else "")
+
+
+def resolve_host(svc_map: dict, bc: str, template: str) -> str:
+    """BC → адрес сервиса для `--direct`. Три формы значения в `--service-map`:
+    полный URL (`http://h:p`), `host:port` (порт уже задан), имя сервиса (→ template)."""
+    val = svc_map[bc]
+    if "://" in val:
+        return val
+    if ":" in val:
+        return "http://" + val
+    return template.format(service=val)
+
+
 def check_url(url: str, method: str = "GET", timeout: float = 8.0) -> tuple[int | None, str]:
     req = urllib.request.Request(url, method=method.upper())
     try:
@@ -102,7 +149,7 @@ def verdict(results: list[tuple[dict, int | None, str]]) -> tuple[int, list[str]
     bad: list[str] = []
     unknown: list[str] = []
     for op, code, url in results:
-        name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}]"
+        name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}] bc={op.get('bc')}"
         if code is None:
             unknown.append(f"{name} — нет ответа: {url}")
         elif 200 <= code < 300:
@@ -204,6 +251,51 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] фильтр анонимных: ждали 6 (7 операций минус `anonymous`), получили {len(targets)}")
+
+        total += 1
+        # 3) `--direct`: адресация сервисов, три формы значения (@TL `00:16` п.4)
+        fakes = {"Catalog": f"127.0.0.1:{port}", "Analytics": f"http://127.0.0.1:{port}", "Journal": "journal"}
+        tpl = "http://xdiary-{service}:8080"
+        hosts = {bc: resolve_host(fakes, bc, tpl) for bc in fakes}
+        expected = {"Catalog": f"http://127.0.0.1:{port}", "Analytics": f"http://127.0.0.1:{port}",
+                    "Journal": "http://xdiary-journal:8080"}
+        if hosts == expected:
+            ok += 1
+        else:
+            print(f"  [FAIL] --direct адресация: {hosts} != {expected}")
+
+        total += 1
+        # «сервис напрямую»: запрос по адресу СЕРВИСА (здесь — тот же локальный сервер);
+        # в тексте нарушения обязан быть `bc` (@TL `00:16` п.3)
+        direct_ops = [
+            {"method": "GET", "path": "/api/v1/a", "operationId": "S.Closed", "auth": "jwt", "bc": "Catalog"},
+            {"method": "GET", "path": "/api/v1/b", "operationId": "S.Open", "auth": "jwt", "bc": "Catalog"},
+        ]
+        dres = [(op, *check_url(resolve_host(fakes, op["bc"], tpl) + op["path"])) for op in direct_ops]
+        rc2, bad2, _u2 = verdict(dres)
+        if rc2 == 1 and any("S.Open" in b for b in bad2) and any("bc=Catalog" in b for b in bad2):
+            ok += 1
+        else:
+            print(f"  [FAIL] --direct классификатор: rc={rc2}, bad={bad2}")
+
+        total += 1
+        # REF в квитанции не должен быть пустым (может быть `unknown`, но не пустая строка)
+        if current_ref():
+            ok += 1
+        else:
+            print("  [FAIL] current_ref() пуст — квитанция будет без REF")
+
+        total += 1
+        # квитанция в формате @AR `17:20`: три исхода читаются однозначно, UNKNOWN ≠ «чисто»
+        good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog", "template=x")
+        unknown = receipt_line("ii-b", "abc1234", 0, 76, 2, "", "template=x")
+        if ("(ii-b) PASS 76/76" in good and "rc=0" in good
+                and "where=podman exec xdiary-catalog" in good
+                and "UNKNOWN" in unknown and "не засчитывается" in unknown
+                and "where=НЕ УКАЗАНО" in unknown):
+            ok += 1
+        else:
+            print(f"  [FAIL] формат квитанции: {good!r} / {unknown!r}")
     finally:
         srv.shutdown()
         srv.server_close()
@@ -224,6 +316,8 @@ def main() -> int:
     ap.add_argument("--host-template", default="http://xdiary-{service}:8080",
                     help="шаблон адреса сервиса для --direct (по умолчанию http://xdiary-{service}:8080)")
     ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
+    ap.add_argument("--where", default="",
+                    help="чем измерено (напр. podman exec xdiary-catalog / VPS-2 network xdiary_default) — обязательно для квитанции (ii-b)")
     ap.add_argument("--service-map", default="",
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
@@ -263,12 +357,7 @@ def main() -> int:
             return 2
 
         def host_for(bc: str) -> str:
-            val = svc_map[bc]
-            if "://" in val:
-                return val                      # полный URL из --service-map
-            if ":" in val:
-                return "http://" + val          # «host:port» — порт уже задан, шаблон не нужен
-            return args.host_template.format(service=val)   # имя сервиса → шаблон
+            return resolve_host(svc_map, bc, args.host_template)
 
         per_service: dict[str, list[dict]] = {}
         for op in targets:
@@ -282,30 +371,40 @@ def main() -> int:
 
         results: list[tuple[dict, int | None, str]] = []
         for svc, lst in sorted(per_service.items()):
-            host = args.host_template.format(service=svc)
+            host = host_for(str(lst[0].get("bc")))
             for op in lst:
                 url = host.rstrip("/") + concrete_path(str(op["path"]))
                 code, got = check_url(url, str(op.get("method", "GET")))
                 results.append((op, code, got))
         rc, bad, unknown = verdict(results)
         passed = len(targets) - len(bad) - len(unknown)
-        # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
-        # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
-        if not bad and passed == 0:
-            print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
-                  "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
-            print(f"REF=direct | FAIL: 0/{len(targets)} измерено — контур недоступен")
-            return 2
+        # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
+        # в логе не видно, какие именно `метод+путь+bc` не измерены (@TL `00:16` п.3).
         for svc, lst in sorted(per_service.items()):
-            svc_res = [r for r in results if SERVICE_BY_BC[str(r[0].get("bc"))] == svc]
+            svc_res = [r for r in results if svc_map[str(r[0].get("bc"))] == svc]
             svc_pass = sum(1 for _op, code, _u in svc_res if code in (401, 403))
             print(f"   {svc:22} {svc_pass}/{len(svc_res)} дают 401 без токена")
         for b in bad:
             print(f"::error::apim-auth(service): {b}")
         for u in unknown:
             print(f"::warning::apim-auth(service): {u}")
-        print(f"{'PASS' if rc == 0 else 'FAIL'}: сервисы напрямую — {passed}/{len(targets)} "
-              f"операций дают 401 без токена")
+
+        map_note = f"map={args.service_map}" if args.service_map else f"template={args.host_template}"
+        # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
+        # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
+        if not bad and passed == 0:
+            print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
+                  "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, map_note))
+            return 2
+        # @AR `17:20`: квитанция обязана содержать «чем измерено». Без `--where` это не квитанция,
+        # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
+        if rc == 0 and not args.where:
+            print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
+                  "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", map_note))
+            return 2
+        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, map_note))
         return rc
 
     if args.dry_run:
@@ -333,7 +432,7 @@ def main() -> int:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
                           "failures": bad, "unresolved": unknown, "rc": rc}, ensure_ascii=False, indent=2))
     else:
-        print(f"REF={args.base} | 401 без токена: {passed}/{len(targets)}")
+        print(receipt_line("ii-a", current_ref(), passed, len(targets), rc, args.where or args.base))
         for b in bad:
             print(f"::error::apim-auth: {b}")
         for u in unknown:
