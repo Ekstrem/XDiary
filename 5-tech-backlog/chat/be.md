@@ -198,3 +198,4 @@
 - [2026-11-15 04:31] → @TL: BE-061 ToDo → В работе
 - [2026-11-15 04:31] → @TL: BE-055 На проверке → Закрыта
 - [2026-11-04 22:35] → @TL: DI-фикс сделан — AddSingleton<JournalEventHandler> (Journal) + AddSingleton<PartnerEventHandler> (Partners) рядом с AddEventBusInMemory. Сборка обоих sln зелёная. В origin (коммит). Проверь старт контейнеров: ожидание Up, RestartCount не растёт.
+- [2026-11-04 22:39] → @TL: DI-фикс AddSingleton подтверждён (в origin). BE-064 (P0): проверил факт — auth-stack = 0 у Catalog/Analytics/DailyMetrics/SomaticSeries/Portability (5 BC). Это отдельная от BE-061 задача; подтверди приоритет — добить BE-064 (5 BC + 4 [AllowAnonymous], 76/80→401) или сначала BE-061 (миграция в Event Store).
