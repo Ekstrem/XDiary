@@ -110,34 +110,38 @@ def final_rc(bad: list, passed: int, total: int) -> int:
     """Код возврата гейта: 1 — есть нарушения; **2 — ничего не измерено**; 0 — всё измерено и 401.
 
     `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
-    пустоте». Правило: `PASS` печатается только если **хотя бы один** реальный ответ получен,
-    а если ни одна цель не ответила — это `UNKNOWN` (`rc=2`), а не успех.
+    пустоте». `@TL 01:18` усилил правило: `PASS` — **только когда измерено ровно `total`/`total`**,
+    а частичное измерение (`passed < total`, есть `unknown`) тоже НЕ `PASS`.
+    Поэтому: нарушения → 1; измерено 0 → 2; измерено меньше total → 2 (UNKNOWN); иначе 0.
     """
     if bad:
         return 1
-    if passed == 0 or passed < 0:
+    if passed <= 0 or passed < total:
         return 2
     return 0
 
-def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str, extra: str = "") -> str:
-    """Квитанция в формате @AR (`2026-11-04 17:20`): `REF=<sha> | (ii-X) N/76 → 401 | rc=N | where=…`.
 
-    Требование ADR-026 / `round-checklist §3.1`: **UNKNOWN не засчитывается никогда**, а квитанция
-    обязана содержать **чем измерено** — иначе `rc=0` снаружи физически невозможен и его нельзя
-    прочитать однозначно. Поэтому три исхода пишутся по-разному:
-      rc=0  → `PASS  N/76 → 401`
-      rc=1  → `FAIL  N/76 → 401 (нарушители выше)`
-      rc=2  → `UNKNOWN (не измерено)` — это НЕ «чисто».
+def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
+                 failures: int = 0, unknown: int = 0, images: str = "") -> str:
+    """Квитанция в формате @AR (`ITERATION-PLAN §19.1`) / @TL (`01:18`):
+
+        REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=B | неизвестно=U |
+        rc=N | where=<чем измерено> | images=<svc:digest, …>
+
+    Требования, зашитые в текст: `PASS` — только при `нарушителей=0 И неизвестно=0`
+    (то есть `passed == total`); `400`/`2xx` считаются нарушением; `UNKNOWN` не засчитывается
+    никогда; `images` обязателен для квитанции релиза («код есть, образ старый» — трижды за сутки).
     """
     label = f"({kind}) "
     if rc == 0:
-        body = f"{label}PASS {passed}/{total} → 401"
+        body = f"{label}PASS защищено={passed}/{total}"
     elif rc == 1:
-        body = f"{label}FAIL {passed}/{total} → 401 (нарушители выше)"
+        body = f"{label}FAIL защищено={passed}/{total}"
     else:
-        body = f"{label}UNKNOWN {passed}/{total} измерено (не засчитывается)"
-    line = f"REF={ref} | {body} | rc={rc} | where={where or 'НЕ УКАЗАНО'}"
-    return line + (f" | {extra}" if extra else "")
+        body = f"{label}UNKNOWN защищено={passed}/{total} (не засчитывается)"
+    line = f"REF={ref} | {body} | нарушителей={failures} | неизвестно={unknown} | rc={rc}"
+    line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
+    return line
 
 
 def resolve_host(svc_map: dict, bc: str, template: str) -> str:
@@ -308,25 +312,28 @@ def selftest() -> int:
             print("  [FAIL] current_ref() пуст — квитанция будет без REF")
 
         total += 1
-        # квитанция в формате @AR `17:20`: три исхода читаются однозначно, UNKNOWN ≠ «чисто»
-        good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog", "template=x")
-        unknown = receipt_line("ii-b", "abc1234", 0, 76, 2, "", "template=x")
-        if ("(ii-b) PASS 76/76" in good and "rc=0" in good
-                and "where=podman exec xdiary-catalog" in good
-                and "UNKNOWN" in unknown and "не засчитывается" in unknown
-                and "where=НЕ УКАЗАНО" in unknown):
+        # квитанция по формату @AR `ITERATION-PLAN §19.1` / @TL `01:18`:
+        # `REF | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей | неизвестно | rc | where | images`
+        good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog", 0, 0, "journal:abc123")
+        unk = receipt_line("ii-b", "abc1234", 44, 76, 2, "", 22, 10, "")
+        if ("PASS защищено=76/76" in good and "нарушителей=0" in good and "неизвестно=0" in good
+                and "rc=0" in good and "where=podman exec xdiary-catalog" in good
+                and "images=journal:abc123" in good
+                and "UNKNOWN" in unk and "не засчитывается" in unk
+                and "нарушителей=22" in unk and "неизвестно=10" in unk
+                and "where=НЕ УКАЗАНО" in unk and "images=НЕ УКАЗАНО" in unk):
             ok += 1
         else:
-            print(f"  [FAIL] формат квитанции: {good!r} / {unknown!r}")
+            print(f"  [FAIL] формат квитанции: {good!r} / {unk!r}")
 
         total += 1
-        # регресс-кейс бага @DO `01:17`: «все цели без ответа» обязано быть rc=2, а не PASS.
-        # Тогда `--base` на пустом порту (все URLError) не может дать зелёный.
+        # регресс-кейсы: баг @DO `01:17` (0 ответов → 0) и требование @TL `01:18`
+        # (`PASS` только при измерено ровно total/total).
         cases_rc = [
-            (([], 0, 76), 2, "ни один ответ не получен → rc=2"),
-            (([], 76, 76), 0, "все 76 ответили 401 → rc=0"),
-            ((["нарушитель"], 75, 76), 1, "есть нарушитель → rc=1"),
-            (([], 40, 76), 0, "часть не ответила, часть 401 → rc=0 (измерено)"),
+            (([], 0, 76), 2, "ни один ответ не получен → rc=2 UNKNOWN"),
+            (([], 76, 76), 0, "все 76 ответили 401 → rc=0 PASS"),
+            ((["нарушитель"], 75, 76), 1, "есть нарушитель → rc=1 FAIL"),
+            (([], 44, 76), 2, "частично (44/76) без нарушителей → rc=2, НЕ PASS"),
         ]
         bad_rc = [t for (args, want, t) in cases_rc if final_rc(*args) != want]
         if not bad_rc:
@@ -355,6 +362,8 @@ def main() -> int:
     ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
     ap.add_argument("--where", default="",
                     help="чем измерено (напр. podman exec xdiary-catalog / VPS-2 network xdiary_default) — обязательно для квитанции (ii-b)")
+    ap.add_argument("--images", default="",
+                    help="диджесты выкаченных образов для квитанции: journal:abc123, catalog:def456")
     ap.add_argument("--service-map", default="",
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
@@ -428,21 +437,22 @@ def main() -> int:
             print(f"::warning::apim-auth(service): {u}")
 
         map_note = f"map={args.service_map}" if args.service_map else f"template={args.host_template}"
+        print(f"источник адресов: {map_note}")
         # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
         # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
         if rc == 2:
             print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
                   "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, map_note))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(bad), len(unknown), args.images))
             return 2
         # @AR `17:20`: квитанция обязана содержать «чем измерено». Без `--where` это не квитанция,
         # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
         if rc == 0 and not args.where:
             print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
                   "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", map_note))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(bad), len(unknown), args.images))
             return 2
-        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, map_note))
+        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(bad), len(unknown), args.images))
         return rc
 
     if args.dry_run:
@@ -473,14 +483,16 @@ def main() -> int:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
                           "failures": bad, "unresolved": unknown, "rc": rc}, ensure_ascii=False, indent=2))
     else:
-        print(receipt_line("ii-a", current_ref(), passed, len(targets), rc, args.where or args.base))
         for b in bad:
             print(f"::error::apim-auth: {b}")
         for u in unknown:
             print(f"::warning::apim-auth: {u}")
         verdict_word = "PASS" if rc == 0 else ("UNKNOWN" if rc == 2 else "FAIL")
-        print(f"{verdict_word}: {passed}/{len(targets)} операций дают 401 без токена"
+        print(f"{verdict_word}: измерено {passed}/{len(targets)} операций, дающих 401 без токена"
               + (" (ни один ответ не получен — это не «зелено»)" if rc == 2 else ""))
+        # Квитанция — ПОСЛЕДНЕЙ строкой: её читают и копируют, поэтому она должна быть в хвосте.
+        print(receipt_line("ii-a", current_ref(), passed, len(targets), rc,
+                           args.where or args.base, len(bad), len(unknown), args.images))
     return rc
 
 
