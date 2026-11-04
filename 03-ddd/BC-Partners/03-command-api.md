@@ -3,14 +3,14 @@
 > Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**.
 
 ## Команды
-| Команда | Эндпоинт (факт 6-msa) | Метод агрегата | Событие |
+| Команда | `operationId` | Метод агрегата | Событие |
 |---|---|---|---|
-| Register | `POST /api/v1/partners` | `Register(name)` | `PartnerRegistered` |
-| Rename | `POST /api/v1/partners/{id}/name` | `Rename(name)` | `PartnerRenamed` |
-| UpdateProfile | `POST /api/v1/partners/{id}/profile` | `UpdateProfile(photo, gender, notes)` | `PartnerProfileUpdated` |
-| Remove | `POST /api/v1/partners/{id}/remove` | `Remove()` | `PartnerRemoved` |
+| Register | `Partners.Register` | `Register(name)` | `PartnerRegistered` |
+| Rename | `Partners.Rename` | `Rename(name)` | `PartnerRenamed` |
+| UpdateProfile | `Partners.UpdateProfile` | `UpdateProfile(photo, gender, notes)` | `PartnerProfileUpdated` |
+| Remove | `Partners.Remove` | `Remove()` | `PartnerRemoved` |
 
-## Request DTO (PartnerDraft)
-```json
-{ "name": "string", "photo": "dataURL", "gender": "male|female", "notes": "string" }
-```
+## Request: обязательность полей
+Поля, их типы и обязательность **не пересказываются здесь** — источник: `api-index.yaml`, операции `Partners.Register`
+(`required: name, gender`; `optional: photo, notes`) и `Partners.UpdateProfile` (все опциональны: отсутствие = «не менялось»).
+`clientId` в теле **не передаётся** — берётся из `sub` токена.

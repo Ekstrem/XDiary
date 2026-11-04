@@ -1,15 +1,16 @@
 # Command API: Клиент (Client)
 
 > Команды → методы агрегата → события. Конвенция EDM/DF — **только POST**.
+> **AR-016:** пути, коды и тела — только в `04-architecture/api-index.yaml`; здесь — смысл операции и метод агрегата.
 
 ## Команды
-| Команда | Эндпоинт (POST) | Метод агрегата | Событие |
+| Команда | `operationId` | Метод агрегата | Событие |
 |---|---|---|---|
-| Register | `POST /api/v1/clients` | `Register(phone)` | `ClientRegistered` |
-| VerifyOtp | `POST /api/v1/clients/{id}/verify` | `VerifyOtp(code)` | `PhoneVerified` → **access + refresh** |
-| RefreshToken | `POST /api/v1/clients/refresh` | TokenService (по refresh) | `{ accessToken, refreshToken }` |
-| **CompleteProfile** | **`POST /api/v1/clients/me/profile`** | `CompleteProfile(displayName, gender, photo?)` | `ClientProfileCompleted` |
-| **UpdateProfile** | **`POST /api/v1/clients/me/profile`** (идемпотентно) | `UpdateProfile(displayName, gender, photo?)` | `ClientProfileUpdated` |
+| Register | `Client.Register` | `Register(phone)` | `ClientRegistered` |
+| VerifyOtp | `Client.Verify` | `VerifyOtp(code)` | `PhoneVerified` → **access + refresh** |
+| RefreshToken | `Client.Refresh` | TokenService (по refresh) | `{ accessToken, refreshToken }` |
+| **CompleteProfile** | **`Client.UpdateProfile`** | `CompleteProfile(displayName, gender, photo?)` | `ClientProfileCompleted` |
+| **UpdateProfile** | **`Client.UpdateProfile`** (идемпотентно) | `UpdateProfile(displayName, gender, photo?)` | `ClientProfileUpdated` |
 
 > **Один эндпоинт для онбординга и редактирования** (`me/profile`): первая запись — `CompleteProfile`
 > (профиль пуст), повторная — `UpdateProfile`. Разделение состояний — в агрегате, не в маршрутах.

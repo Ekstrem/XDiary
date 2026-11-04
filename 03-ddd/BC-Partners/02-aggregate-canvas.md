@@ -53,6 +53,18 @@
 > Для EDM предпочтителен **(а)**: событийная модель требует, чтобы любое изменение состояния выражалось событием,
 > а не отсутствием записи. Окончательный выбор — за @BE при E1, фиксируется в `BE-055`/карточке партнёров.
 
+**2.2.1. Как атрибут попадает в агрегат через API (AR-016: ссылки на `operationId`, без пересказа контракта).**
+Пути, коды и тела — только в `04-architecture/api-index.yaml` (там же `request` с обязательностью полей).
+
+| Атрибут | `operationId` (запись) | Примечание |
+|---|---|---|
+| `name` | `Partners.Register`, `Partners.Rename` | обязателен; пустое имя → 400 |
+| `gender` | `Partners.Register`, `Partners.UpdateProfile` | словарь `male`/`female`, «Other» → 400 |
+| `photo`, `notes` | `Partners.UpdateProfile` | опциональны; отсутствие = «не менялось», а не «стереть» |
+| `clientId` | `Partners.Register` | **из `sub` токена**, в теле не передаётся (подделка невозможна) |
+| `deletedAt` | `Partners.Remove` | soft delete; идемпотентен (повторный remove не ошибка) |
+| — (чтение) | `Partners.List`, `Partners.Get` | **чужой `id` → 403**, `List` фильтруется по `ClientId` (инвариант `PartnerOwnedByClient`) |
+
 ## 3. State Transitions
 ```
 (нет) → [Register] → Active

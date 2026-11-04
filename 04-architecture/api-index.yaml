@@ -490,6 +490,10 @@ operations:
     target_until: "ТРИГГЕР (машинно-проверяемый): @DO ставит XDIARY_STRICT_UNKNOWN_FIELDS=1 в job smoke-api, когда @BE выкатит Disallow. С этого момента Point9b требует только 400, а Point9 перестаёт быть разрешающим. Тогда: код 400 переносится в codes, target_codes/target_owner/target_until удаляются."
     verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
     contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400, не игнор. Сейчас 400 по этому основанию НЕ отдаётся (@TE замер: 200, gender пуст). @TE закрыл ловушку «200 допустим всегда» переключателем по факту: Point9 печатает ::warning::[spec] с target_owner/target_until, Point9b включается XDIARY_STRICT_UNKNOWN_FIELDS=1 — регресс «вернули игнор» краснеет без правки теста."
+    request:
+      required: [name, gender]
+      optional: [photo, notes]
+      note: "ClientId берётся из sub токена, в теле не передаётся"
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
@@ -523,6 +527,9 @@ operations:
     target_owner: "@BE: проверка владельца в Partners (clientId из sub) — ForeignId → 403"
     target_until: "СНЯТЬ когда dev отдаёт 403 на чужой партнёр: снять target_codes, добавить 403 в codes, включить контрактный тест [pending:BE-PartnerOwnership]"
     verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
+    request:
+      required: [name]
+      optional: []
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/profile"
@@ -531,6 +538,10 @@ operations:
     codes: {200: "ok, gender канонизирован", 400: "validation (Other)", 401: "no-token"}
     codes_status: verified
     verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
+    request:
+      required: []
+      optional: [photo, gender, notes]
+      note: "все поля опциональны; gender канонизируется (male/female)"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/remove"
