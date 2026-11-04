@@ -101,10 +101,19 @@ def concrete_path(path: str) -> str:
 
 
 def current_ref() -> str:
-    """`REF` для квитанции: короткий SHA репозитория (или `unknown`, если git недоступен)."""
-    r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
-    out = r.stdout.strip()
-    return out if r.returncode == 0 and out else "unknown"
+    """`REF` для квитанции: короткий SHA репозитория или честный фолбэк.
+
+    `@TL 2026-11-05 01:42`: при запуске внутри `python:3.12-slim` в образе нет `git`,
+    и `subprocess.run(["git", ...])` бросает `FileNotFoundError` — прогон терялся
+    **на печати квитанции** после успешно выполненных 76 запросов. Поэтому любой сбой
+    получения REF (нет git, не репозиторий, нет прав) даёт `REF=НЕ ОПРЕДЕЛЁН`, а не падение.
+    """
+    try:
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
+        out = (r.stdout or "").strip()
+        return out if r.returncode == 0 and out else "НЕ ОПРЕДЕЛЁН"
+    except (FileNotFoundError, OSError, ValueError):
+        return "НЕ ОПРЕДЕЛЁН"
 
 
 def images_for(services: list[str], container_template: str = "xdiary-{service}") -> str:
@@ -128,17 +137,21 @@ def images_for(services: list[str], container_template: str = "xdiary-{service}"
     return ", ".join(parts)
 
 
-def final_rc(bad: list, passed: int, total: int) -> int:
-    """Код возврата гейта: 1 — есть нарушения; **2 — ничего не измерено**; 0 — всё измерено и 401.
+def final_rc(violators: list, contracts: list, unknown: list, passed: int, total: int) -> int:
+    """Код возврата по четырём классам (@AR `01:42`, @TL `01:43`):
 
-    `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
-    пустоте». `@TL 01:18` усилил правило: `PASS` — **только когда измерено ровно `total`/`total`**,
-    а частичное измерение (`passed < total`, есть `unknown`) тоже НЕ `PASS`.
-    Поэтому: нарушения → 1; измерено 0 → 2; измерено меньше total → 2 (UNKNOWN); иначе 0.
+      `protected` = `401/403`  · `violator` = `2xx/400/415/429` (ручка открыта) ·
+      `contract` = `404/405` на операции, которая **есть в `api-index.yaml`** (дефект реестра,
+      класс `DO-050`: индекс обещает маршрут, сервис его не имеет) ·
+      `unknown`  = ответа нет (таймаут/соединение).
+
+    `PASS` — только когда `violator=0 И contract=0 И unknown=0` (то есть `passed == total`).
+    `contract` — это НЕ «неизвестно»: молча складывать его туда значит делать гейт зелёным
+    при ручках, которых физически нет.
     """
-    if bad:
+    if violators or contracts:
         return 1
-    if passed <= 0 or passed < total:
+    if unknown or passed <= 0 or passed < total:
         return 2
     return 0
 
@@ -151,15 +164,14 @@ def resolve_images(arg_value: str, services: list) -> str:
 
 
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
-                 failures: int = 0, unknown: int = 0, images: str = "") -> str:
-    """Квитанция в формате @AR (`ITERATION-PLAN §19.1`) / @TL (`01:18`):
+                 violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "") -> str:
+    """Квитанция (канон `ADR-026 → Квитанция (ii-b)`; `ITERATION-PLAN §19.1` ссылается на него):
 
-        REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=B | неизвестно=U |
-        rc=N | where=<чем измерено> | images=<svc:digest, …>
+        REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=V | contract=C |
+        неизвестно=U | rc=N | where=<чем измерено> | images=<svc:digest, …>
 
-    Требования, зашитые в текст: `PASS` — только при `нарушителей=0 И неизвестно=0`
-    (то есть `passed == total`); `400`/`2xx` считаются нарушением; `UNKNOWN` не засчитывается
-    никогда; `images` обязателен для квитанции релиза («код есть, образ старый» — трижды за сутки).
+    `PASS` — только при `нарушителей=0 И contract=0 И неизвестно=0`. `images` обязателен:
+    `REF` доказывает код, но не то, что **в контейнере** («код есть, образ старый» — трижды за сутки).
     """
     label = f"({kind}) "
     if rc == 0:
@@ -168,7 +180,8 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
         body = f"{label}FAIL защищено={passed}/{total}"
     else:
         body = f"{label}UNKNOWN защищено={passed}/{total} (не засчитывается)"
-    line = f"REF={ref} | {body} | нарушителей={failures} | неизвестно={unknown} | rc={rc}"
+    line = (f"REF={ref} | {body} | нарушителей={violators} | contract={contracts} "
+            f"| неизвестно={unknown} | rc={rc}")
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
     return line
 
@@ -200,37 +213,29 @@ def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, st
                      str(op.get("method", "GET")), timeout)
 
 
-def verdict(results: list[tuple[dict, int | None, str]],
-            five_xx_violator: bool = False) -> tuple[int, list[str], list[str]]:
-    """Классификация по правилу @AR (`2026-11-05 01:33-01:35`):
+def verdict(results, five_xx_violator: bool = False):
+    """Четыре класса (@AR `01:42`, @TL `01:43`): `protected` / `violator` / `contract` / `unknown`.
 
-    «ответ получен = измерение; нарушитель — любой ответ кроме `401/403`; `UNKNOWN` — только
-    когда ответа нет». Поэтому `2xx`, `400`, `415`, `404`, `405` — **нарушители**: в ASP.NET
-    `[Authorize]` срабатывает до model binding и до маршрутизации, значит любой не-`401`
-    ответ доказывает, что запрос дошёл до пайплайна без токена.
-
-    Исключение (осознанное): `502/503/504` — ответ **не сервиса**, а прокси/шлюза, который до
-    сервиса не дошёл. Это `[infra] UNKNOWN`, иначе прогон снаружи обвинял бы продукт в своей
-    недоступности. Для строгого соответствия чужой формуле есть `five_xx_violator=True`.
+    `404/405` на операции из `api-index.yaml` — **дефект реестра** (`contract`), а не «неизвестно»:
+    индекс обещает маршрут, сервис его не имеет (класс `DO-050`). Молча складывать это в unknown
+    значит делать гейт зелёным при ручках, которых физически нет.
+    Возвращает `(violators, contracts, unknown)` — три списка строк для печати.
     """
-    bad: list[str] = []
-    unknown: list[str] = []
+    violators, contracts, unknown = [], [], []
     for op, code, url in results:
         name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}] bc={op.get('bc')}"
         if code is None:
             unknown.append(f"{name} — нет ответа: {url}")
-        elif 200 <= code < 300:
-            bad.append(f"{name} — {code} БЕЗ токена (операция открыта), {url}")
         elif code in (401, 403):
-            continue
+            continue                      # protected
+        elif code in (404, 405):
+            contracts.append(f"{name} — {code} на индексированной операции: дефект реестра "
+                             f"(api-index обещает маршрут, сервис его не имеет), {url}")
         elif code in (502, 503, 504) and not five_xx_violator:
-            # прокси/шлюз не достучался до сервиса — это не доказательство ни «открыто», ни 401
             unknown.append(f"{name} — {code} [infra] (прокси/сервис недоступен), {url}")
         else:
-            # 400/415/404/405 и прочие ответы: запрос дошёл до пайплайна без токена
-            bad.append(f"{name} — {code} вместо 401 (ответ получен без токена — нарушитель), {url}")
-    return (1 if bad else 0), bad, unknown
-
+            violators.append(f"{name} — {code} вместо 401 (ответ получен без токена), {url}")
+    return violators, contracts, unknown
 
 def selftest() -> int:
     """Доказательство, что проверка краснеет на открытой операции и зеленеет на 401.
@@ -291,37 +296,44 @@ def selftest() -> int:
         ]
         targets = [op for op in ops if requires_auth(op)]
         results = [(op, *check_one(base, op, timeout=5)) for op in targets]
-        rc, bad, unknown = verdict(results)
+        viol, contr, unk = verdict(results)
+        rc = final_rc(viol, contr, unk, len(targets) - len(viol) - len(contr) - len(unk), len(targets))
 
         total += 1
-        # Правило @AR (`01:33-01:35`): 401/403 — отказ (зелено); 200, 500, **400, 415, 404** —
-        # нарушители (ответ получен = запрос дошёл до пайплайна без токена); UNKNOWN — только
-        # когда ответа нет. В наборе: a=401(ok), c=403(ok), e=404(violator), b=200, d=500, i=401(ok).
-        if rc == 1 and len(bad) == 3 and len(unknown) == 0:
+        # Четыре класса (@AR `01:42`, @TL `01:43`). Набор: a=401, c=403 (protected); b=200 и d=500
+        # (violator); e=404 — `contract` (маршрут есть в индексе, сервис 404 = дефект реестра).
+        if rc == 1 and len(viol) == 2 and len(contr) == 1 and len(unk) == 0:
             ok += 1
         else:
-            print(f"  [FAIL] классификатор: ждали rc=1, 3 нарушения, 0 неизвестных; "
-                  f"получили rc={rc}, bad={len(bad)}, unknown={len(unknown)}")
+            print(f"  [FAIL] классификатор: ждали rc=1, 2 violator, 1 contract, 0 unknown; "
+                  f"получили rc={rc}, viol={len(viol)}, contract={len(contr)}, unknown={len(unk)}")
 
         total += 1
-        # 200, 500 и 404 без токена обязаны попасть в нарушения поимённо
-        if any("B.Open" in b for b in bad) and any("D.Error" in b for b in bad) and any("E.NotFound" in b for b in bad):
+        # 200 и 500 — нарушители поимённо, 404 — именно `contract`, а не «неизвестно»
+        if (any("B.Open" in b for b in viol) and any("D.Error" in b for b in viol)
+                and any("E.NotFound" in b for b in contr)):
             ok += 1
         else:
-            print(f"  [FAIL] в нарушениях нет имён открытой/ошибочной/404 операции: {bad}")
+            print(f"  [FAIL] имена по классам: viol={viol}, contract={contr}")
 
         total += 1
-        # 400/415 — тоже нарушители (аргумент @AR: [Authorize] до model binding), 502 — [infra] UNKNOWN
+        # Таблица кодов: 2xx/400/415/429/500 → violator; 404/405 → contract;
+        # 401/403 → protected; 502 → unknown (и violator при `--5xx-violator`).
         cls = [
-            (400, "bad"), (415, "bad"), (404, "bad"), (200, "bad"), (500, "bad"),
-            (401, "ok"), (403, "ok"), (502, "unknown"),
+            (200, "violator"), (400, "violator"), (415, "violator"), (429, "violator"),
+            (500, "violator"), (404, "contract"), (405, "contract"),
+            (401, "protected"), (403, "protected"), (502, "unknown"),
         ]
         wrong = []
         for code, want in cls:
-            _rc, b, u = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, code, "u")])
-            got = "bad" if b else ("unknown" if u else "ok")
+            _v, _c, _u = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, code, "u")])
+            got = "violator" if _v else ("contract" if _c else ("unknown" if _u else "protected"))
             if got != want:
                 wrong.append(f"{code}: got {got}, want {want}")
+        _v2, _c2, _u2 = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, 502, "u")],
+                                five_xx_violator=True)
+        if not _v2:
+            wrong.append("502: strict-режим не сделал нарушителем")
         if not wrong:
             ok += 1
         else:
@@ -354,11 +366,11 @@ def selftest() -> int:
             {"method": "GET", "path": "/api/v1/b", "operationId": "S.Open", "auth": "jwt", "bc": "Catalog"},
         ]
         dres = [(op, *check_url(resolve_host(fakes, op["bc"], tpl) + op["path"])) for op in direct_ops]
-        rc2, bad2, _u2 = verdict(dres)
-        if rc2 == 1 and any("S.Open" in b for b in bad2) and any("bc=Catalog" in b for b in bad2):
+        dv, dc, du = verdict(dres)
+        if dv and any("S.Open" in b for b in dv) and any("bc=Catalog" in b for b in dv) and not dc and not du:
             ok += 1
         else:
-            print(f"  [FAIL] --direct классификатор: rc={rc2}, bad={bad2}")
+            print(f"  [FAIL] --direct классификатор: viol={dv}, contract={dc}, unknown={du}")
 
         total += 1
         # REF в квитанции не должен быть пустым (может быть `unknown`, но не пустая строка)
@@ -370,13 +382,14 @@ def selftest() -> int:
         total += 1
         # квитанция по формату @AR `ITERATION-PLAN §19.1` / @TL `01:18`:
         # `REF | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей | неизвестно | rc | where | images`
-        good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog", 0, 0, "journal:abc123")
-        unk = receipt_line("ii-b", "abc1234", 44, 76, 2, "", 22, 10, "")
-        if ("PASS защищено=76/76" in good and "нарушителей=0" in good and "неизвестно=0" in good
-                and "rc=0" in good and "where=podman exec xdiary-catalog" in good
-                and "images=journal:abc123" in good
+        good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog",
+                            0, 0, 0, "journal:abc123")
+        unk = receipt_line("ii-b", "abc1234", 44, 76, 2, "", 22, 10, 20, "")
+        if ("PASS защищено=76/76" in good and "нарушителей=0" in good and "contract=0" in good
+                and "неизвестно=0" in good and "rc=0" in good
+                and "where=podman exec xdiary-catalog" in good and "images=journal:abc123" in good
                 and "UNKNOWN" in unk and "не засчитывается" in unk
-                and "нарушителей=22" in unk and "неизвестно=10" in unk
+                and "нарушителей=22" in unk and "contract=10" in unk and "неизвестно=20" in unk
                 and "where=НЕ УКАЗАНО" in unk and "images=НЕ УКАЗАНО" in unk):
             ok += 1
         else:
@@ -385,11 +398,15 @@ def selftest() -> int:
         total += 1
         # регресс-кейсы: баг @DO `01:17` (0 ответов → 0) и требование @TL `01:18`
         # (`PASS` только при измерено ровно total/total).
+        # Регресс-кейсы код возврата: баг @DO `01:17` (0 ответов → 0) и требование @TL `01:18`
+        # (`PASS` только при измерено ровно total/total) + новый класс `contract` (@TL `01:43`).
+        # Кортеж: (violators, contracts, unknown, passed, total) → ожидаемый rc.
         cases_rc = [
-            (([], 0, 76), 2, "ни один ответ не получен → rc=2 UNKNOWN"),
-            (([], 76, 76), 0, "все 76 ответили 401 → rc=0 PASS"),
-            ((["нарушитель"], 75, 76), 1, "есть нарушитель → rc=1 FAIL"),
-            (([], 44, 76), 2, "частично (44/76) без нарушителей → rc=2, НЕ PASS"),
+            (([], [], [], 0, 76), 2, "ни один ответ не получен → rc=2 UNKNOWN"),
+            (([], [], [], 76, 76), 0, "все 76 → 401, нарушителей/contract/unknown = 0 → rc=0 PASS"),
+            ((["нарушитель"], [], [], 75, 76), 1, "есть нарушитель → rc=1 FAIL"),
+            (([], ["contract"], [], 75, 76), 1, "есть contract-дефект реестра → rc=1 FAIL"),
+            (([], [], ["нет ответа"], 44, 76), 2, "частично (44/76) → rc=2, НЕ PASS"),
         ]
         bad_rc = [t for (args, want, t) in cases_rc if final_rc(*args) != want]
         if not bad_rc:
@@ -480,19 +497,21 @@ def main() -> int:
                 url = host.rstrip("/") + concrete_path(str(op["path"]))
                 code, got = check_url(url, str(op.get("method", "GET")))
                 results.append((op, code, got))
-        rc, bad, unknown = verdict(results)
-        passed = len(targets) - len(bad) - len(unknown)
-        rc = final_rc(bad, passed, len(targets))
+        violators, contracts, unknown = verdict(results, args.five_xx_violator)
+        passed = len(targets) - len(violators) - len(contracts) - len(unknown)
+        rc = final_rc(violators, contracts, unknown, passed, len(targets))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
         # в логе не видно, какие именно `метод+путь+bc` не измерены (@TL `00:16` п.3).
         for svc, lst in sorted(per_service.items()):
             svc_res = [r for r in results if svc_map[str(r[0].get("bc"))] == svc]
             svc_pass = sum(1 for _op, code, _u in svc_res if code in (401, 403))
             print(f"   {svc:22} {svc_pass}/{len(svc_res)} дают 401 без токена")
-        for b in bad:
-            print(f"::error::apim-auth(service): {b}")
+        for v in violators:
+            print(f"::error::apim-auth(service)[violator]: {v}")
+        for c in contracts:
+            print(f"::error::apim-auth(service)[contract]: {c}")
         for u in unknown:
-            print(f"::warning::apim-auth(service): {u}")
+            print(f"::warning::apim-auth(service)[unknown]: {u}")
 
         map_note = f"map={args.service_map}" if args.service_map else f"template={args.host_template}"
         images_note = resolve_images(args.images, list(per_service.keys()))
@@ -502,16 +521,16 @@ def main() -> int:
         if rc == 2:
             print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
                   "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(bad), len(unknown), images_note))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(violators), len(contracts), len(unknown), images_note))
             return 2
         # @AR `17:20`: квитанция обязана содержать «чем измерено». Без `--where` это не квитанция,
         # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
         if rc == 0 and not args.where:
             print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
                   "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(bad), len(unknown), images_note))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(violators), len(contracts), len(unknown), images_note))
             return 2
-        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(bad), len(unknown), images_note))
+        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(violators), len(contracts), len(unknown), images_note))
         return rc
 
     if args.dry_run:
@@ -533,26 +552,29 @@ def main() -> int:
 
     images_note = resolve_images(args.images, []) if not args.direct else ""
     results = [(op, *check_one(args.base, op)) for op in targets]
-    _rc, bad, unknown = verdict(results, args.five_xx_violator)
-    passed = len(targets) - len(bad) - len(unknown)
+    violators, contracts, unknown = verdict(results, args.five_xx_violator)
+    passed = len(targets) - len(violators) - len(contracts) - len(unknown)
     # `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
     # пустоте». Единое правило: нет ни одного реального ответа → `rc=2` (UNKNOWN), не успех.
-    rc = final_rc(bad, passed, len(targets))
+    rc = final_rc(violators, contracts, unknown, passed, len(targets))
 
     if args.json:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
-                          "failures": bad, "unresolved": unknown, "rc": rc}, ensure_ascii=False, indent=2))
+                          "violators": violators, "contract": contracts, "unknown": unknown,
+                          "rc": rc}, ensure_ascii=False, indent=2))
     else:
-        for b in bad:
-            print(f"::error::apim-auth: {b}")
+        for v in violators:
+            print(f"::error::apim-auth[violator]: {v}")
+        for c in contracts:
+            print(f"::error::apim-auth[contract]: {c}")
         for u in unknown:
-            print(f"::warning::apim-auth: {u}")
+            print(f"::warning::apim-auth[unknown]: {u}")
         verdict_word = "PASS" if rc == 0 else ("UNKNOWN" if rc == 2 else "FAIL")
         print(f"{verdict_word}: измерено {passed}/{len(targets)} операций, дающих 401 без токена"
               + (" (ни один ответ не получен — это не «зелено»)" if rc == 2 else ""))
         # Квитанция — ПОСЛЕДНЕЙ строкой: её читают и копируют, поэтому она должна быть в хвосте.
         print(receipt_line("ii-a", current_ref(), passed, len(targets), rc,
-                           args.where or args.base, len(bad), len(unknown), images_note))
+                           args.where or args.base, len(violators), len(contracts), len(unknown), images_note))
     return rc
 
 
