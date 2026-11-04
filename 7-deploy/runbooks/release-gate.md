@@ -251,3 +251,6 @@ podman inspect xdiary-client --format '{{range .Config.Env}}{{println .}}{{end}}
 - **Правило:** новое исключение в `deploy.yml` — только через ADR (ADR-027 §3.3), не
   добавлением `always()` по месту. Проверка: `python tools/check_lock.py` (правило 4).
 
+## APIM и контракты
+
+Импорт спек и drift-check — `7-deploy/runbooks/apim.md` (DO-056).
