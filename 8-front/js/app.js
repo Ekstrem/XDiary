@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.89"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.90"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -236,9 +236,9 @@
 
   // ---- блокировка ----
   function ensureToken(pin) {
-    return Api.auth.login(pin).catch(function () {
-      return Api.privacy.setPin(pin).then(function () { return Api.auth.login(pin); });
-    });
+    // FE-042 / ADR-021: PIN — локальный замок устройства. Серверный PIN не заводим
+    // и не передаём: легаси-эндпоинты /privacy/pin/* остаются только в api.js (этап 3).
+    return Api.auth.login(pin);
   }
   function showLockScreen() {
     // FE-029/FE-032: причина показа замка — в консоль, чтобы не гадать по E2E
@@ -2251,12 +2251,8 @@
         if (!Pin.isValidPin(nw)) { toast("Новый PIN: 4–8 цифр"); return; }
         if (nw !== cf) { toast("PIN не совпадают"); return; }
         Pin.setPin(nw).then(function () {
-          // FE-008: синхронизируем PIN на сервере с текущим JWT (первичная установка — анонимно)
-          Api.privacy.setPin(nw, has ? cur : null).then(function () {
-            toast("PIN сохранён");
-          }, function (e) {
-            toast("PIN сохранён локально, но сервер ответил: " + e.message);
-          });
+          // FE-042 / ADR-021: PIN только локальный, серверная синхронизация снята (этап 1).
+          toast("PIN сохранён");
           $("pin-modal").classList.add("hidden");
           refreshPinStatus();
         });
@@ -2268,17 +2264,16 @@
     if (!cur) { toast("Введите текущий PIN"); return; }
     confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
-      // FE-008/009: снимаем PIN на сервере С ТОКЕНОМ и currentPin (до logout), затем локально
-      Api.privacy.removePin(cur).then(function () {
-        toast("PIN удалён");
-      }, function (e) {
-        toast("PIN удалён локально, но сервер ответил: " + e.message);
-      }).then(function () {
-        return Pin.removePin();
-      }).then(function () {
-        Api.auth.logout();
-        $("pin-modal").classList.add("hidden");
-        refreshPinStatus();
+      // FE-042 / ADR-021: PIN локальный — проверяем его локально (раньше проверял сервер),
+      // затем снимаем только локально; серверные /privacy/pin/* больше не вызываются.
+      Pin.verifyPin(cur).then(function (valid) {
+        if (!valid) { toast("Текущий PIN неверен"); return; }
+        Pin.removePin().then(function () {
+          toast("PIN удалён");
+          Api.auth.logout();
+          $("pin-modal").classList.add("hidden");
+          refreshPinStatus();
+        });
       });
     });
   }
