@@ -14,6 +14,9 @@
     python 9-tests/scripts/check_apim_auth.py --dry-run          # офлайн: сколько операций и какие
     python 9-tests/scripts/check_apim_auth.py --selftest         # без сети: доказательство, что краснеет
     python 9-tests/scripts/check_apim_auth.py --base URL --json   # машинный вывод
+    python 9-tests/scripts/check_apim_auth.py --direct --dry-run  # план: BC -> сервис (офлайн)
+    python 9-tests/scripts/check_apim_auth.py --direct --only Catalog,Analytics   # срез по 5 BC
+    python 9-tests/scripts/check_apim_auth.py --direct --service-map map.json     # свои адреса
 
 Коды возврата: 0 — все неанонимные операции дают 401; 1 — есть нарушения (список в выводе);
 2 — не найдена база/индекс/нет PyYAML (это не «зелено», а «не проверено»).
@@ -221,6 +224,8 @@ def main() -> int:
     ap.add_argument("--host-template", default="http://xdiary-{service}:8080",
                     help="шаблон адреса сервиса для --direct (по умолчанию http://xdiary-{service}:8080)")
     ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
+    ap.add_argument("--service-map", default="",
+                    help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
 
     if args.selftest:
@@ -236,20 +241,43 @@ def main() -> int:
         targets = [op for op in targets if str(op.get("bc", "")).lower() in allowed]
         print(f"фильтр --only {sorted(allowed)}: целей {len(targets)}")
 
-    # --- режим --direct: измеряем УСЛОВИЕ @AR (прямой запрос в сервис), а не прокси ---
+    # --- режим --direct: измеряем УСЛОВИЕ @AR (ii-b): прямой запрос в сервис, а не в прокси ---
     if args.direct:
-        unmapped = sorted({str(op.get("bc")) for op in targets if str(op.get("bc")) not in SERVICE_BY_BC})
+        # `--service-map` (@AR `17:05`): JSON вида {"Catalog": "xdiary-catalog:8080"} или
+        # {"Catalog": "http://10.0.0.5:8080"}. Нужен, когда имена сервисов в контуре другие.
+        svc_map = dict(SERVICE_BY_BC)
+        if args.service_map:
+            try:
+                # utf-8-sig: файлы, отредактированные на Windows, часто с BOM — иначе json
+                # падает «Unexpected UTF-8 BOM», и это выглядело бы как ошибка контура.
+                with open(args.service_map, "r", encoding="utf-8-sig") as fh:
+                    over = json.load(fh)
+                svc_map.update({str(k): str(v) for k, v in over.items()})
+                print(f"маппинг из {args.service_map}: {len(over)} переопределений")
+            except (OSError, ValueError) as e:
+                print(f"::error::check_apim_auth: не читается --service-map {args.service_map}: {e}")
+                return 2
+        unmapped = sorted({str(op.get("bc")) for op in targets if str(op.get("bc")) not in svc_map})
         if unmapped:
             print(f"::error::check_apim_auth: нет маппинга BC → сервис для {unmapped}")
             return 2
+
+        def host_for(bc: str) -> str:
+            val = svc_map[bc]
+            if "://" in val:
+                return val                      # полный URL из --service-map
+            if ":" in val:
+                return "http://" + val          # «host:port» — порт уже задан, шаблон не нужен
+            return args.host_template.format(service=val)   # имя сервиса → шаблон
+
         per_service: dict[str, list[dict]] = {}
         for op in targets:
-            per_service.setdefault(SERVICE_BY_BC[str(op.get("bc"))], []).append(op)
+            per_service.setdefault(svc_map[str(op.get("bc"))], []).append(op)
         if args.dry_run:
             for svc, lst in sorted(per_service.items()):
-                print(f"   {svc:22} {len(lst):3} операций   {args.host_template.format(service=svc)}")
+                print(f"   {svc:24} {len(lst):3} операций   {host_for(str(lst[0].get('bc')))}")
             print(f"DRY-RUN --direct: сервисов {len(per_service)}, целей {len(targets)} "
-                  f"(снаружи не видно — запускать изнутри контура, @DO)")
+                  f"(измерять ИЗНУТРИ контура: снаружи xdiary-* не резолвится — тогда rc=2)")
             return 0
 
         results: list[tuple[dict, int | None, str]] = []
