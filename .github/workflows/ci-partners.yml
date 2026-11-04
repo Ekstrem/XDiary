@@ -70,7 +70,7 @@ jobs:
             while IFS= read -r name; do
               [ -n "$name" ] && echo "::error title=[tests] Partners $(basename "$p")::Failed ${name}"
             done < /tmp/names.txt
-          else
+          elif [ "$fail" -ne 0 ]; then
             reason=$(grep -E 'error [A-Z]+[0-9]+|Exception|MSB[0-9]+' "$log" | head -3 || true)
             echo "::error title=[tests] Partners $(basename "$p") (без Failed)::${reason:-нет строк ошибок в логе}"
           fi
