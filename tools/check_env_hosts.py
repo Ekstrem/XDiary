@@ -30,7 +30,7 @@ def parse_hosts(text):
     """
     rows = []
     for line in text.splitlines():
-        line = line.strip()
+        line = line.strip().lstrip('\ufeff')
         if not line.startswith('ConnectionStrings__') or '=' not in line:
             continue
         key, value = line.split('=', 1)
@@ -65,6 +65,8 @@ def selftest():
          '10.89.9.10', 0)
     # ключ случая: пароль в значении не должен влиять на результат и не должен печататься
     case('ConnectionStrings__A=Host=zzz;Password=secret-value', '10.89.9.10', 1)
+    # BOM в начале файла не должен «съедать» первую строку
+    case('\ufeffConnectionStrings__A=Host=10.89.9.10;Password=p', '10.89.9.10', 0)
     # CRLF из Windows не должен ломать разбор
     case('ConnectionStrings__A=Host=10.89.9.10;Password=p\r', '10.89.9.10', 0)
 
@@ -93,7 +95,9 @@ def main():
     if not os.path.exists(a.env):
         print('::error::check_env_hosts: нет файла %s' % a.env)
         return 2
-    rows = parse_hosts(open(a.env, encoding='utf-8', errors='replace').read())
+    # utf-8-sig: BOM в начале файла (типично для Windows-редакторов) иначе съедал первую
+    # строку, и гейт отвечал «проверять нечего» — то есть пропускал бы дефект молча.
+    rows = parse_hosts(open(a.env, encoding='utf-8-sig', errors='replace').read())
     if not rows:
         print('::error::check_env_hosts: в %s нет строк ConnectionStrings__* — проверять нечего' % a.env)
         return 2

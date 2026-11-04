@@ -78,6 +78,32 @@ jobs:
           python tools/check_edm.py --selftest
           python tools/check_edm.py --range "origin/main...HEAD"
 
+      - name: Дрейф контура в .env — хосты БД (DO-076, @TL 2026-11-05 02:33)
+        # Инцидент 2026-11-05: в прод-`secrets/.env` 10 строк ConnectionStrings__* смотрели на
+        # dev-хост 77.91.73.67 вместо прод-БД 10.89.9.10. До первого пересоздания контейнера
+        # дефект невидим; при пересоздании сервис падает 28P01 (или, хуже, пишет в чужую БД).
+        #
+        # Гейт проверяет только ИМЕНА ХОСТОВ (пароли не читаются и не печатаются), поэтому
+        # его можно гонять в публичном CI. Настоящего .env в репозитории нет — проверяем
+        # двумя сторонами (§5.4): дефект (dev-хост → rc=1) и норма (прод-хост → rc=0).
+        run: |
+          python tools/check_env_hosts.py --selftest
+
+          printf 'ConnectionStrings__JournalDb=Host=77.91.73.67;Port=5432;Database=journal;Username=journal;Password=fake\n' \
+            > /tmp/drift.env
+          if python tools/check_env_hosts.py --env /tmp/drift.env --expect 10.89.9.10; then
+            echo "::error::гейт пропустил dev-хост в прод-.env — это инцидент, а не мелочь"
+            exit 1
+          else
+            echo "дефект пойман: dev-хост даёт rc=1 ✔"
+          fi
+
+          printf 'ConnectionStrings__JournalDb=Host=10.89.9.10;Port=5432;Database=journal;Username=journal;Password=fake\n' \
+            > /tmp/ok.env
+          python tools/check_env_hosts.py --env /tmp/ok.env --expect 10.89.9.10
+          echo "норма принята: прод-хост даёт rc=0 ✔"
+
+
       - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)
         # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
         # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).
