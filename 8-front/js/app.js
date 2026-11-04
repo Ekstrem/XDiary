@@ -268,7 +268,7 @@
     if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
     // FE-027: me() с таймаутом — иначе экран блокировки остаётся навсегда
     withTimeout(Api.clients.me(), 2500, null).then(function (c) {
-      if (c && c.verified && (c.linkedPartnerId || c.displayName)) { openJournal(); return; }
+      if (c && c.verified && c.displayName) { openJournal(); return; }
       // FE-029/FE-031: подтверждён, но «я» не привязано — всегда шаг привязки, не телефон заново
       if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showProfileStep(); return; }
       openOnboarding();
@@ -284,14 +284,6 @@
     $("onb-phone-input").value = "";
     $("onb-otp-input").value = "";
     $("onb-otp-phone").textContent = "";
-  }
-  function showLinkStep() {
-    showView("onboarding");
-    $("onb-phone").classList.add("hidden");
-    $("onb-otp").classList.add("hidden");
-    $("onb-link").classList.remove("hidden");
-    showOnbLinkError("");
-    renderLinkPartners();
   }
   // FE-038 (0.88): шаг «Кто вы?» — имя и пол в профиль клиента, партнёра не создаём
   var onbGender = "";
@@ -338,87 +330,6 @@
       console.error("profileSave error:", e);
       $("btn-onb-profile").disabled = false;
       showOnbProfileError("Не удалось сохранить: " + apiErrorText(e, "ошибка"));
-    });
-  }
-  function showOnbLinkError(msg) {
-    var el = $("onb-link-error");
-    if (!el) return;
-    if (msg) { el.textContent = msg; el.classList.remove("hidden"); }
-    else { el.textContent = ""; el.classList.add("hidden"); }
-  }
-  function linkPartnerClick(pid, pname) {
-    // FE-031: фактическое состояние в лог — по нему видно, дошёл ли клик
-    console.error("linkPartner: onbClientId=" + JSON.stringify(onbClientId) + ", partnerId=" + JSON.stringify(pid));
-    if (!onbClientId) { showOnbLinkError("Сессия не найдена — начните идентификацию заново."); return; }
-    if (!pid) { showOnbLinkError("Не удалось определить партнёра — обновите список."); return; }
-    // FE-033: спиннер + таймаут 10 с — иначе привязка выглядит зависшей
-    showOnbLinkError("Привязываю «это я»…");
-    withTimeout(Api.clients.linkPartner(onbClientId, pid), 10000, "TIMEOUT").then(function (res) {
-      if (res === "TIMEOUT") {
-        console.error("linkPartner: таймаут 10 c");
-        showOnbLinkError("Сервер не ответил за 10 секунд — нажмите карточку ещё раз.");
-        return;
-      }
-      toast("Это я: " + (pname || ""));
-      openJournal();
-    }, function (e) {
-      console.error("linkPartner error:", e);
-      showOnbLinkError("Не удалось привязать «я»: " + apiErrorText(e, "ошибка") + ". Попробуйте ещё раз.");
-      toast("Ошибка: " + apiErrorText(e, "привязка"));
-    });
-  }
-  function renderLinkCards(partners) {
-    var list = $("onboarding-list");
-    if (!list) return;
-    list.innerHTML = "";
-    if (!partners || !partners.length) {
-      // BE-048: 401 или пусто = «своих нет» → предлагаем создать, а не пустой экран
-      var empty = document.createElement("p");
-      empty.className = "muted";
-      empty.textContent = "Своих партнёров пока нет — создайте карточку «Это я» кнопкой ниже, чтобы продолжить.";
-      list.appendChild(empty);
-      list._fe031For = onbClientId;
-      showOnbLinkError("");
-      return;
-    }
-    partners.forEach(function (p) {
-      var c = document.createElement("button");
-      c.type = "button";
-      c.className = "partner-card";
-      c.setAttribute("data-partner-id", (p && p.id) || "");
-      c.setAttribute("data-partner-name", (p && p.name) || "");
-      c.innerHTML = avatarHtml(p) + "<span>Это я: " + esc(p.name) + "</span>";
-      list.appendChild(c);
-    });
-    list._fe031For = onbClientId;
-    showOnbLinkError("");
-  }
-  function renderLinkPartners() {
-    showOnbLinkError("");
-    // FE-031: onbClientId мог сброситься (openOnboarding) — берём из localStorage
-    onbClientId = onbClientId || storedClientId();
-    var list = $("onboarding-list");
-    if (!list) return;
-    // FE-031: делегирование — обработчик на контейнере переживает перерисовку,
-    // поэтому клик не уходит в отсоединённый узел
-    if (!list._fe031Delegated) {
-      list._fe031Delegated = true;
-      list.addEventListener("click", function (e) {
-        var card = e.target && e.target.closest ? e.target.closest(".partner-card") : null;
-        if (!card) return;
-        linkPartnerClick(card.getAttribute("data-partner-id"), card.getAttribute("data-partner-name"));
-      });
-    }
-    // FE-031: не перерисовываем список для того же клиента — элементы остаются теми же
-    if (list._fe031For === onbClientId && list.children.length > 0) return;
-    Api.partners.list().then(function (partners) {
-      renderLinkCards(partners || []);
-    }).catch(function (e) {
-      // BE-048: partners теперь [Authorize]; 401 до токена = «своих нет», а не ошибка
-      console.error("partners/list:", e);
-      if (e && e.status === 401) { renderLinkCards([]); return; }
-      showOnbLinkError("Не удалось загрузить партнёров: " + apiErrorText(e, "ошибка"));
-      renderLinkCards([]);
     });
   }
   // P0 (2026-11-08): ошибки register/verify должны быть видны, а не глотаться
@@ -506,18 +417,16 @@
     if (!Api.config.token()) { st.textContent = "не пройдена (нет входа)"; return; }
     Api.clients.me().then(function (c) {
       st.textContent = (c && c.verified)
-        ? ("телефон " + (c.phone || "—") + ", подтверждён" + (c.linkedPartnerId ? ", «я» привязано" : ""))
+        ? ("телефон " + (c.phone || "—") + ", подтверждён")
         : "не пройдена";
     }, function () { st.textContent = "не пройдена"; });
   }
-  function renderSelfStatus() {    if (!Api.config.token()) { if ($("self-status")) $("self-status").textContent = "не выбрано"; return; }
+  function renderSelfStatus() {
+    if (!Api.config.token()) { if ($("self-status")) $("self-status").textContent = "не заполнен"; return; }
     Api.clients.me().then(function (c) {
       if (!$("self-status")) return;
-      if (c && c.linkedPartnerId) {
-        Api.partners.get(c.linkedPartnerId).then(function (p) {
-          if ($("self-status")) $("self-status").textContent = "это " + ((p && p.name) || "—");
-        }).catch(function () {});
-      } else $("self-status").textContent = "не выбрано";
+      // 0.88 (FE-038/E7): «я» — профиль Client (displayName/gender), привязки к партнёру больше нет
+      $("self-status").textContent = (c && c.displayName) ? (c.displayName + (c.gender ? " (" + c.gender + ")" : "")) : "не заполнен";
     }).catch(function () { if ($("self-status")) $("self-status").textContent = "—"; });
   }
   function lock() {
@@ -1310,7 +1219,7 @@
         partnerLinkWarning = "";
         toast(warn);
         if (partnerEditReturn === "onboarding") {
-          showLinkStep();
+          showProfileStep();
           setTimeout(function () { showOnbError("onb-link-error", warn); }, 0);
         }
         return;
@@ -1320,7 +1229,7 @@
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
         reopenWizard();
       } else if (partnerEditReturn === "onboarding") {
-        showLinkStep();
+        showProfileStep();
       } else {
         showView("partners");
         renderPartners();
@@ -2460,10 +2369,9 @@
     $("btn-onb-resend").addEventListener("click", submitOnbPhone);
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
     $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
-    $("btn-onboarding-add").addEventListener("click", function () { partnerEditReturn = "onboarding"; openPartnerEdit(null); });
     // FE-026 (вариант A): «Пропустить» убран — онбординг обязателен, иначе журнал без токена
     $("btn-self-change").addEventListener("click", function () {
-      Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showLinkStep(); }, function () { openOnboarding(); });
+      Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showProfileStep(); }, function () { openOnboarding(); });
     });
     // FE-023: вход в идентификацию из Настроек + сброс устройства (данные на сервере не трогаем)
     $("btn-ident-start").addEventListener("click", function () { openOnboarding(); });
@@ -2487,12 +2395,8 @@
         function done() { toast("Устройство сброшено"); openOnboarding(); }
       });
     });
-    $("btn-self-clear").addEventListener("click", function () {
-      Api.clients.me().then(function (c) {
-        if (!c || !c.id) return;
-        Api.clients.unlinkPartner(c.id).then(function () { toast("«я» снят"); renderSelfStatus(); }, function (e) { toast("Ошибка: " + e.message); });
-      });
-    });
+    // 0.88 (FE-038/E7): отдельной «привязки я» больше нет — кнопка ведёт в шаг профиля
+    if ($("btn-self-clear")) $("btn-self-clear").addEventListener("click", function () { showProfileStep(); });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
     $("btn-import-open").addEventListener("click", openImport);
     $("btn-import-back").addEventListener("click", function () { showView("settings"); });
