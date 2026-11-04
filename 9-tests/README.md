@@ -51,30 +51,47 @@
 последние правки `tools/check_front_e2e.py` — `do(TE-035)` (@DO), то есть инварианты
 `global-setup` вносил он, а не я.
 
-## Структура
+## Структура (ADR-028 ред. 3 — тесты живут в папках сервисов)
+
+Обновлено `2026-11-04` после миграции: **в `9-tests` больше нет сервисных тестов**, здесь
+остались только фронтовые (браузер) и приёмочные скрипты. Тест сервиса — в его папке
+(`6-msa/BC-<X>/src/*Tests`), тест пары — у потребителя (`<Потребитель>.ApiTests`).
+
 ```
 9-tests/
-  Journal/Journal.IntegrationTests/              — TE-001 (журнал: Command → Query → Assert + инварианты)
-  Partners.Catalog/PartnersCatalog.IntegrationTests/ — TE-002
-  Somatic.Daily/SomaticDaily.IntegrationTests/   — TE-003
-  Gateways/Gateways.IntegrationTests/            — TE-004
-  Analytics.Privacy/AnalyticsPrivacy.IntegrationTests/ — TE-005
-  Portability.Gateway/PortabilityGateway.IntegrationTests/ — TE-006
-  E2E/E2E.Tests/                                 — TE-007..TE-009 (HTTP, env-gated по XDIARY_E2E_BASE_URL)
-  Load/                                          — TE-010..TE-011 (k6 load.js + load.ps1 + план)
+  RnD/front-e2e/          — фронтовые Playwright-спеки (маркер `front-e2e.md`, зона @TE)
+  scripts/                — приёмочные скрипты (ADR-028, 0.88, ADR-028-изоляция) + Python-двойники
 ```
+Нагрузка переехала: `7-deploy/load/{load.js,load.ps1,README.md}` (зона @DO).
 
-## Карта TE → тесты
-| TE | Файлы | Тип |
+## Карта TE → тесты (актуальные проекты, проверено `git ls-tree` на `2026-11-04`)
+
+| TE | Проект (путь в `origin`) | Тип |
 |---|---|---|
-| TE-001 | `Journal/Journal.IntegrationTests/{RecordLifecycleTests,RecordInvariantTests}.cs` | интеграционные (домен) |
-| TE-002 | `Partners.Catalog/PartnersCatalog.IntegrationTests/{PartnerTests,CatalogTests}.cs` | интеграционные |
-| TE-003 | `Somatic.Daily/SomaticDaily.IntegrationTests/{SomaticSeriesTests,DailyMetricsTests}.cs` | интеграционные |
-| TE-004 | `Gateways/Gateways.IntegrationTests/{GarminGatewayTests,AppleHealthGatewayTests}.cs` | интеграционные |
-| TE-005 | `Analytics.Privacy/AnalyticsPrivacy.IntegrationTests/{AnalyticsTests,PrivacyTests}.cs` | интеграционные |
-| TE-006 | `Portability.Gateway/PortabilityGateway.IntegrationTests/{PortabilityTests,GatewayJwtTests}.cs` | интеграционные |
-| TE-007…009 | `E2E/E2E.Tests/{AuthE2ETests,JournalE2ETests,SomaticAnalyticsE2ETests}.cs` | E2E (HTTP, env-gated) |
-| TE-010…011 | `Load/{load.js,load.ps1}` + `Load/README.md` | нагрузка (скрипты + план) |
+| TE-001 | `6-msa/BC-Journal/src/Journal.IntegrationTests` (+ `Journal.Domain.Tests`, `Journal.ApiTests`) | интеграционные (домен) |
+| TE-002 | `6-msa/BC-Partners/src/Partners.IntegrationTests`, `6-msa/BC-Catalog/src/Catalog.IntegrationTests` | интеграционные |
+| TE-003 | `6-msa/BC-SomaticSeries/src/SomaticSeries.IntegrationTests`, `6-msa/BC-DailyMetrics/src/DailyMetrics.IntegrationTests` | интеграционные |
+| TE-004 | `6-msa/ApiGateway.Tests/Gateways.IntegrationTests` (+ `…/GatewaysApi.IntegrationTests`) | интеграционные |
+| TE-005 | `6-msa/BC-Analytics/src/Analytics.ApiTests/AnalyticsPrivacy.IntegrationTests`, `6-msa/BC-Privacy/src/Privacy.IntegrationTests` | интеграционные |
+| TE-006 | `6-msa/BC-Portability/src/Portability.ApiTests/PortabilityGateway.IntegrationTests` | интеграционные |
+| TE-007…009 | `6-msa/BC-Client/src/Client.ApiTests/ApiTests` (HTTP, env-gated `XDIARY_E2E_BASE_URL`) | E2E |
+| TE-010…011 | `7-deploy/load/` (k6 `load.js` + `load.ps1` + план) | нагрузка |
+| TE-050 | `6-msa/BC-Journal/src/Journal.ApiTests/PartnerSoftDeleteTests.cs` (5 `[ApiFact]`) | контракт (мягкое удаление) |
+| — | пары (ADR-028): `BC-Client/…/ContractClientJournal.IntegrationTests`, `BC-Catalog/…/PartnersCatalog.IntegrationTests`, `BC-DailyMetrics/…/SomaticDaily.IntegrationTests` | consumer-driven |
+| — | фронт: `9-tests/RnD/front-e2e/**` | Playwright (браузер) |
+
+Всего тестовых проектов в `origin`: **31** (сверка — `git ls-tree -r --name-only origin/main | grep -c 'Tests.*csproj'`).
+
+## Пределы песочницы агента (важно для прогонов)
+
+- **`dotnet test` локально не запускается:** `testhost` падает на старте с
+  `System.ComponentModel.Win32Exception (5)` в `Process.GetProcessHandle` — песочница
+  запрещает работу с handle'ами процессов. Это **не** падение теста и **не** красный продукт;
+  `dotnet build` при этом работает (пакеты в кэше).
+- **Стенды недоступны:** `xdiary-vps2…` → «Базовое соединение закрыто», Playwright не стартует.
+- Вывод: карточки, у которых критерий — «прогон», закрываются **по квитанции CI/@DO**, а не
+  по «у меня локально прошло». Число `passed` из песочницы получить нельзя — можно только
+  сборку, структуру тестов и наличие маршрутов, которые тест вызывает.
 
 ## Статус по TE
 - TE-001..TE-004 — ✅ закрыта (TL).
