@@ -44,35 +44,46 @@ def load_ops(root):
 
 
 def classify(code):
-    """Классификация по решению @AR (2026-11-04 17:55, занесено в ADR-026).
+    """Классы по канону `ADR-026` §«Квитанция (ii-b)» (решение @AR/@TL 2026-11-04/05).
 
-    Почему `400` — это FAIL, а не «без проверки»: в ASP.NET `[Authorize]` выполняется
-    ДО model binding, значит `400` означает, что запрос **дошёл до бизнес-логики без токена**.
-    Открытая ручка с невалидным телом ответит `400` — это и есть открытость.
+    * `401`/`403` — **protected** (единственный признак защиты);
+    * `404`/`405` на операции, которая **есть в индексе**, — **contract**: индекс говорит
+      «операция есть», сервис — «маршрута нет»; это дефект реестра (класс DO-050),
+      а не «неизвестно» и не защита;
+    * нет ответа (`000`, таймаут, обрыв) — **unknown**; только этот класс «не измерен»;
+    * любой другой полученный ответ (`2xx`, `400`, `415`, `429`, `5xx`) — **violator**:
+      ответ получен ⇒ запрос дошёл до сервиса и был обработан без токена.
 
-    `UNKNOWN` остаётся только за `000` (нет ответа: сервис не поднят/не резолвится) —
-    иначе гейт «зеленеет на недоступном стенде», а такой гейт хуже отсутствующего.
+    Правило намеренно не интерпретирует смысл кода: так число воспроизводимо, и гейт
+    не может «позеленеть», сложив открытые ручки в неизвестность.
     """
     if code in ('401', '403'):
         return 'protected'
+    if code in ('404', '405'):
+        return 'contract'
     if code in ('000', '', None):
         return 'unknown'
-    return 'open'
+    return 'violator'
 
 
 def build_script(ops, svc, port='8080'):
+    """Скрипт для контейнера-измерителя: на каждую операцию печатает маркер и код ответа."""
     lines = []
     for op in ops:
         path = re.sub(r'\{[^}]+\}', '00000000-0000-0000-0000-000000000000', op['path'])
         m = op['method']
         data = " -H 'Content-Type: application/json' -d '{}'" if m == 'POST' else ''
         lines.append(
-            "echo \"__%s %s\"; curl -s -o /dev/null -w '%%{http_code}\\n' -m 6%s -X %s "
-            "'http://%s:%s%s'" % (m, op['operationId'], data, m, svc, port, path))
+            ("echo \"__%s %s\"; curl -s -o /dev/null -w '%%{http_code}\\n' -m 6%s -X %s "
+             "'http://%s:%s%s'") % (m, op['operationId'], data, m, svc, port, path))
     return '; '.join(lines)
 
 
 def run_remote(remote, key, inner_cmd, timeout=900):
+    """Выполнить команду на контуре по ssh; возвращает stdout как текст.
+
+    ВАЖНО: без `text=True` — на Windows он вставляет CRLF, и bash падает на `do\r`.
+    """
     cmd = ['ssh', '-i', os.path.expanduser(key), '-o', 'BatchMode=yes',
            '-o', 'StrictHostKeyChecking=no', remote, inner_cmd]
     r = subprocess.run(cmd, capture_output=True, timeout=timeout)
@@ -135,8 +146,10 @@ def receipt(ref, where, tot, rc, images):
     """
     verdict = 'PASS' if rc == 0 else 'FAIL'
     img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
-    return ('REF=%s | (ii-b) %s защищено=%d/%d нарушителей=%d неизвестно=%d | rc=%d | where=%s | images=%s'
-            % (ref, verdict, tot['protected'], tot['ops'], tot['open'], tot['unknown'], rc, where, img))
+    return ('REF=%s | (ii-b) %s защищено=%d/%d нарушителей=%d контракт=%d неизвестно=%d | rc=%d | '
+            'where=%s | images=%s'
+            % (ref, verdict, tot['protected'], tot['ops'], tot['violator'], tot['contract'],
+               tot['unknown'], rc, where, img))
 
 
 def measure(remote, key, only=None, service_map=None):
@@ -183,13 +196,12 @@ def measure(remote, key, only=None, service_map=None):
 
 
 def exit_code(tot):
-    """Код возврата по правилу @AR/@TL: PASS только при «нарушителей 0 И неизвестно 0».
+    """0 — измерено, нарушителей 0, контрактов 0, неизвестных 0.
 
-    0 — измерено и всё защищено; 1 — есть нарушители (открытые ручки); 2 — есть неизвестные
-    (сервис не ответил) ⇒ «не измерено», и это НЕ pass. Такое разделение не даёт гейту
-    зеленеть на недоступном стенде — ровно класс «зелёный без шага».
+    1 — есть нарушители или контракты (условие не выполнено);
+    2 — есть неизвестные (сервис не ответил) ⇒ «не измерено», это НЕ pass.
     """
-    if tot.get('open'):
+    if tot.get('violator') or tot.get('contract'):
         return 1
     if tot.get('unknown'):
         return 2
@@ -197,35 +209,34 @@ def exit_code(tot):
 
 
 def report(results):
-    print('  %-20s %9s %9s %6s %7s' % ('BC', 'операций', '401/403', 'open', 'unknown'))
-    tot = {'protected': 0, 'open': 0, 'unknown': 0, 'ops': 0}
-    open_list, unknown_list = [], []
+    print('  %-20s %9s %9s %8s %9s' % ('BC', 'операций', 'protected', 'violator', 'contract/unknown'))
+    tot = {'protected': 0, 'violator': 0, 'contract': 0, 'unknown': 0, 'ops': 0}
+    bad_list = []
     for bc, r in sorted(results.items()):
-        cls = {'protected': 0, 'open': 0, 'unknown': 0}
+        cls = {'protected': 0, 'violator': 0, 'contract': 0, 'unknown': 0}
         for name, code in r['per_op']:
             c = classify(code)
             cls[c] += 1
-            if c == 'open':
-                open_list.append('%s %s -> %s' % (name, bc, code))
-            elif c == 'unknown':
-                unknown_list.append('%s %s -> %s' % (name, bc, code))
+            if c in ('violator', 'contract'):
+                bad_list.append('%s %s -> %s (%s)' % (name, bc, code, c))
         for k in cls:
             tot[k] += cls[k]
         tot['ops'] += r['ops']
-        print('  %-20s %9d %9d %6d %7d' % (bc, r['ops'], cls['protected'], cls['open'], cls['unknown']))
-    print('\n  ИТОГО: операций %d | 401/403 (защищено) %d | OPEN (нарушители) %d | UNKNOWN %d'
-          % (tot['ops'], tot['protected'], tot['open'], tot['unknown']))
-    print('  (классификация @AR 17:55: 400/404/415 = OPEN; UNKNOWN только за 000)')
-    for d in open_list[:20]:
-        print('   OPEN:', d)
-    return tot, open_list
+        print('  %-20s %9d %9d %8d %5d/%-3d'
+              % (bc, r['ops'], cls['protected'], cls['violator'], cls['contract'], cls['unknown']))
+    print('\n  ИТОГО: операций %d | protected %d | violator %d | contract %d | unknown %d'
+          % (tot['ops'], tot['protected'], tot['violator'], tot['contract'], tot['unknown']))
+    for d in bad_list[:20]:
+        print('   НАРУШЕНИЕ:', d)
+    return tot, bad_list
 
 
 def selftest():
     """Двойной контроль классификации: 401/403 = защита, 2xx = открыто, прочее = не проверено."""
-    cases = [('401', 'protected'), ('403', 'protected'), ('200', 'open'),
-             ('201', 'open'), ('400', 'open'), ('404', 'open'),
-             ('415', 'open'), ('000', 'unknown')]
+    cases = [('401', 'protected'), ('403', 'protected'),
+             ('200', 'violator'), ('201', 'violator'), ('400', 'violator'),
+             ('415', 'violator'), ('429', 'violator'), ('500', 'violator'),
+             ('404', 'contract'), ('405', 'contract'), ('000', 'unknown')]
     ok = 0
     for code, want in cases:
         got = classify(code)
@@ -244,26 +255,32 @@ def selftest():
         def log_message(self, *a):
             pass
 
-    if classify('400') == 'open' and exit_code({'open': 1, 'unknown': 0}) == 1:
+    if exit_code({'violator': 0, 'contract': 1, 'unknown': 0}) == 1:
+        ok += 1
+    else:
+        print('  [FAIL] contract (404/405) должен ломать гейт: rc=1, а не PASS')
+    if classify('400') == 'violator' and exit_code({'violator': 1, 'contract': 0, 'unknown': 0}) == 1:
         ok += 1
     else:
         print('  [FAIL] 400 должен давать нарушителя и rc=1')
-    if exit_code({'open': 0, 'unknown': 5}) == 2:
+    if exit_code({'violator': 0, 'contract': 0, 'unknown': 5}) == 2:
         ok += 1
     else:
         print('  [FAIL] только неизвестные должны давать rc=2, а не PASS')
-    if exit_code({'open': 0, 'unknown': 0}) == 0:
+    if exit_code({'violator': 0, 'contract': 0, 'unknown': 0}) == 0:
         ok += 1
     else:
         print('  [FAIL] чисто должно давать rc=0')
 
-    line = receipt('abc1234', 'unit', {'protected': 76, 'open': 0, 'unknown': 0, 'ops': 76}, 0,
+    line = receipt('abc1234', 'unit', {'protected': 76, 'violator': 0, 'contract': 0,
+                                        'unknown': 0, 'ops': 76}, 0,
                    {'catalog': 'bff93d9e1234'})
     if 'images=catalog:bff93d9e123' in line and 'where=unit' in line and '(ii-b) PASS' in line:
         ok += 1
     else:
         print('  [FAIL] квитанция без images=/where= — такую нельзя приложить к релизу')
-    line2 = receipt('abc1234', 'unit', {'protected': 21, 'open': 22, 'unknown': 32, 'ops': 76}, 1, {})
+    line2 = receipt('abc1234', 'unit', {'protected': 21, 'violator': 22, 'contract': 1,
+                                        'unknown': 32, 'ops': 76}, 1, {})
     if '(ii-b) FAIL' in line2 and 'images=НЕ_ИЗМЕРЕНО' in line2:
         ok += 1
     else:
@@ -272,7 +289,7 @@ def selftest():
     # «нет ответа» не должно исчезать из счёта: иначе гейт занижает неизвестные
     fake = {'ops': 2, 'per_op': [('A.Get', '401'), ('B.Get', '000')]}
     tot_fake, _ = report({'Fake': fake})
-    if tot_fake['unknown'] == 1 and tot_fake['protected'] == 1 and tot_fake['open'] == 0:
+    if tot_fake['unknown'] == 1 and tot_fake['protected'] == 1 and tot_fake['violator'] == 0:
         ok += 1
     else:
         print('  [FAIL] операция без ответа должна попадать в unknown, а не выпадать')
@@ -295,7 +312,7 @@ def selftest():
         else:
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
-    total = len(cases) + 9
+    total = len(cases) + 10
     ok += live_ok
     print('check_service_auth --selftest: %d/%d (классификатор + живой сервер)' % (ok, total))
     return 0 if ok == total else 1
