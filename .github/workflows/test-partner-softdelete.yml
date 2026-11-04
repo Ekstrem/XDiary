@@ -1,0 +1,60 @@
+name: TE-050 partner soft-delete (по запросу @TE)
+
+# Зачем: `dotnet test` нельзя запустить ни в песочнице @TE, ни в песочнице @DO —
+# testhost падает ДО тестов с `System.ComponentModel.Win32Exception (5)` в
+# `Process.GetProcessHandle` (ограничение на handle'ы процессов). Сборка при этом работает.
+# Поэтому прогон делается здесь, на runner'е, а результат печатается аннотацией:
+# аннотации доступны по API даже когда логи недоступны.
+#
+#   gh workflow run test-partner-softdelete.yml     (или dispatch из tools/)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "XDIARY_E2E_BASE_URL (стенд)"
+        required: false
+        default: "https://xdiary-vps2.taile0b6ee.ts.net"
+      gate:
+        description: "XDIARY_PARTNERS_DIRECTORY (1 = тест истории включён)"
+        required: false
+        default: "1"
+
+jobs:
+  partner-softdelete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Сборка ApiTests (должна быть rc=0)
+        run: dotnet build 6-msa/BC-Journal/src/Journal.ApiTests --nologo
+      - name: Прогон 4 кейсов PartnerSoftDelete
+        id: run
+        env:
+          XDIARY_E2E_BASE_URL: ${{ inputs.base_url }}
+          XDIARY_E2E_TEST_OTP: "000000"
+          XDIARY_PARTNERS_DIRECTORY: ${{ inputs.gate }}
+        run: |
+          set +e
+          dotnet test 6-msa/BC-Journal/src/Journal.ApiTests \
+            --no-build --filter PartnerSoftDelete \
+            --logger "console;verbosity=normal" 2>&1 | tee /tmp/test.log
+          rc=${PIPESTATUS[0]}
+          line=$(grep -Eo 'Failed!|Passed!' /tmp/test.log | tail -1)
+          counts=$(grep -Eo 'Failed:[[:space:]]+[0-9]+, Passed:[[:space:]]+[0-9]+' /tmp/test.log | tail -1)
+          passed=$(echo "$counts" | grep -Eo 'Passed:[[:space:]]+[0-9]+' | grep -Eo '[0-9]+')
+          failed=$(echo "$counts" | grep -Eo 'Failed:[[:space:]]+[0-9]+' | grep -Eo '[0-9]+')
+          echo "passed=${passed:-0} failed=${failed:-0} rc=$rc gate=$XDIARY_PARTNERS_DIRECTORY" >> "$GITHUB_OUTPUT"
+          echo "::notice title=TE-050 result::passed=${passed:-0} failed=${failed:-0} gate=$XDIARY_PARTNERS_DIRECTORY rc=$rc ($line)"
+          {
+            echo "### TE-050 PartnerSoftDelete"
+            echo ""
+            echo "- REF: \`${{ github.sha }}\`"
+            echo "- passed: **${passed:-0}**, failed: **${failed:-0}**"
+            echo "- gate \`XDIARY_PARTNERS_DIRECTORY=${XDIARY_PARTNERS_DIRECTORY}\`, base: $XDIARY_E2E_BASE_URL"
+            echo "- итог: ${line:-нет строки итога}, rc=$rc"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
