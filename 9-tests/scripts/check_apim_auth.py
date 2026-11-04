@@ -180,7 +180,8 @@ def resolve_images(arg_value: str, services: list) -> str:
 
 
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
-                 violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "") -> str:
+                 violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "",
+                 network: str = "") -> str:
     """Квитанция (канон `ADR-026 → Квитанция (ii-b)`; `ITERATION-PLAN §19.1` ссылается на него):
 
         REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=V | contract=C |
@@ -206,6 +207,7 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     # видна сразу, без ревью. Если сумма не сходится, main возвращает `rc=2` (недействительна).
     line += f" | сумма={passed + violators + contracts + unknown}/{total}"
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
+    line += f" | network={network or 'НЕ УКАЗАНО'}"
     line += f" | tool={tool_id()}"
     return line
 
@@ -501,6 +503,15 @@ def selftest() -> int:
             ((5, 0, 0, 3, 8), True, "подмножество (--only): 5+0+0+3 = 8 — сходится"),
             ((0, 0, 0, 76, 76), True, "все UNKNOWN: 0+0+0+76 = 76 — сумма сходится (но не PASS)"),
         ]
+        total += 1
+        # `network=` (@AR `02:17`): обязателен при замере из контейнера, печатается в квитанции
+        with_net = receipt_line("ii-b", "abc", 76, 76, 0, "podman run", 0, 0, 0, "", "xdiary")
+        no_net = receipt_line("ii-b", "abc", 0, 76, 2, "podman run", 0, 0, 76, "", "")
+        if "network=xdiary" in with_net and "network=НЕ УКАЗАНО" in no_net:
+            ok += 1
+        else:
+            print(f"  [FAIL] network= в квитанции: {with_net!r} / {no_net!r}")
+
         bad_ident = [t for (args, want, t) in ident if identity_ok(*args) != want]
         if not bad_ident:
             ok += 1
@@ -536,6 +547,8 @@ def main() -> int:
                     help="чем измерено (напр. podman exec xdiary-catalog / VPS-2 network xdiary_default) — обязательно для квитанции (ii-b)")
     ap.add_argument("--5xx-unknown", action="store_true", dest="five_xx_unknown",
                     help="в --direct считать 5xx снова UNKNOWN (по умолчанию в --direct 5xx = нарушитель: прокси в пути нет)")
+    ap.add_argument("--network", default="",
+                    help="сеть контура, если мерили из контейнера (например xdiary); обязательна для --direct (ADR-026)")
     ap.add_argument("--images", default="",
                     help="диджесты образов для квитанции: auto (podman inspect) | journal:abc123, catalog:def456")
     ap.add_argument("--service-map", default="",
@@ -594,6 +607,15 @@ def main() -> int:
                   f"(измерять ИЗНУТРИ контура: снаружи xdiary-* не резолвится — тогда rc=2)")
             return 0
 
+        # ADR-026: при замере из контейнера `network=` обязателен. Проверяем ДО запросов,
+        # иначе получим «измерил, но квитанция недействительна» — wasted run.
+        if not args.network:
+            print("::error::check_apim_auth: для (ii-b) обязателен `--network <имя сети>` "
+                  "(ADR-026: замер изнутри контура обязан называть сеть); rc=2 UNKNOWN")
+            print(receipt_line("ii-b", current_ref(), 0, len(targets), 2, args.where,
+                               0, 0, len(targets), "", ""))
+            return 2
+
         results: list[tuple[dict, int | None, str]] = []
         for svc, lst in sorted(per_service.items()):
             host = host_for(str(lst[0].get("bc")))
@@ -625,16 +647,16 @@ def main() -> int:
         if rc == 2:
             print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
                   "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(violators), len(contracts), len(unknown), images_note))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(violators), len(contracts), len(unknown), images_note, args.network))
             return 2
         # @AR `17:20`: квитанция обязана содержать «чем измерено». Без `--where` это не квитанция,
         # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
         if rc == 0 and not args.where:
             print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
                   "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(violators), len(contracts), len(unknown), images_note))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(violators), len(contracts), len(unknown), images_note, args.network))
             return 2
-        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(violators), len(contracts), len(unknown), images_note))
+        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(violators), len(contracts), len(unknown), images_note, args.network))
         return rc
 
     if args.dry_run:
@@ -678,7 +700,7 @@ def main() -> int:
               + (" (ни один ответ не получен — это не «зелено»)" if rc == 2 else ""))
         # Квитанция — ПОСЛЕДНЕЙ строкой: её читают и копируют, поэтому она должна быть в хвосте.
         print(receipt_line("ii-a", current_ref(), passed, len(targets), rc,
-                           args.where or args.base, len(violators), len(contracts), len(unknown), images_note))
+                           args.where or args.base, len(violators), len(contracts), len(unknown), images_note, args.network))
     return rc
 
 

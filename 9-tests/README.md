@@ -107,47 +107,44 @@
 - Локально (Windows, это окружение) сборка 6-msa-зависимых тест-проектов падает **MSB4276** (битые workload-локаторы .NET SDK 8.0.419) и **NU1900** (нет сети) — это среда, не код. Авторитетный прогон — CI.
 - E2E/нагрузка дополнительно требуют `XDIARY_E2E_BASE_URL` (стенд) и `XDIARY_E2E_TOKEN`/`XDIARY_E2E_PIN`.
 
-## Квитанция (ii-b): канон `ADR-026` → «Квитанция (ii-b)»
+## Квитанция (ii-b): только ссылка + как пользоваться инструментом
 
-Единственный источник правды по полям — `ADR-026`; `ITERATION-PLAN §19.1` на него **ссылается**.
-Реализация — `9-tests/scripts/check_apim_auth.py` (канон замера; `tools/check_service_auth.py` @DO —
-перекрёстный контроль и обязан давать те же числа после разложения по классам).
+**Норма (поля, классы, условие `PASS`, тождество) — ТОЛЬКО в `ADR-026 → «Квитанция (ii-b)»`.**
+`ITERATION-PLAN §19.1` ссылается на него. Здесь намеренно **нет** пересказа нормы: два описания
+расходятся на первой правке (класс уже вычищался трижды: `2xx`-only → `400` в нарушители → `contract`).
 
-**Формат строки (печатается последней, её копируют в карточку/ADR):**
-
-```
-REF=<sha> | (ii-a|ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=V | contract=C | неизвестно=U |
-rc=N | сумма=N+V+C+U/total | where=<чем измерено> | images=<svc:digest, …> | tool=<путь>@<sha256[:12]>
-```
-
-**Четыре класса:** `protected` = `401/403` · `violator` = `2xx/400/415/429` (+ `5xx` в `--direct`) ·
-`contract` = `404/405` на операции, которая **есть** в `api-index.yaml` (дефект реестра, `DO-050`) ·
-`unknown` = ответа нет (таймаут/соединение/`000`).
-
-**Условия:** `PASS` — только при `V=0 И C=0 И U=0` (то есть `N = total`); тождество
-`N+V+C+U = total` обязательно — иначе квитанция **недействительна** (`rc=2`, «выпавшая группа»).
-`V` и `C` печатаются **раздельно** (`B = V + C` — производное; если печатать только его, сумму не проверить).
-`tool=` называет версию **скрипта** (`sha256[:12]`), а не только репозитория: классификация менялась трижды за сутки,
-и без этого «16» и «21» — числа из разных определений (ADR-026 §7).
-
-**`5xx` по режимам (не двойной стандарт, а разные объекты):** `--base` — ответ **прокси** →
-`[infra] unknown`; `--direct` — прокси в пути нет, ответ **сервиса** → **нарушитель**; вернуть в
-`unknown` можно только явно: `--5xx-unknown`.
-
-**Коды возврата:** `0` — измерено всё и нарушителей/contract/unknown нет; `1` — есть нарушители или
-`contract`; `2` — недействительно/не измерено (нет ответов, сумма не сходится, база не резолвится,
-`--direct` без `--where`).
+Реализация: `9-tests/scripts/check_apim_auth.py` — канон замера (решение @TL). `tools/check_service_auth.py`
+(@DO) — перекрёстный контроль, его числа печатаются с пометкой «cross-check, не канон» и обязаны
+совпасть после разложения по классам. Доказательства приёмки — `9-tests/reports/ii-b-gate-verification.md`.
 
 **Запуск:**
 ```bash
-python 9-tests/scripts/check_apim_auth.py --base https://<вход>            # ii-a: публичный вход (YARP)
-python 9-tests/scripts/check_apim_auth.py --direct --images auto \
-       --where "podman run --network xdiary"                               # ii-b: сервисы напрямую, изнутри
-python 9-tests/scripts/check_apim_auth.py --selftest                      # без сети: 17/17
-python 9-tests/scripts/check_apim_auth.py --dry-run --direct              # план: BC → сервис, 12/76
+python 9-tests/scripts/check_apim_auth.py --base https://<вход>                 # ii-a: публичный вход (YARP)
+python 9-tests/scripts/check_apim_auth.py --direct --network xdiary \
+       --images auto --where "podman run --network xdiary"                        # ii-b: изнутри контура
+python 9-tests/scripts/check_apim_auth.py --selftest                            # без сети: 18/18
+python 9-tests/scripts/check_apim_auth.py --dry-run --direct                    # план: BC → сервис, 12/76
+python 9-tests/scripts/check_apim_auth.py --direct --only Catalog,Analytics     # срез (нужен --network)
 ```
-`--images auto` берёт digest из `podman inspect`; если podman нет — честно `НЕ ИЗМЕРЕНО` (а не `REF`).
-`--only Catalog,Analytics` — срез; тождество тогда сверяется с числом целей, а не с литеральным `76`.
+
+**Флаги, которые нужны на практике:**
+- `--base <url>` — мерить через вход (прокси); `--direct` — бить в сервисы напрямую (обязателен `--network`);
+- `--network <имя>` — сеть контура; без него `--direct` возвращает `rc=2` (недействительно, а не «зелено»);
+- `--where "…"` — чем измерено (обязателен для `PASS`; без него `rc=2`);
+- `--images auto` — digest'ы контейнеров через `podman inspect`; если podman нет — `НЕ ИЗМЕРЕНО` (не `REF`);
+- `--service-map map.json` — свои адреса (`host:port` | URL | имя сервиса); `--only BC,…` — срез;
+- `--5xx-unknown` — вернуть `5xx` в `unknown` (по умолчанию в `--direct` это нарушитель).
+
+**Пример вывода** (последняя строка, её и копируют):
+```
+REF=9257a1d2 | (ii-a) UNKNOWN защищено=0/76 (не засчитывается) | нарушителей=0 | contract=0 |
+неизвестно=76 | rc=2 | сумма=76/76 | where=http://127.0.0.1:19999 | images=НЕ УКАЗАНО |
+network=НЕ УКАЗАНО | tool=9-tests/scripts/check_apim_auth.py@e77f5c571b8b
+```
+
+**Коды возврата:** `0` — всё измерено, нарушителей/`contract`/`unknown` нет; `1` — есть нарушители или
+`contract`; `2` — недействительно/не измерено (ни одного ответа, сумма ≠ `total`, база не резолвится,
+`--direct` без `--where`/`--network`).
 
 
 ## Runbook: E2E и нагрузка на стенде (TE-007..011)
