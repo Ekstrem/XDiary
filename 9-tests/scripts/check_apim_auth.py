@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -106,6 +107,27 @@ def current_ref() -> str:
     return out if r.returncode == 0 and out else "unknown"
 
 
+def images_for(services: list[str], container_template: str = "xdiary-{service}") -> str:
+    """`images=<svc:digest[:12], …>` для квитанции (@AR `18:10`, @TL `01:30`).
+
+    Берём digest из `podman inspect -f "{{.Image}}" <container>`: `REF` доказывает код,
+    но не то, что **в контейнере** («код есть, образ старый» — трижды за сутки).
+    Если `podman` нет или контейнер не найден — честно пишем это, а не подставляем `REF`.
+    """
+    podman = shutil.which("podman")
+    if not podman:
+        return "НЕ ИЗМЕРЕНО: podman не найден"
+    parts: list[str] = []
+    for svc in sorted(set(services)):
+        name = container_template.format(service=svc)
+        r = subprocess.run([podman, "inspect", "-f", "{{.Image}}", name],
+                           capture_output=True, text=True)
+        # `podman inspect .Image` возвращает локальный ID; `sha256:` префикс убираем, оставляем 12
+        digest = (r.stdout or "").strip().replace("sha256:", "")[:12]
+        parts.append(f"{svc}:{digest or 'НЕТ'}")
+    return ", ".join(parts)
+
+
 def final_rc(bad: list, passed: int, total: int) -> int:
     """Код возврата гейта: 1 — есть нарушения; **2 — ничего не измерено**; 0 — всё измерено и 401.
 
@@ -119,6 +141,13 @@ def final_rc(bad: list, passed: int, total: int) -> int:
     if passed <= 0 or passed < total:
         return 2
     return 0
+
+
+def resolve_images(arg_value: str, services: list) -> str:
+    """`--images auto` → digest'ы контейнеров; иначе — как передано; пусто → `НЕ УКАЗАНО`."""
+    if str(arg_value).strip().lower() == "auto":
+        return images_for(list(services))
+    return arg_value.strip()
 
 
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
@@ -171,7 +200,19 @@ def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, st
                      str(op.get("method", "GET")), timeout)
 
 
-def verdict(results: list[tuple[dict, int | None, str]]) -> tuple[int, list[str], list[str]]:
+def verdict(results: list[tuple[dict, int | None, str]],
+            five_xx_violator: bool = False) -> tuple[int, list[str], list[str]]:
+    """Классификация по правилу @AR (`2026-11-05 01:33-01:35`):
+
+    «ответ получен = измерение; нарушитель — любой ответ кроме `401/403`; `UNKNOWN` — только
+    когда ответа нет». Поэтому `2xx`, `400`, `415`, `404`, `405` — **нарушители**: в ASP.NET
+    `[Authorize]` срабатывает до model binding и до маршрутизации, значит любой не-`401`
+    ответ доказывает, что запрос дошёл до пайплайна без токена.
+
+    Исключение (осознанное): `502/503/504` — ответ **не сервиса**, а прокси/шлюза, который до
+    сервиса не дошёл. Это `[infra] UNKNOWN`, иначе прогон снаружи обвинял бы продукт в своей
+    недоступности. Для строгого соответствия чужой формуле есть `five_xx_violator=True`.
+    """
     bad: list[str] = []
     unknown: list[str] = []
     for op, code, url in results:
@@ -182,16 +223,12 @@ def verdict(results: list[tuple[dict, int | None, str]]) -> tuple[int, list[str]
             bad.append(f"{name} — {code} БЕЗ токена (операция открыта), {url}")
         elif code in (401, 403):
             continue
-        elif code in (404, 405):
-            # маршрут не сматчился — это не «открыто», но и не доказанное 401: показываем отдельно
-            unknown.append(f"{name} — {code} (маршрут не сматчился, требует ручной сверки), {url}")
-        elif code in (502, 503, 504):
-            # Инфраструктурный ответ (прокси/шлюз, сервис недоступен) — НЕ «операция открыта»
-            # и не доказательство 401. Класс `[infra]`, как в global-setup: иначе прогон извне
-            # контура обвинял бы продукт в собственной недоступности.
+        elif code in (502, 503, 504) and not five_xx_violator:
+            # прокси/шлюз не достучался до сервиса — это не доказательство ни «открыто», ни 401
             unknown.append(f"{name} — {code} [infra] (прокси/сервис недоступен), {url}")
         else:
-            bad.append(f"{name} — {code} вместо 401, {url}")
+            # 400/415/404/405 и прочие ответы: запрос дошёл до пайплайна без токена
+            bad.append(f"{name} — {code} вместо 401 (ответ получен без токена — нарушитель), {url}")
     return (1 if bad else 0), bad, unknown
 
 
@@ -257,19 +294,38 @@ def selftest() -> int:
         rc, bad, unknown = verdict(results)
 
         total += 1
-        # 401 и 403 — отказ (зелено); 200 и 500 — дефект (красно); 404 — отдельно
-        if rc == 1 and len(bad) == 2 and len(unknown) == 1:
+        # Правило @AR (`01:33-01:35`): 401/403 — отказ (зелено); 200, 500, **400, 415, 404** —
+        # нарушители (ответ получен = запрос дошёл до пайплайна без токена); UNKNOWN — только
+        # когда ответа нет. В наборе: a=401(ok), c=403(ok), e=404(violator), b=200, d=500, i=401(ok).
+        if rc == 1 and len(bad) == 3 and len(unknown) == 0:
             ok += 1
         else:
-            print(f"  [FAIL] классификатор: ждали rc=1, 2 нарушения, 1 неразрешённый; "
+            print(f"  [FAIL] классификатор: ждали rc=1, 3 нарушения, 0 неизвестных; "
                   f"получили rc={rc}, bad={len(bad)}, unknown={len(unknown)}")
 
         total += 1
-        # 200 без токена обязан попасть в список нарушителей поимённо
-        if any("B.Open" in b for b in bad) and any("D.Error" in b for b in bad):
+        # 200, 500 и 404 без токена обязаны попасть в нарушения поимённо
+        if any("B.Open" in b for b in bad) and any("D.Error" in b for b in bad) and any("E.NotFound" in b for b in bad):
             ok += 1
         else:
-            print(f"  [FAIL] в нарушениях нет имён открытой/ошибочной операции: {bad}")
+            print(f"  [FAIL] в нарушениях нет имён открытой/ошибочной/404 операции: {bad}")
+
+        total += 1
+        # 400/415 — тоже нарушители (аргумент @AR: [Authorize] до model binding), 502 — [infra] UNKNOWN
+        cls = [
+            (400, "bad"), (415, "bad"), (404, "bad"), (200, "bad"), (500, "bad"),
+            (401, "ok"), (403, "ok"), (502, "unknown"),
+        ]
+        wrong = []
+        for code, want in cls:
+            _rc, b, u = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, code, "u")])
+            got = "bad" if b else ("unknown" if u else "ok")
+            if got != want:
+                wrong.append(f"{code}: got {got}, want {want}")
+        if not wrong:
+            ok += 1
+        else:
+            print(f"  [FAIL] классификация кодов: {wrong}")
 
         total += 1
         # фильтр: `anonymous` исключён, `anonymous-inside` включён (снаружи обязан 401)
@@ -362,8 +418,10 @@ def main() -> int:
     ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
     ap.add_argument("--where", default="",
                     help="чем измерено (напр. podman exec xdiary-catalog / VPS-2 network xdiary_default) — обязательно для квитанции (ii-b)")
+    ap.add_argument("--5xx-violator", action="store_true", dest="five_xx_violator",
+                    help="считать 502/503/504 нарушением (строгая формула @AR: любой ответ кроме 401/403)")
     ap.add_argument("--images", default="",
-                    help="диджесты выкаченных образов для квитанции: journal:abc123, catalog:def456")
+                    help="диджесты образов для квитанции: auto (podman inspect) | journal:abc123, catalog:def456")
     ap.add_argument("--service-map", default="",
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
@@ -437,22 +495,23 @@ def main() -> int:
             print(f"::warning::apim-auth(service): {u}")
 
         map_note = f"map={args.service_map}" if args.service_map else f"template={args.host_template}"
+        images_note = resolve_images(args.images, list(per_service.keys()))
         print(f"источник адресов: {map_note}")
         # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
         # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
         if rc == 2:
             print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
                   "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(bad), len(unknown), args.images))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, len(bad), len(unknown), images_note))
             return 2
         # @AR `17:20`: квитанция обязана содержать «чем измерено». Без `--where` это не квитанция,
         # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
         if rc == 0 and not args.where:
             print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
                   "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
-            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(bad), len(unknown), args.images))
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(bad), len(unknown), images_note))
             return 2
-        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(bad), len(unknown), args.images))
+        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(bad), len(unknown), images_note))
         return rc
 
     if args.dry_run:
@@ -472,8 +531,9 @@ def main() -> int:
         print(f"::error::check_apim_auth: база не резолвится ({host}): {e}")
         return 2
 
+    images_note = resolve_images(args.images, []) if not args.direct else ""
     results = [(op, *check_one(args.base, op)) for op in targets]
-    _rc, bad, unknown = verdict(results)
+    _rc, bad, unknown = verdict(results, args.five_xx_violator)
     passed = len(targets) - len(bad) - len(unknown)
     # `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
     # пустоте». Единое правило: нет ни одного реального ответа → `rc=2` (UNKNOWN), не успех.
@@ -492,7 +552,7 @@ def main() -> int:
               + (" (ни один ответ не получен — это не «зелено»)" if rc == 2 else ""))
         # Квитанция — ПОСЛЕДНЕЙ строкой: её читают и копируют, поэтому она должна быть в хвосте.
         print(receipt_line("ii-a", current_ref(), passed, len(targets), rc,
-                           args.where or args.base, len(bad), len(unknown), args.images))
+                           args.where or args.base, len(bad), len(unknown), images_note))
     return rc
 
 
