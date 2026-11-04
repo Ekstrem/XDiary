@@ -126,3 +126,83 @@ test('E2E: запись через визард — создаётся и вид
     }
   }
 });
+
+// TE-014 / FE-014 (@FE 2026-11-03 18:00 — «прогнать `wizard-record` и проверить дефолты
+// „последний партнёр/место“»): визард обязан подставлять **последние** партнёра и место
+// из `GET /journal/recent` (`app.js`: `draft.partner = recent.lastPartner.name`,
+// `draft.place = recent.lastPlace`), а не сканировать весь журнал.
+//
+// Фикстура детерминированная: создаём партнёра и запись через API (самую свежую по `startedAt`),
+// открываем визард и утверждаем именно подстановку. Проверка «8 × /partners при открытии» осталась
+// в первом тесте (FE-015); здесь — только дефолты, чтобы падение говорило, что сломалось.
+test('E2E: визард подставляет последние партнёра и место (FE-014)', async ({ page }) => {
+  const partnerName = 'def-partner-' + Date.now();
+  const place = 'def-place-' + Date.now();
+  let recId = null;
+  let partnerId = null;
+
+  try {
+    await loginWithPin(page);
+
+    const seeded = await page.evaluate(
+      async ({ base, partnerName, place }) => {
+        const t = localStorage.getItem('xdiary.accessToken') || '';
+        const h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t };
+        const post = async (path, body) => {
+          const r = await fetch(base + path, { method: 'POST', headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
+          const j = r.ok ? await r.json().catch(() => null) : null;
+          return { ok: r.ok, status: r.status, body: j };
+        };
+        const p = await post('/api/v1/partners', { name: partnerName });
+        if (!p.ok) return { ok: false, step: 'partner', status: p.status };
+        const pid = p.body && p.body.id;
+        const rec = await post('/api/v1/journal/records');
+        if (!rec.ok) return { ok: false, step: 'record', status: rec.status, partnerId: pid };
+        const rid = rec.body && rec.body.id;
+        // `when` — до partner/place: запись должна стать самой свежей, иначе `recent` вернёт другую.
+        const when = await post('/api/v1/journal/records/' + rid + '/when', { startedAt: new Date().toISOString() });
+        if (!when.ok) return { ok: false, step: 'when', status: when.status, partnerId: pid, recordId: rid };
+        const link = await post('/api/v1/journal/records/' + rid + '/partners', { partnerId: pid });
+        if (!link.ok) return { ok: false, step: 'link', status: link.status, partnerId: pid, recordId: rid };
+        const pl = await post('/api/v1/journal/records/' + rid + '/place', { place: place });
+        if (!pl.ok) return { ok: false, step: 'place', status: pl.status, partnerId: pid, recordId: rid };
+        return { ok: true, partnerId: pid, recordId: rid };
+      },
+      { base: API_BASE, partnerName, place }
+    );
+    expect(seeded.ok, 'фикстура: ' + JSON.stringify(seeded)).toBe(true);
+    partnerId = seeded.partnerId;
+    recId = seeded.recordId;
+
+    // Перезагрузка: `recent` должен вернуть только что созданную запись, визард — подставить её поля.
+    await page.reload();
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await page.click('#btn-new');
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+
+    // Шаг 0 — партнёр: выбранная карточка = последний партнёр.
+    const selected = page.locator('#w-partner-grid .partner-card.selected');
+    await expect(selected, 'последний партнёр должен быть выбран по умолчанию').toHaveCount(1, { timeout: 20000 });
+    await expect(selected).toContainText(partnerName);
+
+    // Шаг 1 — место: `draft.place` подставляется в поле значения (app.js: `input.value = draft.place`).
+    await page.click('#btn-wizard-next');
+    await expect(page.locator('#w-place')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#w-place'), 'последнее место должно быть подставлено').toHaveValue(place, { timeout: 20000 });
+
+    console.log('::notice::FE-014 дефолты подтверждены: партнёр «' + partnerName + '», место «' + place + '»');
+  } finally {
+    if (recId) {
+      const r = await deleteRecord(page, recId);
+      console.log('cleanup record:', JSON.stringify(r));
+    }
+    if (partnerId) {
+      const r = await page.evaluate(async ({ base, id }) => {
+        const t = localStorage.getItem('xdiary.accessToken') || '';
+        const res = await fetch(base + '/api/v1/partners/' + id + '/remove', { method: 'POST', headers: { Authorization: 'Bearer ' + t } });
+        return { ok: res.ok, status: res.status };
+      }, { base: API_BASE, id: partnerId });
+      console.log('cleanup partner:', JSON.stringify(r));
+    }
+  }
+});
