@@ -349,3 +349,29 @@ FullEventSourcingRepository → EventStoreDbContext`, и **конструкто�
 **И следствие про сам smoke-тест:** его надо **не удалять**, а сделать честным — строить из реального `Program`
 (самодельная регистрация `:29–32` ослабляет доказательство). Удалить тест, который **единственный** ловит класс
 «сервис не стартует», — значит вернуться к состоянию, когда мы трое суток не видели реальную причину.
+### Как проверить отсутствие «заражения» опциями — точный ассерт (без БД)
+
+«Протечка» моста означает: компонент, запросивший необобщённые `DbContextOptions`, получил **опции Event Store**, в том числе
+строку подключения. Проверять это на глаз или по логам не нужно — **строка подключения доступна офлайн**, без открытия
+соединения:
+
+```csharp
+var cmd  = scope.ServiceProvider.GetRequiredService<CommandDbContext>();
+var read = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
+var store = scope.ServiceProvider.GetRequiredService<EventStoreDbContext>();
+
+string Cs(DbContext c) => c.Database.GetDbConnection().ConnectionString;
+
+Assert.Contains("CommandDb", Cs(cmd));      // или сравнение с конфигом
+Assert.Contains("ReadDb",    Cs(read));
+Assert.Contains("CommandDb", Cs(store));    // store ходит в CommandDb по дизайну
+```
+
+**Что именно доказывает ассерт:** если мост «течёт», `cmd`/`read` получат строку Event Store и проверка **покраснеет**
+(строки перестанут различаться там, где обязаны). Соединение при этом **не открывается** — `GetDbConnection()` возвращает
+объект с уже установленной строкой, поэтому тест детерминирован и не требует стенда.
+
+**Дополнение к машинной проверке:** `AddSingleton<DbContextOptions>` (мост) должен встречаться в `Program.cs`
+**ровно один раз** и **после** типизированной регистрации — `git grep -c 'AddSingleton<DbContextOptions>' -- 6-msa`
+равно числу сервисов, использующих хранилище. Два вхождения в одном файле = неоднозначность (какой из них победит — зависит
+от порядка, а `TryAdd*` вообще молча проигнорирует второй).
