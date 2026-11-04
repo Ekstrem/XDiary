@@ -138,26 +138,12 @@ def collect_ref(remote, key):
     return out or 'НЕ_ОПРЕДЕЛЁН'
 
 
-def receipt(ref, where, tot, rc, images):
-    """Строка квитанции ровно в формате @AR (2026-11-04 18:10), одна строка.
-
-    PASS возможен только при «нарушителей 0 И неизвестно 0» — иначе `FAIL`
-    (условие не выполнено, пока не измерены все 76).
-    """
-    verdict = 'PASS' if rc == 0 else 'FAIL'
-    img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
-    return ('REF=%s | (ii-b) %s защищено=%d/%d нарушителей=%d контракт=%d неизвестно=%d | rc=%d | '
-            'where=%s | images=%s'
-            % (ref, verdict, tot['protected'], tot['ops'], tot['violator'], tot['contract'],
-               tot['unknown'], rc, where, img))
-
-
 def measure(remote, key, only=None, service_map=None):
-    """Замер изнутри контура: один `podman run` на BC, разбор кодов."""
+    """Замер изнутри контура: один `podman run` на BC, разбор кодов ответов."""
     out_index = run_remote(remote, key, 'cat /tmp/api-index.yaml 2>/dev/null || cat '
                                         '/opt/xdiary/04-architecture/api-index.yaml 2>/dev/null')
     if not out_index.strip():
-        return None, 'индекс не найден на хосте'
+        return None, 'индекс не найден на хосте (нужен api-index.yaml в /tmp или /opt/xdiary)'
     import yaml
     data = yaml.safe_load(out_index)
     ops_all = [o for o in data['operations'] if o.get('auth') != 'anonymous']
@@ -186,21 +172,18 @@ def measure(remote, key, only=None, service_map=None):
                 codes[line] = codes.get(line, 0) + 1
                 per_op.append((cur, line))
                 cur = None
-        # ключ в per_op — «МЕТОД ИмяОперации», поэтому сверяем по последнему слову
+        # ключ в per_op — «МЕТОД ИмяОперации», сверяем по последнему слову; каждая операция
+        # закрывается явным '000', иначе «нет ответа» выпадало бы из счёта (@TL 01:35)
         measured = {}
-        for cur, code in per_op:
-            measured[cur.split()[-1]] = code
+        for cur_name, code in per_op:
+            measured[cur_name.split()[-1]] = code
         per_op = [(op['operationId'], measured.get(op['operationId'], '000')) for op in ops]
         results[bc] = {'ops': len(ops), 'codes': codes, 'per_op': per_op}
     return results, ''
 
 
 def exit_code(tot):
-    """0 — измерено, нарушителей 0, контрактов 0, неизвестных 0.
-
-    1 — есть нарушители или контракты (условие не выполнено);
-    2 — есть неизвестные (сервис не ответил) ⇒ «не измерено», это НЕ pass.
-    """
+    """0 — измерено и всё защищено; 1 — есть нарушители или контракты; 2 — есть неизвестные."""
     if tot.get('violator') or tot.get('contract'):
         return 1
     if tot.get('unknown'):
@@ -211,7 +194,8 @@ def exit_code(tot):
 def report(results):
     print('  инструмент: tools/check_service_auth.py — ПЕРЕКРЁСТНЫЙ КОНТРОЛЬ; '
           'канон замера (ii-b) — 9-tests/scripts/check_apim_auth.py (ADR-026 §«Квитанция (ii-b)»)')
-    print('  %-20s %9s %9s %8s %9s' % ('BC', 'операций', 'protected', 'violator', 'contract/unknown'))
+    print('  %-20s %9s %10s %9s %8s %9s'
+          % ('BC', 'операций', 'protected', 'violator', 'contract', 'unknown'))
     tot = {'protected': 0, 'violator': 0, 'contract': 0, 'unknown': 0, 'ops': 0}
     bad_list = []
     for bc, r in sorted(results.items()):
@@ -224,17 +208,39 @@ def report(results):
         for k in cls:
             tot[k] += cls[k]
         tot['ops'] += r['ops']
-        print('  %-20s %9d %9d %8d %5d/%-3d'
+        print('  %-20s %9d %10d %9d %8d %9d'
               % (bc, r['ops'], cls['protected'], cls['violator'], cls['contract'], cls['unknown']))
-    print('\n  ИТОГО: операций %d | protected %d | violator %d | contract %d | unknown %d'
+    print('\n  ИТОГО: операций %d | защищено %d | нарушителей %d | contract %d | неизвестно %d'
           % (tot['ops'], tot['protected'], tot['violator'], tot['contract'], tot['unknown']))
     for d in bad_list[:20]:
         print('   НАРУШЕНИЕ:', d)
     return tot, bad_list
 
 
+def receipt(ref, where, tot, rc, images):
+    """Строка квитанции в формате `ADR-026` §«Квитанция (ii-b)» (@TL 2026-11-05 01:56).
+
+    `REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN | защищено=N/76 | нарушителей=V | contract=C |
+     неизвестно=U | rc=… | where=… | images=…`
+
+    `PASS` — только при `V=0 И C=0 И U=0`; `UNKNOWN` — когда `V=C=0`, но `U>0`
+    (измерено не всё, и это не «чисто»); иначе `FAIL`.
+    """
+    if rc == 0:
+        verdict = 'PASS'
+    elif tot['violator'] == 0 and tot['contract'] == 0:
+        verdict = 'UNKNOWN'
+    else:
+        verdict = 'FAIL'
+    img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
+    return ('REF=%s | (ii-b) %s | защищено=%d/%d | нарушителей=%d | contract=%d | неизвестно=%d | '
+            'rc=%d | where=%s | images=%s'
+            % (ref, verdict, tot['protected'], tot['ops'], tot['violator'], tot['contract'],
+               tot['unknown'], rc, where, img))
+
+
 def selftest():
-    """Двойной контроль классификации: 401/403 = защита, 2xx = открыто, прочее = не проверено."""
+    """Проверка гейта без сети: классы, код возврата, квитанция и живой HTTP-сервер."""
     cases = [('401', 'protected'), ('403', 'protected'),
              ('200', 'violator'), ('201', 'violator'), ('400', 'violator'),
              ('415', 'violator'), ('429', 'violator'), ('500', 'violator'),
@@ -242,12 +248,55 @@ def selftest():
     ok = 0
     for code, want in cases:
         got = classify(code)
-        if got != want:
-            print('  [FAIL] %s -> %s, ждали %s' % (code, got, want))
-        else:
+        if got == want:
             ok += 1
+        else:
+            print('  [FAIL] %s -> %s, ждали %s' % (code, got, want))
 
-    # живой сервер: проверяем, что код реально читается с провода, а не из константы
+    rc_cases = [
+        ({'violator': 0, 'contract': 0, 'unknown': 0}, 0),
+        ({'violator': 1, 'contract': 0, 'unknown': 0}, 1),
+        ({'violator': 0, 'contract': 1, 'unknown': 0}, 1),   # контракт ломает гейт
+        ({'violator': 0, 'contract': 0, 'unknown': 5}, 2),   # «не измерено» — не PASS
+    ]
+    for tot, want in rc_cases:
+        got = exit_code(tot)
+        if got == want:
+            ok += 1
+        else:
+            print('  [FAIL] exit_code(%s) -> %s, ждали %s' % (tot, got, want))
+
+    # квитанция: формат @TL 01:56 и правильный вердикт
+    base = {'protected': 76, 'violator': 0, 'contract': 0, 'unknown': 0, 'ops': 76}
+    line = receipt('abc1234', 'unit', base, 0, {'catalog': 'bff93d9e1234'})
+    if ('(ii-b) PASS' in line and 'contract=0' in line and 'images=catalog:bff93d9e123' in line
+            and 'where=unit' in line):
+        ok += 1
+    else:
+        print('  [FAIL] PASS-квитанция: %s' % line)
+
+    unk = dict(base, protected=48, unknown=28)
+    line_unk = receipt('abc1234', 'unit', unk, 2, {})
+    if '(ii-b) UNKNOWN' in line_unk and 'images=НЕ_ИЗМЕРЕНО' in line_unk:
+        ok += 1
+    else:
+        print('  [FAIL] UNKNOWN-квитанция: %s' % line_unk)
+
+    bad = {'protected': 21, 'violator': 22, 'contract': 1, 'unknown': 32, 'ops': 76}
+    if '(ii-b) FAIL' in receipt('abc', 'unit', bad, 1, {}):
+        ok += 1
+    else:
+        print('  [FAIL] FAIL-квитанция не помечена')
+
+    # «ответа нет» не должно выпадать из счёта: иначе неизвестные занижаются
+    tot_fake, _ = report({'Fake': {'ops': 2, 'per_op': [('A.Get', '401'), ('B.Get', '000')]}})
+    if (tot_fake['unknown'] == 1 and tot_fake['protected'] == 1 and tot_fake['violator'] == 0
+            and tot_fake['ops'] == 2):
+        ok += 1
+    else:
+        print('  [FAIL] операция без ответа должна попадать в unknown: %s' % (tot_fake,))
+
+    # живой сервер: код должен реально читаться с провода, а не из константы
     class H(BaseHTTPRequestHandler):
         def do_GET(self):
             code = {'/ok': 401, '/open': 200, '/bad': 400}.get(self.path, 404)
@@ -257,52 +306,11 @@ def selftest():
         def log_message(self, *a):
             pass
 
-    if exit_code({'violator': 0, 'contract': 1, 'unknown': 0}) == 1:
-        ok += 1
-    else:
-        print('  [FAIL] contract (404/405) должен ломать гейт: rc=1, а не PASS')
-    if classify('400') == 'violator' and exit_code({'violator': 1, 'contract': 0, 'unknown': 0}) == 1:
-        ok += 1
-    else:
-        print('  [FAIL] 400 должен давать нарушителя и rc=1')
-    if exit_code({'violator': 0, 'contract': 0, 'unknown': 5}) == 2:
-        ok += 1
-    else:
-        print('  [FAIL] только неизвестные должны давать rc=2, а не PASS')
-    if exit_code({'violator': 0, 'contract': 0, 'unknown': 0}) == 0:
-        ok += 1
-    else:
-        print('  [FAIL] чисто должно давать rc=0')
-
-    line = receipt('abc1234', 'unit', {'protected': 76, 'violator': 0, 'contract': 0,
-                                        'unknown': 0, 'ops': 76}, 0,
-                   {'catalog': 'bff93d9e1234'})
-    if 'images=catalog:bff93d9e123' in line and 'where=unit' in line and '(ii-b) PASS' in line:
-        ok += 1
-    else:
-        print('  [FAIL] квитанция без images=/where= — такую нельзя приложить к релизу')
-    line2 = receipt('abc1234', 'unit', {'protected': 21, 'violator': 22, 'contract': 1,
-                                        'unknown': 32, 'ops': 76}, 1, {})
-    if '(ii-b) FAIL' in line2 and 'images=НЕ_ИЗМЕРЕНО' in line2:
-        ok += 1
-    else:
-        print('  [FAIL] FAIL-квитанция не помечает отсутствие образов')
-
-    # «нет ответа» не должно исчезать из счёта: иначе гейт занижает неизвестные
-    fake = {'ops': 2, 'per_op': [('A.Get', '401'), ('B.Get', '000')]}
-    tot_fake, _ = report({'Fake': fake})
-    if tot_fake['unknown'] == 1 and tot_fake['protected'] == 1 and tot_fake['violator'] == 0:
-        ok += 1
-    else:
-        print('  [FAIL] операция без ответа должна попадать в unknown, а не выпадать')
-
     srv = HTTPServer(('127.0.0.1', 0), H)
-    t = threading.Thread(target=srv.serve_forever, daemon=True)
-    t.start()
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
-    import urllib.request
     import urllib.error
-    live_ok = 0
+    import urllib.request
     for path, want in (('/ok', '401'), ('/open', '200'), ('/bad', '400')):
         try:
             with urllib.request.urlopen('http://127.0.0.1:%d%s' % (port, path), timeout=5) as r:
@@ -310,13 +318,13 @@ def selftest():
         except urllib.error.HTTPError as exc:
             got = str(exc.code)
         if got == want:
-            live_ok += 1
+            ok += 1
         else:
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
-    total = len(cases) + 10
-    ok += live_ok
-    print('check_service_auth --selftest: %d/%d (классификатор + живой сервер)' % (ok, total))
+
+    total = len(cases) + len(rc_cases) + 7
+    print('check_service_auth --selftest: %d/%d (классы, rc, квитанция, живой сервер)' % (ok, total))
     return 0 if ok == total else 1
 
 
@@ -329,6 +337,10 @@ def main():
     ap.add_argument('--only', default=None, help='BC через запятую (по умолчанию все)')
     ap.add_argument('--service-map', default=None,
                     help='переопределить адресацию: "Catalog=xdiary-catalog:8080,Client=client:8080"')
+    ap.add_argument('--direct', action='store_true',
+                    help='совместимость с гейтом @TE: у нас это режим по умолчанию (прямо в сервис)')
+    ap.add_argument('--images', default='auto', choices=['auto', 'none'],
+                    help='auto — печатать images=<svc:digest[:12]> в квитанции; none — не печатать')
     ap.add_argument('--selftest', action='store_true')
     ap.add_argument('--where', default='podman run --rm --network xdiary (изнутри контура)',
                     help='чем измерено: обязательно попадает в квитанцию')
@@ -348,7 +360,7 @@ def main():
     services = list((parse_service_map(getattr(a, 'service_map', None))).get(bc, '')
                     for bc in results)
     services = ['xdiary-' + x.split(':')[0].replace('xdiary-', '') for x in services if x]
-    images = collect_images(a.remote, a.key, services)
+    images = collect_images(a.remote, a.key, services) if a.images != 'none' else {}
     ref = a.ref or collect_ref(a.remote, a.key)
     print()
     print('  ' + receipt(ref, a.where, tot, rc, images))
