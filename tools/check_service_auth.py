@@ -135,6 +135,20 @@ def measure(remote, key, only=None, service_map=None):
     return results, ''
 
 
+def exit_code(tot):
+    """Код возврата по правилу @AR/@TL: PASS только при «нарушителей 0 И неизвестно 0».
+
+    0 — измерено и всё защищено; 1 — есть нарушители (открытые ручки); 2 — есть неизвестные
+    (сервис не ответил) ⇒ «не измерено», и это НЕ pass. Такое разделение не даёт гейту
+    зеленеть на недоступном стенде — ровно класс «зелёный без шага».
+    """
+    if tot.get('open'):
+        return 1
+    if tot.get('unknown'):
+        return 2
+    return 0
+
+
 def report(results):
     print('  %-20s %9s %9s %6s %7s' % ('BC', 'операций', '401/403', 'open', 'unknown'))
     tot = {'protected': 0, 'open': 0, 'unknown': 0, 'ops': 0}
@@ -183,6 +197,19 @@ def selftest():
         def log_message(self, *a):
             pass
 
+    if classify('400') == 'open' and exit_code({'open': 1, 'unknown': 0}) == 1:
+        ok += 1
+    else:
+        print('  [FAIL] 400 должен давать нарушителя и rc=1')
+    if exit_code({'open': 0, 'unknown': 5}) == 2:
+        ok += 1
+    else:
+        print('  [FAIL] только неизвестные должны давать rc=2, а не PASS')
+    if exit_code({'open': 0, 'unknown': 0}) == 0:
+        ok += 1
+    else:
+        print('  [FAIL] чисто должно давать rc=0')
+
     srv = HTTPServer(('127.0.0.1', 0), H)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -201,7 +228,7 @@ def selftest():
         else:
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
-    total = len(cases) + 3
+    total = len(cases) + 6
     ok += live_ok
     print('check_service_auth --selftest: %d/%d (классификатор + живой сервер)' % (ok, total))
     return 0 if ok == total else 1
@@ -230,7 +257,7 @@ def main():
     tot, open_list = report(results)
     if a.json:
         print(json.dumps({'totals': tot, 'open': open_list}, ensure_ascii=False))
-    return 1 if tot['open'] else 0
+    return exit_code(tot)
 
 
 if __name__ == '__main__':
