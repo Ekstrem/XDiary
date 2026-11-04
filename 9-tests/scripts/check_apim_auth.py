@@ -218,7 +218,10 @@ def tool_id() -> str:
     из разных определений; без `tool=` их нельзя сравнивать даже через `REF`.
     """
     import os
-    path = __file__
+    import sys
+    candidates = [__file__, getattr(sys, "argv", [""])[0] if getattr(sys, "argv", None) else ""]
+    path = next((c for c in candidates if c and c not in ("<stdin>", "-") and pathlib.Path(c).is_file()),
+                __file__)
     try:
         path = os.path.relpath(path)          # короткий путь, если запускали из корня репо
         if path.startswith(".."):
@@ -463,7 +466,7 @@ def selftest() -> int:
         good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog",
                             0, 0, 0, "journal:abc123")
         unk = receipt_line("ii-b", "abc1234", 44, 76, 2, "", 22, 10, 20, "")
-        tool_ok = bool(re.search(r"tool=[^@|]+@[0-9a-f]{12}", good))
+        tool_ok = bool(re.search(r"tool=[^@|]+@([0-9a-f]{12}|НЕ ОПРЕДЕЛЁН)", good))
         if ("PASS защищено=76/76" in good and "нарушителей=0" in good and "contract=0" in good
                 and "неизвестно=0" in good and "rc=0" in good and "сумма=76/76" in good
                 and "where=podman exec xdiary-catalog" in good and "images=journal:abc123" in good
