@@ -194,8 +194,10 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
         body = f"{label}FAIL защищено={passed}/{total}"
     else:
         body = f"{label}UNKNOWN защищено={passed}/{total} (не засчитывается)"
-    line = (f"REF={ref} | {body} | нарушителей={violators} | contract={contracts} "
-            f"| неизвестно={unknown} | rc={rc}")
+    # `contract` — подкласс нарушителя для счёта (@TL `01:45`): PASS требует 0 нарушителей
+    # ВКЛЮЧАЯ contract, но отдельное число нужно, чтобы в ADR-026 было видно, КАКОЙ это дефект.
+    line = (f"REF={ref} | {body} | нарушителей={violators + contracts} "
+            f"(в т.ч. contract={contracts}) | неизвестно={unknown} | rc={rc}")
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
     return line
 
@@ -227,26 +229,31 @@ def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, st
                      str(op.get("method", "GET")), timeout)
 
 
-def verdict(results, five_xx_violator: bool = False):
-    """Четыре класса (@AR `01:42`, @TL `01:43`): `protected` / `violator` / `contract` / `unknown`.
+def verdict(results, five_xx_unknown=None, direct: bool = False):
+    """Четыре класса (@AR `01:42`, @TL `01:43`, уточнение `01:45`): protected/violator/contract/unknown.
 
     `404/405` на операции из `api-index.yaml` — **дефект реестра** (`contract`), а не «неизвестно»:
-    индекс обещает маршрут, сервис его не имеет (класс `DO-050`). Молча складывать это в unknown
-    значит делать гейт зелёным при ручках, которых физически нет.
-    Возвращает `(violators, contracts, unknown)` — три списка строк для печати.
+    индекс обещает маршрут, сервис его не имеет (класс `DO-050`). Для счёта `contract` — подкласс
+    нарушителя, но печатается отдельным числом, чтобы было видно, **какой** это дефект.
+
+    `502/503/504` (@TL `01:45`): в режиме `--base` это ответ **прокси**, а не сервиса → `UNKNOWN`;
+    в режиме `--direct` прокси в пути нет, значит `5xx` — ответ **самого сервиса** → по умолчанию
+    **нарушитель**; вернуть их в `UNKNOWN` можно только явно (`--5xx-unknown`).
     """
+    if five_xx_unknown is None:
+        five_xx_unknown = not direct
     violators, contracts, unknown = [], [], []
     for op, code, url in results:
         name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}] bc={op.get('bc')}"
         if code is None:
             unknown.append(f"{name} — нет ответа: {url}")
         elif code in (401, 403):
-            continue                      # protected
+            continue
         elif code in (404, 405):
             contracts.append(f"{name} — {code} на индексированной операции: дефект реестра "
                              f"(api-index обещает маршрут, сервис его не имеет), {url}")
-        elif code in (502, 503, 504) and not five_xx_violator:
-            unknown.append(f"{name} — {code} [infra] (прокси/сервис недоступен), {url}")
+        elif code in (502, 503, 504) and five_xx_unknown:
+            unknown.append(f"{name} — {code} [infra] (прокси недоступен; в --direct это было бы нарушение), {url}")
         else:
             violators.append(f"{name} — {code} вместо 401 (ответ получен без токена), {url}")
     return violators, contracts, unknown
@@ -345,7 +352,7 @@ def selftest() -> int:
             if got != want:
                 wrong.append(f"{code}: got {got}, want {want}")
         _v2, _c2, _u2 = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, 502, "u")],
-                                five_xx_violator=True)
+                                five_xx_unknown=False)
         if not _v2:
             wrong.append("502: strict-режим не сделал нарушителем")
         if not wrong:
@@ -409,15 +416,16 @@ def selftest() -> int:
 
         total += 1
         # квитанция по формату @AR `ITERATION-PLAN §19.1` / @TL `01:18`:
-        # `REF | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей | неизвестно | rc | where | images`
+        # `REF | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=B (в т.ч. contract=C)
+        #  | неизвестно=U | rc | where | images`   (@TL `01:45`: contract — подкласс нарушителя)
         good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog",
                             0, 0, 0, "journal:abc123")
         unk = receipt_line("ii-b", "abc1234", 44, 76, 2, "", 22, 10, 20, "")
-        if ("PASS защищено=76/76" in good and "нарушителей=0" in good and "contract=0" in good
+        if ("PASS защищено=76/76" in good and "нарушителей=0 (в т.ч. contract=0)" in good
                 and "неизвестно=0" in good and "rc=0" in good
                 and "where=podman exec xdiary-catalog" in good and "images=journal:abc123" in good
                 and "UNKNOWN" in unk and "не засчитывается" in unk
-                and "нарушителей=22" in unk and "contract=10" in unk and "неизвестно=20" in unk
+                and "нарушителей=32 (в т.ч. contract=10)" in unk and "неизвестно=20" in unk
                 and "where=НЕ УКАЗАНО" in unk and "images=НЕ УКАЗАНО" in unk):
             ok += 1
         else:
@@ -463,8 +471,8 @@ def main() -> int:
     ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
     ap.add_argument("--where", default="",
                     help="чем измерено (напр. podman exec xdiary-catalog / VPS-2 network xdiary_default) — обязательно для квитанции (ii-b)")
-    ap.add_argument("--5xx-violator", action="store_true", dest="five_xx_violator",
-                    help="считать 502/503/504 нарушением (строгая формула @AR: любой ответ кроме 401/403)")
+    ap.add_argument("--5xx-unknown", action="store_true", dest="five_xx_unknown",
+                    help="в --direct считать 5xx снова UNKNOWN (по умолчанию в --direct 5xx = нарушитель: прокси в пути нет)")
     ap.add_argument("--images", default="",
                     help="диджесты образов для квитанции: auto (podman inspect) | journal:abc123, catalog:def456")
     ap.add_argument("--service-map", default="",
@@ -530,7 +538,7 @@ def main() -> int:
                 url = host.rstrip("/") + concrete_path(str(op["path"]))
                 code, got = check_url(url, str(op.get("method", "GET")))
                 results.append((op, code, got))
-        violators, contracts, unknown = verdict(results, args.five_xx_violator)
+        violators, contracts, unknown = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
         passed = len(targets) - len(violators) - len(contracts) - len(unknown)
         rc = final_rc(violators, contracts, unknown, passed, len(targets))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
@@ -585,7 +593,7 @@ def main() -> int:
 
     images_note = resolve_images(args.images, []) if not args.direct else ""
     results = [(op, *check_one(args.base, op)) for op in targets]
-    violators, contracts, unknown = verdict(results, args.five_xx_violator)
+    violators, contracts, unknown = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
     passed = len(targets) - len(violators) - len(contracts) - len(unknown)
     # `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
     # пустоте». Единое правило: нет ни одного реального ответа → `rc=2` (UNKNOWN), не успех.
