@@ -217,6 +217,21 @@ def report(results):
     return tot, bad_list
 
 
+def tool_id(path=None):
+    """`путь@sha256[:12]` самого запускавшегося скрипта.
+
+    `REF` доказывает версию **репозитория**, но не версию **скрипта**: его могли править
+    в рабочем дереве (сегодня классификация менялась трижды). Поэтому в квитанции — `tool=`.
+    """
+    import hashlib
+    p = path or os.path.abspath(__file__)
+    try:
+        data = open(p, 'rb').read()
+    except OSError:
+        return 'tool=НЕ_ОПРЕДЕЛЁН'
+    return '%s@%s' % (os.path.basename(p), hashlib.sha256(data).hexdigest()[:12])
+
+
 def identity_ok(tot):
     """`защищено + нарушителей + contract + неизвестно == операций`.
 
@@ -247,11 +262,11 @@ def receipt(ref, where, tot, rc, images):
         verdict = 'FAIL'
     img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
     return ('REF=%s | (ii-b) %s | защищено=%d/%d | нарушителей=%d | contract=%d | неизвестно=%d | '
-            'сумма=%d/%d | rc=%d | where=%s | images=%s'
+            'сумма=%d/%d | rc=%d | where=%s | images=%s | tool=%s'
             % (ref, verdict, tot['protected'], tot['ops'], tot['violator'], tot['contract'],
                tot['unknown'],
                tot['protected'] + tot['violator'] + tot['contract'] + tot['unknown'], tot['ops'],
-               rc, where, img))
+               rc, where, img, tool_id()))
 
 
 def selftest():
@@ -311,6 +326,13 @@ def selftest():
     else:
         print('  [FAIL] операция без ответа должна попадать в unknown: %s' % (tot_fake,))
 
+    # tool= — обязательное поле (формат @AR §7): путь + 12 hex
+    import re as _re
+    if _re.search(r'tool=[A-Za-z0-9_.-]+@[0-9a-f]{12}', receipt('abc', 'unit', base, 0, {})):
+        ok += 1
+    else:
+        print('  [FAIL] в квитанции нет tool= в формате путь@sha256[:12]')
+
     # тождество: выпавшая группа делает квитанцию недействительной
     broken = {'protected': 21, 'violator': 22, 'contract': 0, 'unknown': 32, 'ops': 76}
     if not identity_ok(broken) and '(ii-b) INVALID' in receipt('abc', 'unit', broken, 1, {}):
@@ -349,7 +371,7 @@ def selftest():
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
 
-    total = len(cases) + len(rc_cases) + 9
+    total = len(cases) + len(rc_cases) + 10
     print('check_service_auth --selftest: %d/%d (классы, rc, квитанция, живой сервер)' % (ok, total))
     return 0 if ok == total else 1
 
