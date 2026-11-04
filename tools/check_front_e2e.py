@@ -161,6 +161,43 @@ def selftest():
     return 0 if ok == len(cases) else 1
 
 
+
+GLOBAL_SETUP = os.path.join("9-tests", "RnD", "front-e2e", "tests", "global-setup.js")
+
+
+def global_setup_invariants(root):
+    """Инварианты ожидания стенда в `global-setup.js` (TE-035, найдено @TE 2026-11-04 08:48).
+
+    Зачем гейт: прогон падал в globalSetup за 43 с, потому что dev передеплоивали во время
+    E2E (#936). Лечение — ждать подъёма (`WAIT_MS = 60_000`, шаг 2 с) и помечать
+    502/503/504/сеть как `[infra]`, а не как дефект продукта. Если кто-то «оптимизирует»
+    ожидание или уберёт метку `[infra]`, дефект вернётся тихо — поэтому проверяем форму.
+    """
+    path = os.path.join(root, GLOBAL_SETUP)
+    if not os.path.exists(path):
+        return []
+    txt = open(path, encoding="utf-8", errors="replace").read()
+    bad = []
+    m = re.search(r'WAIT_MS\s*=\s*([0-9_]+)', txt)
+    if not m:
+        bad.append("нет `WAIT_MS` — ожидание стенда не задано")
+    else:
+        try:
+            wait = int(m.group(1).replace("_", ""))
+        except ValueError:
+            wait = 0
+        if wait < 60000:
+            bad.append("`WAIT_MS = %d` меньше 60 с — прогон снова упадёт при передеплое" % wait)
+    for status in ("502", "503", "504"):
+        if status not in txt:
+            bad.append("нет статуса %s в списке инфраструктурных" % status)
+    if "[infra]" not in txt:
+        bad.append("нет метки `[infra]` — стенд будет выглядеть как дефект продукта")
+    if "assertNotProd" not in txt:
+        bad.append("нет `assertNotProd()` (DO-017) — E2E может уйти на прод")
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -184,9 +221,13 @@ def main():
     for rel, why in foreign:
         print("::error::%s: %s — в `9-tests` допустимы только браузерные E2E (ADR-028)"
               % (rel, why))
-    print("check_front_e2e: проектов в 9-tests %d, нарушений %d, посторонних %d"
-          % (len(found), len(bad), len(foreign)))
-    bad += foreign
+    gs = global_setup_invariants(root)
+    for why in gs:
+        print("::error::(global-setup) %s — %s" % (GLOBAL_SETUP, why))
+    print("check_front_e2e: проектов в 9-tests %d, нарушений %d, посторонних %d, "
+          "инвариантов global-setup нарушено %d"
+          % (len(found), len(bad), len(foreign), len(gs)))
+    bad += foreign + [(GLOBAL_SETUP, w) for w in gs]
     return 1 if bad else 0
 
 
