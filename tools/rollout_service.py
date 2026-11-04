@@ -102,7 +102,7 @@ def build(service, wait=True):
     return False, 'сборка не завершилась за отведённое время'
 
 
-def rollout(service, health_path='/health'):
+def rollout(service, health_path='/health', stabilize=30):
     img = 'ghcr.io/ekstrem/xdiary-%s:single' % service
     script = '''set -u
 cd /opt/xdiary/7-deploy || exit 2
@@ -131,8 +131,40 @@ done
 echo "status=$(podman inspect $name --format '{{.State.Status}}' 2>/dev/null)"
 echo "restarts=$(podman inspect $name --format '{{.RestartCount}}' 2>/dev/null)"
 echo "health_yarp=$(curl -s -o /dev/null -w '%%{http_code}' -m 8 http://127.0.0.1:8080%(hp)s)"
-''' % {'svc': service, 'img': img, 'hp': health_path}
+
+# SMOKE 2026-11-05 01:47 (@TL): «Up + RestartCount не растёт 30 с + /health 200» — обязательный
+# критерий выкатки. Причина: `dotnet test` зелёные, а сервис не поднимается (рантайм-DI,
+# EventStoreDbContext с необобщёнными DbContextOptions) — тесты этот класс не ловят.
+r1=$(podman inspect $name --format '{{.RestartCount}}' 2>/dev/null || echo -)
+sleep %(stab)d
+r2=$(podman inspect $name --format '{{.RestartCount}}' 2>/dev/null || echo -)
+st2=$(podman inspect $name --format '{{.State.Status}}' 2>/dev/null || echo none)
+h2=$(curl -s -o /dev/null -w '%%{http_code}' -m 8 http://127.0.0.1:8080%(hp)s)
+echo "stabilize=${r1}->${r2}"
+if [ "$r1" = "$r2" ] && [ "$st2" = "running" ]; then echo "smoke=stable"; else echo "smoke=UNSTABLE (restarts $r1->$r2, status $st2)"; fi
+if [ "$h2" = "200" ]; then echo "smoke_health=ok"; else echo "smoke_health=BAD ($h2)"; fi
+''' % {'svc': service, 'img': img, 'hp': health_path, 'stab': 30}
     rc, out = ssh(script, timeout=900)
+    return rc, out
+
+
+def smoke_only(service, health_path, stabilize=30):
+    """Только проверка «Up + RestartCount не растёт + /health 200», без пересоздания."""
+    script = '''set -u
+name=xdiary-%(svc)s
+r1=$(podman inspect $name --format '{{.RestartCount}}' 2>/dev/null || echo -)
+st1=$(podman inspect $name --format '{{.State.Status}}' 2>/dev/null || echo none)
+sleep %(stab)d
+r2=$(podman inspect $name --format '{{.RestartCount}}' 2>/dev/null || echo -)
+st2=$(podman inspect $name --format '{{.State.Status}}' 2>/dev/null || echo none)
+h2=$(curl -s -o /dev/null -w '%%{http_code}' -m 8 http://127.0.0.1:8080%(hp)s)
+echo "status=$st1->$st2"
+echo "restarts=$r1->$r2"
+echo "health_yarp=$h2"
+if [ "$r1" = "$r2" ] && [ "$st2" = "running" ]; then echo "smoke=stable"; else echo "smoke=UNSTABLE"; fi
+if [ "$h2" = "200" ]; then echo "smoke_health=ok"; else echo "smoke_health=BAD ($h2)"; fi
+''' % {'svc': service, 'hp': health_path, 'stab': stabilize}
+    rc, out = ssh(script, timeout=stabilize + 120)
     return rc, out
 
 
@@ -143,12 +175,21 @@ def main():
     ap.add_argument('--no-build', action='store_true', help='не запускать сборку, только выкатка')
     ap.add_argument('--plan', action='store_true', help='только показать шаги')
     ap.add_argument('--health', default='/health', help='профильный маршрут для проверки')
+    ap.add_argument('--smoke-only', action='store_true',
+                    help='только проверка стабильности (Up, RestartCount, /health), без пересоздания')
     a = ap.parse_args()
 
     steps = ['dispatch %s' % (WORKFLOW % a.service),
              'дождаться success', 'ssh: podman pull + сравнить ID образа',
              'ssh: пересоздать контейнер (строка из deploy.sh)',
-             'ssh: дождаться running, снять RestartCount и код %s' % a.health]
+             'ssh: дождаться running, снять RestartCount и код %s' % a.health,
+             'smoke (обязателен): Up + RestartCount не растёт 30 с + /health 200']
+    if a.smoke_only:
+        rc, out = smoke_only(a.service, a.health)
+        print(out.strip()[:800])
+        ok = ('smoke=stable' in out) and ('smoke_health=ok' in out)
+        print('SMOKE: %s' % ('PASS' if ok else 'FAIL (сервис нестабилен — выкатка не засчитывается)'))
+        return 0 if ok else 1
     if a.plan:
         print('план для %s:' % a.service)
         for i, s in enumerate(steps, 1):
@@ -163,7 +204,14 @@ def main():
             return 1
 
     rc, out = rollout(a.service, a.health)
-    print(out.strip()[:1200])
+    print(out.strip()[:1500])
+    smoke_ok = ('smoke=stable' in out) and ('smoke_health=ok' in out)
+    if not smoke_ok:
+        # Не «замечание в логе», а провал выкатки: сервис, который рестартится,
+        # нельзя считать выкаченным — именно так проскочил partners.
+        print('ВЫКАТКА ПРОВАЛЕНА: smoke не пройден '
+              '(нужно: Up, RestartCount не растёт, health 200)')
+        return 1
     return 0 if rc == 0 and 'status=running' in out else 1
 
 
