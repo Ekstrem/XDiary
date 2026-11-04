@@ -53,9 +53,11 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await expect(card, 'карточка ' + OLD).toHaveCount(1);
       await card.click();
       await expect(page.locator('#view-partner-edit')).toBeVisible();
-      // ВАЖНО: openPartnerEdit показывает форму ДО асинхронного DB.getPartner().then,
-      // который перезаписывает поля. Без ожидания fill затирается — в тело уходит
-      // {gender:"female", notes:""} (нашёл по логу POST /profile).
+      // ИСТОРИЯ (проверено по коду, `app.js:1195-1222`): в 0.41 `openPartnerEdit` показывал форму
+      // ДО `DB.getPartner().then`, и загрузка затирала ввод (в тело уходило `{gender:"female", notes:""}`);
+      // @TL починил это в `0.42`/`v42`: поля заполняются (1209-1216), и **только потом** `showView` (1217).
+      // Прежний комментарий утверждал обратное — он устарел и вводил в заблуждение (я сам на него ссылался).
+      // Ожидание значения ниже оставлено не «против гонки», а как проверка: форма открыта с данными партнёра.
       await expect(page.locator('#pe-name')).toHaveValue(OLD);
     });
 
