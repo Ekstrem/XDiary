@@ -23,6 +23,21 @@
 - **Hash**: hash (hex, PBKDF2)
 - **Iterations**: iterations (int)
 
+**2.2. Состояние (`AnemicModel`) — атрибуты корня агрегата (AR-017).** Сверено с кодом 2026-11-15:
+`IPinCredentialAnemicModel` (`Root`, `Locked`) + `PinCredentialRoot` (`ClientId`, `Salt`, `Hash`, `Iterations`).
+
+| Атрибут | Тип в коде | Кард. | Обяз. | Задаётся | Инвариант | Источник |
+|---|---|---|---|---|---|---|
+| `Root.ClientId` | Guid | 1 | **да** | `SetPin` | скоуп: PIN клиента не читается другим клиентом (иначе чужой замок блокирует дневник) | ADR-024, ADR-008 |
+| `Root.Salt` | string | 1 | **да** | `SetPin` | случайная соль на каждую установку PIN (`PinHasher_Salted_NotDeterministic`) | ADR-024 |
+| `Root.Hash` | string | 1 | **да** | `SetPin` | **только хеш**, plaintext не хранится и не логируется; `Iterations = 100_000` | ADR-024 |
+| `Root.Iterations` | int | 1 | да | `SetPin` | при повышении итераций старый PIN продолжает проверяться по своему значению (иначе смена политики ломает вход) | ADR-024 |
+| `Locked` | bool | 1 | да (`false`) | `Lock`/`Unlock` | `Locked` — состояние UI-замка, не влияет на валидность PIN | ADR-024 |
+
+**2.2.2. Расхождения:** `ClientId` живёт в **атрибутах Privacy**, хотя ADR-024 относит Privacy к контексту `Client` —
+то есть скоуп владельца хранится дважды (в Client и здесь). Пока сервисы раздельные, это дублирование факта владения;
+при слиянии (ADR-024) должно остаться одно место.
+
 ## 3. State Transitions
 ```
 (нет) → [SetPin] → Set

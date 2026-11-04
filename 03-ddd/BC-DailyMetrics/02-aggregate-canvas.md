@@ -25,6 +25,20 @@
 - **Hrv**: hrv (int)
 - **Sleep**: score, durationMin, deepMin, lightMin, remMin, awakeMin
 
+**2.2. Состояние (`AnemicModel`) — атрибуты корня агрегата (AR-017).** Сверено с кодом 2026-11-15:
+`IDailyMetricsAnemicModel` (`Root`, `Stress`, `RestingHr`, `Hrv`, `Sleep`) + `DailyMetricsRoot` (`Date`).
+
+| Атрибут | Тип в коде | Кард. | Обяз. | Задаётся | Инвариант | Источник |
+|---|---|---|---|---|---|---|
+| `Root.Date` | string (`yyyy-MM-dd`) | 1 | **да** | `Recompute(date)` | одна запись на дату; повторный пересчёт **перезаписывает**, а не добавляет | US-006, ADR-004 (MV) |
+| `Stress` | int | 1 | да | `Recompute` | 0..100; «нет данных» ≠ `0` (иначе график покажет ложный ноль) | US-006 |
+| `RestingHr` | int | 0..1 | нет | `Recompute` | 30..120; отсутствует, если источник не дал | US-006 |
+| `Hrv` | int | 0..1 | нет | `Recompute` | > 0; отсутствует, если источник не дал | US-006 |
+| `Sleep` | `ISleep` (VO) | 0..1 | нет | `Recompute` | длительность ≥ 0, фазы не пересекаются | US-006 |
+
+**2.2.2. Расхождения:** значения без данных (`null`) и нули не различаются на уровне типа (`int` для `Stress`), поэтому
+«нет данных» и «стресс 0» в MV неотличимы — это же увидит фронт. Нужен nullable или флаг `HasData` (`@BE`).
+
 ## 3. State Transitions
 ```
 (нет) → [RecordX] → Stored
