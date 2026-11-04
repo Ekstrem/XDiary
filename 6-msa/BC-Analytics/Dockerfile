@@ -4,17 +4,9 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-
-# NuGet — только nuget.org (все пакеты DigiTFactory опубликованы там)
-COPY nuget.config .
-
-COPY src/Analytics.Api/Analytics.Api.csproj Analytics.Api/
-COPY src/Analytics.Application/Analytics.Application.csproj Analytics.Application/
-COPY src/Analytics.Domain/Analytics.Domain.csproj Analytics.Domain/
-RUN dotnet restore Analytics.Api/Analytics.Api.csproj
-
-COPY src/ .
-RUN dotnet publish Analytics.Api/Analytics.Api.csproj -c Release -o /app/publish --no-restore
+COPY . .
+RUN dotnet restore BC-Analytics/src/Analytics.Api/Analytics.Api.csproj
+RUN dotnet publish BC-Analytics/src/Analytics.Api/Analytics.Api.csproj -c Release -o /app/publish --no-restore
 
 FROM base AS final
 ARG DEPLOYMENT_PROFILE=Single
