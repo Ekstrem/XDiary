@@ -146,6 +146,44 @@ def selftest():
     return 0 if ok == 3 else 1
 
 
+READ_PATHS = "04-architecture/read-paths.md"
+
+
+def operation_ids(index_path):
+    """operationId из индекса (артефакт @AR)."""
+    ids = set()
+    try:
+        txt = open(index_path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return ids
+    for m in re.finditer(r'operationId:\s*([A-Za-z0-9_.]+)', txt):
+        if m.group(1).isdigit():
+            continue
+        ids.add(m.group(1))
+    return ids
+
+
+def check_read_paths(root, ids):
+    """§2 `read-paths.md` ссылается на операции, которые обязаны быть в индексе.
+
+    Идея @AR 2026-11-15 05:45 (§5, п.3): «список MV на экране = контракт» проверяется
+    машинно — все вызовы `Api.<group>.<method>()` из реестра экранов должны иметь
+    operationId в `api-index.yaml`. Иначе экран читает то, чего нет в контракте.
+    """
+    path = os.path.join(root, READ_PATHS)
+    if not os.path.exists(path):
+        return []
+    txt = open(path, encoding="utf-8", errors="replace").read()
+    missing = []
+    for grp, meth in sorted(set(re.findall(r'Api\.([a-z]+)\.([a-z][A-Za-z]*)\(', txt))):
+        base = grp.capitalize()
+        variants = {base, base[:-1] if base.endswith("s") else base + "s"}
+        cands = {"%s.%s" % (v, meth[0].upper() + meth[1:]) for v in variants}
+        if not (cands & ids):
+            missing.append((("Api.%s.%s" % (grp, meth)), sorted(cands)))
+    return missing
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -163,6 +201,7 @@ def main():
         return 1
 
     ops = parse_index(index_path)
+    rp_missing = check_read_paths(root, operation_ids(index_path))
     idx = {(o.get("method", "").upper(), norm_path(o.get("path", ""))) for o in ops if o.get("method")}
     code = parse_code(root)
     code_set = {(v, p) for v, p, _, _ in code}
@@ -181,6 +220,11 @@ def main():
     for o in no_codes[:10]:
         print("::error::%s %s — не заполнен codes" % (o.get("method"), o.get("path")))
         bad += len(no_codes) and 1
+
+    for call, cands in rp_missing:
+        print("::error::(read-path) %s: %s — нет в индексе (ждали один из %s)"
+              % (READ_PATHS, call, ", ".join(cands)))
+        bad += 1
 
     anon_idx = {(o.get("method", "").upper(), norm_path(o.get("path", "")))
                 for o in ops if (o.get("auth") or "").strip() == "anonymous"}
@@ -208,6 +252,7 @@ def main():
     for name in extended_bc:
         print("::notice::%s: добавлен auth-стек — обнови область в ADR-026 "
               "(гейт ждёт 6 BC, станет %d)" % (name, len(ok_bc) + len(extended_bc)))
+    print("check_api_index: read-path ссылок без операции: %d;" % len(rp_missing))
     print("check_api_index: индекс %d операций, код %d маршрутов, anonymous %d, internal %d,"
           " расхождений %d" % (len(idx), len(code_set), len(anon_idx), len(internal), bad))
     print("check_api_index: auth-стек %d/%d с fallback; без auth по ADR-008: %d"
