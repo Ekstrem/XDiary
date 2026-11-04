@@ -52,7 +52,16 @@ jobs:
           [ -e "$p" ] || continue
           found=1
           echo "=== $p ==="
-          dotnet test "$p" --configuration Release --verbosity normal || fail=1
+          log="/tmp/test-$(basename "$p" .csproj).log"
+          dotnet test "$p" --configuration Release --verbosity normal > "$log" 2>&1 || fail=1
+          # Имена упавших тестов — в аннотацию: логи джоб по API недоступны (403), а аннотации
+          # читаются. Без этого красный шаг говорит «см. вывод dotnet test выше» — и никто,
+          # включая @BE и @TL, не знает, что именно чинить (2026-11-05 00:02).
+          failed=$(grep -E '^  Failed ' "$log" | sed 's/^  Failed //; s/ \[.*//' | head -20 | tr '\n' '~' | sed 's/~/%0A/g')
+          if [ -n "$failed" ]; then
+            echo "::error title=[tests] Journal $$(basename "$p")::${failed}"
+          fi
+          tail -30 "$log"
         done
         if [ "$found" -eq 0 ]; then
           echo "::error title=[tests] в BC-Journal нет тестовых проектов::ждали src/*Tests*/*.csproj"
