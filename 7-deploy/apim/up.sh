@@ -70,7 +70,11 @@ run_mgmt() {
   podman rm -f "$MGMT" >/dev/null 2>&1 || true
   # порт НЕ публикуем: health проверяется изнутри сети; публикация через rootlessport
   # на этой версии podman изредка роняет контейнер (проверено 2026-11-09)
-  podman run -d --name "$MGMT" --network "$NET" --memory=768m --restart unless-stopped \
+  # DO-075: если в secrets лежит правленый gravitee.yml (пароль админа не заводской) —
+  # монтируем его. Иначе пересоздание контейнера вернуло бы заводской admin/admin.
+  local cfg=( -v /opt/xdiary/secrets/apim-gravitee.yml:/opt/graviteeio-management-api/config/gravitee.yml:ro -e GRAVITEE_CFG_FROM=secrets )
+  if [ ! -f /opt/xdiary/secrets/apim-gravitee.yml ]; then cfg=(); fi
+  podman run -d --name "$MGMT" --network "$NET" --memory=768m --restart unless-stopped "${cfg[@]}" \
     -e gravitee_management_mongodb_uri="$uri" \
     -e gravitee_analytics_type=none \
     -e gravitee_reporters_elasticsearch_enabled=false \
