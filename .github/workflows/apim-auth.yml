@@ -1,0 +1,66 @@
+name: APIM auth coverage (ADR-026, DO-076)
+
+# Гейт @TE `9-tests/scripts/check_apim_auth.py`: для каждой операции с `auth != anonymous`
+# запрос БЕЗ токена должен давать 401. Это машинный критерий переключения трафика на APIM.
+#
+# Зачем в CI, а не руками: проверка нужна на КАЖДОМ изменении авторизации (@BE-064) и на обоих
+# входах — через YARP (сейчас) и через APIM (после шага 3). Ручной прогон забывается, а
+# результат «на глаз» не проверяем.
+#
+#   base = https://xdiary-vps2.taile0b6ee.ts.net  → dev через YARP (сейчас: 76/76 → 401)
+#   base = http://<apim-gateway>                  → путь APIM (с прод-хоста; из CI недоступен loopback)
+#
+# rc: 0 = все цели 401; 1 = есть открытые (список в аннотации); 2 = база не резолвится.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "База для прогона (стенд)"
+        required: false
+        default: "https://xdiary-vps2.taile0b6ee.ts.net"
+  push:
+    branches: [ main ]
+    paths:
+      - '9-tests/scripts/check_apim_auth.py'
+      - '04-architecture/api-index.yaml'
+      - '.github/workflows/apim-auth.yml'
+
+jobs:
+  apim-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Зависимости гейта
+        run: pip install --quiet pyyaml
+      - name: Самопроверка гейта (без сети)
+        run: python 9-tests/scripts/check_apim_auth.py --selftest
+      - name: Офлайн-инвентарь целей
+        run: python 9-tests/scripts/check_apim_auth.py --dry-run | tail -3
+      - name: Живой прогон по базе
+        id: run
+        env:
+          BASE: ${{ inputs.base }}
+        run: |
+          set +e
+          base="${BASE:-https://xdiary-vps2.taile0b6ee.ts.net}"
+          python 9-tests/scripts/check_apim_auth.py --base "$base" > /tmp/ga.log 2>&1
+          rc=$?
+          # Сводка и нарушители — в аннотацию: логи джоб по API недоступны (403).
+          head=$(grep -E 'PASS|FAIL' /tmp/ga.log | tail -1 | cut -c1-200)
+          opened=$(grep -c '::error' /tmp/ga.log)
+          names=$(grep '::error' /tmp/ga.log | head -12 | sed 's/::error::apim-auth: //' | tr '\n' '~' | sed 's/~/%0A/g' | cut -c1-3000)
+          if [ "$rc" -eq 0 ]; then
+            echo "::notice title=APIM auth::${head}"
+          else
+            echo "::error title=APIM auth (rc=$rc, открытых $opened)::${head}%0A${names}"
+          fi
+          echo "### APIM auth coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "- base: \`$base\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ${head:-нет строки итога}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- открытых операций: **$opened**, rc=**$rc**" >> "$GITHUB_STEP_SUMMARY"
+          exit $rc
