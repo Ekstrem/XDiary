@@ -242,6 +242,12 @@ def main() -> int:
                 build_skip += 1
         if not build_fail:
             ok("10) сборка тестовых проектов", f"нарушений 0 (0 проектов), собрано {build_ok}, не проверено {build_skip}")
+            if build_skip:
+                # Честность квитанции: «нарушений 0» при непроверенных проектах — это НЕ «сборка проверена».
+                # Так локальный прогон скрывал реальный CS7036 в `Journal.IntegrationTests`
+                # (JournalReadRepositoryTests.cs:13): restore без сети → проект ушёл в SKIP.
+                print(f"::warning::сборка: проверено {build_ok} из {build_ok + build_skip} тестовых проектов "
+                      f"({build_skip} не проверено из-за restore/сети) — это не подтверждение сборки целиком")
         else:
             for b in build_fail:
                 print(f"::error::ADR-028 §6: тестовый проект не собирается — {b}")
