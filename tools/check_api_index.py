@@ -163,6 +163,27 @@ def operation_ids(index_path):
     return ids
 
 
+def db_only_rows(root):
+    """Строки `read-paths.md`, где источник — только `DB.*` (кеш), без `Api.*`.
+
+    Находка @AR 2026-11-04 10:45: гейт искал только `Api.*`, поэтому строка
+    «партнёры — локальный кэш `DB.getAllPartners()`» была для него невидима, и дыра
+    в контракте проходила молча. Теперь такая строка **называется** явно: либо в ней
+    появится `Api.*`, либо это осознанно кэш — но тогда это видно в выводе гейта.
+    """
+    path = os.path.join(root, READ_PATHS)
+    if not os.path.exists(path):
+        return []
+    bad = []
+    for i, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+        if "DB.get" not in line or "Api." in line:
+            continue
+        if line.lstrip().startswith(">"):        # пояснительный блокквот — не строка реестра
+            continue
+        bad.append((i, line.strip()[:90]))
+    return bad
+
+
 def check_read_paths(root, ids):
     """§2 `read-paths.md` ссылается на операции, которые обязаны быть в индексе.
 
@@ -202,6 +223,7 @@ def main():
 
     ops = parse_index(index_path)
     rp_missing = check_read_paths(root, operation_ids(index_path))
+    rp_db_only = db_only_rows(root)
     idx = {(o.get("method", "").upper(), norm_path(o.get("path", ""))) for o in ops if o.get("method")}
     code = parse_code(root)
     code_set = {(v, p) for v, p, _, _ in code}
@@ -221,6 +243,9 @@ def main():
         print("::error::%s %s — не заполнен codes" % (o.get("method"), o.get("path")))
         bad += len(no_codes) and 1
 
+    for lineno, text in rp_db_only:
+        print("::warning::(read-path) %s:%d — источник только `DB.*` (кеш), контракт не проверяется: %s"
+              % (READ_PATHS, lineno, text))
     for call, cands in rp_missing:
         print("::error::(read-path) %s: %s — нет в индексе (ждали один из %s)"
               % (READ_PATHS, call, ", ".join(cands)))
@@ -252,7 +277,8 @@ def main():
     for name in extended_bc:
         print("::notice::%s: добавлен auth-стек — обнови область в ADR-026 "
               "(гейт ждёт 6 BC, станет %d)" % (name, len(ok_bc) + len(extended_bc)))
-    print("check_api_index: read-path ссылок без операции: %d;" % len(rp_missing))
+    print("check_api_index: read-path ссылок без операции: %d; строк только с DB.* (не проверяются): %d"
+          % (len(rp_missing), len(rp_db_only)))
     print("check_api_index: индекс %d операций, код %d маршрутов, anonymous %d, internal %d,"
           " расхождений %d" % (len(idx), len(code_set), len(anon_idx), len(internal), bad))
     print("check_api_index: auth-стек %d/%d с fallback; без auth по ADR-008: %d"
