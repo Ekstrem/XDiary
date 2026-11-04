@@ -12,24 +12,35 @@
     (partners || []).forEach(function (p) { m[p.id] = p.name; });
     return m;
   }
+  // FE-041: карта «id → удалён» — чтобы отличать мягко удалённого партнёра от ненайденного.
+  // GET /partners удалённых не отдаёт, поэтому по умолчанию карта пуста и состояние = «недоступен».
+  function deletedMap(partners) {
+    var m = {};
+    (partners || []).forEach(function (p) { if (p.deletedAt) m[p.id] = true; });
+    return m;
+  }
   function findPartnerId(partners, name) {
     for (var i = 0; i < (partners || []).length; i++) if (partners[i].name === name) return partners[i].id;
     return "";
   }
 
   // JournalReadModel → UI-запись (одного партнёра, плоские оргазмы)
-  function mapRecord(rm, names) {
+  function mapRecord(rm, names, deleted) {
     var me = null, partner = null;
     (rm.orgasms || []).forEach(function (o) {
       if (o.participant === "me") me = o; else partner = o;
     });
     var pid = (rm.partners && rm.partners[0]) || "";
+    var pname = names[pid] || "";
     return {
       id: rm.id,
       startedAt: rm.startedAt || "",
       durationMin: rm.durationMin || 0,
-      partner: names[pid] || "",
+      partner: pname,
       partnerId: pid,
+      // FE-041: три состояния по BC-Journal/02 §2.7 —
+      // имя / «удалённый партнёр» (deletedAt известен) / «участник недоступен» (id есть, имени нет).
+      partnerDeleted: !!pid && !!(deleted && deleted[pid]),
       place: rm.place || "",
       positions: rm.positions || [],
       tags: rm.tags || [],
@@ -52,7 +63,7 @@
   }
 
   function mapPartner(rm) {
-    return { id: rm.id, name: rm.name || "", photo: rm.photo || "", gender: rm.gender || "", notes: rm.notes || "", clientId: rm.clientId || "" };
+    return { id: rm.id, name: rm.name || "", photo: rm.photo || "", gender: rm.gender || "", notes: rm.notes || "", clientId: rm.clientId || "", deletedAt: rm.deletedAt || "" };
   }
 
   function mapCatalogItem(rm) {
@@ -66,17 +77,19 @@
   DB.getAllRecords = function () {
     return Api.partners.list().then(function (partners) {
       var names = nameMap(partners);
-      return Api.journal.list().then(function (list) { return (list || []).map(function (rm) { return mapRecord(rm, names); }); });
+      var dels = deletedMap(partners);
+      return Api.journal.list().then(function (list) { return (list || []).map(function (rm) { return mapRecord(rm, names, dels); }); });
     });
   };
   // FE-015: один запрос /partners + один /journal — визард не должен ходить в API на каждый шаг
   DB.getAllJournalData = function () {
     return Api.partners.list().then(function (partners) {
       var names = nameMap(partners);
+      var dels = deletedMap(partners);
       return Api.journal.list().then(function (list) {
         return {
           partners: (partners || []).map(mapPartner),
-          records: (list || []).map(function (rm) { return mapRecord(rm, names); })
+          records: (list || []).map(function (rm) { return mapRecord(rm, names, dels); })
         };
       });
     });
@@ -84,7 +97,8 @@
   DB.getRecord = function (id) {
     return Api.partners.list().then(function (partners) {
       var names = nameMap(partners);
-      return Api.journal.get(id).then(function (rm) { return rm ? mapRecord(rm, names) : null; });
+      var dels = deletedMap(partners);
+      return Api.journal.get(id).then(function (rm) { return rm ? mapRecord(rm, names, dels) : null; });
     });
   };
   DB.deleteRecord = function (id) { return Api.journal.remove(id); };

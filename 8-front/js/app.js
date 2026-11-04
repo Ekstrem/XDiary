@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.88"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.89"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -470,6 +470,16 @@
   }
 
   // ---- журнал ----
+  // FE-041: три состояния участника — имя / «удалённый партнёр» (deletedAt известен) /
+  // «участник недоступен» (id есть, имени нет: гонка или удалённый, скрытый из списка).
+  function recordPartnerLabel(r) {
+    if (!r) return "";
+    if (r.partnerDeleted) return "👤 удалённый партнёр";
+    if (r.partner) return "👤 " + esc(r.partner);
+    if (r.partnerId) return "👤 участник недоступен";
+    return "";
+  }
+
   function renderJournal() {
     DB.getAllRecords().then(function (records) {
       records.sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
@@ -483,7 +493,8 @@
         card.className = "record-card";
 
         var meta = [];
-        if (r.partner) meta.push("👤 " + esc(r.partner));
+        var pl = recordPartnerLabel(r);
+        if (pl) meta.push(pl);
         if (r.place) meta.push("📍 " + esc(r.place));
         meta.push("⏱ " + (r.durationMin || 0) + " мин");
         var org = (r.orgasmsMe || 0) + (r.orgasmsPartner || 0);
@@ -1417,7 +1428,8 @@
       var body = $("detail-body");
       var org = (r.orgasmsMe || 0) + (r.orgasmsPartner || 0);
       var meta = [];
-      if (r.partner) meta.push("👤 " + esc(r.partner));
+      var pl = recordPartnerLabel(r);
+      if (pl) meta.push(pl);
       if (r.place) meta.push("📍 " + esc(r.place));
       meta.push("⏱ " + (r.durationMin || 0) + " мин");
 
