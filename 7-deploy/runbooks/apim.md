@@ -76,3 +76,28 @@ APIM-состояние, которое потом придётся чинить
 (loopback-порт, например `127.0.0.1:18084`), пройти мастер один раз, затем:
 пароль/токен → `/opt/xdiary/secrets/apim.env` (в репозиторий не попадает, §6),
 `check_apim_drift` и импорт спек начинают работать.
+
+## Импорт спек (DO-056)
+
+Реестр готов: **12 спек / 80 операций** (`openapi/*.json`, `_meta.json` рядом).
+
+```bash
+# план без токена (работает всегда)
+bash 7-deploy/apim/import.sh --dry-run
+
+# импорт + публикация версии (нужен GRAVITEE_TOKEN в /opt/xdiary/secrets/apim.env)
+bash 7-deploy/apim/import.sh
+
+# проверка расхождения «спеки <> APIM»
+GRAVITEE_TOKEN=$(grep ^GRAVITEE_TOKEN= /opt/xdiary/secrets/apim.env | cut -d= -f2) \
+  python3 tools/check_apim_drift.py --root /opt/xdiary
+```
+
+Скрипт делает по одному API на сервис (`POST …/apis/import`, `type=BOTH`), затем публикует
+(`POST …/apis/{id}/deployments`) и печатает `id` каждого API.
+
+**Семантика `check_apim_drift` (уточнено 2026-11-04):** drift считается **спеки ↔ APIM**
+(реестр — источник импорта), а не «индекс ↔ APIM». Поэтому:
+- спек нет и APIM пуст → `rc=0` (импортировать нечего);
+- спеки есть, APIM пуст → `rc=1` (импорт не запускали — это и есть расхождение);
+- `--specs-only` — посчитать индекс/спеки без обращения к APIM (для CI и при отсутствии токена).

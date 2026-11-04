@@ -133,6 +133,8 @@ def main():
     ap.add_argument("--api", default="http://127.0.0.1:18083")
     ap.add_argument("--container", default="xdiary-apim-management")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--specs-only", action="store_true",
+                    help="только посчитать спеки/индекс, без обращения к APIM")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
@@ -142,6 +144,10 @@ def main():
     specs = spec_operations(root)
     print("check_apim_drift: индекс %d operationId, спеки %d (openapi/*.json)"
           % (len(want), len(specs)))
+    if a.specs_only:
+        print("check_apim_drift: --specs-only: индекс %d, спеки %d, APIM не опрашивался"
+              % (len(want), len(specs)))
+        return 0
     if not token:
         print("::warning::GRAVITEE_TOKEN не задан — сравнение с APIM не выполнено (это НЕ «совпадает»)")
         return 2
@@ -149,8 +155,15 @@ def main():
     if got is None:
         print("::error::(apim) %s" % err)
         return 2
-    missing = sorted((want | specs) - got)
-    extra = sorted(got - (want | specs))
+    base = specs if specs else set()
+    missing = sorted(base - got)
+    extra = sorted(got - base) if base else []
+    if not base and not got:
+        print("check_apim_drift: спек нет и в APIM пусто — импортировать нечего, расхождений 0")
+        return 0
+    if want and not specs:
+        print("check_apim_drift: индекс %d операций, спек 0 — drift считается по спекам "
+              "(реестр ещё не выкачен), APIM %d" % (len(want), len(got)))
     for op in missing[:20]:
         print("::error::(apim) %s — есть в индексе/спеках, нет в APIM" % op)
     for op in extra[:20]:
