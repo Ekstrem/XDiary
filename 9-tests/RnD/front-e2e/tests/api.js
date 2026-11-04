@@ -460,9 +460,13 @@ async function expectScreen(page, selector, where, timeout) {
   } catch (e) {
     const toast = ((await page.locator('#toast').innerText().catch(() => '')) || '').trim();
     const views = await dumpViews(page, 'НЕ ДОШЛИ: ' + where).catch(() => null);
+    // @TL 2026-11-02 17:28: при падении нужен снимок хранилища — иначе при 401 снова не видно,
+    // что лежит в localStorage. Хук afterEach печатает его в stdout, но в аннотацию CI попадает
+    // именно ТЕКСТ ошибки, поэтому дублируем здесь. snapshotStorage отдаёт только bool + длины.
+    const storage = await snapshotStorage(page, 'шаг не пройден').catch(() => null);
     throw new Error(
       'Шаг не пройден: ' + where + '. Ожидали видимый ' + selector + ' за ' + ms + 'мс. ' +
-      'Тост=' + JSON.stringify(toast.slice(0, 300)) + ' views=' + JSON.stringify(views)
+      'Тост=' + JSON.stringify(toast.slice(0, 300)) + ' views=' + JSON.stringify(views) + ' storage=' + JSON.stringify(storage)
     );
   }
 }
