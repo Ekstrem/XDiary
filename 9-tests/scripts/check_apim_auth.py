@@ -42,6 +42,15 @@ import sys
 import urllib.error
 import urllib.request
 
+# Windows-консоль по умолчанию cp1251: символ «→» в квитанции роняет печать
+# (`UnicodeEncodeError: 'charmap' codec can't encode character ...`). Поэтому stdout/stderr
+# принудительно в UTF-8 — иначе гейт падает на собственном выводе (класс бага check_awaits.py).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        pass
+
 INDEX = "04-architecture/api-index.yaml"
 ANON = {"anonymous"}
 
@@ -96,6 +105,19 @@ def current_ref() -> str:
     out = r.stdout.strip()
     return out if r.returncode == 0 and out else "unknown"
 
+
+def final_rc(bad: list, passed: int, total: int) -> int:
+    """Код возврата гейта: 1 — есть нарушения; **2 — ничего не измерено**; 0 — всё измерено и 401.
+
+    `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
+    пустоте». Правило: `PASS` печатается только если **хотя бы один** реальный ответ получен,
+    а если ни одна цель не ответила — это `UNKNOWN` (`rc=2`), а не успех.
+    """
+    if bad:
+        return 1
+    if passed == 0 or passed < 0:
+        return 2
+    return 0
 
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str, extra: str = "") -> str:
     """Квитанция в формате @AR (`2026-11-04 17:20`): `REF=<sha> | (ii-X) N/76 → 401 | rc=N | where=…`.
@@ -296,6 +318,21 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] формат квитанции: {good!r} / {unknown!r}")
+
+        total += 1
+        # регресс-кейс бага @DO `01:17`: «все цели без ответа» обязано быть rc=2, а не PASS.
+        # Тогда `--base` на пустом порту (все URLError) не может дать зелёный.
+        cases_rc = [
+            (([], 0, 76), 2, "ни один ответ не получен → rc=2"),
+            (([], 76, 76), 0, "все 76 ответили 401 → rc=0"),
+            ((["нарушитель"], 75, 76), 1, "есть нарушитель → rc=1"),
+            (([], 40, 76), 0, "часть не ответила, часть 401 → rc=0 (измерено)"),
+        ]
+        bad_rc = [t for (args, want, t) in cases_rc if final_rc(*args) != want]
+        if not bad_rc:
+            ok += 1
+        else:
+            print(f"  [FAIL] final_rc: неверный код в кейсах {bad_rc}")
     finally:
         srv.shutdown()
         srv.server_close()
@@ -378,6 +415,7 @@ def main() -> int:
                 results.append((op, code, got))
         rc, bad, unknown = verdict(results)
         passed = len(targets) - len(bad) - len(unknown)
+        rc = final_rc(bad, passed, len(targets))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
         # в логе не видно, какие именно `метод+путь+bc` не измерены (@TL `00:16` п.3).
         for svc, lst in sorted(per_service.items()):
@@ -392,7 +430,7 @@ def main() -> int:
         map_note = f"map={args.service_map}" if args.service_map else f"template={args.host_template}"
         # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
         # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
-        if not bad and passed == 0:
+        if rc == 2:
             print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
                   "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
             print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, map_note))
@@ -425,8 +463,11 @@ def main() -> int:
         return 2
 
     results = [(op, *check_one(args.base, op)) for op in targets]
-    rc, bad, unknown = verdict(results)
+    _rc, bad, unknown = verdict(results)
     passed = len(targets) - len(bad) - len(unknown)
+    # `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
+    # пустоте». Единое правило: нет ни одного реального ответа → `rc=2` (UNKNOWN), не успех.
+    rc = final_rc(bad, passed, len(targets))
 
     if args.json:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
@@ -437,7 +478,9 @@ def main() -> int:
             print(f"::error::apim-auth: {b}")
         for u in unknown:
             print(f"::warning::apim-auth: {u}")
-        print(f"{'PASS' if rc == 0 else 'FAIL'}: {passed}/{len(targets)} операций дают 401 без токена")
+        verdict_word = "PASS" if rc == 0 else ("UNKNOWN" if rc == 2 else "FAIL")
+        print(f"{verdict_word}: {passed}/{len(targets)} операций дают 401 без токена"
+              + (" (ни один ответ не получен — это не «зелено»)" if rc == 2 else ""))
     return rc
 
 
