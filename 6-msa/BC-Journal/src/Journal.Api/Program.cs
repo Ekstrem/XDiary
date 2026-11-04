@@ -47,6 +47,7 @@ builder.Services.AddScoped<Journal.Storage.JournalDataMigration>();
 builder.Services.AddHostedService<Journal.Api.JournalDataMigrationRunner>();
 builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddScoped<IRepository<IJournal, IJournalAnemicModel>, JournalCommandRepository>();
 builder.Services.AddScoped<IJournalQueryRepository, JournalReadRepository>();
 builder.Services.AddHttpClient();
