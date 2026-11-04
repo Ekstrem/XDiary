@@ -173,6 +173,11 @@ def measure(remote, key, only=None, service_map=None):
                 codes[line] = codes.get(line, 0) + 1
                 per_op.append((cur, line))
                 cur = None
+        # ключ в per_op — «МЕТОД ИмяОперации», поэтому сверяем по последнему слову
+        measured = {}
+        for cur, code in per_op:
+            measured[cur.split()[-1]] = code
+        per_op = [(op['operationId'], measured.get(op['operationId'], '000')) for op in ops]
         results[bc] = {'ops': len(ops), 'codes': codes, 'per_op': per_op}
     return results, ''
 
@@ -264,6 +269,14 @@ def selftest():
     else:
         print('  [FAIL] FAIL-квитанция не помечает отсутствие образов')
 
+    # «нет ответа» не должно исчезать из счёта: иначе гейт занижает неизвестные
+    fake = {'ops': 2, 'per_op': [('A.Get', '401'), ('B.Get', '000')]}
+    tot_fake, _ = report({'Fake': fake})
+    if tot_fake['unknown'] == 1 and tot_fake['protected'] == 1 and tot_fake['open'] == 0:
+        ok += 1
+    else:
+        print('  [FAIL] операция без ответа должна попадать в unknown, а не выпадать')
+
     srv = HTTPServer(('127.0.0.1', 0), H)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
@@ -282,7 +295,7 @@ def selftest():
         else:
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
-    total = len(cases) + 8
+    total = len(cases) + 9
     ok += live_ok
     print('check_service_auth --selftest: %d/%d (классификатор + живой сервер)' % (ok, total))
     return 0 if ok == total else 1
