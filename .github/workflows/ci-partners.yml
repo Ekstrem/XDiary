@@ -60,14 +60,19 @@ jobs:
           # Формат xunit в CI отличается от локального: строка может быть с любым отступом
           # («Failed X [1 ms]») или это MSBuild-ошибка сборки. Поэтому ловим оба и печатаем
           # ОТДЕЛЬНУЮ аннотацию на каждую строку — @TL читает аннотации без токена.
-          grep -E '^[[:space:]]*Failed ' "$log" | sed -E 's/^[[:space:]]*Failed //; s/ \[[0-9].*$//' | head -20 \
-            | while IFS= read -r name; do
-                [ -n "$name" ] && echo "::error title=[tests] Partners $(basename "$p")::Failed ${name}"
-              done
-          if ! grep -qE '^[[:space:]]*Failed ' "$log"; then
-            # Ни одного «Failed» — значит упало раньше тестов (сборка/старт). Показываем причину.
-            reason=$(grep -E 'error [A-Z]+[0-9]+|Exception|MSB[0-9]+' "$log" | head -3 | tr '\n' '~' | sed 's/~/%0A/g' | cut -c1-1200)
-            echo "::error title=[tests] Partners $(basename "$p") (без Failed)::${reason:-нет строк ошибок}"
+          # ВАЖНО: шаг исполняется `bash -e` (см. `shell: bash`), поэтому ЛЮБАЯ команда
+          # с ненулевым кодом убивает шаг до печати аннотации. Именно на этом падало:
+          # `grep` без совпадений возвращал 1 → шаг умирал сразу после `=== ...csproj ===`,
+          # и ни имён тестов, ни причины не было (run 41924631415).
+          fails=$(grep -E '^[[:space:]]*Failed ' "$log" || true)
+          if [ -n "${fails:-}" ]; then
+            printf '%s\n' "$fails" | sed -E 's/^[[:space:]]*Failed //; s/ \[[0-9].*$//' | head -20 > /tmp/names.txt || true
+            while IFS= read -r name; do
+              [ -n "$name" ] && echo "::error title=[tests] Partners $(basename "$p")::Failed ${name}"
+            done < /tmp/names.txt
+          else
+            reason=$(grep -E 'error [A-Z]+[0-9]+|Exception|MSB[0-9]+' "$log" | head -3 || true)
+            echo "::error title=[tests] Partners $(basename "$p") (без Failed)::${reason:-нет строк ошибок в логе}"
           fi
           tail -30 "$log"
         done
