@@ -209,6 +209,8 @@ def exit_code(tot):
 
 
 def report(results):
+    print('  инструмент: tools/check_service_auth.py — ПЕРЕКРЁСТНЫЙ КОНТРОЛЬ; '
+          'канон замера (ii-b) — 9-tests/scripts/check_apim_auth.py (ADR-026 §«Квитанция (ii-b)»)')
     print('  %-20s %9s %9s %8s %9s' % ('BC', 'операций', 'protected', 'violator', 'contract/unknown'))
     tot = {'protected': 0, 'violator': 0, 'contract': 0, 'unknown': 0, 'ops': 0}
     bad_list = []
