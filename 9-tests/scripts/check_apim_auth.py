@@ -97,6 +97,27 @@ def current_ref() -> str:
     return out if r.returncode == 0 and out else "unknown"
 
 
+def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str, extra: str = "") -> str:
+    """Квитанция в формате @AR (`2026-11-04 17:20`): `REF=<sha> | (ii-X) N/76 → 401 | rc=N | where=…`.
+
+    Требование ADR-026 / `round-checklist §3.1`: **UNKNOWN не засчитывается никогда**, а квитанция
+    обязана содержать **чем измерено** — иначе `rc=0` снаружи физически невозможен и его нельзя
+    прочитать однозначно. Поэтому три исхода пишутся по-разному:
+      rc=0  → `PASS  N/76 → 401`
+      rc=1  → `FAIL  N/76 → 401 (нарушители выше)`
+      rc=2  → `UNKNOWN (не измерено)` — это НЕ «чисто».
+    """
+    label = f"({kind}) "
+    if rc == 0:
+        body = f"{label}PASS {passed}/{total} → 401"
+    elif rc == 1:
+        body = f"{label}FAIL {passed}/{total} → 401 (нарушители выше)"
+    else:
+        body = f"{label}UNKNOWN {passed}/{total} измерено (не засчитывается)"
+    line = f"REF={ref} | {body} | rc={rc} | where={where or 'НЕ УКАЗАНО'}"
+    return line + (f" | {extra}" if extra else "")
+
+
 def resolve_host(svc_map: dict, bc: str, template: str) -> str:
     """BC → адрес сервиса для `--direct`. Три формы значения в `--service-map`:
     полный URL (`http://h:p`), `host:port` (порт уже задан), имя сервиса (→ template)."""
@@ -263,6 +284,18 @@ def selftest() -> int:
             ok += 1
         else:
             print("  [FAIL] current_ref() пуст — квитанция будет без REF")
+
+        total += 1
+        # квитанция в формате @AR `17:20`: три исхода читаются однозначно, UNKNOWN ≠ «чисто»
+        good = receipt_line("ii-b", "abc1234", 76, 76, 0, "podman exec xdiary-catalog", "template=x")
+        unknown = receipt_line("ii-b", "abc1234", 0, 76, 2, "", "template=x")
+        if ("(ii-b) PASS 76/76" in good and "rc=0" in good
+                and "where=podman exec xdiary-catalog" in good
+                and "UNKNOWN" in unknown and "не засчитывается" in unknown
+                and "where=НЕ УКАЗАНО" in unknown):
+            ok += 1
+        else:
+            print(f"  [FAIL] формат квитанции: {good!r} / {unknown!r}")
     finally:
         srv.shutdown()
         srv.server_close()
@@ -283,6 +316,8 @@ def main() -> int:
     ap.add_argument("--host-template", default="http://xdiary-{service}:8080",
                     help="шаблон адреса сервиса для --direct (по умолчанию http://xdiary-{service}:8080)")
     ap.add_argument("--only", default="", help="ограничить BC: --only Catalog,Analytics")
+    ap.add_argument("--where", default="",
+                    help="чем измерено (напр. podman exec xdiary-catalog / VPS-2 network xdiary_default) — обязательно для квитанции (ii-b)")
     ap.add_argument("--service-map", default="",
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
@@ -353,15 +388,23 @@ def main() -> int:
             print(f"::error::apim-auth(service): {b}")
         for u in unknown:
             print(f"::warning::apim-auth(service): {u}")
+
+        map_note = f"map={args.service_map}" if args.service_map else f"template={args.host_template}"
         # «Ничего не измерено» ≠ «зелено»: контур недоступен/прокси отвечает 502 → rc=2.
         # Без этого прогон извне выглядел бы PASS-ом на пустоте (класс, который ловил @TL).
         if not bad and passed == 0:
             print("::error::check_apim_auth: ни один сервис не дал измеримого ответа — "
                   "запускать изнутри контура (@DO); это НЕ «нарушения» и НЕ «зелено»")
-            print(f"REF={current_ref()} | direct | FAIL: 0/{len(targets)} измерено — контур недоступен")
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, args.where, map_note))
             return 2
-        print(f"REF={current_ref()} | direct | {'PASS' if rc == 0 else 'FAIL'}: сервисы напрямую — "
-              f"{passed}/{len(targets)} операций дают 401 без токена")
+        # @AR `17:20`: квитанция обязана содержать «чем измерено». Без `--where` это не квитанция,
+        # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
+        if rc == 0 and not args.where:
+            print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
+                  "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
+            print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", map_note))
+            return 2
+        print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, map_note))
         return rc
 
     if args.dry_run:
@@ -389,7 +432,7 @@ def main() -> int:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
                           "failures": bad, "unresolved": unknown, "rc": rc}, ensure_ascii=False, indent=2))
     else:
-        print(f"REF={current_ref()} | base={args.base} | 401 без токена: {passed}/{len(targets)}")
+        print(receipt_line("ii-a", current_ref(), passed, len(targets), rc, args.where or args.base))
         for b in bad:
             print(f"::error::apim-auth: {b}")
         for u in unknown:
