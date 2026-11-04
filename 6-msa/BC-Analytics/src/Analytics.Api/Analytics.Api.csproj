@@ -14,6 +14,11 @@
   <ItemGroup>
     <ProjectReference Include="..\Analytics.Application\Analytics.Application.csproj" />
     <ProjectReference Include="..\Analytics.Domain\Analytics.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+  </ItemGroup>
 </Project>
