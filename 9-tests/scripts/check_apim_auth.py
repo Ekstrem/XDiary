@@ -284,6 +284,7 @@ def verdict(results, five_xx_unknown=None, direct: bool = False):
         if code is None:
             unknown.append(f"{name} — нет ответа: {url}")
         elif code in (401, 403):
+            protected_count += 1
             continue
         elif code in (404, 405):
             contracts.append(f"{name} — {code} на индексированной операции: дефект реестра "
@@ -375,6 +376,18 @@ def selftest() -> int:
         else:
             print(f"  [FAIL] классификатор: ждали rc=1, 2 violator, 1 contract, 0 unknown; "
                   f"получили rc={rc}, viol={len(viol)}, contract={len(contr)}, unknown={len(unk)}")
+
+        total += 1
+        # РЕГРЕССИЯ-КЕЙС: «все 401» обязано давать rc=0 и passed=total. Пока 401 выходил
+        # через `continue` без инкремента, passed всегда был 0 → гейт не мог дать PASS вообще
+        # (и это не поймал ни один кейс: везде были нарушения или пустой ответ).
+        all_ok = [({"method": "GET", "path": f"/x{i}", "operationId": f"X{i}", "bc": "C"}, 401, "u")
+                  for i in range(5)]
+        _v, _c, _u, _p = verdict(all_ok)
+        if not _v and not _c and not _u and _p == 5 and final_rc(_v, _c, _u, _p, 5) == 0:
+            ok += 1
+        else:
+            print(f"  [FAIL] все 401: passed={_p}/5 (ждали 5), rc={final_rc(_v, _c, _u, _p, 5)} (ждали 0)")
 
         total += 1
         # 200 и 500 — нарушители поимённо, 404 — именно `contract`, а не «неизвестно»
