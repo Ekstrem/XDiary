@@ -36,6 +36,35 @@ def read(root, rel):
     return open(path, encoding="utf-8", errors="replace").read()
 
 
+WORKFLOW = ".github/workflows/deploy.yml"
+
+
+def workflow_passes_tag(root):
+    """`deploy.yml` не должен передавать тег в `update.sh`/`deploy.sh`.
+
+    Реальный дефект (найден 2026-11-04): после DO-066 скрипты **отказываются** от аргумента
+    (`rc=2`), а workflow продолжал вызывать `bash update.sh "$TAG"` — то есть прод-деплой
+    падал на собственном предохранителе. Гейт ловит именно это расхождение: предохран
+    в скрипте есть, а вызывающий его обходит.
+    """
+    path = os.path.join(root, WORKFLOW)
+    if not os.path.exists(path):
+        return []
+    bad = []
+    for lineno, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+        if line.lstrip().startswith("#"):
+            continue
+        for script in ("update.sh", "deploy.sh"):
+            m = re.search(r'\b' + script.replace(".", r"\.") + r'\s+(?!\|)(\S+)', line)
+            if not m:
+                continue
+            arg = m.group(1).strip()
+            if arg.startswith(("--", "||", "&&", ">", "2>", "|")):
+                continue
+            bad.append((lineno, script, arg))
+    return bad
+
+
 def check(root):
     v = []
     for rel in SCRIPTS:
@@ -100,6 +129,11 @@ def check(root):
     return v
 
 
+def check_workflow_tag(root):
+    return ["%s:%d — `%s %s` передаёт аргумент, а скрипт отказывается от него (DO-066)"
+            % (WORKFLOW, ln, script, arg) for ln, script, arg in workflow_passes_tag(root)]
+
+
 def selftest():
     ok = 0
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-lock")
@@ -128,8 +162,21 @@ def selftest():
             ok += 1
         else:
             print("  [FAIL] ждали %d, получили %d: %s" % (expect, got, sorted(files)))
+    # кейс: workflow передаёт тег в update.sh -> ловится (реальный дефект 2026-11-04)
+    wf_case = os.path.join(base, "wf")
+    os.makedirs(os.path.join(wf_case, os.path.dirname(WORKFLOW)), exist_ok=True)
+    with open(os.path.join(wf_case, WORKFLOW), "w", encoding="utf-8", newline="\n") as f:
+        f.write("steps:\n  - run: bash update.sh \"$TAG\"\n")
+    extra = 2 if workflow_passes_tag(wf_case) else 0
+    with open(os.path.join(wf_case, WORKFLOW), "w", encoding="utf-8", newline="\n") as f:
+        f.write("steps:\n  - run: bash update.sh\n")
+    if extra and not workflow_passes_tag(wf_case):
+        ok += 1
+    else:
+        print("  [FAIL] проверка «workflow передаёт тег» не работает в обе стороны")
+
     shutil.rmtree(base, ignore_errors=True)
-    print("check_lock --selftest: %d/%d" % (ok, len(cases)))
+    print("check_lock --selftest: %d/%d" % (ok, len(cases) + 1))
     return 0 if ok == len(cases) else 1
 
 

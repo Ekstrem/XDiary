@@ -48,7 +48,7 @@ jobs:
         run: |
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
-          echo "TAG=$first" >> "$GITHUB_ENV"
+          echo "TAG=$first" >> "$GITHUB_ENV"   # только для логов/проверки: update.sh читает lock сам
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
@@ -58,7 +58,7 @@ jobs:
           envs: TAG
           script: |
             cd /opt/xdiary/7-deploy
-            bash update.sh "$TAG"
+            bash update.sh
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
 
@@ -168,7 +168,7 @@ jobs:
         run: |
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
-          echo "TAG=$first" >> "$GITHUB_ENV"
+          echo "TAG=$first" >> "$GITHUB_ENV"   # только для логов/проверки: update.sh читает lock сам
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         env:
@@ -189,6 +189,6 @@ jobs:
             # иначе на прод уедет образ без переходного поведения.
             # DO-050: передаём время коммита, чтобы update.sh мог проверить
             # «образ не старше кода» — иначе success означает «не тот код».
-            bash /home/deploy/update.sh "$TAG"
+            bash /home/deploy/update.sh
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo PROD_OK
