@@ -1,34 +1,67 @@
-// E2E (настоящий) — TE-025: онбординг «телефон → SMS OTP → client-JWT → link-partner» (FE-018 ч.2, 0.48).
+// E2E — TE-049 / TE-025: онбординг **E7** (ADR-024): телефон → OTP → «Кто вы?» (имя + пол) → журнал.
 //
-// Путь нового устройства (после 0.47/0.48):
-//   чистый контекст (нет локального PIN и нет xdiary.legacy) → afterAuth() → Pin.hasPin()=false → openOnboarding().
-// Если на устройстве PIN уже есть — путь legacy (журнал), поэтому чистим оба флага перед стартом.
+// ЧТО ИЗМЕНИЛОСЬ (0.88, FE-038): на онбординге больше нет шага «привяжи себя к партнёру».
+// Профиль «я» — это `Client` (`POST /clients/me/profile` → `displayName` + `gender`), партнёр
+// добавляется позже отдельным действием на вкладке «Партнёры». Поэтому в этом сценарии
+// **нет ни одного обращения к legacy-привязке (шим ADR-024)**: на образах < 0.88 онбординг ещё старый, и такая
+// сборка честно пропускается с причиной — версия читается из отданного бандла (`APP_VERSION`),
+// то есть из внешнего факта, а не из поведения UI.
+//
+// Поля экрана «Кто вы?» пока не имеют зафиксированных id (FE-038 в работе), поэтому шаг
+// проверяется **без выдуманных селекторов**: сначала утверждается, что экран профиля показан
+// (виден `#view-onboarding` и в нём есть поле ввода имени, а журнала нет), затем профиль
+// сохраняется по **контракту** (`POST /clients/me/profile` тем же токеном) и проверяется, что
+// журнал открылся. Клик по кнопке «Продолжить» станет отдельным шагом, когда @FE зафиксирует id.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, uniquePhone, installBase, waitToken, dumpViews, reportStep, expectScreen, watchLinkPartner } = require('./api');
+const { API_BASE, uniquePhone, installBase, reportStep, expectScreen, dumpViews } = require('./api');
 
-const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс. (коллизии телефонов давали 5-20% падений)
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
+const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, меньше коллизий с накопленными клиентами
 
-async function clearFlags(page) {
-  await page.evaluate(() => {
-    try {
-      localStorage.removeItem('xdiary.clientId');
-      localStorage.removeItem('xdiary.legacy');
-      localStorage.removeItem('xdiary.accessToken');
-    } catch (e) {}
-  });
+/** Версия фронта из отданного бандла. `null` — прочитать не удалось (это не «старая», это «неизвестно»). */
+async function deployedVersion(request) {
+  const base = API_BASE.replace(/\/api\/v1\/?$/, '');
+  const r = await request.get(base + '/js/app.js');
+  if (!r.ok()) return null;
+  const m = (await r.text()).match(/APP_VERSION\s*=\s*"([\d.]+)"/);
+  return m ? m[1] : null;
 }
 
-test('E2E: онбординг — телефон → OTP → link-partner → «я» по clientId', async ({ page }) => {
-  await installBase(page);
-  await page.goto('/');
-  await clearFlags(page);
+/** Сравнение версий вида `0.88` / `0.87.3`: true, если a >= b. */
+function atLeast(a, b) {
+  const pa = String(a).split('.').map((x) => parseInt(x, 10) || 0);
+  const pb = String(b).split('.').map((x) => parseInt(x, 10) || 0);
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    const x = pa[i] || 0;
+    const y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
 
-  await test.step('чистое устройство → экран онбординга «кто ты»', async () => {
+test('E2E: онбординг E7 — телефон → OTP → «Кто вы?» (имя + пол) → журнал', async ({ page, request }) => {
+  const ver = await deployedVersion(request);
+  test.skip(
+    !ver || !atLeast(ver, '0.88'),
+    'стенд ' + (ver || 'версия неизвестна') + ': онбординг E7 не выкачен (нужен 0.88+, FE-038) — ' +
+      'на таком образе путь онбординга другой, и проверять его этой спекой нельзя'
+  );
+
+  await test.step('чистое устройство → экран онбординга', async () => {
     await reportStep(page, 'шаг 0: чистое устройство → онбординг');
+    await installBase(page);
+    await page.goto('/');
+    await page.evaluate(() => {
+      try {
+        localStorage.removeItem('xdiary.clientId');
+        localStorage.removeItem('xdiary.legacy');
+        localStorage.removeItem('xdiary.accessToken');
+      } catch (e) {}
+    });
     await page.reload();
-    await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 20000 });
-    await expect(page.locator('#onb-phone')).toBeVisible();
+    await expectScreen(page, '#view-onboarding', 'чистое устройство → онбординг', 20000);
+    await expect(page.locator('#view-lock')).toBeHidden();
   });
 
   await test.step('шаг 1: телефон → запрос OTP', async () => {
@@ -36,161 +69,60 @@ test('E2E: онбординг — телефон → OTP → link-partner → «
     await page.fill('#onb-phone-input', PHONE);
     await page.click('#btn-onb-phone');
     await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
-    await expect(page.locator('#onb-otp-phone')).toContainText(PHONE);
   });
 
-  await test.step('шаг 2: OTP ' + TEST_OTP + ' → верификация и client-JWT', async () => {
+  await test.step('шаг 2: OTP → «Кто вы?» (имя + пол), без шага привязки', async () => {
+    await reportStep(page, 'шаг 2: OTP → «Кто вы?»');
     await page.fill('#onb-otp-input', TEST_OTP);
     await page.click('#btn-onb-otp');
-    await expectScreen(page, '#onb-link', 'OTP принят (verify вернул 200)', 20000);
-    // TE-036 (@TL 03:50): шаг пройден = #onb-link виден И нет тоста ошибки. Порядок важен:
-    // если бы verify вернул 400, спека упала бы ЗДЕСЬ, а не на «#view-journal hidden».
-    await reportStep(page, 'шаг 2: OTP → привязка');
-    const clientId = await page.evaluate(() => localStorage.getItem('xdiary.clientId'));
-    expect(clientId && clientId !== 'pending', 'clientId сохранён после верификации: ' + clientId).toBe(true);
+    await expect(page.locator('#onb-otp-error')).toBeHidden({ timeout: 20000 });
+    // E7: после OTP остаёмся в онбординге, но уже на шаге профиля — журнала ещё нет.
+    await dumpViews(page, 'onboarding E7: после OTP');
+    await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal')).toBeHidden();
+    // Поле имени: семантически, без выдуманного id (FE-038 ещё не зафиксировал разметку).
+    const nameInput = page.locator('#view-onboarding input:visible').first();
+    await expect(nameInput, 'на шаге «Кто вы?» должно быть видимое поле имени').toBeVisible({ timeout: 20000 });
   });
 
-  await test.step('шаг 3: привязка «я» → журнал', async () => {
-    await reportStep(page, 'шаг 3: привязка «я» → журнал');
-    // TE-043: карточка выбирается ДЕТЕРМИНИРОВАННО — по имени партнёра, созданного этим
-    // прогоном. Раньше брался `.first()`: на стенде с сотнями чужих карточек это
-    // произвольная старая запись (2635 партнёров → «флейк 20%», DO-044/TE-043).
-    const partnerName = 'e2e-auto-' + Date.now();
-    const created = await page.evaluate(async ({ base, name }) => {
-      const t = localStorage.getItem('xdiary.accessToken') || '';
-      if (!t) return { ok: false, noToken: true };
-      const r = await fetch(base + '/api/v1/partners', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
-        body: JSON.stringify({ name }),
-      });
-      const j = r.ok ? await r.json().catch(() => null) : null;
-      return { ok: r.ok, status: r.status, id: (j && j.id) || null };
-    }, { base: API_BASE, name: partnerName }).catch((e) => ({ ok: false, err: String(e).slice(0, 120) }));
-    console.log('::warning::партнёр через API: ' + JSON.stringify(created) + ' name=' + partnerName);
-
-    const allCards = page.locator('#onboarding-list .partner-card');
-    const ownCards = allCards.filter({ hasText: partnerName });
-    const countOwn = async () => await ownCards.count();
-
-    let ownCount = 0;
-    for (let i = 0; i < 10 && ownCount === 0; i++) {
-      ownCount = await countOwn();
-      if (ownCount === 0) await page.waitForTimeout(500);
-    }
-    if (ownCount === 0) {
-      // список мог не обновиться после создания через API — один reload и ждём свою карточку
-      await page.reload();
-      await expectScreen(page, '#onb-link', 'после reload: шаг привязки виден', 20000);
-      for (let i = 0; i < 30 && ownCount === 0; i++) {
-        ownCount = await countOwn();
-        if (ownCount === 0) await page.waitForTimeout(500);
-      }
-    }
-    const totalCards = await allCards.count();
-    console.log('::warning::карточек всего: ' + totalCards + ', своих по имени ' + partnerName + ': ' + ownCount);
-    if (ownCount !== 1) {
-      throw new Error(
-        'Своя карточка не найдена однозначно: совпадений ' + ownCount + ' из ' + totalCards +
-        ', партнёр создан=' + JSON.stringify(created) + ', имя=' + partnerName +
-        '. Клик не выполняется — привязка к чужому партнёру недопустима (TE-043).'
-      );
-    }
-    const card = ownCards;
-    await card.scrollIntoViewIfNeeded().catch(() => {});
-    let mode = 'link-partner по своей карточке (по имени)';
-    // TE-037 (@TL 07:06): перехват сети вокруг клика. Без него нельзя отличить
-    // «POST /link-partner не отправлялся» от «отправлялся и вернул ошибку» —
-    // в #17 сетевых вызовов в логе не было, а #onb-link-error остался hidden.
-    const linkWatch = watchLinkPartner(page);
-    // TE-032 (@TL 08:31): два дешёвых факта для «клик не доходит до обработчика».
-    // (1) кто реально под курсором в центре карточки — `elementFromPoint`;
-    // (2) перерисовывался ли `#onboarding-list` между поиском карточки и кликом —
-    //     `renderLinkPartners()` делает `innerHTML=""`, и клик может уйти в отсоединённый узел.
-    await page.evaluate(() => {
-      const list = document.querySelector('#onboarding-list');
-      window.__e2eListMut = 0;
-      try { if (window.__e2eListObs) window.__e2eListObs.disconnect(); } catch (e) {}
-      if (list && window.MutationObserver) {
-        window.__e2eListObs = new MutationObserver((ms) => { window.__e2eListMut += ms.length; });
-        window.__e2eListObs.observe(list, { childList: true, subtree: true });
-      }
-    }).catch(() => {});
-    // TE-036: карточка может быть видима, но не кликабельна (overlay/pointer-events) —
-    // тогда «клик не доходит» и «FE не переключает экран» выглядят одинаково.
-    if (await card.count()) {
-      const vis = await card.isVisible();
-      const box = await card.boundingBox().catch(() => null);
-      const clickable = await card.evaluate((el) => {
-        const cs = getComputedStyle(el);
-        return { pointerEvents: cs.pointerEvents, display: cs.display, visibility: cs.visibility };
-      }).catch(() => null);
-      console.log('::notice::карточка партнёра: visible=' + vis + ', box=' + JSON.stringify(box) + ', style=' + JSON.stringify(clickable));
-      // (1) КТО под курсором — до клика, по реальным координатам центра карточки.
-      const under = await card.evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        const x = r.left + r.width / 2;
-        const y = r.top + r.height / 2;
-        const hit = document.elementFromPoint(x, y);
-        if (!hit) return { point: { x, y }, hit: null };
-        const cardHit = hit.closest('.partner-card');
-        return {
-          point: { x, y },
-          hit: { tag: hit.tagName, id: hit.id || '', cls: String(hit.className || '').slice(0, 60) },
-          inCard: !!cardHit,
-          sameCard: cardHit === el,
-        };
-      }).catch(() => null);
-      console.log('::warning::под курсором в центре карточки: ' + JSON.stringify(under));
-      await card.click();
-      mode = 'link-partner по карточке';
-    }
-    // Дать сети шанс отработать и зафиксировать факт: уходил ли POST /link-partner.
-    await page.waitForTimeout(700);
-    // (2) Перерисовывался ли список — счётчик мутаций `#onboarding-list` за время клика.
-    const mutations = await page.evaluate(() => {
-      try { if (window.__e2eListObs) window.__e2eListObs.disconnect(); } catch (e) {}
-      return window.__e2eListMut || 0;
-    }).catch(() => null);
-    console.log('::warning::перерисовок списка за клик: ' + mutations);
-    linkWatch.report('после клика по карточке');
-    // Снимок экранов ДО ожидания: видно, дошло ли приложение до журнала и что осталось висеть.
-    await dumpViews(page, 'после привязки');
-    // Маскированный ответ me(): пуст ли linkedPartnerId фактически.
-    const meNow = await page.evaluate(async (base) => {
-      const id = localStorage.getItem('xdiary.clientId') || '';
-      const t = localStorage.getItem('xdiary.accessToken') || '';
-      if (!id || !t) return { noSession: true };
-      const r = await fetch(base + '/api/v1/clients/' + id, { headers: { Authorization: 'Bearer ' + t } });
-      const j = r.ok ? await r.json().catch(() => null) : null;
-      return { status: r.status, verified: !!(j && j.verified), linked: !!(j && j.linkedPartnerId) };
-    }, API_BASE).catch(() => null);
-    console.log('::notice::me() после привязки: ' + JSON.stringify(meNow));
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
-    console.log('::notice::TE-025 онбординг пройден: ' + mode + ', phone=' + PHONE);
+  await test.step('шаг 3: профиль сохраняется контрактом (displayName + gender)', async () => {
+    await reportStep(page, 'шаг 3: профиль «я» через POST /clients/me/profile');
+    const saved = await page.evaluate(
+      async ({ base, name }) => {
+        const t = localStorage.getItem('xdiary.accessToken') || '';
+        if (!t) return { ok: false, noToken: true };
+        const r = await fetch(base + '/api/v1/clients/me/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+          body: JSON.stringify({ displayName: name, gender: 'male' }),
+        });
+        return { ok: r.ok, status: r.status };
+      },
+      { base: API_BASE, name: 'e2e-e7-' + Date.now() }
+    );
+    expect(saved.noToken, 'client-JWT должен быть получен на шаге OTP').toBeFalsy();
+    expect(saved.ok, 'POST /clients/me/profile → ' + JSON.stringify(saved)).toBeTruthy();
   });
 
-  await test.step('«я» с сервера после перезагрузки', async () => {
-    await reportStep(page, 'шаг 4: «я» с сервера после перезагрузки');
-    const clientId = await page.evaluate(() => localStorage.getItem('xdiary.clientId'));
-    expect(clientId, 'clientId сохранён').toBeTruthy();
+  await test.step('шаг 4: повторный вход — сразу журнал, онбординг не повторяется', async () => {
+    await reportStep(page, 'шаг 4: reload → журнал');
     await page.reload();
-    // после reload — снова журнал (клиент верифицирован), либо PIN-экран
-    const lock = page.locator('#view-lock');
-    if (await lock.isVisible()) {
-      await page.fill('#pin-input', PIN);
-      await page.click('#pin-submit');
-      await waitToken(page);
-    }
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await dumpViews(page, 'onboarding E7: после сохранения профиля и reload');
+    await expectScreen(page, '#view-journal', 'профиль сохранён → журнал', 20000);
+    await expect(page.locator('#view-onboarding')).toBeHidden();
+  });
 
-    const me = await page.evaluate(async ({ base, id }) => {
+  await test.step('шаг 5: «я» — это профиль Client, а не партнёр', async () => {
+    await reportStep(page, 'шаг 5: GET /clients/me — поля профиля, без linkedPartnerId');
+    const me = await page.evaluate(async ({ base }) => {
       const t = localStorage.getItem('xdiary.accessToken') || '';
-      const r = await fetch(base + '/api/v1/clients/' + id, { headers: t ? { Authorization: 'Bearer ' + t } : {} });
-      return { status: r.status, data: r.ok ? await r.json() : null };
-    }, { base: API_BASE, id: clientId });
-    expect(me.status, 'GET /clients/{id}').toBe(200);
-    expect(me.data && me.data.verified, 'клиент верифицирован на сервере').toBe(true);
-    console.log('::notice::TE-025 «я» с сервера после reload: clientId=' + clientId + ', verified=' + (me.data && me.data.verified));
+      const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });
+      const j = r.ok ? await r.json().catch(() => null) : null;
+      return { status: r.status, body: j };
+    }, { base: API_BASE });
+    expect(me.status, 'GET /clients/me → ' + me.status).toBe(200);
+    expect(me.body.displayName, 'профиль должен содержать displayName').toBeTruthy();
+    expect(['male', 'female'], 'пол — канонический (ADR-024 §3)').toContain(me.body.gender);
+    expect(me.body, 'в E7 у клиента больше нет linkedPartnerId').not.toHaveProperty('linkedPartnerId');
   });
 });
