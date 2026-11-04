@@ -127,6 +127,73 @@ def selftest():
     return 0 if ok == 2 else 1
 
 
+def specs_files(root):
+    base = os.path.join(root, OPENAPI_DIR)
+    if not os.path.isdir(base):
+        return []
+    return sorted(n[:-5] for n in os.listdir(base)
+                  if n.endswith(".json") and n not in ("index.json", "_meta.json"))
+
+
+def _norm(name):
+    return re.sub(r'[^a-z0-9]', '', name.lower())
+
+
+def compare_names(spec_slugs, apim_names):
+    """Сопоставление «slug спеки» ↔ «имя API в APIM» по нормализованному виду."""
+    apim_norm = {_norm(n): n for n in apim_names}
+    spec_norm = {_norm(sl): sl for sl in spec_slugs}
+    seen = 0
+    missing, extra = set(), set()
+    for norm, slug in spec_norm.items():
+        hit = None
+        for an, orig in apim_norm.items():
+            if norm == an or norm in an or an in norm:
+                hit = orig
+                break
+        if hit:
+            seen += 1
+            apim_norm.pop(_norm(hit), None)
+        else:
+            missing.add(slug)
+    for orig in apim_norm.values():
+        extra.add(orig)
+    return seen, missing, extra
+
+
+def apim_operations_basic(api_base, basic, exec_container=None, timeout=25):
+    """Список API из APIM по Basic-авторизации (через podman exec или напрямую)."""
+    base = ("http://127.0.0.1:8083" if exec_container else api_base)
+    url = (base + "/management/v2/organizations/DEFAULT/environments/DEFAULT/"
+                  "apis?page=%d&per_page=10")
+
+    def get(path):
+        if exec_container:
+            cmd = ["podman", "exec", exec_container, "sh", "-c",
+                   "curl -s -m %d -u '%s' '%s'" % (timeout, basic, path)]
+            return subprocess.run(cmd, capture_output=True, text=True,
+                                  encoding="utf-8", errors="replace").stdout
+        import urllib.request
+        import base64
+        req = urllib.request.Request(
+            path, headers={"Authorization": "Basic " + base64.b64encode(basic.encode()).decode()})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", "replace")
+
+    names = set()
+    for page in (1, 2, 3):
+        try:
+            data = json.loads(get(url % page) or "{}")
+        except Exception as exc:
+            return None, "APIM недоступен или Basic не принят: %s" % str(exc)[:100]
+        batch = data.get("data") or []
+        for a in batch:
+            if a.get("name"):
+                names.add(a["name"])
+        if len(batch) < 10:
+            break
+    return names, ""
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -140,6 +207,7 @@ def main():
         return selftest()
     root = os.path.abspath(a.root)
     token = os.environ.get("GRAVITEE_TOKEN", "").strip()
+    basic = os.environ.get("GRAVITEE_BASIC", "").strip()      # "user:password"
     want = index_operations(root)
     specs = spec_operations(root)
     print("check_apim_drift: индекс %d operationId, спеки %d (openapi/*.json)"
@@ -148,6 +216,27 @@ def main():
         print("check_apim_drift: --specs-only: индекс %d, спеки %d, APIM не опрашивался"
               % (len(want), len(specs)))
         return 0
+    if basic:
+        got, err = apim_operations_basic(a.api, basic, exec_container=a.container)
+        want_all = specs if specs else set()
+        apis_apim = got or set()
+        print("check_apim_drift: APIM API %d, openapi спек %d, операций в openapi %d"
+              % (len(apis_apim), len(specs_files(a.root)), len(want_all)))
+        if err:
+            print("::error::(apim) %s" % err)
+            return 2
+        if not specs_files(a.root) and not apis_apim:
+            print("check_apim_drift: спек нет и в APIM пусто — расхождений 0")
+            return 0
+        seen, missing, extra = compare_names(specs_files(a.root), apis_apim)
+        for name in sorted(missing):
+            print("::error::(apim) %s — спека есть, API в APIM нет" % name)
+        for name in sorted(extra):
+            print("::warning::(apim) %s — API в APIM есть, спеки нет" % name)
+        print("check_apim_drift: совпало по именам %d из %d спек; расхождений %d"
+              % (seen, len(specs_files(a.root)), len(missing) + len(extra)))
+        return 1 if missing else 0
+
     if not token:
         print("::warning::GRAVITEE_TOKEN не задан — сравнение с APIM не выполнено (это НЕ «совпадает»)")
         return 2
@@ -172,5 +261,7 @@ def main():
     return 1 if (missing or extra) else 0
 
 
+
 if __name__ == "__main__":
     sys.exit(main())
+
