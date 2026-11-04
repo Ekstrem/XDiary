@@ -47,6 +47,17 @@ HASHFILE="$HOME/.xdiary-images.sha256"
 IDFILE="$HOME/.xdiary-image-ids"
 DEPLOY_HASH_FILE="$HOME/.xdiary-deploy-sh.sha256"
 
+# DO-074: диск проверяем ДО деплоя. 2026-11-15 на dev закончилось место: контейнеры
+# упали, а после освобождения 3.7 ГБ не поднимались — `clone: No space left on device`,
+# потому что слой хранения остался битым после записи в полный диск. Проверка дешёвая,
+# а восстановление — руками и с простоя.
+MIN_FREE_MB="${XDIARY_MIN_FREE_MB:-2048}"
+avail_mb=$(df -Pm / | awk 'NR==2 {print $4}')
+if [ -n "$avail_mb" ] && [ "$avail_mb" -lt "$MIN_FREE_MB" ]; then
+  die "мало места на /: ${avail_mb} МБ < ${MIN_FREE_MB} МБ — деплой остановлен (DO-074)"
+fi
+say "место на /: ${avail_mb} МБ свободно (порог ${MIN_FREE_MB})"
+
 # DO-072: на хосте с 12+ .NET-сервисов дефолт fs.inotify.max_user_instances=128
 # исчерпывается, сервис падает на старте (IOException + ExitCode=139), снаружи — 502.
 # Поднимаем лимиты ДО пересоздания контейнеров; скрипт идемпотентен.

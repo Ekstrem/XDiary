@@ -221,3 +221,24 @@ sudo -n bash 7-deploy/reset-pin.sh --contour prod --yes --sudo
 
 Сам PIN ставится через API (`POST /api/v1/privacy/pin` с JWT клиента) — скрипт чистит
 таблицу и печатает следующий шаг, а не пишет хеш руками.
+
+## Контейнер не стартует: `clone: No space left on device` (DO-074, 2026-11-15)
+
+**Симптом:** `podman start <name>` → `Error: OCI runtime error: … clone: No space left on
+device`, при этом `df -h /` показывает **десятки гигабайт свободных**: место уже освободили,
+но слой хранения контейнера остался битым после записи в полный диск.
+
+**Что делать (порядок):**
+
+1. Проверить и освободить место: `df -h /`, `sudo journalctl --vacuum-size=200M`
+   (на dev это дало **3.7 ГБ**), `sudo podman image prune -f`.
+2. Понять, **почему** упало: `sudo podman logs <name> | head -40`. Если там
+   `Autofac.Core.DependencyResolutionException … Cannot resolve parameter 'XEventHandler'` —
+   место тут ни при чём, сервис падал на DI, и пересоздание не поможет: нужен фикс кода.
+3. Битый контейнер **пересоздать**, а не `start`:
+   `sudo podman rm -f xdiary-<name>` и затем деплой (`update.sh` / `deploy.sh`).
+4. `update.sh` теперь проверяет свободное место **до** деплоя
+   (`XDIARY_MIN_FREE_MB`, по умолчанию 2048) и падает, если места меньше.
+
+**Почему это в ранбуке:** «освободил место и всё заработало» здесь неверно — заработает
+только после пересоздания слоя, и это стоит помнить при следующем ENOSPC.
