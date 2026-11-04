@@ -49,6 +49,12 @@ jobs:
           failed=$(echo "$counts" | grep -Eo 'Failed:[[:space:]]+[0-9]+' | grep -Eo '[0-9]+')
           echo "passed=${passed:-0} failed=${failed:-0} rc=$rc gate=$XDIARY_PARTNERS_DIRECTORY" >> "$GITHUB_OUTPUT"
           echo "::notice title=TE-050 result::passed=${passed:-0} failed=${failed:-0} gate=$XDIARY_PARTNERS_DIRECTORY rc=$rc ($line)"
+          # Логи джобы по API недоступны (403), поэтому диагностику кладём в аннотацию:
+          # многострочный текст через %0A, иначе CI съест переводы строк.
+          # Берём не хвост, а строки, объясняющие причину.
+          diag=$(grep -nE 'error|Exception|Failed|Unable|No test matches|Invalid|refused|Cannot' /tmp/test.log \
+                 | head -14 | tr '\n' '~' | sed 's/~/%0A/g' | cut -c1-3500)
+          echo "::error title=TE-050 diagnosis::${diag:-пусто}"
           {
             echo "### TE-050 PartnerSoftDelete"
             echo ""
