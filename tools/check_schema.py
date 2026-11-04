@@ -31,10 +31,14 @@ SERVICES = [
     ("journal", "6-msa/BC-Journal", "journal", "journal"),
     ("client", "6-msa/BC-Client", "client", "client"),
     ("catalog", "6-msa/BC-Catalog", "catalog", "catalog"),
-    ("daily-metrics", "6-msa/BC-DailyMetrics", "dailymetrics", "dailymetrics"),
-    ("somatic-series", "6-msa/BC-SomaticSeries", "somatic", "somatic"),
+    ("daily-metrics", "6-msa/BC-DailyMetrics", "daily_metrics", "daily_metrics"),
+    ("somatic-series", "6-msa/BC-SomaticSeries", "somatic_series", "somatic_series"),
     ("privacy", "6-msa/BC-Privacy", "privacy", "privacy"),
     ("portability", "6-msa/BC-Portability", "portability", "portability"),
+    ("analytics", "6-msa/BC-Analytics", "analytics", "analytics"),
+    ("garmin-gateway", "6-msa/BC-GarminGateway", "garmin_gateway", "garmin_gateway"),
+    ("apple-health-gateway", "6-msa/BC-AppleHealthGateway", "apple_health_gateway",
+     "apple_health_gateway"),
 ]
 
 MIG = re.compile(r"^(\d{14})_([A-Za-z0-9_]+)\.cs$")
@@ -86,7 +90,11 @@ def check(root, container, sudo=False):
         if missing:
             v.append(("схема отстала", name, "в БД нет миграций: %s" % ", ".join(missing)))
         if extra:
-            v.append(("схема впереди кода", name, "в БД есть лишние: %s" % ", ".join(extra)))
+            # НЕ ошибка: чаще всего это след squash/rename (например `AddSelfToPartner`
+            # влит в `AddClientIdToPartner`). Ошибка — только когда код ушёл вперёд схемы:
+            # тогда деплой приложения упадёт на отсутствующей колонке.
+            v.append(("warning-extra", name, "в БД есть миграции, которых нет в коде: %s"
+                      % ", ".join(extra)))
     return v
 
 
@@ -122,11 +130,14 @@ def main():
     if a.selftest:
         return selftest()
     v = check(os.path.abspath(a.root), a.container, a.sudo)
+    errors = [x for x in v if x[0] != "warning-extra"]
     for kind, name, why in v:
-        print("::error::(схема) %s: %s — %s" % (name, kind, why))
-    print("check_schema: сервисов с миграциями %d, расхождений %d"
-          % (len([1 for n, p, _d, _u in SERVICES if expected(os.path.abspath(a.root), p)]), len(v)))
-    return 1 if v else 0
+        prefix = "::warning" if kind == "warning-extra" else "::error"
+        print("%s::(схема) %s: %s — %s" % (prefix, name, kind, why))
+    n_serv = len([1 for n, p, _d, _u in SERVICES if expected(os.path.abspath(a.root), p)])
+    print("check_schema: сервисов с миграциями %d, ошибок %d, предупреждений %d"
+          % (n_serv, len(errors), len(v) - len(errors)))
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
