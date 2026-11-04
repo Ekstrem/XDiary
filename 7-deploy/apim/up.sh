@@ -16,6 +16,7 @@ cd "$(dirname "$0")"
 
 NET=apim
 MONGO=xdiary-apim-mongo
+UI=xdiary-apim-ui
 MGMT=xdiary-apim-management
 GW=xdiary-apim-gateway
 URI_TMPL='mongodb://%s:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000'
@@ -93,6 +94,17 @@ run_gw() {
   say "gateway запущен (512m, прокси 127.0.0.1:18082)"
 }
 
+run_ui() {
+  # Management Console UI. Нужен для первичной установки: первый админ Gravitee 4.x
+  # создаётся мастером консоли, а не инициализатором (в jar-ах его нет).
+  # Порт только на loopback: UI не для внешнего мира, смотреть через ssh-туннель.
+  podman rm -f "$UI" >/dev/null 2>&1 || true
+  podman run -d --name "$UI" --network "$NET" --memory=256m --restart unless-stopped \
+    -p 127.0.0.1:18084:8080 \
+    docker.io/graviteeio/apim-management-ui:4.4 >/dev/null
+  say "management-ui запущен: http://127.0.0.1:18084 (только loopback)"
+}
+
 health() {
   local mg_ip out=""
   mg_ip=$(podman inspect "$MGMT" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null | tr -d '\n')
@@ -107,6 +119,7 @@ health() {
 echo "1) сеть"; ensure_network
 echo "2) mongo"; start_mongo
 echo "3) management-api"; run_mgmt
+echo "3b) management-ui"; run_ui
 echo "4) gateway"; run_gw
 echo "5) health management"; health
 echo "6) контроль: APIM НЕ в пути трафика"

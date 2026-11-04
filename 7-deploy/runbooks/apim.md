@@ -158,3 +158,25 @@ curl -s "http://$ip:8080/swagger/v1/swagger.json" -o catalog.json
 **Осторожно:** пересоздание `xdiary-apim-management` занимает ~45 с, и в это время
 `/management/v2/` не отвечает. `heal-network.sh` это не лечит (он про сеть), поэтому
 пересоздавать только осознанно и проверять `200` после.
+
+## Точное место, где упирается бутстрап (2026-11-04, измерения)
+
+Состояние сейчас: `apim-management` — **200**, `apim-gateway` — `127.0.0.1:18082`,
+`apim-management-ui` — `127.0.0.1:18084` (консоль, только loopback; поднимается `up.sh run_ui`).
+
+**Basic auth `admin`/`admin` — аутентификация ПРОХОДИТ** (встроенный memory-провайдер
+в `gravitee.yml`: `admin` / пароль `admin`, роли `ORGANIZATION:ADMIN,ENVIRONMENT:ADMIN`).
+Доказательство: до входа любой `/management/v2/*` даёт **401**, после `-u admin:admin` —
+**500**, то есть запрос дошёл до бизнес-логики.
+
+**Почему 500:** в логе платформы
+`java.lang.IllegalArgumentException: The given id must not be null`
+→ `MongoOrganizationRepository.findById` → `OrganizationServiceImpl.findById`
+← `UserServiceImpl.create` (user→org lookup при создании пользователя из IdP).
+То есть платформа пытается **создать** пользователя из memory-IdP, у IdP-пользователя нет
+`organizationId`, и создание падает. Значит установка (install) не завершена — её и
+выполняет консоль.
+
+**Следствие:** админ «существует» для аутентификации, но API не работает, пока не пройден
+install-шаг консоли. Поэтому импорт спек (`import.sh`) запускать нечем: любой
+`POST …/apis/import` упадёт так же.
