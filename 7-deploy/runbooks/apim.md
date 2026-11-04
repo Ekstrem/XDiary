@@ -130,3 +130,31 @@ curl -s "http://$ip:8080/swagger/v1/swagger.json" -o catalog.json
 **Почему dev вообще не поднимался:** на dev, как и на проде, `clone: No space left on device`
 при свободном диске — виноваты **лимиты namespace**: `user.max_*_namespaces` подняты до
 `1048576`, после чего `deploy.sh` создал все 13 контейнеров.
+
+## Bootstrap админа: почему нельзя и что осталось (проверено 2026-11-04)
+
+Пять путей проверены на живом проде — **ни один не даёт админа**:
+
+1. **Инициализатора админа в Gravitee 4.4 нет.** `grep` по всем jar-ам
+   (`DefaultUserInitializer`, `InstallationInitializer`, `installDefaultUser`) → **0**.
+2. **У пользователя нет поля `username`.** В байткоде `UserMongo` поля: `id`, `email`,
+   `password`, `firstname`, `lastname`, `source`, `sourceId`, `status`, `organizationId`,
+   `picture`, `newsletterSubscribed`, `createdAt`, `updatedAt`, `lastConnectionAt`,
+   `firstConnectionAt`, `loginCount`. Логин — это **`_id`**, не имя.
+3. **Эндпоинта `/management/v2/user/login` в 4.4 нет**: в `management-v2-rest` 1192 класса,
+   среди них ни одного `Login`/`Auth`/`Token`-ресурса. Поэтому любой `POST` даёт **401** от
+   security-фильтра — это «эндпоинта нет», а не «неверный пароль». Ошибка читается неверно.
+4. **Прямая вставка в `users` + `memberships`** (bcrypt `$2b$`, `source: memory`,
+   `status: ACTIVE`, роль `ORGANIZATION/ADMIN`) → запись есть, Basic/Bearer → **401**.
+   Причина в п.2–3: проверять пароль некому.
+5. **`memory`-провайдер через env** (`gravitee_security_providers_0_type=memory` +
+   `_users_0_username/password`) → management **не поднялся** (3.5 мин без ответа);
+   откатил на рабочую конфигурацию, `/management/v2/` = **200**.
+
+**Вывод:** первый админ создаётся только **Management Console UI** (`graviteeio/apim-management-ui`),
+которого в `up.sh` нет. До его появления `DO-056` (импорт + drift-check) остаётся
+заблокированным: `import.sh`/`check_apim_drift` без токена дают `rc=2`, а не ложный зелёный.
+
+**Осторожно:** пересоздание `xdiary-apim-management` занимает ~45 с, и в это время
+`/management/v2/` не отвечает. `heal-network.sh` это не лечит (он про сеть), поэтому
+пересоздавать только осознанно и проверять `200` после.
