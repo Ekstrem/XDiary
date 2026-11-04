@@ -198,6 +198,9 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     # ВКЛЮЧАЯ contract, но отдельное число нужно, чтобы в ADR-026 было видно, КАКОЙ это дефект.
     line = (f"REF={ref} | {body} | нарушителей={violators + contracts} "
             f"(в т.ч. contract={contracts}) | неизвестно={unknown} | rc={rc}")
+    # Тождество `N+V+C+U == total` (@AR/@TL `01:58`): печатаем сумму всегда — «выпавшая группа»
+    # видна сразу, без ревью. Если сумма не сходится, main возвращает `rc=2` (недействительна).
+    line += f" | сумма={passed + violators + contracts + unknown}/{total}"
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
     return line
 
@@ -243,6 +246,7 @@ def verdict(results, five_xx_unknown=None, direct: bool = False):
     if five_xx_unknown is None:
         five_xx_unknown = not direct
     violators, contracts, unknown = [], [], []
+    protected_count = 0
     for op, code, url in results:
         name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}] bc={op.get('bc')}"
         if code is None:
@@ -256,7 +260,18 @@ def verdict(results, five_xx_unknown=None, direct: bool = False):
             unknown.append(f"{name} — {code} [infra] (прокси недоступен; в --direct это было бы нарушение), {url}")
         else:
             violators.append(f"{name} — {code} вместо 401 (ответ получен без токена), {url}")
-    return violators, contracts, unknown
+    return violators, contracts, unknown, protected_count
+
+
+def identity_ok(protected: int, violators: int, contracts: int, unknown: int, total: int) -> bool:
+    """Тождество квитанции (@AR `01:58`, @TL `01:58`): `N+V+C+U == total`.
+
+    Защита от «выпавшей группы»: если классификатор потеряет ответы (как случилось с 13 `400`
+    в чужом инструменте), сумма перестанет сходиться, и квитанция станет **недействительной**
+    (`rc=2`), а не «частично верной». Сверяем с числом **целей** (`total`), а не с литеральным
+    `76`: при `--only`/`--service-map` целей меньше, и жёсткое `76` дало бы ложную недействительность.
+    """
+    return protected + violators + contracts + unknown == total
 
 def selftest() -> int:
     """Доказательство, что проверка краснеет на открытой операции и зеленеет на 401.
@@ -317,8 +332,8 @@ def selftest() -> int:
         ]
         targets = [op for op in ops if requires_auth(op)]
         results = [(op, *check_one(base, op, timeout=5)) for op in targets]
-        viol, contr, unk = verdict(results)
-        rc = final_rc(viol, contr, unk, len(targets) - len(viol) - len(contr) - len(unk), len(targets))
+        viol, contr, unk, prot = verdict(results)
+        rc = final_rc(viol, contr, unk, prot, len(targets))
 
         total += 1
         # Четыре класса (@AR `01:42`, @TL `01:43`). Набор: a=401, c=403 (protected); b=200 и d=500
@@ -347,11 +362,11 @@ def selftest() -> int:
         ]
         wrong = []
         for code, want in cls:
-            _v, _c, _u = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, code, "u")])
+            _v, _c, _u, _p = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, code, "u")])
             got = "violator" if _v else ("contract" if _c else ("unknown" if _u else "protected"))
             if got != want:
                 wrong.append(f"{code}: got {got}, want {want}")
-        _v2, _c2, _u2 = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, 502, "u")],
+        _v2, _c2, _u2, _p2 = verdict([({"method": "GET", "path": "/x", "operationId": "X", "bc": "C"}, 502, "u")],
                                 five_xx_unknown=False)
         if not _v2:
             wrong.append("502: strict-режим не сделал нарушителем")
@@ -387,7 +402,7 @@ def selftest() -> int:
             {"method": "GET", "path": "/api/v1/b", "operationId": "S.Open", "auth": "jwt", "bc": "Catalog"},
         ]
         dres = [(op, *check_url(resolve_host(fakes, op["bc"], tpl) + op["path"])) for op in direct_ops]
-        dv, dc, du = verdict(dres)
+        dv, dc, du, dp = verdict(dres)
         if dv and any("S.Open" in b for b in dv) and any("bc=Catalog" in b for b in dv) and not dc and not du:
             ok += 1
         else:
@@ -444,6 +459,21 @@ def selftest() -> int:
             (([], ["contract"], [], 75, 76), 1, "есть contract-дефект реестра → rc=1 FAIL"),
             (([], [], ["нет ответа"], 44, 76), 2, "частично (44/76) → rc=2, НЕ PASS"),
         ]
+        total += 1
+        # тождество `N+V+C+U == total` (@AR/@TL `01:58`): сумма не сходится -> квитанция
+        # недействительна. Проверяем предикат на «выпавшей группе» и на подмножестве (--only).
+        ident = [
+            ((40, 20, 10, 6, 76), True, "40+20+10+6 = 76 — сходится"),
+            ((40, 20, 10, 5, 76), False, "40+20+10+5 != 76 — группа выпала"),
+            ((5, 0, 0, 3, 8), True, "подмножество (--only): 5+0+0+3 = 8 — сходится"),
+            ((0, 0, 0, 76, 76), True, "все UNKNOWN: 0+0+0+76 = 76 — сумма сходится (но не PASS)"),
+        ]
+        bad_ident = [t for (args, want, t) in ident if identity_ok(*args) != want]
+        if not bad_ident:
+            ok += 1
+        else:
+            print(f"  [FAIL] тождество: неверно в кейсах {bad_ident}")
+
         bad_rc = [t for (args, want, t) in cases_rc if final_rc(*args) != want]
         if not bad_rc:
             ok += 1
@@ -538,8 +568,8 @@ def main() -> int:
                 url = host.rstrip("/") + concrete_path(str(op["path"]))
                 code, got = check_url(url, str(op.get("method", "GET")))
                 results.append((op, code, got))
-        violators, contracts, unknown = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
-        passed = len(targets) - len(violators) - len(contracts) - len(unknown)
+        violators, contracts, unknown, protected_count = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
+        passed = protected_count
         rc = final_rc(violators, contracts, unknown, passed, len(targets))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
         # в логе не видно, какие именно `метод+путь+bc` не измерены (@TL `00:16` п.3).
@@ -593,8 +623,8 @@ def main() -> int:
 
     images_note = resolve_images(args.images, []) if not args.direct else ""
     results = [(op, *check_one(args.base, op)) for op in targets]
-    violators, contracts, unknown = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
-    passed = len(targets) - len(violators) - len(contracts) - len(unknown)
+    violators, contracts, unknown, protected_count = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
+    passed = protected_count
     # `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
     # пустоте». Единое правило: нет ни одного реального ответа → `rc=2` (UNKNOWN), не успех.
     rc = final_rc(violators, contracts, unknown, passed, len(targets))
