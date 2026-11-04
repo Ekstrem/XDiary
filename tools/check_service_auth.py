@@ -51,7 +51,7 @@ def classify(code):
     return 'unchecked'
 
 
-def build_script(ops, svc):
+def build_script(ops, svc, port='8080'):
     lines = []
     for op in ops:
         path = re.sub(r'\{[^}]+\}', '00000000-0000-0000-0000-000000000000', op['path'])
@@ -59,7 +59,7 @@ def build_script(ops, svc):
         data = " -H 'Content-Type: application/json' -d '{}'" if m == 'POST' else ''
         lines.append(
             "echo \"__%s %s\"; curl -s -o /dev/null -w '%%{http_code}\\n' -m 6%s -X %s "
-            "'http://%s:8080%s'" % (m, op['operationId'], data, m, svc, path))
+            "'http://%s:%s%s'" % (m, op['operationId'], data, m, svc, port, path))
     return '; '.join(lines)
 
 
@@ -70,7 +70,25 @@ def run_remote(remote, key, inner_cmd, timeout=900):
     return (r.stdout or b'').decode('utf-8', 'replace')
 
 
-def measure(remote, key, only=None):
+def parse_service_map(raw, base=DEFAULT_SVC):
+    """`bc=host:port,...` → {bc: "host:port"}. Нужно, когда адресация отличается от
+    дефолтной (`xdiary-<bc>:8080`): алиасы сети, другие порты, стенд с другим compose.
+    Без такой возможности спор «скрипт не тот адрес взял» заменяет факт (@AR 17:20)."""
+    mapping = dict(base)
+    if not raw:
+        return mapping
+    for part in raw.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        if '=' not in part:
+            raise SystemExit('--service-map: ожидал bc=host:port, получил %r' % part)
+        bc, addr = part.split('=', 1)
+        mapping[bc.strip()] = addr.strip()
+    return mapping
+
+
+def measure(remote, key, only=None, service_map=None):
     """Замер изнутри контура: один `podman run` на BC, разбор кодов."""
     out_index = run_remote(remote, key, 'cat /tmp/api-index.yaml 2>/dev/null || cat '
                                         '/opt/xdiary/04-architecture/api-index.yaml 2>/dev/null')
@@ -87,11 +105,12 @@ def measure(remote, key, only=None):
 
     results = {}
     for bc, ops in sorted(by_bc.items()):
-        svc = DEFAULT_SVC.get(bc)
+        svc = (service_map or DEFAULT_SVC).get(bc)
         if not svc:
             continue
+        host, _, port = svc.partition(':')
         inner = ("podman run --rm --network xdiary docker.io/curlimages/curl:8.10.1 "
-                 "sh -c %s" % json.dumps(build_script(ops, svc)))
+                 "sh -c %s" % json.dumps(build_script(ops, host, port or '8080')))
         out = run_remote(remote, key, inner)
         codes, cur = {}, None
         per_op = []
@@ -186,13 +205,16 @@ def main():
     ap.add_argument('--remote', default='deploy@31.192.111.168')
     ap.add_argument('--key', default='~/.ssh/id_ed25519_xdiary')
     ap.add_argument('--only', default=None, help='BC через запятую (по умолчанию все)')
+    ap.add_argument('--service-map', default=None,
+                    help='переопределить адресацию: "Catalog=xdiary-catalog:8080,Client=client:8080"')
     ap.add_argument('--selftest', action='store_true')
     ap.add_argument('--json', action='store_true')
     a = ap.parse_args()
     if a.selftest:
         return selftest()
     only = {x.strip() for x in a.only.split(',')} if a.only else None
-    results, err = measure(a.remote, a.key, only)
+    results, err = measure(a.remote, a.key, only,
+                           parse_service_map(getattr(a, 'service_map', None)))
     if results is None:
         print('::error::(ii-b) %s' % err)
         return 2
