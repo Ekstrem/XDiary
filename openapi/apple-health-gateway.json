@@ -1,89 +1,120 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "Apple Health Gateway API",
-    "version": "2026-11-04",
-    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
-  },
-  "servers": [
-    {
-      "url": "/"
-    }
-  ],
-  "x-derived-from": "04-architecture/api-index.yaml",
-  "x-generated-at": "2026-11-04",
-  "x-operations": 3,
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
+    "title": "AppleHealthGateway.Api",
+    "version": "1.0"
   },
   "paths": {
     "/api/v1/apple-health/configure": {
       "post": {
-        "operationId": "AppleHealthGateway.Configure",
         "tags": [
           "AppleHealthGateway"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureCommand"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "AppleHealthGateway.Configure"
       }
     },
     "/api/v1/apple-health/import": {
       "post": {
-        "operationId": "AppleHealthGateway.ImportFile",
         "tags": [
           "AppleHealthGateway"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportFileCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportFileCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportFileCommand"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "AppleHealthGateway.ImportFile"
       }
     },
     "/api/v1/apple-health/state": {
       "get": {
-        "operationId": "AppleHealthGateway.State",
         "tags": [
           "AppleHealthGateway"
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "operationId": "AppleHealthGateway.State"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConfigureCommand": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
           }
-        ]
+        },
+        "additionalProperties": false
+      },
+      "ImportFileCommand": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

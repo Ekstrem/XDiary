@@ -1,110 +1,160 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "Portability Microservice API",
-    "version": "2026-11-04",
-    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
-  },
-  "servers": [
-    {
-      "url": "/"
-    }
-  ],
-  "x-derived-from": "04-architecture/api-index.yaml",
-  "x-generated-at": "2026-11-04",
-  "x-operations": 4,
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
+    "title": "Portability.Api",
+    "version": "1.0"
   },
   "paths": {
+    "/api/v1/portability/export": {
+      "post": {
+        "tags": [
+          "Portability"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRecordsCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRecordsCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRecordsCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Portability.Export"
+      }
+    },
+    "/api/v1/portability/import/records": {
+      "post": {
+        "tags": [
+          "Portability"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRecordsCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRecordsCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRecordsCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Portability.ImportRecords"
+      }
+    },
+    "/api/v1/portability/import/somatic": {
+      "post": {
+        "tags": [
+          "Portability"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSomaticCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSomaticCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSomaticCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Portability.ImportSomatic"
+      }
+    },
     "/api/v1/portability/document": {
       "get": {
-        "operationId": "Portability.Document",
         "tags": [
           "Portability"
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        "operationId": "Portability.Document"
       }
-    },
-    "/api/v1/portability/export": {
-      "post": {
-        "operationId": "Portability.Export",
-        "tags": [
-          "Portability"
-        ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+    }
+  },
+  "components": {
+    "schemas": {
+      "ExportRecordsCommand": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/portability/import/records": {
-      "post": {
-        "operationId": "Portability.ImportRecords",
-        "tags": [
-          "Portability"
-        ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "additionalProperties": false
+      },
+      "ImportRecordsCommand": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/portability/import/somatic": {
-      "post": {
-        "operationId": "Portability.ImportSomatic",
-        "tags": [
-          "Portability"
-        ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "additionalProperties": false
+      },
+      "ImportSomaticCommand": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        "additionalProperties": false
       }
     }
   }

@@ -1,234 +1,292 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "Client API",
-    "version": "2026-11-04",
-    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
-  },
-  "servers": [
-    {
-      "url": "/"
-    }
-  ],
-  "x-derived-from": "04-architecture/api-index.yaml",
-  "x-generated-at": "2026-11-04",
-  "x-operations": 8,
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
+    "title": "Client.Api",
+    "version": "1.0"
   },
   "paths": {
     "/api/v1/clients": {
       "post": {
-        "operationId": "Client.Register",
         "tags": [
-          "Client"
+          "Clients"
         ],
-        "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "400": {
-            "description": "validation (телефон/OTP)"
-          }
-        },
-        "security": []
-      }
-    },
-    "/api/v1/clients/me": {
-      "get": {
-        "operationId": "Client.Me",
-        "tags": [
-          "Client"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
-          },
-          "404": {
-            "description": "клиент не найден"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/clients/me/profile": {
-      "post": {
-        "operationId": "Client.UpdateProfile",
-        "tags": [
-          "Client"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok, gender канонизирован"
-          },
-          "400": {
-            "description": "validation (Other/м/пусто)"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/clients/refresh": {
-      "post": {
-        "operationId": "Client.Refresh",
-        "tags": [
-          "Client"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok (новая пара токенов)"
-          },
-          "401": {
-            "description": "bad-refresh"
-          }
-        },
-        "security": []
-      }
-    },
-    "/api/v1/clients/{id}": {
-      "get": {
-        "operationId": "Client.Get",
-        "tags": [
-          "Client"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
-          },
-          "403": {
-            "description": "чужой id (Forbid)"
-          },
-          "404": {
-            "description": "не найден"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClientCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClientCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterClientCommand"
+              }
             }
           }
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/clients/{id}/link-partner": {
-      "post": {
-        "operationId": "Client.LinkPartnerDeprecated",
-        "tags": [
-          "Client"
-        ],
+        },
         "responses": {
           "200": {
-            "description": "ok {deprecated:true} — no-op"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/clients/{id}/unlink-partner": {
-      "post": {
-        "operationId": "Client.UnlinkPartnerDeprecated",
-        "tags": [
-          "Client"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok {deprecated:true} — no-op"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        "operationId": "Client.Register"
       }
     },
     "/api/v1/clients/{id}/verify": {
       "post": {
-        "operationId": "Client.Verify",
         "tags": [
-          "Client"
+          "Clients"
         ],
-        "responses": {
-          "200": {
-            "description": "ok (access+refresh)"
-          },
-          "400": {
-            "description": "bad-otp"
-          }
-        },
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
-        "security": []
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyClientOtpCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyClientOtpCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyClientOtpCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.Verify"
+      }
+    },
+    "/api/v1/clients/refresh": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshClientTokenCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshClientTokenCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshClientTokenCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.Refresh"
+      }
+    },
+    "/api/v1/clients/{id}/link-partner": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.LinkPartnerDeprecated"
+      }
+    },
+    "/api/v1/clients/{id}/unlink-partner": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.UnlinkPartnerDeprecated"
+      }
+    },
+    "/api/v1/clients/me": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.Me"
+      }
+    },
+    "/api/v1/clients/me/profile": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.UpdateProfile"
+      }
+    },
+    "/api/v1/clients/{id}": {
+      "get": {
+        "tags": [
+          "Clients"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Client.Get"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RefreshClientTokenCommand": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegisterClientCommand": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateProfileCommand": {
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "nullable": true
+          },
+          "photoUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerifyClientOtpCommand": {
+        "type": "object",
+        "properties": {
+          "aggregateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

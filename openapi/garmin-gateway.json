@@ -1,110 +1,163 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "Garmin Gateway API",
-    "version": "2026-11-04",
-    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
-  },
-  "servers": [
-    {
-      "url": "/"
-    }
-  ],
-  "x-derived-from": "04-architecture/api-index.yaml",
-  "x-generated-at": "2026-11-04",
-  "x-operations": 4,
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
+    "title": "GarminGateway.Api",
+    "version": "1.0"
   },
   "paths": {
     "/api/v1/garmin/connect": {
       "post": {
-        "operationId": "GarminGateway.Connect",
         "tags": [
           "GarminGateway"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectCommand"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "GarminGateway.Connect"
+      }
+    },
+    "/api/v1/garmin/sync": {
+      "post": {
+        "tags": [
+          "GarminGateway"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "GarminGateway.Sync"
       }
     },
     "/api/v1/garmin/fetch-activities": {
       "post": {
-        "operationId": "GarminGateway.FetchActivities",
-        "tags": [
-          "GarminGateway"
-        ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/garmin/state": {
-      "get": {
-        "operationId": "GarminGateway.State",
         "tags": [
           "GarminGateway"
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        "operationId": "GarminGateway.FetchActivities"
       }
     },
-    "/api/v1/garmin/sync": {
-      "post": {
-        "operationId": "GarminGateway.Sync",
+    "/api/v1/garmin/state": {
+      "get": {
         "tags": [
           "GarminGateway"
         ],
         "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+          "200": {
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "operationId": "GarminGateway.State"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConnectCommand": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "credentials": {
+            "$ref": "#/components/schemas/CredentialsDto"
           }
-        ]
+        },
+        "additionalProperties": false
+      },
+      "CredentialsDto": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "oauthToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenExpiry": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SyncCommand": {
+        "type": "object",
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SyncConfigDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SyncConfigDto": {
+        "type": "object",
+        "properties": {
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "windowDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

@@ -1,131 +1,254 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "Daily Metrics Microservice API",
-    "version": "2026-11-04",
-    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
-  },
-  "servers": [
-    {
-      "url": "/"
-    }
-  ],
-  "x-derived-from": "04-architecture/api-index.yaml",
-  "x-generated-at": "2026-11-04",
-  "x-operations": 5,
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
+    "title": "DailyMetrics.Api",
+    "version": "1.0"
   },
   "paths": {
-    "/api/v1/daily-metrics/hrv": {
+    "/api/v1/daily-metrics/stress": {
       "post": {
-        "operationId": "DailyMetrics.Hrv",
         "tags": [
           "DailyMetrics"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordStressCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordStressCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordStressCommand"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "DailyMetrics.Stress"
       }
     },
     "/api/v1/daily-metrics/resting-hr": {
       "post": {
-        "operationId": "DailyMetrics.RestingHr",
         "tags": [
           "DailyMetrics"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordRestingHrCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordRestingHrCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordRestingHrCommand"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/daily-metrics/series": {
-      "get": {
-        "operationId": "DailyMetrics.Series",
-        "tags": [
-          "DailyMetrics"
-        ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "operationId": "DailyMetrics.RestingHr"
+      }
+    },
+    "/api/v1/daily-metrics/hrv": {
+      "post": {
+        "tags": [
+          "DailyMetrics"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordHrvCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordHrvCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordHrvCommand"
+              }
+            }
           }
-        ]
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "DailyMetrics.Hrv"
       }
     },
     "/api/v1/daily-metrics/sleep": {
       "post": {
-        "operationId": "DailyMetrics.Sleep",
         "tags": [
           "DailyMetrics"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSleepCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSleepCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordSleepCommand"
+              }
+            }
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "DailyMetrics.Sleep"
       }
     },
-    "/api/v1/daily-metrics/stress": {
-      "post": {
-        "operationId": "DailyMetrics.Stress",
+    "/api/v1/daily-metrics/series": {
+      "get": {
         "tags": [
           "DailyMetrics"
         ],
-        "responses": {
-          "400": {
-            "description": "validation"
+        "parameters": [
+          {
+            "name": "fromDate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           },
-          "401": {
-            "description": "no-token"
+          {
+            "name": "toDate",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "operationId": "DailyMetrics.Series"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RecordHrvCommand": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "hrv": {
+            "type": "integer",
+            "format": "int32"
           }
-        ]
+        },
+        "additionalProperties": false
+      },
+      "RecordRestingHrCommand": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "restingHr": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordSleepCommand": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "sleep": {
+            "$ref": "#/components/schemas/SleepDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordStressCommand": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "stress": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SleepDto": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "durationMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deepMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lightMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "awakeMin": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       }
     }
   }

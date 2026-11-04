@@ -1,194 +1,255 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
     "title": "Analytics Microservice API",
-    "version": "2026-11-04",
-    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
-  },
-  "servers": [
-    {
-      "url": "/"
-    }
-  ],
-  "x-derived-from": "04-architecture/api-index.yaml",
-  "x-generated-at": "2026-11-04",
-  "x-operations": 8,
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    }
+    "description": "BC-Analytics: read-only аналитика (проекции над Журналом и Соматикой). CEQRS, профиль Single.",
+    "version": "v1"
   },
   "paths": {
-    "/api/v1/analytics/correlations": {
-      "get": {
-        "operationId": "Analytics.Correlations",
-        "tags": [
-          "Analytics"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/analytics/distribution": {
-      "get": {
-        "operationId": "Analytics.Distribution",
-        "tags": [
-          "Analytics"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/analytics/events": {
-      "post": {
-        "operationId": "Analytics.Events",
-        "tags": [
-          "Analytics"
-        ],
-        "responses": {
-          "400": {
-            "description": "validation"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/analytics/physio": {
-      "get": {
-        "operationId": "Analytics.Physio",
-        "tags": [
-          "Analytics"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
     "/api/v1/analytics/summary": {
       "get": {
-        "operationId": "Analytics.Summary",
         "tags": [
           "Analytics"
         ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "30"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        "operationId": "Analytics.Summary"
       }
     },
-    "/api/v1/analytics/thresholds": {
+    "/api/v1/analytics/correlations": {
       "get": {
-        "operationId": "Analytics.Thresholds",
         "tags": [
           "Analytics"
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        "operationId": "Analytics.Correlations"
       }
     },
     "/api/v1/analytics/tops": {
       "get": {
-        "operationId": "Analytics.Tops",
         "tags": [
           "Analytics"
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "operationId": "Analytics.Tops"
+      }
+    },
+    "/api/v1/analytics/distribution": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "Analytics.Distribution"
+      }
+    },
+    "/api/v1/analytics/thresholds": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Analytics.Thresholds"
       }
     },
     "/api/v1/analytics/trends": {
       "get": {
-        "operationId": "Analytics.Trends",
         "tags": [
           "Analytics"
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "401": {
-            "description": "no-token"
+            "description": "OK"
           }
         },
-        "security": [
-          {
-            "bearerAuth": []
+        "operationId": "Analytics.Trends"
+      }
+    },
+    "/api/v1/analytics/physio": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
-        ]
+        },
+        "operationId": "Analytics.Physio"
+      }
+    },
+    "/api/v1/analytics/events": {
+      "post": {
+        "tags": [
+          "Analytics"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsEvent"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsEvent"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "operationId": "Analytics.Events"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalyticsEvent": {
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true
+          },
+          "record": {
+            "$ref": "#/components/schemas/JournalRecord"
+          },
+          "stress": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sleepScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "t": {
+            "type": "string",
+            "nullable": true
+          },
+          "hr": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bodyBattery": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "JournalRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "durationMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "orgasms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrgasmDto"
+            },
+            "nullable": true
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "fantasies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "place": {
+            "type": "string",
+            "nullable": true
+          },
+          "partners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "OrgasmDto": {
+        "type": "object",
+        "properties": {
+          "participant": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rating": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       }
     }
   }
