@@ -57,9 +57,17 @@ jobs:
           # Имена упавших тестов — в аннотацию: логи джоб по API недоступны (403), а аннотации
           # читаются. Без этого красный шаг говорит «см. вывод dotnet test выше» — и никто,
           # включая @BE и @TL, не знает, что именно чинить (2026-11-05 00:02).
-          failed=$(grep -E '^  Failed ' "$log" | sed 's/^  Failed //; s/ \[.*//' | head -20 | tr '\n' '~' | sed 's/~/%0A/g')
-          if [ -n "$failed" ]; then
-            echo "::error title=[tests] Partners $$(basename "$p")::${failed}"
+          # Формат xunit в CI отличается от локального: строка может быть с любым отступом
+          # («Failed X [1 ms]») или это MSBuild-ошибка сборки. Поэтому ловим оба и печатаем
+          # ОТДЕЛЬНУЮ аннотацию на каждую строку — @TL читает аннотации без токена.
+          grep -E '^[[:space:]]*Failed ' "$log" | sed -E 's/^[[:space:]]*Failed //; s/ \[[0-9].*$//' | head -20 \
+            | while IFS= read -r name; do
+                [ -n "$name" ] && echo "::error title=[tests] Partners $(basename "$p")::Failed ${name}"
+              done
+          if ! grep -qE '^[[:space:]]*Failed ' "$log"; then
+            # Ни одного «Failed» — значит упало раньше тестов (сборка/старт). Показываем причину.
+            reason=$(grep -E 'error [A-Z]+[0-9]+|Exception|MSB[0-9]+' "$log" | head -3 | tr '\n' '~' | sed 's/~/%0A/g' | cut -c1-1200)
+            echo "::error title=[tests] Partners $(basename "$p") (без Failed)::${reason:-нет строк ошибок}"
           fi
           tail -30 "$log"
         done
