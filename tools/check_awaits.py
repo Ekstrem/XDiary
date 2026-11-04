@@ -172,12 +172,27 @@ def selftest():
     return 0 if ok == 4 else 1
 
 
+def _utf8_stdout():
+    """Вывод в UTF-8 независимо от локали (TE 2026-11-14 23:47).
+
+    На Windows с cp1251-консолью `print("… → …")` падал `UnicodeEncodeError`, и гейт
+    краснел **из-за печати**, а не из-за содержания AWAIT.md. Это дефект инструмента:
+    вердикт гейта не должен зависеть от кодировки терминала.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--strict", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
+    _utf8_stdout()
     if a.selftest:
         return selftest()
 
