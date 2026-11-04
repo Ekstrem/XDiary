@@ -153,3 +153,50 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/health   # ждё
 только при «зависшем» проде до ближайшего деплоя.
 
 **Проверка лимитов:** `sysctl fs.inotify.max_user_instances fs.inotify.max_user_watches`.
+
+## Миграции БД: «схема = код» (DO-073, 2026-11-15)
+
+**Что случилось:** миграция `20261113120000_AddDeletedAtToPartner` была в коде и внутри
+образов на проде и dev (`git merge-base --is-ancestor` — да), но **в БД её никто не
+применил**: колонки `DeletedAt` не было ни там, ни там. Soft-delete партнёра не работал,
+хотя приёмка E1 была зелёной — она смотрела код, а не схему.
+
+**Как проверять (на хосте, где есть podman и БД):**
+
+```bash
+python3 tools/check_schema.py --root /opt/xdiary --container xdiary-pg        # прод
+python3 tools/check_schema.py --root . --container xdiary-pg --sudo           # dev (rootful)
+```
+
+Гейт сравнивает `Migrations/*.cs` в коде с `__EFMigrationsHistory` в каждой БД и печатает
+`::error::(схема) <сервис>: схема отстала — в БД нет миграций: …`; `rc=1`. `update.sh`
+вызывает его **после** деплоя и падает при расхождении.
+
+**Как применить миграцию, если схема отстала** (пример — та самая, 2026-11-15, применена
+идемпотентно на проде и dev):
+
+```sql
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_name='partners' AND column_name='DeletedAt') THEN
+    ALTER TABLE partners ADD COLUMN "DeletedAt" timestamp with time zone NULL;
+  END IF;
+END $$;
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+SELECT '20261113120000_AddDeletedAtToPartner', '8.0.8'
+WHERE NOT EXISTS (SELECT 1 FROM "__EFMigrationsHistory"
+                  WHERE "MigrationId"='20261113120000_AddDeletedAtToPartner');
+```
+
+```bash
+podman exec -i xdiary-pg psql -U partners -d partners -v ON_ERROR_STOP=1 < mig.sql   # прод
+sudo -n podman exec -i xdiary-pg psql -U partners -d partners -v ON_ERROR_STOP=1 < mig.sql  # dev
+```
+
+Проверка результата: `select column_name from information_schema.columns where
+table_name='partners'` → `DeletedAt` есть; `select "MigrationId" from "__EFMigrationsHistory"`
+→ миграция в списке.
+
+**Что ещё нужно (следующий шаг, не сделано):** автоматическое применение миграций при
+деплое (`dotnet ef database update` в образе SDK или app-side `Database.Migrate()`).
+Пока порядок ручной и это зафиксировано здесь, чтобы «забыли применить» не повторялось.

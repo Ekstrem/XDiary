@@ -225,3 +225,14 @@ fi
 printf '%s' "$NEW_STATE" > "$IDFILE"
 printf '%s' "$(echo "$NEW_STATE" | sha256sum | cut -d' ' -f1)" > "$HASHFILE"
 say "OK: обновлены $CHANGED; /health 200"
+
+# DO-073: схема БД должна совпадать с миграциями в коде. Иначе «код выехал, колонки нет» —
+# именно так 2026-11-14 soft-delete партнёра оказался неработающим при зелёной приёмке.
+SCHEMA_CHECK="/opt/xdiary/tools/check_schema.py"
+if [ -f "$SCHEMA_CHECK" ]; then
+  say "--- проверка схемы (DO-073) ---"
+  if ! python3 "$SCHEMA_CHECK" --root /opt/xdiary --container xdiary-pg; then
+    echo "update.sh: ОШИБКА: схема БД отстала от кода — примени миграции (DO-073)" >&2
+    exit 1
+  fi
+fi
