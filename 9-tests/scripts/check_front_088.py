@@ -49,7 +49,7 @@ def read(ref: str, path: str, worktree: bool) -> str:
 
 def main() -> int:
     ref = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REF") or "origin/main").strip()
-    expect_ver = (sys.argv[2] if len(sys.argv) > 2 else os.environ.get("EXPECT_VERSION") or "0.88").strip()
+    expect_ver = (sys.argv[2] if len(sys.argv) > 2 else os.environ.get("EXPECT_VERSION") or "").strip()
     worktree = ref.upper() in ("WORKTREE", ".")
     if not worktree and not git("rev-parse", "--verify", f"{ref}^{{commit}}"):
         print(f"REF={ref} | FAIL: ревизия не резолвится")
@@ -73,7 +73,8 @@ def main() -> int:
 
     print(f"REF={ref} | (1) api.js clients/me/profile = {n_profile}"
           f" | (2) app.js linkedPartnerId = {n_linked} | (3) app.js linkPartner = {n_link}")
-    print(f"REF={ref} | версия: APP_VERSION = {ver}, CACHE = {cache}, ожидание {expect_ver}")
+    print(f"REF={ref} | версия: APP_VERSION = {ver}, CACHE = {cache}"
+          + (f", ожидание {expect_ver}" if expect_ver else " (пин не задан — проверяется синхронность)"))
 
     bad: list[str] = []
     if n_profile < 1:
@@ -82,17 +83,26 @@ def main() -> int:
         bad.append(f"(2) `linkedPartnerId` встречается {n_linked} раз(а) — легаси-привязка не снята")
     if n_link != 0:
         bad.append(f"(3) `linkPartner` встречается {n_link} раз(а) — метод/шаг не удалены")
-    if ver != expect_ver:
-        bad.append(f"(4) APP_VERSION = {ver}, ожидалось {expect_ver}")
-# В репозитории CACHE короче версии: `0.88` → `xdiary-v88`, `0.61` → `xdiary-v61`.
-    # Принимаем оба написания (с точкой и без), иначе гейт падал бы на верном файле.
-    cache_ok = {
-        "xdiary-v" + expect_ver,
-        "xdiary-v" + expect_ver.replace(".", ""),
-        "xdiary-v" + expect_ver.split(".")[-1],
-    }
-    if cache not in cache_ok:
-        bad.append(f"(5) CACHE = {cache}, ожидалось одно из {sorted(cache_ok)}")
+
+    # Версия: инвариант — **синхронность** `APP_VERSION` и `CACHE`, а не конкретный номер.
+    # Жёсткий пин 0.88 валил гейт на 0.89, где все три предиката выполнялись (ложный красный).
+    # Пин нужен только для квитанции конкретного релиза → `--expect-version`.
+    def cache_candidates(v: str) -> set[str]:
+        # В репозитории CACHE короче версии: `0.88` → `xdiary-v88`, `0.61` → `xdiary-v61`.
+        return {"xdiary-v" + v, "xdiary-v" + v.replace(".", ""), "xdiary-v" + v.split(".")[-1]}
+
+    if expect_ver:
+        if ver != expect_ver:
+            bad.append(f"(4) APP_VERSION = {ver}, ожидалось {expect_ver}")
+        cache_ok = cache_candidates(expect_ver)
+        if cache not in cache_ok:
+            bad.append(f"(5) CACHE = {cache}, ожидалось одно из {sorted(cache_ok)}")
+    else:
+        if ver == "?":
+            bad.append("(4) не найден `APP_VERSION` в app.js — версия не определяется")
+        elif cache not in cache_candidates(ver):
+            bad.append(f"(5) CACHE = {cache} не синхронен с APP_VERSION = {ver} "
+                       f"(ожидалось одно из {sorted(cache_candidates(ver))})")
 
     if bad:
         for b in bad:
@@ -100,7 +110,7 @@ def main() -> int:
         print(f"REF={ref} | FAIL: {len(bad)} нарушен(ия) — PASS 3/3 не достигнут")
         return 1
 
-    print(f"REF={ref} | PASS: 3/3 (профиль «я» есть, легаси-привязки нет), версии синхронны ({expect_ver}/{cache})")
+    print(f"REF={ref} | PASS: 3/3 (профиль «я» есть, легаси-привязки нет), версии синхронны ({ver}/{cache})")
     return 0
 
 
