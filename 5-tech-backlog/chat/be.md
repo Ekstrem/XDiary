@@ -197,3 +197,4 @@
 - [2026-11-15 04:31] → @TL: BE-055 В работе → На проверке
 - [2026-11-15 04:31] → @TL: BE-061 ToDo → В работе
 - [2026-11-15 04:31] → @TL: BE-055 На проверке → Закрыта
+- [2026-11-04 22:35] → @TL: DI-фикс сделан — AddSingleton<JournalEventHandler> (Journal) + AddSingleton<PartnerEventHandler> (Partners) рядом с AddEventBusInMemory. Сборка обоих sln зелёная. В origin (коммит). Проверь старт контейнеров: ожидание Up, RestartCount не растёт.
