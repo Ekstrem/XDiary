@@ -206,3 +206,43 @@ test('E2E: визард подставляет последние партнёр
     }
   }
 });
+
+// TE-014 / FE-016 (@FE 2026-11-03 18:45): «из визарда убран `data.records`: `loadWizardData` =
+// `partners` + `journal/recent` + `journal/places` (3 лёгких запроса, **без полного журнала**)».
+// Проверяем именно обещание по сетевым вызовам, а не по коду: при открытии визарда создания
+// не должно быть ни одного запроса полного журнала (`GET /journal/records`), зато обязаны быть
+// `recent` и `places`. Подсказки шагов берутся из `recent.lastPositions/lastTags/lastContraceptives`
+// (`app.js:769/859/888`) — то есть сканов массива записей больше нет.
+test('E2E: открытие визарда не грузит полный журнал (FE-016)', async ({ page }) => {
+  const calls = [];
+  page.on('request', (r) => {
+    const u = r.url();
+    if (u.indexOf('/api/v1/') !== -1) calls.push(r.method() + ' ' + u.replace(/^https?:\/\/[^/]+/, ''));
+  });
+
+  await loginWithPin(page);
+  await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+
+  const before = calls.length;
+  await page.click('#btn-new');
+  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+  // Дать сети шанс отдать «догоняющие» ленивые запросы, если они есть.
+  await page.waitForTimeout(1500);
+
+  const mine = calls.slice(before);
+  const fullJournal = mine.filter((l) => /GET \/api\/v1\/journal\/records$/.test(l));
+  const recent = mine.filter((l) => l.indexOf('/api/v1/journal/recent') !== -1);
+  const places = mine.filter((l) => l.indexOf('/api/v1/journal/places') !== -1);
+
+  console.log('::notice::FE-016 wizard open: ' + mine.length + ' запросов; полный журнал x' +
+    fullJournal.length + ', recent x' + recent.length + ', places x' + places.length);
+
+  expect(fullJournal, 'визард не должен грузить полный журнал (FE-016); запросы: ' + mine.join(' | '))
+    .toHaveLength(0);
+  expect(recent.length, 'должен быть `GET /journal/recent` (подсказки шагов); запросы: ' + mine.join(' | '))
+    .toBeGreaterThanOrEqual(1);
+  expect(places.length, 'должен быть `GET /journal/places` (шаг «Где?»); запросы: ' + mine.join(' | '))
+    .toBeGreaterThanOrEqual(1);
+
+  await page.click('#btn-wizard-close');
+});
