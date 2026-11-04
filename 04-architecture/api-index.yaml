@@ -597,6 +597,7 @@ operations:
     path: "/api/v1/privacy/pin/change"
     operationId: Privacy.ChangePin
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -604,6 +605,7 @@ operations:
     path: "/api/v1/privacy/pin/has"
     operationId: Privacy.HasPin
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {200: "ok", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -611,6 +613,7 @@ operations:
     path: "/api/v1/privacy/pin/lock"
     operationId: Privacy.Lock
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -618,6 +621,7 @@ operations:
     path: "/api/v1/privacy/pin/remove"
     operationId: Privacy.Remove
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -625,6 +629,7 @@ operations:
     path: "/api/v1/privacy/pin/set"
     operationId: Privacy.SetPin
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -632,6 +637,7 @@ operations:
     path: "/api/v1/privacy/pin/unlock"
     operationId: Privacy.Unlock
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -639,6 +645,7 @@ operations:
     path: "/api/v1/privacy/pin/verify"
     operationId: Privacy.VerifyPin
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
@@ -646,6 +653,7 @@ operations:
     path: "/api/v1/privacy/token"
     operationId: Privacy.Token
     auth: jwt
+    deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
