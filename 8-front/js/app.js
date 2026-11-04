@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.87"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.88"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -268,9 +268,9 @@
     if (!Api.config.token() || !localStorage.getItem("xdiary.clientId")) { openOnboarding(); return; }
     // FE-027: me() с таймаутом — иначе экран блокировки остаётся навсегда
     withTimeout(Api.clients.me(), 2500, null).then(function (c) {
-      if (c && c.verified && c.linkedPartnerId) { openJournal(); return; }
+      if (c && c.verified && (c.linkedPartnerId || c.displayName)) { openJournal(); return; }
       // FE-029/FE-031: подтверждён, но «я» не привязано — всегда шаг привязки, не телефон заново
-      if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showLinkStep(); return; }
+      if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showProfileStep(); return; }
       openOnboarding();
     }).catch(function (e) { console.error("afterAuth/me:", e); openOnboarding(); });
   }
@@ -280,6 +280,7 @@
     $("onb-phone").classList.remove("hidden");
     $("onb-otp").classList.add("hidden");
     $("onb-link").classList.add("hidden");
+    if ($("onb-profile")) $("onb-profile").classList.add("hidden");
     $("onb-phone-input").value = "";
     $("onb-otp-input").value = "";
     $("onb-otp-phone").textContent = "";
@@ -291,6 +292,53 @@
     $("onb-link").classList.remove("hidden");
     showOnbLinkError("");
     renderLinkPartners();
+  }
+  // FE-038 (0.88): шаг «Кто вы?» — имя и пол в профиль клиента, партнёра не создаём
+  var onbGender = "";
+  function onbProfileReady() {
+    var name = ($("onb-name").value || "").trim();
+    if ($("btn-onb-profile")) $("btn-onb-profile").disabled = !(name && onbGender);
+    return name;
+  }
+  function selectOnbGender(g) {
+    onbGender = g;
+    ["male", "female"].forEach(function (x) {
+      var el = $("onb-gender-" + x);
+      if (el) el.classList.toggle("active", x === g);
+    });
+    onbProfileReady();
+  }
+  function showOnbProfileError(msg) {
+    var el = $("onb-profile-error");
+    if (!el) return;
+    if (msg) { el.textContent = msg; el.classList.remove("hidden"); }
+    else { el.textContent = ""; el.classList.add("hidden"); }
+  }
+  function showProfileStep() {
+    showView("onboarding");
+    $("onb-phone").classList.add("hidden");
+    $("onb-otp").classList.add("hidden");
+    if ($("onb-link")) $("onb-link").classList.add("hidden");
+    $("onb-profile").classList.remove("hidden");
+    onbGender = "";
+    if ($("onb-name")) $("onb-name").value = "";
+    showOnbProfileError("");
+    onbProfileReady();
+    if ($("onb-name")) $("onb-name").focus();
+  }
+  function submitOnbProfile() {
+    var name = onbProfileReady();
+    showOnbProfileError("");
+    if (!name || !onbGender) { onbProfileReady(); return; }
+    $("btn-onb-profile").disabled = true;
+    Api.clients.profileSave({ DisplayName: name, Gender: onbGender }).then(function () {
+      toast("Сохранено");
+      openJournal();
+    }, function (e) {
+      console.error("profileSave error:", e);
+      $("btn-onb-profile").disabled = false;
+      showOnbProfileError("Не удалось сохранить: " + apiErrorText(e, "ошибка"));
+    });
   }
   function showOnbLinkError(msg) {
     var el = $("onb-link-error");
@@ -444,7 +492,7 @@
       Api.config.setToken(token);
       Api.config.setRefresh(refresh);
       try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
-      showLinkStep();
+      showProfileStep();
     }, function (e) {
       console.error("verify error:", e);
       showOnbError("onb-otp-error", "Код неверный или истёк — запросите новый (кнопка ниже). " + apiErrorText(e, ""));
@@ -2403,6 +2451,11 @@
     // FE-018 ч.2: телефон → SMS OTP → link-partner + «это я» в настройках
     $("btn-onb-phone").addEventListener("click", submitOnbPhone);
     $("btn-onb-otp").addEventListener("click", submitOnbOtp);
+    // FE-038 (0.88): шаг «Кто вы?»
+    if ($("btn-onb-profile")) $("btn-onb-profile").addEventListener("click", submitOnbProfile);
+    if ($("onb-gender-male")) $("onb-gender-male").addEventListener("click", function () { selectOnbGender("male"); });
+    if ($("onb-gender-female")) $("onb-gender-female").addEventListener("click", function () { selectOnbGender("female"); });
+    if ($("onb-name")) $("onb-name").addEventListener("input", onbProfileReady);
     // P0: перезапрос кода из шага OTP (по тому же номеру)
     $("btn-onb-resend").addEventListener("click", submitOnbPhone);
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });

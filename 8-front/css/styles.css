@@ -412,3 +412,7 @@ code {
 @media (min-width: 640px) {
   .tabbar { max-width: 560px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }
 }
+
+.gender-row { display: flex; gap: 10px; margin: 10px 0 14px; }
+.gender-row .gender-btn { flex: 1; }
+.gender-row .gender-btn.active { border-color: #e0567a; color: #fff; background: rgba(224,86,122,.18); }

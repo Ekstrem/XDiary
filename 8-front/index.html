@@ -68,6 +68,19 @@
         <div id="onboarding-list" class="partner-grid"></div>
         <button type="button" class="btn full" id="btn-onboarding-add">Создать партнёра</button>
       </div>
+      <div id="onb-profile" class="hidden">
+        <div class="step-label">Кто вы?</div>
+        <p class="muted">Имя и пол — для журнала. Партнёра создавать не нужно.</p>
+        <div class="field">
+          <input type="text" id="onb-name" placeholder="Ваше имя" autocomplete="name" maxlength="40">
+        </div>
+        <div class="gender-row">
+          <button type="button" class="btn gender-btn" id="onb-gender-male" data-gender="male">Мужчина</button>
+          <button type="button" class="btn gender-btn" id="onb-gender-female" data-gender="female">Женщина</button>
+        </div>
+        <p id="onb-profile-error" class="hidden" style="color:#e0567a;font-size:16px;line-height:1.35;"></p>
+        <button type="button" class="btn primary full" id="btn-onb-profile" disabled>Продолжить</button>
+      </div>
     </main>
   </section>
 

@@ -206,6 +206,8 @@
       linkPartner: function (id, partnerId) { return post("/api/v1/clients/" + id + "/link-partner", { partnerId: partnerId }); },
       unlinkPartner: function (id) { return post("/api/v1/clients/" + id + "/unlink-partner"); },
       me: function () { return get("/api/v1/clients/me"); },
+      // FE-038 (0.88): профиль «я» — имя и пол; партнёр не создаётся
+      profileSave: function (d) { return post("/api/v1/clients/me/profile", d); },
       get: function (id) { return get("/api/v1/clients/" + id); }
     }
   };
