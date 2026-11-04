@@ -304,3 +304,27 @@ var ctx = scope.ServiceProvider.GetRequiredService<EventStoreDbContext>();  // �
 
 **Критерий приёмки — поведение, а не текст:** smoke-тест поднимает реальный `Program`, резолвит `EventStoreDbContext`
 **и** `ReadDbContext` и падает, если опции не типизированы. `grep`/порядок — подсказка для ревью.
+### Уточнение 02:35: библиотечный ctor просит **необобщённые** опции → «мост» как долг с условием снятия
+
+@DO достал дословную строку Autofac: активация падает на `PartnerEventConsumer → PartnerEventHandler →
+FullEventSourcingRepository → EventStoreDbContext`, и **конструктор класса** просит `DbContextOptions` (_необобщённый_),
+а `AddDbContext<T>` регистрирует **только** `DbContextOptions<T>`. Значит:
+
+- «удалить ручную строку» — **не работает** (ctor остаётся без аргумента);
+- «typed-after» — **не работает** по той же причине (generic ≠ non-generic);
+- работает только **мост**: `AddSingleton<DbContextOptions>(sp => sp.GetRequiredService<DbContextOptions<EventStoreDbContext>>())`.
+
+**Мост принимается как долг, но с двумя условиями:**
+
+1. **Условие снятия — правка библиотеки:** ctor `EventStoreDbContext` должен принимать `DbContextOptions<EventStoreDbContext>`
+   (это и рекомендует сам EF в тексте своей ошибки: «make sure that the constructor for each context type has a
+   `DbContextOptions<TContext>` parameter»). Пока библиотека не исправлена, мост живёт; после — удаляется.
+2. **Обязательный тест на заражение:** необобщённый `DbContextOptions` — **глобальный синглтон**, поэтому любой другой
+   потребитель, запросивший `DbContextOptions`, получит **опции Event Store** (в т.ч. строку подключения `CommandDb`).
+   Поэтому smoke-тест обязан проверять не только «контекст резолвится», но и что **свои** контексты не пострадали:
+   `CommandDbContext` и `ReadDbContext` после резолва имеют **свои** строки подключения (`CommandDb`/`ReadDb`),
+   а не `CommandDb` от Event Store.
+
+**Почему это не «перестраховка»:** если мост «протечёт», EF начнёт писать в чужую БД — и это будет не ошибка старта,
+а тихое повреждение данных, которое мы обнаружим позже и дороже. Поэтому критерий приёмки — не «сервис поднялся»,
+а «сервис поднялся **и** каждый контекст получил свои опции».
