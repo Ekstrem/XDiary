@@ -38,6 +38,30 @@ jobs:
     - name: Build
       run: dotnet build ApiGateway.csproj --no-restore --configuration Release
 
+    # DO-072: у шлюза тесты лежат в `6-msa/ApiGateway.Tests` (разрешено ADR-028), а не
+    # внутри сервиса. Раньше их гонял только `ci-backend` по жёсткому списку.
+    - name: Тесты ApiGateway (в папке сервиса)
+      shell: bash
+      run: |
+        set -uo pipefail
+        fail=0
+        found=0
+        for p in 6-msa/ApiGateway.Tests/*.csproj 6-msa/ApiGateway.Tests/*/*.csproj; do
+          [ -e "$p" ] || continue
+          found=1
+          echo "=== $p ==="
+          dotnet test "$p" --configuration Release --verbosity normal || fail=1
+        done
+        if [ "$found" -eq 0 ]; then
+          echo "::error title=[tests] нет проектов ApiGateway.Tests"
+          exit 1
+        fi
+        if [ "$fail" -ne 0 ]; then
+          echo "::error title=[tests] есть падения"
+          exit 1
+        fi
+        echo "тесты ApiGateway зелёные"
+
   docker:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

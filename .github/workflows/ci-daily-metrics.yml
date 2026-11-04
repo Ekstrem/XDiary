@@ -40,11 +40,29 @@ jobs:
     - name: Build
       run: dotnet build src/DailyMetrics.sln --no-restore --configuration Release
 
-    - name: Unit Tests
-      run: dotnet test src/DailyMetrics.Domain.Tests/DailyMetrics.Domain.Tests.csproj --no-build --configuration Release --verbosity normal
+    # DO-072 (@TL 2026-11-15): все тестовые проекты сервиса + падение при пустом списке.
+    - name: Тесты DailyMetrics (в папке сервиса)
+      shell: bash
+      run: |
+        set -uo pipefail
+        fail=0
+        found=0
+        for p in src/*Tests*/*.csproj; do
+          [ -e "$p" ] || continue
+          found=1
+          echo "=== $p ==="
+          dotnet test "$p" --configuration Release --verbosity normal || fail=1
+        done
+        if [ "$found" -eq 0 ]; then
+          echo "::error title=[tests] в BC-DailyMetrics нет тестовых проектов"
+          exit 1
+        fi
+        if [ "$fail" -ne 0 ]; then
+          echo "::error title=[tests] есть падения"
+          exit 1
+        fi
+        echo "тесты BC-DailyMetrics зелёные"
 
-    - name: Integration Tests
-      run: dotnet test src/DailyMetrics.IntegrationTests/DailyMetrics.IntegrationTests.csproj --configuration Release --verbosity normal
 
   docker:
     needs: build-and-test

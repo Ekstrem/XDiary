@@ -75,7 +75,9 @@ jobs:
             echo "bc_list=ALL" >> "$GITHUB_OUTPUT"
             echo "зона: ALL"
           else
-            bcs=$(printf '%s\n' "$changed" | grep -oE '^6-msa/BC-[A-Za-z0-9]+' | cut -d/ -f2 | sort -u | tr '\n' ' ')
+            # ApiGateway не `BC-*`, но его тесты и код тоже трогаются — зона учитывает и его.
+            bcs=$(printf '%s\n' "$changed" | grep -oE '^6-msa/(BC-[A-Za-z0-9]+|ApiGateway(\.Tests)?)' \
+                  | cut -d/ -f2 | sed 's/\.Tests$//' | sort -u | tr '\n' ' ')
             echo "bc_list=${bcs:-NONE}" >> "$GITHUB_OUTPUT"
             echo "зона: ${bcs:-NONE}"
           fi
@@ -98,6 +100,10 @@ jobs:
             for bc in $zone; do
               projects="$projects $(find "6-msa/$bc" -name '*Tests*.csproj' 2>/dev/null | sort | tr '\n' ' ')"
             done
+            # ApiGateway.Tests лежит в `6-msa/ApiGateway.Tests`, а не внутри `ApiGateway`
+            if printf '%s\n' "$zone" | grep -q 'ApiGateway'; then
+              projects="$projects $(find 6-msa/ApiGateway.Tests -name '*Tests*.csproj' 2>/dev/null | sort | tr '\n' ' ')"
+            fi
           fi
           for proj in $projects; do
             found=1
