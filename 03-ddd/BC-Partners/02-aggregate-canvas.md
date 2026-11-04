@@ -248,3 +248,9 @@ UI показывает «удалённый партнёр» (при факте
 
 **Что нужно от @BE:** включить `UnmappedMemberHandling.Disallow` для command-моделей + тест «лишнее поле → 400»
 на `POST /partners` (и на одном любом другом POST для класса). **@TE:** ассерт `{"name":"П","gender":"Male"}` → **400**.
+## Пол партнёра: только два значения (решение владельца 2026-11-04 20:12)
+
+`ex.md:34` → «Только два пола». Для `Partner.Gender` это означает: допустимы **только** `male`/`female`;
+`GenderEnumValidator.Normalize` (Trim + ToLowerInvariant) приводит регистр, но **не расширяет словарь**;
+иное значение → `400` (инвариант `PartnerGenderIsTwoValued`). Тест: `Partners.Domain.Tests/PartnerTests.cs`
+(`UpdateProfile_Gender_Validated` — Theory по значениям), для API — `400` на `POST /partners/{id}/profile`.
