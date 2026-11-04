@@ -80,28 +80,24 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
     await dumpViews(page, 'onboarding E7: после OTP');
     await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 20000 });
     await expect(page.locator('#view-journal')).toBeHidden();
-    // Поле имени: семантически, без выдуманного id (FE-038 ещё не зафиксировал разметку).
-    const nameInput = page.locator('#view-onboarding input:visible').first();
-    await expect(nameInput, 'на шаге «Кто вы?» должно быть видимое поле имени').toBeVisible({ timeout: 20000 });
+    // TE-049: id профильного шага зафиксированы @FE (`@TL 2026-11-15 05:13`):
+    // `#onb-name`, `#onb-gender-male`, `#onb-gender-female`, `#btn-onb-profile`, `#onb-profile-error`.
+    await expect(page.locator('#onb-name'), 'шаг «Кто вы?»: поле имени').toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#btn-onb-profile'), 'шаг «Кто вы?»: кнопка «Продолжить»').toBeVisible({ timeout: 10000 });
   });
 
-  await test.step('шаг 3: профиль сохраняется контрактом (displayName + gender)', async () => {
-    await reportStep(page, 'шаг 3: профиль «я» через POST /clients/me/profile');
-    const saved = await page.evaluate(
-      async ({ base, name }) => {
-        const t = localStorage.getItem('xdiary.accessToken') || '';
-        if (!t) return { ok: false, noToken: true };
-        const r = await fetch(base + '/api/v1/clients/me/profile', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
-          body: JSON.stringify({ displayName: name, gender: 'male' }),
-        });
-        return { ok: r.ok, status: r.status };
-      },
-      { base: API_BASE, name: 'e2e-e7-' + Date.now() }
-    );
-    expect(saved.noToken, 'client-JWT должен быть получен на шаге OTP').toBeFalsy();
-    expect(saved.ok, 'POST /clients/me/profile → ' + JSON.stringify(saved)).toBeTruthy();
+  await test.step('шаг 3: «Кто вы?» — имя + пол кликом, профиль сохраняется формой', async () => {
+    await reportStep(page, 'шаг 3: форма «Кто вы?» → Продолжить');
+    const displayName = 'e2e-e7-' + Date.now();
+    await page.fill('#onb-name', displayName);
+    await page.click('#onb-gender-male');
+    await expect(page.locator('#onb-profile-error')).toBeHidden({ timeout: 5000 });
+    await page.click('#btn-onb-profile');
+    // Форма уходит в журнал: профиль сохранён её собственным запросом (POST /clients/me/profile).
+    await expectScreen(page, '#view-journal', 'форма «Кто вы?» → журнал', 25000);
+    await expect(page.locator('#view-onboarding')).toBeHidden();
+    await page.evaluate((n) => { window.__e7Name = n; }, displayName);
+    expect(displayName, 'имя для шага 5').toBeTruthy();
   });
 
   await test.step('шаг 4: повторный вход — сразу журнал, онбординг не повторяется', async () => {
