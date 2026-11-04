@@ -40,6 +40,8 @@ builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, Read
 builder.Services.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddHostedService<Journal.Api.Events.JournalEventConsumer>();
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>();
+builder.Services.AddScoped<Journal.Storage.JournalDataMigration>();
+builder.Services.AddHostedService<Journal.Api.JournalDataMigrationRunner>();
 builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IRepository<IJournal, IJournalAnemicModel>, JournalCommandRepository>();
