@@ -90,6 +90,14 @@ jobs:
         if: always()
         run: python tools/check_front_e2e.py
 
+      - name: Спеки фронта идут через E2E-фикстуру + контракт __XDIARY_E2E__ (TE-024, @TE 2026-11-04 08:37)
+        # Две части: (1) если в `*.spec.js` есть `page.goto(`, в файле обязана быть фикстура
+        # (`installBase`/`loginWithPin`/`seedSession`) — иначе страница уйдёт на DEFAULT_BASE;
+        # (2) `8-front/js/api.js` обязан содержать `__XDIARY_E2E__`.
+        # Доказано @TE на дефекте и норме (REF=d7a40d36): норма 19 спек/3 с навигацией PASS,
+        # подмена флага во фронте → FAIL. Прогон ~0.3 с, без сети и браузера.
+        if: always()
+        run: python 9-tests/scripts/check_front_specs_base.py
       - name: Внешняя поверхность = только шлюз (ADR-026)
         # Любой сервис кроме `api-gateway` с `ports:` в compose публикует порт на хост —
         # это реальная экспозиция, а не «риск». Внутренняя достижимость закрывается auth.
