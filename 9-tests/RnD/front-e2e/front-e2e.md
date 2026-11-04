@@ -33,3 +33,15 @@
 1. Новая спека = строка в таблице выше (экран + что проверяется). Спека без строки здесь — не покрытие, а заготовка.
 2. Селекторы берём **из `8-front/index.html`** (`#view-*`, `#tab-*`), а не придумываем: дрейф id ловится этим набором.
 3. Если сценарий требует только API (нет действий в UI) — он не идёт сюда: место — в папке сервиса (`6-msa/BC-<X>/src/<S>.ApiTests`), для пары — у потребителя.
+
+## Правило: спека не открывает приложение без E2E-фикстуры (FE-024)
+
+После `0.57` фронт читает `localStorage.xdiary.apiBase` **только** при `window.__XDIARY_E2E__ === true`;
+иначе ключ вычищается и `baseUrl()` отдаёт `DEFAULT_BASE` (прод VPS-1). Флаг ставит `installBase()`
+через `page.addInitScript` (`tests/api.js:72-78`), а `seedSessionOnce` вызывает её первым шагом (`:145`),
+поэтому `loginWithPin`/`seedSession` безопасны. `global-setup.js` проверяет только `XDIARY_E2E_BASE_URL`
+и такой случай не ловит — он про API-базу теста, а не про то, куда смотрит страница.
+
+**Проверка:** `python 9-tests/scripts/check_front_specs_base.py` (по `origin/main`) или
+`REF=WORKTREE python 9-tests/scripts/check_front_specs_base.py` (по рабочему дереву).
+Правило: если в спеке есть `page.goto(`, в ней обязано быть `installBase(` **или** `loginWithPin(`/`seedSession(`.
