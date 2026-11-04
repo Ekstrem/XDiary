@@ -46,12 +46,30 @@ def read_file(ref: str, path: str, worktree_mode: bool) -> str:
     return git("show", f"{ref}:{path}")
 
 
+def resolve_default_ref() -> str:
+    """Ревизия по умолчанию: первый существующий из кандидатов.
+
+    Зачем не «origin/main жёстко»: в CI (`actions/checkout` без `fetch-depth`) и на
+    `pull_request` remote-tracking `origin/main` может отсутствовать — тогда гейт падал бы
+    `rc=2` на каждом PR, то есть **ложным красным** (ровно тот класс, который мы устраняем).
+    Явно заданный `REF` проверяется строго: неверный — `rc=2`, без тихого фолбэка.
+    """
+    for cand in ("origin/main", "gh/main", "HEAD"):
+        if git("rev-parse", "--verify", f"{cand}^{{commit}}"):
+            return cand
+    return "origin/main"
+
+
 def main() -> int:
-    ref = (os.environ.get("REF") or "origin/main").strip()
+    explicit = (os.environ.get("REF") or "").strip()
+    ref = explicit or resolve_default_ref()
     worktree_mode = ref.upper() in ("WORKTREE", ".")
     if not worktree_mode and not git("rev-parse", "--verify", f"{ref}^{{commit}}"):
-        print(f"REF={ref} | FAIL: ревизия не резолвится")
+        hint = "" if explicit else " (и ни один из origin/main, gh/main, HEAD не резолвится)"
+        print(f"REF={ref} | FAIL: ревизия не резолвится{hint}")
         return 2
+    if not explicit and not worktree_mode:
+        print(f"ревизия по умолчанию: {ref} (REF не задан)")
 
     if worktree_mode:
         specs = sorted(str(x).replace("\\", "/") for x in pathlib.Path(TESTS_DIR).glob("*.spec.js"))
