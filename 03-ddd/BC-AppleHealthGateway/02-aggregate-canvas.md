@@ -23,6 +23,21 @@
 - **LastImport**: timestamp
 - **ProcessedFiles**: names[]
 
+**2.2. Состояние (`AnemicModel`) — атрибуты корня агрегата (AR-017).** Сверено с кодом 2026-11-15:
+`IAppleImportAnemicModel` (`Root`, `ImportConfig`, `LastImport`, `ProcessedFiles`) + `AppleImportRoot` (`ClientId`, `SourceId`).
+
+| Атрибут | Тип в коде | Кард. | Обяз. | Задаётся | Инвариант | Источник |
+|---|---|---|---|---|---|---|
+| `Root.ClientId` | Guid | 1 | **да** | `Connect(clientId)` | скоуп владельца | ADR-008 |
+| `Root.SourceId` | string | 1 | **да** | `Connect` | идентификатор источника (устройство/экспорт) | US-008 |
+| `ImportConfig` | `IImportConfig` (VO) | 1 | да | `Configure` | какие типы данных импортировать | US-008 |
+| `LastImport` | string (timestamp) | 0..1 | нет | `Import` | курсор инкремента, монотонный | US-008 |
+| `ProcessedFiles` | `IReadOnlyList<string>` | 0..* | нет | `Import` | список уже обработанных файлов — **основа идемпотентности**: повторный импорт того же файла не должен дублировать точки | US-008 |
+
+**2.2.2. Расхождения:** `ProcessedFiles` растёт **без ограничения** (`IReadOnlyList`, ни обрезки, ни TTL) — на длинной
+истории это неограниченный рост состояния агрегата и снапшотов; нужен лимит/вытеснение (иначе через год импорт будет
+тянуть мегабайты истории файлов).
+
 ## 3. State Transitions
 ```
 (нет) → [Configure] → Configured
