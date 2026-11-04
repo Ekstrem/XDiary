@@ -1,0 +1,274 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Catalog Microservice API",
+    "version": "2026-11-04",
+    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-derived-from": "04-architecture/api-index.yaml",
+  "x-generated-at": "2026-11-04",
+  "x-operations": 8,
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/catalog": {
+      "get": {
+        "operationId": "Catalog.List",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Catalog.Add",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/catalog/{id}": {
+      "get": {
+        "operationId": "Catalog.Get",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "not-owner"
+          },
+          "404": {
+            "description": "not-found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/catalog/{id}/archive": {
+      "post": {
+        "operationId": "Catalog.Archive",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "not-owner"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/catalog/{id}/details": {
+      "post": {
+        "operationId": "Catalog.UpdateDetails",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "not-owner"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/catalog/{id}/name": {
+      "post": {
+        "operationId": "Catalog.Rename",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "not-owner"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/catalog/{id}/remove": {
+      "post": {
+        "operationId": "Catalog.Remove",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "not-owner"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/catalog/{id}/restore": {
+      "post": {
+        "operationId": "Catalog.Restore",
+        "tags": [
+          "Catalog"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "not-owner"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Somatic Series Microservice API",
+    "version": "2026-11-04",
+    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-derived-from": "04-architecture/api-index.yaml",
+  "x-generated-at": "2026-11-04",
+  "x-operations": 2,
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/somatic-series/points": {
+      "post": {
+        "operationId": "SomaticSeries.RecordPoint",
+        "tags": [
+          "SomaticSeries"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/somatic-series/slice": {
+      "get": {
+        "operationId": "SomaticSeries.Slice",
+        "tags": [
+          "SomaticSeries"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,212 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Privacy Microservice API",
+    "version": "2026-11-04",
+    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-derived-from": "04-architecture/api-index.yaml",
+  "x-generated-at": "2026-11-04",
+  "x-operations": 9,
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/privacy/pin/change": {
+      "post": {
+        "operationId": "Privacy.ChangePin",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/pin/has": {
+      "get": {
+        "operationId": "Privacy.HasPin",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/pin/lock": {
+      "post": {
+        "operationId": "Privacy.Lock",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/pin/remove": {
+      "post": {
+        "operationId": "Privacy.Remove",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/pin/set": {
+      "post": {
+        "operationId": "Privacy.SetPin",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/pin/unlock": {
+      "post": {
+        "operationId": "Privacy.Unlock",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/pin/verify": {
+      "post": {
+        "operationId": "Privacy.VerifyPin",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/token": {
+      "post": {
+        "operationId": "Privacy.Token",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/privacy/verify-token": {
+      "post": {
+        "operationId": "Privacy.VerifyToken",
+        "tags": [
+          "Privacy"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "bad-token"
+          }
+        },
+        "security": []
+      }
+    }
+  }
+}

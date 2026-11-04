@@ -1,0 +1,274 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Partners Microservice API",
+    "version": "2026-11-04",
+    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-derived-from": "04-architecture/api-index.yaml",
+  "x-generated-at": "2026-11-04",
+  "x-operations": 8,
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/partners": {
+      "get": {
+        "operationId": "Partners.List",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Partners.Register",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/partners/{id}": {
+      "get": {
+        "operationId": "Partners.Get",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok (в т.ч. чужой партнёр — дефект)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/partners/{id}/link-client": {
+      "post": {
+        "operationId": "Partners.LinkClient",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok (в т.ч. чужой — дефект)"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/partners/{id}/name": {
+      "post": {
+        "operationId": "Partners.Rename",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok (в т.ч. чужой — дефект)"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/partners/{id}/profile": {
+      "post": {
+        "operationId": "Partners.UpdateProfile",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok, gender канонизирован"
+          },
+          "400": {
+            "description": "validation (Other)"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/partners/{id}/remove": {
+      "post": {
+        "operationId": "Partners.Remove",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok (в т.ч. чужой — дефект)"
+          },
+          "400": {
+            "description": "доменная ошибка"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/partners/{id}/unlink-client": {
+      "post": {
+        "operationId": "Partners.UnlinkClient",
+        "tags": [
+          "Partners"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok (в т.ч. чужой — дефект)"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  }
+}

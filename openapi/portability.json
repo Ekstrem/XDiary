@@ -1,0 +1,111 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Portability Microservice API",
+    "version": "2026-11-04",
+    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-derived-from": "04-architecture/api-index.yaml",
+  "x-generated-at": "2026-11-04",
+  "x-operations": 4,
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/portability/document": {
+      "get": {
+        "operationId": "Portability.Document",
+        "tags": [
+          "Portability"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/portability/export": {
+      "post": {
+        "operationId": "Portability.Export",
+        "tags": [
+          "Portability"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/portability/import/records": {
+      "post": {
+        "operationId": "Portability.ImportRecords",
+        "tags": [
+          "Portability"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/portability/import/somatic": {
+      "post": {
+        "operationId": "Portability.ImportSomatic",
+        "tags": [
+          "Portability"
+        ],
+        "responses": {
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  }
+}

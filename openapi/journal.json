@@ -1,0 +1,679 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Journal Microservice API",
+    "version": "2026-11-04",
+    "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-derived-from": "04-architecture/api-index.yaml",
+  "x-generated-at": "2026-11-04",
+  "x-operations": 20,
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/journal/fantasies": {
+      "get": {
+        "operationId": "Journal.Fantasies",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/places": {
+      "get": {
+        "operationId": "Journal.Places",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/recent": {
+      "get": {
+        "operationId": "Journal.Recent",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "204": {
+            "description": "no-content: Ok(null) при отсутствии записи (подтверждено @TE)"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records": {
+      "get": {
+        "operationId": "Journal.List",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok (пусто -> [])"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Journal.StartManualEntry",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/from-garmin": {
+      "post": {
+        "operationId": "Journal.StartFromGarmin",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка"
+          },
+          "401": {
+            "description": "no-token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}": {
+      "get": {
+        "operationId": "Journal.Get",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id (Forbid)"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/accessories": {
+      "post": {
+        "operationId": "Journal.AddAccessories",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/complete": {
+      "post": {
+        "operationId": "Journal.Complete",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/contraception": {
+      "post": {
+        "operationId": "Journal.RecordContraception",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/delete": {
+      "post": {
+        "operationId": "Journal.Delete",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/duration": {
+      "post": {
+        "operationId": "Journal.SpecifyDuration",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/orgasms": {
+      "post": {
+        "operationId": "Journal.RecordOrgasms",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/partners": {
+      "post": {
+        "operationId": "Journal.AddPartner",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/partners/{partnerId}/remove": {
+      "post": {
+        "operationId": "Journal.RemovePartner",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "partnerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/place": {
+      "post": {
+        "operationId": "Journal.SpecifyPlace",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/positions": {
+      "post": {
+        "operationId": "Journal.AddPositions",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal/records/{id}/when": {
+      "post": {
+        "operationId": "Journal.SpecifyWhen",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "доменная ошибка (validation/invariant)"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужой id"
+          },
+          "404": {
+            "description": "не найден"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/internal/journal/records": {
+      "get": {
+        "operationId": "Journal.ListAll",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok, изнутри сети без токена"
+          },
+          "401": {
+            "description": "снаружи/через шлюз"
+          }
+        },
+        "security": []
+      }
+    },
+    "/internal/partners/events": {
+      "post": {
+        "operationId": "Journal.IngestPartnerEvent",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok — upsert в partners_directory"
+          },
+          "401": {
+            "description": "снаружи/через шлюз (внутренний контур не публикуется)"
+          }
+        },
+        "security": []
+      }
+    }
+  }
+}
