@@ -94,40 +94,92 @@ def verdict(results: list[tuple[dict, int | None, str]]) -> tuple[int, list[str]
 
 
 def selftest() -> int:
-    """Доказательство, что проверка краснеет на открытой операции и зеленеет на 401."""
-    ops = [
-        {"method": "GET", "path": "/api/v1/a", "operationId": "A.Get", "auth": "jwt"},
-        {"method": "POST", "path": "/api/v1/b", "operationId": "B.Post", "auth": "jwt"},
-        {"method": "POST", "path": "/api/v1/clients", "operationId": "C.Create", "auth": "anonymous"},
-        {"method": "POST", "path": "/api/v1/i", "operationId": "I.Internal", "auth": "anonymous-inside"},
-    ]
-    sel = [op for op in ops if requires_auth(op)]
+    """Доказательство, что проверка краснеет на открытой операции и зеленеет на 401.
+
+    @TL `2026-11-05 00:07`: селфтест обязан **поднять локальный HTTP-сервер** и проверить
+    классификатор на реальных `401`/`200`. Иначе проверяется только функция `verdict()`,
+    а путь «HTTP-клиент → код ответа» остаётся непроверенным — то самое «зелёное на пустоте».
+    Поэтому здесь настоящий `http.server` на 127.0.0.1:0 и настоящие запросы `check_one`.
+    """
+    import http.server
+    import threading
+
+    # `/api/v1/i` — «внутренний» маршрут: снаружи он обязан отвечать 401 (а не 200),
+    # поэтому он же проверяется как `anonymous-inside` в классификаторе ниже.
+    statuses = {"/api/v1/a": 401, "/api/v1/b": 200, "/api/v1/c": 403,
+                "/api/v1/d": 500, "/api/v1/e": 404, "/api/v1/i": 401}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self):  # noqa: N802 — имя диктует BaseHTTPRequestHandler
+            code = statuses.get(self.path, 418)
+            self.send_response(code)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"selftest")
+
+        do_GET = _send
+        do_POST = _send
+
+        def log_message(self, *_args):  # тишина в выводе
+            return
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = srv.server_address[1]
+    base = f"http://127.0.0.1:{port}"
+    th = threading.Thread(target=srv.serve_forever, daemon=True)
+    th.start()
     ok = 0
-    cases = [
-        ([{401}, {401}, {401}], 0, "все 401 → зелено"),
-        ([{200}, {401}, {401}], 1, "200 без токена → красно"),
-        ([{401}, {403}, {401}], 0, "403 тоже отказ → зелено"),
-        ([{404}, {401}, {401}], 0, "404 выносится отдельно, не красит"),
-        ([{500}, {401}, {401}], 1, "500 вместо 401 → красно"),
-    ]
-    for seq, want, title in cases:
-        res = []
-        for op, code in zip(sel, seq):
-            res.append((op, next(iter(code)), "http://sel"))
-        rc, _bad, _unk = verdict(res)
-        got = 0 if rc == 0 else 1
-        if got == want:
+    total = 0
+    try:
+        # 1) HTTP-путь: реальные коды доходят до классификатора как есть
+        for path, want in statuses.items():
+            total += 1
+            code, _url = check_one(base, {"method": "GET", "path": path}, timeout=5)
+            if code == want:
+                ok += 1
+            else:
+                print(f"  [FAIL] HTTP {path}: ждали {want}, получили {code}")
+
+        # 2) классификатор на реальных ответах сервера
+        ops = [
+            {"method": "GET", "path": "/api/v1/a", "operationId": "A.Get", "auth": "jwt"},
+            {"method": "GET", "path": "/api/v1/c", "operationId": "C.Forbidden", "auth": "jwt"},
+            {"method": "GET", "path": "/api/v1/e", "operationId": "E.NotFound", "auth": "jwt"},
+            {"method": "GET", "path": "/api/v1/b", "operationId": "B.Open", "auth": "jwt"},
+            {"method": "GET", "path": "/api/v1/d", "operationId": "D.Error", "auth": "jwt"},
+            {"method": "POST", "path": "/api/v1/clients", "operationId": "X.Create", "auth": "anonymous"},
+            {"method": "POST", "path": "/api/v1/i", "operationId": "I.Internal", "auth": "anonymous-inside"},
+        ]
+        targets = [op for op in ops if requires_auth(op)]
+        results = [(op, *check_one(base, op, timeout=5)) for op in targets]
+        rc, bad, unknown = verdict(results)
+
+        total += 1
+        # 401 и 403 — отказ (зелено); 200 и 500 — дефект (красно); 404 — отдельно
+        if rc == 1 and len(bad) == 2 and len(unknown) == 1:
             ok += 1
         else:
-            print(f"  [FAIL] {title}: ждали rc={want}, получили {got}")
-    # проверка фильтра: 4 операции, из них 1 `anonymous` → в проверке 3,
-    # потому что `anonymous-inside` (`/internal/**`) снаружи обязан давать 401.
-    if len(sel) == 3:
-        ok += 1
-    else:
-        print(f"  [FAIL] фильтр анонимных: ждали 3 (anonymous-inside снаружи проверяется), получили {len(sel)}")
-    total = len(cases) + 1
-    print(f"check_apim_auth --selftest: {ok}/{total}")
+            print(f"  [FAIL] классификатор: ждали rc=1, 2 нарушения, 1 неразрешённый; "
+                  f"получили rc={rc}, bad={len(bad)}, unknown={len(unknown)}")
+
+        total += 1
+        # 200 без токена обязан попасть в список нарушителей поимённо
+        if any("B.Open" in b for b in bad) and any("D.Error" in b for b in bad):
+            ok += 1
+        else:
+            print(f"  [FAIL] в нарушениях нет имён открытой/ошибочной операции: {bad}")
+
+        total += 1
+        # фильтр: `anonymous` исключён, `anonymous-inside` включён (снаружи обязан 401)
+        if len(targets) == 6:
+            ok += 1
+        else:
+            print(f"  [FAIL] фильтр анонимных: ждали 6 (7 операций минус `anonymous`), получили {len(targets)}")
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+    print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
 
 
