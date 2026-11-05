@@ -29,5 +29,31 @@ xdiary-vps1.taile0b6ee.ts.net {
 	# `log` без аргументов пишет в stdout -> journald, отдельных прав/файлов не нужно.
 	log
 
-	reverse_proxy 127.0.0.1:8080
+	# DO-076 шаг 3 (2026-11-05): публичный вход переведён на APIM-gateway.
+	# `/health` остаётся на YARP: в APIM маршрута `/health` нет (404), а внешняя
+	# проверка требует 200 — поэтому health идёт мимо APIM, как и раньше.
+	# ADR-030 (Принято 2026-11-05): `/health` — liveness КРАЯ, его отдаёт Caddy,
+	# а не приложение. Раньше здесь был `reverse_proxy 127.0.0.1:8080` (YARP) — то есть
+	# единственная оставшаяся публичная нагрузка YARP. Ответ отличается заголовком
+	# `Server: Caddy` вместо `Server: Kestrel` — по нему и проверяется, что прокси нет.
+	handle /health* {
+		respond "ok" 200
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:18082
+	}
+}
+
+# DO-076: Funnel проксирует в HTTP-апстрим; развилка повторена на loopback:8081.
+http://:8081 {
+	handle /health* {
+		respond "ok" 200
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:18082
+	}
+
+	log
 }

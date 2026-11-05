@@ -213,7 +213,7 @@ install-шаг консоли. Поэтому импорт спек (`import.sh`
 
 ```
 Tailscale Funnel  --(HTTP)-->  Caddy :8081
-                                  ├─ handle /health*  -> YARP   127.0.0.1:8080
+                                  ├─ handle /health*  -> Caddy  `respond "ok" 200`  (ADR-030: liveness края, приложение не involved)
                                   └─ handle           -> APIM   127.0.0.1:18082
 ```
 
@@ -235,7 +235,7 @@ Tailscale Funnel  --(HTTP)-->  Caddy :8081
 
 ```bash
 # 1) HTTP-listener в Caddy (в конец Caddyfile):
-#    http://:8081 { handle /health* { reverse_proxy 127.0.0.1:8080 } handle { reverse_proxy 127.0.0.1:18082 } log }
+#    http://:8081 { handle /health* { respond "ok" 200 } handle { reverse_proxy 127.0.0.1:18082 } log }
 sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 sudo systemctl reload caddy
 
@@ -255,7 +255,7 @@ sudo tailscale funnel status                    # ждём `/ proxy http://127.0
 
 | путь | код | `x-gravitee-*` | кто ответил |
 |---|---|---|---|
-| `/health` | 200 | 0 | YARP (осознанное исключение: в APIM нет `/health` → 404) |
+| `/health` | 200 | 0 | **Caddy** (`respond`, ADR-030). До 2026-11-05 шёл в YARP; после правки заголовок `Server: Caddy`, а не `Kestrel` — это и есть дискриминатор |
 | `/api/v1/catalog` | 401 | **3** | **APIM** |
 | `/api/v1/journal/records` | 401 | **3** | **APIM** |
 | `/api/v1/nonexistent-path-xyz` | 404, тело `No context-path matches the request URI.` (40 Б) | 0 | **APIM** |
@@ -314,3 +314,18 @@ YARP даёт `401` + `Unauthorized` (12 Б).
    `POST /management/v2/organizations` (`admin:admin`) отвечает **500** — первый админ и организация
    создаются **консолью** (`127.0.0.1:18084`, только через ssh-туннель). Без этого `import.sh`
    запускать нечем: импорт 12 API и `check_apim_drift` заблокированы.
+
+## Что изменилось 2026-11-05 (ADR-030, `DO-083`-смежное)
+
+`/health` больше не проксируется в YARP: его отдаёт **Caddy** (`respond "ok" 200`) — ADR-030
+называет это liveness края. Проверка, что прокси нет: заголовок ответа **`Server: Caddy`**
+(при проксировании в сервис было `Server: Kestrel`).
+
+Замер после правки (на проде):
+`http://127.0.0.1:8081/health` → **200 `Server: Caddy`**; tailnet-host `/health` → **200 `Server: Caddy`**;
+`/api/v1/catalog` → **401** и **3** заголовка `x-gravitee` (APIM в пути не изменился);
+неизвестный путь → **404**. Откат — вернуть `reverse_proxy 127.0.0.1:8080` из
+`/etc/caddy/Caddyfile.bak-do-<TS>` и `systemctl reload caddy`.
+
+**Смысл:** YARP в публичном пути больше **не участвует ни одной строкой** — до этого
+`/health` был единственной оставшейся нагрузкой YARP, то есть фактическим «вторым шлюзом».
