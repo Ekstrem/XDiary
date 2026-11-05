@@ -37,7 +37,8 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             source_kind="historical", event_count=None, rerun_event_count=None,
             partners_name_mismatches=None, journal_empty_partner_names=None,
             journal_empty_partner_names_src=None,
-            contraceptive_count_mismatches=None, projection_verified_by=None):
+            contraceptive_count_mismatches=None, projection_verified_by=None,
+            projection_result=None, projection_waited_ms=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
 
@@ -106,7 +107,14 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
         # read_empty == src_empty → both_empty: норма, ничего не добавляем
 
     # ── Проекция живёт: поведенческое доказательство ─────────────────────────────────────
-    if not projection_verified_by:
+    # «Не проверяли» и «проверили — не работает» — разные состояния: первое НЕ ИЗМЕРЕНО,
+    # второе НАРУШЕНИЕ. Данные для второго уже есть: @DO 11:14 — POST /partners 200,
+    # опрос GET /partners 30 000 мс → count=0.
+    if projection_result == "failed":
+        waited = f" за {projection_waited_ms} мс" if projection_waited_ms else ""
+        issues.append(f"проекция: «создал → увидел» ПРОВАЛЕН (POST 200, но read-модель пуста{waited}) — "
+                      f"новые строки не пишутся")
+    elif not projection_verified_by:
         unmeasured.append("проекция: «создал → увидел» не подтверждено (--projection-verified-by)")
 
     # ── Контракт ─────────────────────────────────────────────────────────────────────────
@@ -161,7 +169,10 @@ def receipt(args, issues, unmeasured):
           f"empty PartnersNames={num(args.journal_empty_partner_names)}"
           f" (пусто в источнике: {num(args.journal_empty_partner_names_src)}), "
           f"contraceptive≠{num(args.contraceptive_count_mismatches)}")
-    print(f"  проекция «создал → увидел»: {args.projection_verified_by or 'НЕ ПОДТВЕРЖДЕНО'}")
+    proj = args.projection_verified_by or "НЕ ПОДТВЕРЖДЕНО"
+    if args.projection_result == "failed":
+        proj = f"ПРОВАЛЕН (ждали {args.projection_waited_ms or '?'} мс, count=0)"
+    print(f"  проекция «создал → увидел»: {proj}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  события: {num(args.event_count)} → повтор {num(args.rerun_event_count)}")
     print(f"  путь записи в read-модель: {args.write_path or 'НЕ ИЗМЕРЕНО'}"
@@ -217,6 +228,9 @@ def selftest() -> int:
          {**base, "source_kind": "live", "projection_verified_by": None}, 2),
         ("live-источник с поведенческой проверкой — проходит",
          {**base, "source_kind": "live"}, 0),
+        ("проекция: проверено и ПРОВАЛЕНО (POST 200, count=0 за 30000 мс)",
+         {**base, "projection_result": "failed", "projection_waited_ms": 30000,
+            "projection_verified_by": None}, 1),
         ("ремонт SQL без объявления", {**base, "write_path": "sql"}, 2),
         ("ремонт SQL: где+дата без команды",
          {**base, "write_path": "sql", "repair_declared_in": "BE-071", "repair_date": "2026-11-05"}, 2),
@@ -271,6 +285,9 @@ def main() -> int:
     ap.add_argument("--contraceptive-count-mismatches", type=int,
                     help="сколько строк journal_read.ContraceptiveCount ≠ records")
     ap.add_argument("--projection-verified-by", help="чем подтверждено «создал → увидел»")
+    ap.add_argument("--projection-result", choices=["passed", "failed"],
+                    help="результат поведенческой проверки: создали → увидели (passed) или нет (failed)")
+    ap.add_argument("--projection-waited-ms", type=int, help="сколько ждали появления в read-модели")
     ap.add_argument("--write-path", choices=["projection", "sql"],
                     help="как read-строки попали в таблицу: канонная проекция или одноразовый SQL-ремонт")
     ap.add_argument("--repair-declared-in", help="карточка/ADR, где объявлен одноразовый ремонт")
@@ -299,6 +316,8 @@ def main() -> int:
         journal_empty_partner_names_src=args.journal_empty_partner_names_src,
         contraceptive_count_mismatches=args.contraceptive_count_mismatches,
         projection_verified_by=args.projection_verified_by,
+        projection_result=args.projection_result,
+        projection_waited_ms=args.projection_waited_ms,
     )
     return receipt(args, issues, unmeasured)
 
