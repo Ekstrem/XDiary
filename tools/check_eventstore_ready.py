@@ -68,14 +68,24 @@ def verdict(facts):
     # вовсе — для него доказательством может быть только пересборка (способ (а) @AR).
     updated = facts.get('journal_read_updated', 'none')
     repaired_at = facts.get('repaired_at')
-    provenance_ok = False
-    if jread > 0 and updated not in ('none', '') and repaired_at:
-        provenance_ok = updated > repaired_at
+    # Лексика та же, что у @TE в `accept_read_path --projection-provenance`:
+    # rebuild | time | repair | none — чтобы квитанции двух гейтов читались одинаково.
+    override = facts.get('provenance')
+    if override in ('rebuild', 'time'):
+        provenance = override
+    elif pread == 0 and jread == 0:
+        provenance = 'none'
+    elif jread > 0 and updated not in ('none', '') and repaired_at and updated > repaired_at:
+        provenance = 'time'
+    else:
+        provenance = 'repair'
+    provenance_ok = provenance in ('rebuild', 'time')
     p3 = provenance_ok
     items.append(('(3) представление из проекции', p3,
                   'partners_read=%d (без UpdatedAt — провенанс не проверяем), '
-                  'journal records=%d, journal_read=%d, max UpdatedAt=%s, ремонт=%s'
-                  % (pread, recs, jread, updated, repaired_at or 'не задан')))
+                  'journal records=%d, journal_read=%d, max UpdatedAt=%s, ремонт=%s, '
+                  'провенанс=%s'
+                  % (pread, recs, jread, updated, repaired_at or 'не задан', provenance)))
 
     if all(ok for _, ok, _ in items):
         return 0, items
@@ -136,6 +146,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--remote', default='deploy@31.192.111.168')
     ap.add_argument('--key', default='~/.ssh/id_ed25519_xdiary')
+    ap.add_argument('--projection-provenance', default=None,
+                    choices=('rebuild', 'time', 'repair', 'none'),
+                    help='как доказан провенанс (та же лексика, что у @TE в accept_read_path)')
     ap.add_argument('--repaired-at', default='2026-11-05',
                     help='дата ручного ремонта read-модели: строки с UpdatedAt '
                          'раньше неё не доказывают проекцию')
@@ -159,6 +172,8 @@ def main():
 
     facts = parse(r.stdout)
     facts['repaired_at'] = a.repaired_at
+    if a.projection_provenance:
+        facts['provenance'] = a.projection_provenance
     if 'schema' not in facts:
         print('check_eventstore_ready: НЕ ИЗМЕРЕНО — вывод не разобран: %r' % (r.stdout or '')[:160])
         return 2
@@ -171,6 +186,12 @@ def main():
               'max(UpdatedAt) строк раньше ремонта (%s) — это может быть ручной ремонт '
               '(repair-2026-11-05-readmodels.sql), а не работа проекции'
               % (facts.get('repaired_at') or 'не задан'))
+    print('  провенанс представления: %s%s'
+          % (items[2][1] and facts.get('provenance', 'time') or
+             ('rebuild' if facts.get('provenance') == 'rebuild' else
+              'time' if facts.get('provenance') == 'time' else
+              'none' if facts.get('provenance') == 'none' else 'repair'),
+             '' if items[2][1] else '  (НЕ доказательство проекции)'))
     print('check_eventstore_ready: предпосылки §5 %s'
           % ('выполнены' if rc == 0 else ('противоречие' if rc == 1 else 'НЕ ВЫПОЛНЕНЫ')))
     return rc
