@@ -44,16 +44,20 @@ def analyze(text):
 
 
 def verdict(line_df, typed):
-    """('ok'|'no-typed'|'many-typed'|'typed-before'|'no-df', детали)."""
+    """('ok'|'no-typed'|'many-typed'|'typed-after'|'no-df', детали)."""
     if line_df is None:
         return 'no-df', ''
     if not typed:
         return 'no-typed', ''
     if len(typed) > 1:
         return 'many-typed', 'строки %s' % typed
+    # DO-097: канон — типизированная регистрация ДО `AddEventStorePostgres`.
+    # `DbContextOptions<T>` регистрируется через `TryAdd` внутри `AddDbContext`, поэтому
+    # выигрывает ПЕРВАЯ регистрация; вызванный после `AddEventStorePostgres` её не перекрывает
+    # (de5507f0: 42P01 36 -> 0, migrations=AddEventStore).
     if typed[0] < line_df:
-        return 'typed-before', 'typed на %d, DF на %d' % (typed[0], line_df)
-    return 'ok', 'DF %d → typed %d' % (line_df, typed[0])
+        return 'ok', 'typed %d -> DF %d (канон: typed раньше)' % (typed[0], line_df)
+    return 'typed-after', 'DF %d, typed %d' % (line_df, typed[0])
 
 
 STORE = re.compile(r'Add(?:Event|Read)StorePostgres\s*<([^;]*?)>\s*\(')
@@ -97,7 +101,8 @@ def manual_after_library(text, owned_contexts):
 
     Исключения (осознанные, объяснены в шапке файла):
       * `EventStoreDbContext` — наоборот, требует ручной типизированной регистрации для моста
-        `DbContextOptions` (BE-067), поэтому «после» здесь — канон, а не дефект;
+        `DbContextOptions` (BE-067), причём **ДО** `AddEventStorePostgres` (DO-097: `TryAdd`
+        в `AddDbContext` ⇒ выигрывает первая регистрация); «после» здесь — дефект;
       * тестовые хосты (`*HostSmokeTest`, `*IntegrationTests`) — вне проверки.
 
     Возвращает [(контекст, строка_df, строка_ручная)].
@@ -139,8 +144,8 @@ def selftest():
     df = 'builder.Services.AddEventStorePostgres<IA, IAM>(cs, null);\n'
     typed = ('builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.'
              'EventStoreDbContext>(o => o.UseNpgsql(cs));\n')
-    case(df + typed, 'ok', 'typed после DF (канон)')
-    case(typed + df, 'typed-before', 'typed до DF — дефект')
+    case(typed + df, 'ok', 'typed ДО DF — канон (DO-097)')
+    case(df + typed, 'typed-after', 'typed после DF — дефект')
     case(df, 'no-typed', 'только DF')
     case(df + typed + typed, 'many-typed', 'две типизированные')
     case('// нет DF вовсе\n' + typed, 'no-df', 'нет DF')
