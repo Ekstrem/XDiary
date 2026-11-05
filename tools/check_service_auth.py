@@ -217,6 +217,30 @@ def report(results):
     return tot, bad_list
 
 
+CANON = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       '9-tests', 'scripts', 'check_apim_auth.py')
+
+
+def canon_broken(path=None):
+    """Дефект канона (норма `canon-broken`, @AR 2026-11-05 02:43).
+
+    Канон — `9-tests/scripts/check_apim_auth.py`. Известный дефект: ветка `401/403`
+    делает `continue` без `protected_count += 1`, поэтому канон печатает
+    `защищено=0` при любом числе `401`. Пока это так, `PASS` таким замером
+    **не закрывается**: работать можно, закрывать нельзя (как `UNKNOWN`).
+
+    Возвращает строку-причину, если канон сломан, иначе ''.
+    """
+    p = path or CANON
+    try:
+        text = open(p, encoding='utf-8', errors='replace').read()
+    except OSError:
+        return ''  # канона рядом нет — не наш случай, маркер не ставим
+    if 'protected_count += 1' in text:
+        return ''
+    return 'защищено не считается: check_apim_auth.py:285 continue без инкремента'
+
+
 def tool_id(path=None):
     """`путь@sha256[:12]` самого запускавшегося скрипта.
 
@@ -252,8 +276,14 @@ def receipt(ref, where, tot, rc, images):
     (измерено не всё, и это не «чисто»); иначе `FAIL`.
     """
     valid = identity_ok(tot)
+    broken = canon_broken()
     if not valid:
         verdict = 'INVALID'
+    elif broken and rc == 0:
+        # норма `canon-broken`: числа перекрёстного инструмента рабочие, но PASS
+        # таким замером не закрывается — как UNKNOWN, только по другой причине
+        verdict = 'CANON-BROKEN'
+        rc = 2
     elif rc == 0:
         verdict = 'PASS'
     elif tot['violator'] == 0 and tot['contract'] == 0:
@@ -262,11 +292,12 @@ def receipt(ref, where, tot, rc, images):
         verdict = 'FAIL'
     img = ','.join('%s:%s' % (k, v) for k, v in sorted(images.items())) or 'НЕ_ИЗМЕРЕНО'
     return ('REF=%s | (ii-b) %s | защищено=%d/%d | нарушителей=%d | contract=%d | неизвестно=%d | '
-            'сумма=%d/%d | rc=%d | where=%s | images=%s | tool=%s'
+            'сумма=%d/%d | rc=%d | where=%s | images=%s | tool=%s%s'
             % (ref, verdict, tot['protected'], tot['ops'], tot['violator'], tot['contract'],
                tot['unknown'],
                tot['protected'] + tot['violator'] + tot['contract'] + tot['unknown'], tot['ops'],
-               rc, where, img, tool_id()))
+               rc, where, img, tool_id(),
+               (' | canon-broken: ' + broken) if broken else ' | canon=ok'))
 
 
 def selftest():
@@ -326,6 +357,25 @@ def selftest():
     else:
         print('  [FAIL] операция без ответа должна попадать в unknown: %s' % (tot_fake,))
 
+    # норма canon-broken: детектор видит отсутствие инкремента и присутствие
+    import tempfile as _tf
+    with _tf.NamedTemporaryFile('w', suffix='.py', delete=False, encoding='utf-8') as fh:
+        fh.write('def verdict():\n    if code in (401, 403):\n        continue\n')
+        broken_path = fh.name
+    with _tf.NamedTemporaryFile('w', suffix='.py', delete=False, encoding='utf-8') as fh:
+        fh.write('def verdict():\n    protected_count += 1\n')
+        ok_path = fh.name
+    if canon_broken(broken_path) and not canon_broken(ok_path):
+        ok += 1
+    else:
+        print('  [FAIL] canon_broken не различает сломанный и исправленный канон')
+    os.unlink(broken_path)
+    os.unlink(ok_path)
+    if 'canon=ok' in receipt('abc', 'unit', base, 0, {}) or 'canon-broken' in receipt('abc', 'unit', base, 0, {}):
+        ok += 1
+    else:
+        print('  [FAIL] в квитанции нет статуса канона')
+
     # tool= — обязательное поле (формат @AR §7): путь + 12 hex
     import re as _re
     if _re.search(r'tool=[A-Za-z0-9_.-]+@[0-9a-f]{12}', receipt('abc', 'unit', base, 0, {})):
@@ -371,7 +421,7 @@ def selftest():
             print('  [FAIL] live %s -> %s, ждали %s' % (path, got, want))
     srv.shutdown()
 
-    total = len(cases) + len(rc_cases) + 10
+    total = len(cases) + len(rc_cases) + 12
     print('check_service_auth --selftest: %d/%d (классы, rc, квитанция, живой сервер)' % (ok, total))
     return 0 if ok == total else 1
 
