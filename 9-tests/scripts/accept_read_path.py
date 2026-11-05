@@ -58,7 +58,8 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             measured_on=None, schema_present=None, post_partners_status=None,
             delivery_reached=None,
             projection_result=None, projection_waited_ms=None,
-            projection_provenance=None):
+            projection_provenance=None, computed_provenance=None,
+            computed_why=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
 
@@ -136,7 +137,13 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     # §5 п.3 (@AR `chat/ar.md` `[2026-11-05 16:51]`): «представление строится проекцией» доказывается
     # ПЕРЕСБОРКОЙ (удалили строки -> POST -> числа вернулись) или ВРЕМЕНЕМ (`UpdatedAt` позже починки).
     # Непустая таблица после ручного ремонта — не доказательство.
-    if projection_provenance == "repair":
+    if computed_provenance == "repair":
+        issues.append(f"представление: провенанс по данным — ремонт ({computed_why}) — "
+                      "§5 п.3 не выполнен; нужна пересборка")
+    elif computed_provenance == "time" and projection_provenance == "rebuild":
+        issues.append(f"объявлено `rebuild`, а данные показывают `time` ({computed_why}) — "
+                      "принято, но объявление не совпало с фактом")
+    elif projection_provenance == "repair":
         issues.append("представление: строки появились ручным ремонтом (SQL), это НЕ проекция — "
                       "§5 п.3 не выполнен; доказательство: пересборка либо UpdatedAt позже починки")
     elif projection_provenance in (None, "none"):
@@ -217,6 +224,29 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     return issues, unmeasured
 
 
+def compute_provenance(read_max_updated_at, repaired_at):
+    """Провенанс по ДАННЫМ, а не по объявлению (@DO `chat/do.md` `[2026-11-05 16:58]`).
+
+    `(значение, почему)` либо `(None, причина)`, если данных нет или даты не разбираются.
+    Правило одно у двух инструментов: строки, обновлённые раньше ремонта, проекцию не доказывают.
+    """
+    if not read_max_updated_at or not repaired_at:
+        return None, "нет данных: нужны --read-max-updated-at и --repaired-at"
+    try:
+        from datetime import datetime
+        a = read_max_updated_at.strip().replace("Z", "+00:00")
+        b = repaired_at.strip()
+        ta = datetime.fromisoformat(a)
+        tb = datetime.fromisoformat(b if "T" in b else b + "T00:00:00")
+        if ta.tzinfo and not tb.tzinfo:
+            tb = tb.replace(tzinfo=ta.tzinfo)
+        if ta > tb:
+            return "time", f"max(UpdatedAt)={read_max_updated_at} позже ремонта {repaired_at}"
+        return "repair", f"max(UpdatedAt)={read_max_updated_at} раньше ремонта {repaired_at}"
+    except ValueError:
+        return None, f"даты не разбираются: {read_max_updated_at!r} / {repaired_at!r}"
+
+
 def time_provenance_warning(provenance, partners_read):
     """`time` как доказательство требует колонки `UpdatedAt`.
 
@@ -254,6 +284,8 @@ def receipt(args, issues, unmeasured):
         proj += f" [замер на {args.measured_on}]"
     print(f"  проекция «создал → увидел»: {proj}")
     print(f"  провенанс представления: {args.projection_provenance or 'НЕ УКАЗАН'}")
+    if computed[0]:
+        print(f"  провенанс по данным: {computed[0]} ({computed[1]})")
     _warn = time_provenance_warning(args.projection_provenance, args.partners_read)
     if _warn:
         print(_warn)
@@ -392,6 +424,24 @@ def selftest() -> int:
     else:
         print("  [FAIL] текст: предупреждение о `time` для partners_read не сформировано")
 
+    # кейсы на ВЫЧИСЛЕНИЕ провенанса по данным (@DO 16:58)
+    total_extra = 5
+    _c = [
+        (compute_provenance("2026-11-06T10:00:00", "2026-11-05")[0], "time"),
+        (compute_provenance("2026-11-03T17:03:18", "2026-11-05")[0], "repair"),
+        (compute_provenance(None, "2026-11-05")[0], None),
+        (compute_provenance("не дата", "2026-11-05")[0], None),
+    ]
+    if all(got == want for got, want in _c):
+        ok += 4
+    else:
+        print(f"  [FAIL] вычисление провенанса: {_c}")
+    _w = time_provenance_warning("time", 13)
+    if _w and "НЕТ `UpdatedAt`" in _w:
+        ok += 1
+    else:
+        print("  [FAIL] текст: предупреждение о `time` для partners_read не сформировано")
+
     print(f"accept_read_path --selftest: {ok}/{len(cases) + total_extra} (каждый критерий проверен на дефекте)")
     return 0 if ok == len(cases) + total_extra else 1
 
@@ -424,6 +474,9 @@ def main() -> int:
     ap.add_argument("--projection-result", choices=["passed", "failed"],
                     help="результат поведенческой проверки: создали → увидели (passed) или нет (failed)")
     ap.add_argument("--projection-waited-ms", type=int, help="сколько ждали появления в read-модели")
+    ap.add_argument("--read-max-updated-at",
+                    help="max(UpdatedAt) строк read-модели (ISO): провенанс вычисляется по данным")
+    ap.add_argument("--repaired-at", help="дата ручного ремонта read-модели (YYYY-MM-DD)")
     ap.add_argument("--projection-provenance", choices=["rebuild", "time", "repair", "none"],
                     help="чем доказано, что представление строится проекцией: rebuild (пересборка), time (UpdatedAt позже починки), repair (ручной SQL — не доказательство), none")
     ap.add_argument("--delivery-reached", choices=["yes", "no"],
@@ -444,6 +497,9 @@ def main() -> int:
     args = ap.parse_args()
     if args.selftest:
         return selftest()
+    computed = compute_provenance(args.read_max_updated_at, args.repaired_at)
+    if args.read_max_updated_at:
+        print(f"  провенанс вычислен: {computed[0] or 'НЕ ИЗМЕРЕНО'} — {computed[1]}")
     issues, unmeasured = verdict(
         partners_read=args.partners_read, partners_src=args.partners_src,
         journal_read=args.journal_read, journal_src=args.journal_src,
@@ -465,6 +521,7 @@ def main() -> int:
         projection_result=args.projection_result,
         projection_waited_ms=args.projection_waited_ms,
         projection_provenance=args.projection_provenance,
+        computed_provenance=computed[0], computed_why=computed[1],
         measured_on=args.measured_on,
         schema_present=args.schema_present,
         delivery_reached=args.delivery_reached,
