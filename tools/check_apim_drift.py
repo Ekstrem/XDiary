@@ -213,8 +213,23 @@ def main():
     print("check_apim_drift: индекс %d operationId, спеки %d (openapi/*.json)"
           % (len(want), len(specs)))
     if a.specs_only:
-        print("check_apim_drift: --specs-only: индекс %d, спеки %d, APIM не опрашивался"
-              % (len(want), len(specs)))
+        # DO-056: раньше режим ТОЛЬКО печатал числа и всегда возвращал 0 — то есть
+        # «81 в индексе против 80 в спеках» проходило зелёным (проверено 2026-11-05:
+        # фейковая операция в индексе → rc=0). Теперь сравниваются МНОЖЕСТВА,
+        # а не количества: расхождение — ошибка.
+        missing_in_specs = sorted(want - specs)
+        extra_in_specs = sorted(specs - want)
+        for op in missing_in_specs:
+            print("::error::(specs) %s — есть в api-index.yaml, нет в openapi/*.json" % op)
+        for op in extra_in_specs:
+            print("::error::(specs) %s — есть в openapi/*.json, нет в api-index.yaml" % op)
+        if missing_in_specs or extra_in_specs:
+            print("check_apim_drift: --specs-only: индекс %d, спеки %d, расхождений %d "
+                  "(APIM не опрашивался)"
+                  % (len(want), len(specs), len(missing_in_specs) + len(extra_in_specs)))
+            return 1
+        print("check_apim_drift: --specs-only: индекс %d, спеки %d, расхождений 0 "
+              "(APIM не опрашивался)" % (len(want), len(specs)))
         return 0
     if basic:
         got, err = apim_operations_basic(a.api, basic, exec_container=a.container)
