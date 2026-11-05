@@ -70,6 +70,39 @@ def check_observable(text: str) -> list[str]:
     return problems
 
 
+def check_stale_note(app_text: str, repo_text: str) -> list[str]:
+    """(2d) `stale-note` (`FE-044`, `read-paths` §5 п.2) на уровне исходников.
+
+    Поведенчески его проверяет `stale-note.spec.js` (`TE-058`), но без source-level предиката
+    контракт можно откатить молча — спека тогда просто перестанет что-либо ловить.
+    Требуем три вещи, каждая из которых наблюдаема в коде:
+      1. бейдж: `id = "stale-note"`, `class = "stale-note"`, `role="status"`;
+      2. бейдж **только** при чтении из кэша: ранний выход `if (!st || !st.fromCache) return;`
+         (иначе «устарело» висело бы на свежих данных и стало шумом);
+      3. порог согласован: `STALE_AFTER_HOURS` (repository.js) == `STALE_AFTER_HOURS_UI` (app.js).
+    """
+    problems = []
+    if 'el.id = "stale-note"' not in app_text or 'el.className = "stale-note"' not in app_text:
+        problems.append("FE-044: нет бейджа `#stale-note` / `.stale-note` (признак устаревания кэша)")
+    if 'setAttribute("role", "status")' not in app_text:
+        problems.append("FE-044: у бейджа нет `role=\"status\"` — не наблюдаем для спеки/скринридера")
+    if "!st.fromCache" not in app_text:
+        problems.append("FE-044: нет раннего выхода по `fromCache` — бейдж повиснет на свежих данных")
+    if "fromCache: true" not in repo_text:
+        problems.append("FE-044: `repository.js` не помечает чтение из кэша (`fromCache: true`)")
+    hosts = app_text.count('showStaleNote("view-')
+    if hosts < 3:
+        problems.append(f"FE-044: бейдж выводится только в {hosts} вьюхах, ожидали ≥3 "
+                        f"(wizard/partners/catalog)")
+    a = re.search(r"STALE_AFTER_HOURS_UI\s*=\s*(\d+)", app_text)
+    r = re.search(r"STALE_AFTER_HOURS\s*=\s*(\d+)", repo_text)
+    if not a or not r:
+        problems.append("FE-044: порог устаревания не найден (STALE_AFTER_HOURS/…_UI)")
+    elif a.group(1) != r.group(1):
+        problems.append(f"FE-044: пороги расходятся — repository={r.group(1)}, app={a.group(1)}")
+    return problems
+
+
 def check_order(text: str) -> list[str]:
     """(2c) `reportReadFailure` обязан вызываться **после** `renderWizard` (@FE `0.93`).
 
@@ -123,11 +156,14 @@ def run(root: str) -> int:
     try:
         app_text = read(app)
         sw_text = read(sw) if os.path.exists(sw) else ""
+        repository = os.path.join(root, "js", "repository.js")
+        repo_text = read(repository) if os.path.exists(repository) else ""
     except OSError as e:
         print(f"::error::check_front_readpath: не читается {app} ({e}); проверять нечего (rc=2)")
         return 2
     problems = (check_artifacts(app_text) + check_alert_role(app_text)
-                + check_observable(app_text) + check_order(app_text) + check_busy(app_text)
+                + check_observable(app_text) + check_order(app_text)
+                + check_stale_note(app_text, repo_text) + check_busy(app_text)
                 + check_version_sync(app_text, sw_text))
     for p in problems:
         print(f"::error::check_front_readpath: {p}")
@@ -149,10 +185,17 @@ def selftest() -> int:
         'function busyRun(l,t,r){ setTimeout(function(){},300); }\n'
         'function renderWizard(d){} function reportReadFailure(d){}\n'
         'renderWizard(data); reportReadFailure(data);\n'
+        'function showStaleNote(v,k){ var el=document.createElement("div"); '
+        'el.id = "stale-note"; el.className = "stale-note"; '
+        'el.setAttribute("role", "status"); if (!st || !st.fromCache) return; }\n'
+        'var STALE_AFTER_HOURS_UI = 24;\n'
+        'showStaleNote("view-wizard", []); showStaleNote("view-partners", []); '
+        'showStaleNote("view-catalog", []);\n'
         'busyRun("Считаем тренды", function(){ return 1; });\n'
         'busyRun("Готовим CSV", function(){ return 1; }, downloadCsv);\n'
     )
     good_sw = 'var CACHE = "xdiary-v93";\n'
+    good_repo = 'var STALE_AFTER_HOURS = 24;\nfresh[kind] = { fromCache: true };\n'
     cases = [
         ("чистая норма", good_app, good_sw, 0),
         ("нет showReadError", good_app.replace("function showReadError(t)", "function showReadErr(t)"),
@@ -162,12 +205,17 @@ def selftest() -> int:
         ("reportReadFailure до renderWizard", good_app.replace('renderWizard(data); reportReadFailure(data);', 'reportReadFailure(data); renderWizard(data);'), good_sw, 1),
         ("busyRun без трендов", good_app.replace('busyRun("Считаем тренды", function(){ return 1; });', ""),
          good_sw, 1),
+        ("stale-note без выхода по fromCache",
+         good_app.replace('if (!st || !st.fromCache) return; ', ""), good_sw, 1),
+        ("stale-note без role=status",
+         good_app.replace('el.setAttribute("role", "status"); ', ""), good_sw, 1),
         ("версия рассинхронена", good_app, 'var CACHE = "xdiary-v92";\n', 1),
     ]
     ok = 0
     for name, app, sw, want_fail in cases:
         problems = (check_artifacts(app) + check_alert_role(app) + check_observable(app)
-                    + check_order(app) + check_busy(app) + check_version_sync(app, sw))
+                    + check_order(app) + check_stale_note(app, good_repo)
+                    + check_busy(app) + check_version_sync(app, sw))
         got = 1 if problems else 0
         if got == want_fail:
             ok += 1
