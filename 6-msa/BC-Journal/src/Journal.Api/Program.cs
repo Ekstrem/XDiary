@@ -58,6 +58,8 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
+    readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS journal_read (\"Id\" uuid PRIMARY KEY, \"ClientId\" uuid NULL, \"Partners\" text NOT NULL, \"PartnersNames\" text NOT NULL, \"StartedAt\" text NOT NULL, \"DurationMin\" integer NOT NULL, \"Place\" text NOT NULL, \"Positions\" text NOT NULL, \"Tags\" text NOT NULL, \"Costumes\" text NOT NULL, \"Toys\" text NOT NULL, \"Fantasies\" text NOT NULL, \"Contraceptives\" text NOT NULL, \"Orgasms\" text NOT NULL); CREATE TABLE IF NOT EXISTS partners_directory (\"PartnerId\" uuid PRIMARY KEY, \"Name\" text NOT NULL, \"ClientId\" uuid NULL, \"DeletedAt\" timestamptz NULL); CREATE TABLE IF NOT EXISTS journal_defaults (\"Id\" uuid PRIMARY KEY, \"ClientId\" uuid NOT NULL, \"LastPartnerId\" text NOT NULL, \"LastPlace\" text NOT NULL, \"Places\" text NOT NULL, \"Fantasies\" text NOT NULL, \"Positions\" text NOT NULL, \"Tags\" text NOT NULL, \"Contraceptives\" text NOT NULL);");
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();
