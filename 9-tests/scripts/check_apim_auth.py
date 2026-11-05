@@ -208,8 +208,49 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     line += f" | сумма={passed + violators + contracts + unknown}/{total}"
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
     line += f" | network={network or 'НЕ УКАЗАНО'}"
+    line += f" | via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}"
     line += f" | tool={tool_id()}"
     return line
+
+
+VIA_NOTE = ""   # кто ответил в текущем прогоне (@TL `05:00`); заполняется один раз в main
+
+
+def via_from_headers(headers: dict, code) -> str:
+    """`via=` — КТО ответил, в отличие от `where=` (откуда мерили). @TL `05:00`.
+
+    `X-Gravitee-*` — ответил шлюз (`via=gravitee`); `Server: Kestrel` на `401` — приложение/YARP
+    (`via=yarp`); `404` без `Server` — шлюз без маршрута. Иначе `НЕ ОПРЕДЕЛЕНО`, и тогда
+    «перемерено на новом входе» **не утверждается**: вход тот же, а объект за ним мог не измениться.
+    """
+    low = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+    if any(k.startswith("x-gravitee") for k in low):
+        return "gravitee"
+    if str(low.get("server", "")).lower() == "kestrel" and code in (401, 403):
+        return "yarp"
+    if code == 404 and not low.get("server"):
+        return "gateway-no-route"
+    return "НЕ ОПРЕДЕЛЕНО"
+
+
+def probe_via(base: str, timeout: float = 12.0) -> str:
+    """Один запрос за `via=`: только смотрит заголовки, ничего не меняет."""
+    import http.client
+    from urllib.parse import urlsplit
+    u = urlsplit(base.rstrip("/"))
+    cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+    try:
+        conn = cls(u.hostname, u.port, timeout=timeout)
+        try:
+            conn.request("GET", (u.path or "") + "/api/v1/catalog")
+            r = conn.getresponse()
+            hdrs = {k.lower(): v for k, v in r.getheaders()}
+            r.read(200)
+            return via_from_headers(hdrs, r.status)
+        finally:
+            conn.close()
+    except Exception:                                   # noqa: BLE001
+        return "НЕ ОПРЕДЕЛЕНО"
 
 
 def tool_id() -> str:
@@ -337,6 +378,15 @@ def identity_rc(rc: int, passed: int, violators: int, contracts: int, unknown: i
     `rc=1` — то есть защита существовала, но не срабатывала. `rc=2` уже недействителен, его не трогаем.
     """
     if rc in (0, 1) and not identity_ok(passed, violators, contracts, unknown, total):
+        return 2
+    return rc
+
+
+def via_rc(rc: int) -> int:
+    """`PASS` без доказанного `via=` не засчитывается (@TL `05:00`: поле обязательное)."""
+    if rc == 0 and VIA_NOTE in ("", "НЕ ОПРЕДЕЛЕНО"):
+        print("::error::check_apim_auth: `via=` не определён — PASS не засчитывается "
+              "(ADR-026: квитанция обязана называть, кто ответил); rc=2")
         return 2
     return rc
 
@@ -717,6 +767,34 @@ def selftest() -> int:
                 print(f"  [FAIL] (ii-c) классификация: 200->{len(badv)} bad, "
                       f"401/404->{len(oko)} ok, none->{len(unkn)} unknown")
 
+        total += 1
+        # `via=` (@TL `05:00`): квитанция обязана говорить, КТО ответил, а не только откуда мерили.
+        vias = [
+            ({"X-Gravitee-Request-Id": "x"}, 401, "gravitee"),
+            ({"Server": "Kestrel"}, 401, "yarp"),
+            ({}, 404, "gateway-no-route"),
+            ({}, 200, "НЕ ОПРЕДЕЛЕНО"),
+            ({"Server": "Caddy"}, 502, "НЕ ОПРЕДЕЛЕНО"),
+        ]
+        bad_via = [f"{code}: got {via_from_headers(h, code)}, want {want}"
+                   for (h, code, want) in vias if via_from_headers(h, code) != want]
+        # и сама квитанция печатает поле (значение берёт из VIA_NOTE)
+        global VIA_NOTE
+        saved = VIA_NOTE
+        VIA_NOTE = "gravitee"
+        with_via = receipt_line("ii-a", "abc", 74, 74, 0, "w", 0, 0, 0, "", "")
+        VIA_NOTE = saved
+        saved2 = VIA_NOTE
+        VIA_NOTE = ""
+        rc_no_via = via_rc(0)
+        VIA_NOTE = "yarp"
+        rc_via = via_rc(0)
+        VIA_NOTE = saved2
+        if not bad_via and "via=gravitee" in with_via and rc_no_via == 2 and rc_via == 0:
+            ok += 1
+        else:
+            print(f"  [FAIL] via=: {bad_via or 'поле не печатается'} / {with_via!r}")
+
         bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
         if not bad_irc:
             ok += 1
@@ -800,6 +878,9 @@ def main() -> int:
     ap.add_argument("--service-map", default="",
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
+
+    global VIA_NOTE
+    VIA_NOTE = probe_via(args.base) if args.base else ""
 
     if args.selftest:
         return selftest()
@@ -905,6 +986,7 @@ def main() -> int:
                 entry = "НЕ ОПРЕДЕЛЕНО"
             print(f"   ВХОД: {entry}")
         worst = max(rc_a, rc_c)
+        worst = via_rc(worst)
         names = {0: "PASS", 1: "FAIL", 2: "UNKNOWN"}
         # Тождество протокола (ADR-026, @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
         # покрывают ВСЕ операции индекса, кроме `anonymous` (74 + 2 = 76 из 80). Если сумма
@@ -1040,6 +1122,7 @@ def main() -> int:
         # потом печать. Обратный порядок затирал результат `identity_rc` вызовом `final_rc`.
         rc = final_rc(violators, contracts, unknown, passed, len(targets))
         rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
+        rc = via_rc(rc)
         print("   расшифровка по BC: " + breakdown_line(breakdown_by_bc(
             results, args.five_xx_unknown if args.direct else True)))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
@@ -1106,6 +1189,7 @@ def main() -> int:
     rc = final_rc(violators, contracts, unknown, passed, len(targets))
     # Тождество на основном пути (`@DO` `02:37`): расхождение суммы делает квитанцию недействительной.
     rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
+    rc = via_rc(rc)
 
     if args.json:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
