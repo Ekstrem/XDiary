@@ -63,7 +63,7 @@ SERVICE_BY_BC = {
     "Journal": "journal",
     "Partners": "partners",
     "Catalog": "catalog",
-    "Client": "clients",
+    "Client": "client",
     "Privacy": "privacy",
     "Analytics": "analytics",
     "DailyMetrics": "daily-metrics",
@@ -257,6 +257,30 @@ def check_url(url: str, method: str = "GET", timeout: float = 8.0) -> tuple[int 
         return int(e.code), url
     except (urllib.error.URLError, socket.timeout, OSError) as e:
         return None, f"{url} ({type(e).__name__})"
+
+
+def unresolved_services(hosts: dict) -> list:
+    """BC, чьё имя не резолвится — дефект **карты адресов**, а не контура (@DO/@TL `03:04`).
+
+    Класс ошибки: `SERVICE_BY_BC["Client"] = "clients"` (множественное) при контейнере
+    `xdiary-client` терял 5 операций в `unknown` — то есть одна опечатка выглядела как
+    «сервис лежит», а квитанция показывала `35` вместо `40`. Такую ошибку нельзя оставлять
+    на разбор: её надо валить **до** запросов, с именем BC в тексте.
+    """
+    import socket
+    from urllib.parse import urlsplit
+    bad = []
+    for bc, base in hosts.items():
+        host = urlsplit(base).hostname or ""
+        if not host:
+            bad.append(f"{bc} — адрес без хоста: {base}")
+            continue
+        try:
+            socket.getaddrinfo(host, None)
+        except OSError as e:
+            bad.append(f"{bc} — хост `{host}` не резолвится ({type(e).__name__}); "
+                       f"это дефект карты адресов (SERVICE_BY_BC), а не контура")
+    return bad
 
 
 def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, str]:
@@ -620,6 +644,20 @@ def selftest() -> int:
         else:
             print(f"  [FAIL] 76 без ответа: unknown={len(_u3)} protected={_p3} сумма={_p3 + len(_v3) + len(_c3) + len(_u3)} rc={_rc3}")
 
+        total += 1
+        # @TL `03:04`: несуществующее имя сервиса не должно «терять» операцию. Два уровня:
+        # (1) preflight ловит неверный адрес карты ДО запросов; (2) если ответа всё же нет —
+        # операция закрывается в `unknown` (не исчезает).
+        bad_map = unresolved_services({"Client": "http://xdiary-clients.invalid:8080"})
+        good_map = unresolved_services({"Local": f"http://127.0.0.1:{port}"})
+        lost = [({"method": "GET", "path": "/x", "operationId": "X", "bc": "Client"}, None, "http://xdiary-clients.invalid:8080/x")]
+        _v4, _c4, _u4, _p4 = verdict(lost)
+        if (len(bad_map) == 1 and "Client" in bad_map[0] and not good_map
+                and len(_u4) == 1 and _p4 == 0 and _p4 + len(_u4) == 1):
+            ok += 1
+        else:
+            print(f"  [FAIL] карта/несуществующий хост: bad_map={bad_map}, good_map={good_map}, unknown={len(_u4)}")
+
         bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
         if not bad_irc:
             ok += 1
@@ -747,6 +785,23 @@ def main() -> int:
             print(f"DRY-RUN --direct: сервисов {len(per_service)}, целей {len(targets)} "
                   f"(измерять ИЗНУТРИ контура: снаружи xdiary-* не резолвится — тогда rc=2)")
             return 0
+
+        # Прежде чем мерить: имена должны резолвиться. Иначе опечатка в карте даст `unknown`
+        # и «неизвестно», неотличимое от лежащего сервиса (@DO/@TL `03:04`).
+        host_map = {bc: resolve_host(svc_map, bc, args.host_template)
+                    for bc in {str(op.get("bc")) for op in targets}}
+        bad_hosts = unresolved_services(host_map)
+        if bad_hosts:
+            for b in bad_hosts:
+                print(f"::error::apim-auth(service)[map]: {b}")
+            print("::error::check_apim_auth: карта адресов неверна — прогон НЕ начат (rc=2); "
+                  "исправь SERVICE_BY_BC или передай --service-map")
+            # images= считаем здесь же: до этого места `images_note` ещё не определён,
+            # а квитанция обязана быть полной даже при отказе (иначе падение вместо rc=2).
+            print(receipt_line("ii-b", current_ref(), 0, len(targets), 2, args.where,
+                               0, 0, len(targets),
+                               resolve_images(args.images, sorted(host_map)), args.network))
+            return 2
 
         # ADR-026: при замере из контейнера `network=` обязателен. Проверяем ДО запросов,
         # иначе получим «измерил, но квитанция недействительна» — wasted run.
