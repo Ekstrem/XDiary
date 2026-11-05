@@ -8,11 +8,11 @@
 
 | | |
 |---|---|
-| скрипт | `7-deploy/backup-postgres.sh` (на VPS-1, пользователь `deploy`), он же `/home/deploy/xdiary-backup.sh` |
-| cron | `30 2 * * * /home/deploy/xdiary-backup.sh >> /home/deploy/backup.log 2>&1` |
+| скрипт | `7-deploy/backup-postgres.sh` (на VPS-1, пользователь `deploy`), он же `~/xdiary-backup.sh` (в домашнем каталоге `deploy`) |
+| cron | `30 2 * * * ~/xdiary-backup.sh >> ~/backup.log 2>&1` |
 | что | `pg_dumpall` **внутри контейнера** в файл → `podman cp` → `gzip` — весь кластер (11 прикладных баз) |
-| локально | `/home/deploy/backups/xdiary-all-<дата>_<время>.sql.gz` |
-| копия | `ubuntu@77.91.73.67:/home/ubuntu/backups/` (VPS-2) |
+| локально | `~/backups/xdiary-all-<дата>_<время>.sql.gz` |
+| копия | `ubuntu@<VPS-2>:~/backups/` (VPS-2) |
 | ротация | `KEEP_DAYS=14`, локально; на VPS-2 ротации нет |
 
 **Замер 2026-11-05 (после исправления):** локально и на VPS-2 по **2 полных** файла; свежий —
@@ -44,8 +44,8 @@ cd /opt/xdiary/7-deploy && bash recreate-from-env.sh --stop 2>/dev/null || true
 podman stop $(podman ps -q --filter name=xdiary- | grep -v xdiary-pg) 2>/dev/null
 
 # 2) взять бэкап-файл (последний или конкретный)
-ls -lh /home/deploy/backups/ | tail -3
-F=/home/deploy/backups/xdiary-all-2026-11-05_053001.sql.gz
+ls -lh ~/backups/ | tail -3
+F=~/backups/xdiary-all-<дата>_<время>.sql.gz
 
 # 3) восстановить в чистый кластер
 podman exec -i xdiary-pg psql -U postgres -d postgres -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;' 2>/dev/null
@@ -77,7 +77,7 @@ Q journal  'select count(*) from "__EFMigrationsHistory";'
 ## 4. Проверка восстановлением (выполнена 2026-11-05, DO-089)
 
 ```
-F=/home/deploy/backups/xdiary-all-2026-11-05_142059.sql.gz
+F=~/backups/xdiary-all-<дата>_<время>.sql.gz
 podman run -d --name pg-rt -e POSTGRES_PASSWORD=x -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16
 gunzip -c "$F" | podman exec -i pg-rt psql -U postgres -d postgres -q     # rc=0, 3 c
 # числа в восстановленном кластере:

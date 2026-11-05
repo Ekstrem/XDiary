@@ -33,13 +33,70 @@ def md_files(root):
         yield path
 
 
+WARN_LIMIT = 30
+
+
+def selftest():
+    """DO-095: главный кейс — ошибка, стоящая в findings ПОСЛЕ лимита, обязана быть напечатана."""
+    ok = total = 0
+
+    def simulate(findings, show_all):
+        errors = [f for f in findings if f[3] == "error"]
+        warns = [f for f in findings if f[3] == "warn"]
+        to_show = findings if show_all else errors + warns[:WARN_LIMIT]
+        printed_errors = [f for f in to_show if f[3] == "error"]
+        return len(errors), len(printed_errors), to_show
+
+    many_warns = [("f%d.md" % i, i, "w", "warn") for i in range(40)]
+    late_error = ("late.md", 1, "e", "error")
+    findings = many_warns + [late_error]
+
+    total += 1
+    found, printed, _ = simulate(findings, show_all=False)
+    if found == 1 and printed == 1:
+        ok += 1
+    else:
+        print("  [FAIL] ошибка за лимитом не напечатана: найдено %d, напечатано %d"
+              % (found, printed))
+
+    total += 1
+    found, printed, shown = simulate(findings, show_all=True)
+    if found == printed == 1 and len(shown) == 41:
+        ok += 1
+    else:
+        print("  [FAIL] --all: показано %d из %d, ошибок напечатано %d"
+              % (len(shown), len(findings), printed))
+
+    total += 1
+    found, printed, shown = simulate(many_warns, show_all=False)
+    if found == 0 and printed == 0 and len(shown) == WARN_LIMIT:
+        ok += 1
+    else:
+        print("  [FAIL] лимит предупреждений: показано %d, ждали %d" % (len(shown), WARN_LIMIT))
+
+    total += 1
+    found, printed, _ = simulate([], show_all=False)
+    if found == printed == 0:
+        ok += 1
+    else:
+        print("  [FAIL] пустой набор дал непустой счётчик")
+
+    print("check_rule_docs --selftest: %d/%d" % (ok, total))
+    return 0 if ok == total else 1
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Линтер доков правил (пути и токены)")
     ap.add_argument("--root", default=None)
     ap.add_argument("--report", action="store_true")
+    ap.add_argument("--all", action="store_true",
+                    help="показать все предупреждения (ошибки печатаются всегда)")
+    ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
+    if args.selftest:
+        return selftest()
 
     root = args.root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     findings = []
@@ -65,10 +122,33 @@ def main():
 
     errors = [f for f in findings if f[3] == "error"]
     warns = [f for f in findings if f[3] == "warn"]
+
+    # DO-095 (@TL 17:25): раньше печаталось `findings[:30]` — при 10 ошибках и 32
+    # предупреждениях часть ошибок просто не попадала в вывод, а счётчик о них сообщал.
+    # Красный гейт, не указывающий что чинить, — дефект гейта. Теперь:
+    # ошибки печатаются ВСЕГДА и полностью, предупреждения — до лимита с явной пометкой.
+    to_show = findings
+    if not args.all:
+        to_show = errors + warns[:WARN_LIMIT]
+        shown_warns = min(len(warns), WARN_LIMIT)
+    else:
+        shown_warns = len(warns)
+
     print("check_rule_docs: файлов %d, ошибок %d, предупреждений %d"
           % (files, len(errors), len(warns)))
-    for rel, number, what, level in findings[:30]:
+    for rel, number, what, level in to_show:
         print("  [%s] %s:%d — %s" % (level, rel, number, what))
+    if not args.all and len(warns) > WARN_LIMIT:
+        print("  … ещё %d предупреждений не показано (--all, чтобы увидеть все)"
+              % (len(warns) - WARN_LIMIT))
+
+    # инвариант: каждая ошибка обязана быть напечатана (иначе счётчик врёт)
+    printed_errors = [f for f in to_show if f[3] == "error"]
+    if len(printed_errors) != len(errors):
+        print("::error::check_rule_docs: напечатано ошибок %d, а найдено %d — вывод неполный"
+              % (len(printed_errors), len(errors)))
+        return 1
+
     if errors and not args.report:
         print("")
         print("Правило: путь к хранилищу токена обезличиваем («личное хранилище роли, вне репозитория»),")
