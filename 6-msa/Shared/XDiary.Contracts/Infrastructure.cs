@@ -5,12 +5,6 @@ using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
-/// <summary>Command-side database context marker for persisting aggregate state.</summary>
-public interface ICommandDbContext<TBC> where TBC : IBoundedContext
-{
-    Task SaveAsync(IAnemicModel<TBC> model, CancellationToken cancellationToken = default);
-}
-
 /// <summary>Read model marker.</summary>
 public interface IReadModel<TBC> where TBC : IBoundedContext { }
 
