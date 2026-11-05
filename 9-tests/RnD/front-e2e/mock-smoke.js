@@ -17,6 +17,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 let ok = 0;
 let total = 0;
+let skipped = 0;
 
 function check(name, cond, detail) {
   total += 1;
@@ -121,7 +122,44 @@ async function waitReady(timeoutMs = 15000) {
     const pinRm = await j('POST', '/api/v1/privacy/pin/remove', { currentPin: '1234' }, auth);
     check('privacy/pin/remove → 200', pinRm.status === 200, pinRm);
 
-    console.log(`mock-smoke: ${ok}/${total} проверок двойника пройдено`);
+    // ── контракт стенда, который требует tests/global-setup.js ─────────────────────────────
+    const health = await fetch(BASE + '/health');
+    check('/health → 200', health.status === 200);
+
+    const clientsGet = await j('GET', '/api/v1/clients');
+    check('GET /clients → 405 (как стенд)', clientsGet.status === 405, clientsGet);
+
+    const partnersNoAuth = await fetch(BASE + '/api/v1/partners');
+    check('/partners без токена → 401', partnersNoAuth.status === 401);
+
+    const refreshBad = await j('POST', '/api/v1/clients/refresh', { refreshToken: 'not-a-jwt' });
+    check('refresh с битым токеном → 4xx', [400, 401, 403, 422].includes(refreshBad.status), refreshBad);
+
+    const meNoAuth = await fetch(BASE + '/api/v1/clients/me');
+    check('/clients/me без токена → 401 + WWW-Authenticate',
+      meNoAuth.status === 401 && Boolean(meNoAuth.headers.get('www-authenticate')), { status: meNoAuth.status });
+
+    // ── и главная проверка пригодности: настоящий globalSetup набора проходит на двойнике ───
+    // globalSetup требует `@playwright/test`. В чистом worktree `node_modules` нет — тогда это
+    // «не измерено», а не «сломано»: печатаем SKIP и не считаем проверку.
+    const hasPw = require('fs').existsSync(path.join(__dirname, 'node_modules', '@playwright', 'test'));
+    if (!hasPw) {
+      skipped += 1;
+      console.log('  [SKIP] global-setup.js: нет node_modules/@playwright/test — не измерено');
+    } else {
+    // `stdio: 'inherit'`, а не `pipe`: в песочнице агента захват вывода дочернего процесса даёт
+    // `spawn EPERM`. Здесь достаточно КОДА возврата — вывод globalSetup и так идёт в наш stdout.
+    const gs = spawn(process.execPath, ['-e',
+      "require('./tests/global-setup.js')().then(()=>process.exit(0))"
+      + ".catch((e)=>{console.log('GLOBALSETUP_FAIL: '+e.message); process.exit(1);})"],
+      { cwd: __dirname, env: { ...process.env, XDIARY_E2E_BASE_URL: BASE, XDIARY_E2E_TEST_OTP: '000000' },
+        stdio: 'inherit' });
+    const gsCode = await new Promise((resolve) => gs.on('close', resolve));
+    check('global-setup.js на двойнике проходит (rc=0)', gsCode === 0, { code: gsCode });
+    }
+
+    const skipNote = skipped ? ` | пропущено ${skipped} (нет node_modules)` : '';
+    console.log(`mock-smoke: ${ok}/${total} проверок двойника пройдено${skipNote}`);
     process.exitCode = ok === total ? 0 : 1;
   } catch (e) {
     console.log(`  [FAIL] smoke прерван: ${e.message}`);

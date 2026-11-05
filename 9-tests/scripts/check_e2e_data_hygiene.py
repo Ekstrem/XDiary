@@ -84,6 +84,20 @@ def receipt_line(stats, issues):
             f"нарушено: {len(issues)}")
 
 
+def read_specs(tests_dir):
+    """({имя: текст}, None) либо (None, причина). Ошибка чтения — «не измерено», а не traceback."""
+    specs = {}
+    try:
+        files = sorted(tests_dir.glob("*.spec.js"))
+        for p in files:
+            specs[p.name] = p.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return None, f"не читается {getattr(e, 'filename', tests_dir)}: {e}"
+    if not specs:
+        return None, "каталог спек пуст"
+    return specs, None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -96,8 +110,10 @@ def main(argv=None):
     if not tests_dir.is_dir():
         print("::error::check_e2e_data_hygiene: нет каталога спек — не измерено (rc=2)")
         return 2
-    specs = {p.name: p.read_text(encoding="utf-8", errors="replace")
-             for p in sorted(tests_dir.glob("*.spec.js"))}
+    specs, err = read_specs(tests_dir)
+    if err:
+        print(f"::error::check_e2e_data_hygiene: {err} — не измерено (rc=2)")
+        return 2
     issues, stats = evaluate(specs)
     for m in issues:
         print(f"::error::check_e2e_data_hygiene: {m}")

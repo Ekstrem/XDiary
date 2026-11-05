@@ -71,6 +71,14 @@ npm run mock-api            # отдельно, если нужен только
 Переменные: `XDIARY_E2E_BASE_URL=http://127.0.0.1:4180` (фикстура `installBase` кладёт адрес
 в `localStorage.xdiary.apiBase`), `XDIARY_E2E_PIN=1234`, `XDIARY_READPATH_OFFLINE=1`.
 
+**Двойник держит контракт стенда, который проверяет `tests/global-setup.js`:** `/health` → 200,
+`GET /api/v1/clients` → 405, `/api/v1/partners` без токена → 401, `POST /clients/refresh` с битым
+токеном → 401, `GET /clients/me` без токена → 401 + `WWW-Authenticate`. Без этих ответов локальный
+прогон падал бы **в globalSetup** («стенд отвечает не так»), хотя спеки к нему готовы. Проверено
+реальным прогоном: `require('./tests/global-setup.js')()` против двойника возвращает **0** и печатает
+«контракт стенда ок: refresh 405 (401), verify refreshToken, /clients/me=401+WWW-Authenticate».
+`mock-smoke.js` теперь проверяет и это: **23/23**, `rc=0`.
+
 **Самопроверка двойника — `node mock-smoke.js`** (без браузера): поднимает `mock-api.js` на свободном
 порту, дёргает те же 17 путей, что и спеки, и проверяет **формы ответов**, а не только коды
 (`pin/has`, `clients`, `verify`, `me/profile`, `me`, `partners` + список, `journal/records` + `recent`,

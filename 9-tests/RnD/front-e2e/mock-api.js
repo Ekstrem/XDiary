@@ -63,14 +63,26 @@ function currentClient(req) {
 }
 
 function partnerView(p) {
-  return { id: p.id, name: p.name, clientId: p.clientId, createdAt: p.createdAt };
+  // `partner-edit` проверяет по API: `name`, `notes`, `gender` — значит двойник обязан их отдавать
+  return {
+    id: p.id, name: p.name, clientId: p.clientId, createdAt: p.createdAt,
+    notes: p.notes || null, gender: p.gender || null, displayName: p.name || null,
+  };
 }
 
 function recordView(r) {
+  // Поля — те, которые спеки реально читают из ответа API и проверяют числами/строками:
+  // `edit-delete-record` → `durationMin`, `place`; каталог/визард → `positions`, `tags`.
+  // Если поле не отдавать, локальный прогон падал бы на `expect(undefined).toBe(45)`.
   return {
     id: r.id, clientId: r.clientId, partnersNames: r.partnersNames || [],
-    contraceptiveCount: r.contraceptiveCount || 0, startedAt: r.startedAt,
-    places: r.places || [], kind: r.kind || 'record',
+    partnerNames: r.partnersNames || [], place: r.place || null,
+    contraceptiveCount: r.contraceptiveCount || 0, contraception: r.contraception || null,
+    durationMin: r.durationMin === undefined ? null : r.durationMin,
+    startedAt: r.startedAt, endedAt: r.endedAt || null,
+    places: r.places || [], positions: r.positions || [], tags: r.tags || [],
+    costumes: r.costumes || [], toys: r.toys || [], fantasies: r.fantasies || [],
+    orgasms: r.orgasms || [], notes: r.notes || null, kind: r.kind || 'record',
   };
 }
 
@@ -80,6 +92,15 @@ const server = http.createServer(async (req, res) => {
   const method = req.method.toUpperCase();
 
   if (method === 'OPTIONS') return send(res, 204, undefined);
+
+  // ── контракт стенда, который проверяет `tests/global-setup.js` ────────────────────────────
+  // Без этих ответов локальный прогон падал бы в globalSetup («стенд отвечает не так»),
+  // то есть двойник был бы непригоден, хотя спеки к нему готовы.
+  if (path === '/health') return send(res, 200, { status: 'ok' });
+  if (method === 'GET' && path === '/api/v1/clients') {
+    // стенд на GET списка клиентов отвечает 405 — globalSetup принимает 200/400/401/405
+    return send(res, 405, { error: 'method not allowed' });
+  }
 
   // --- клиенты и вход ---
   if (method === 'POST' && path === '/api/v1/clients') {
@@ -95,11 +116,17 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { accessToken: token(), refreshToken: token(), id: m[1] });
   }
   if (method === 'POST' && path === '/api/v1/clients/refresh') {
-    return send(res, 200, { accessToken: token() });
+    const b = await readBody(req);
+    const rt = String((b && b.refreshToken) || '');
+    // стенд на битый refresh отвечает 4xx; двойник держит тот же контракт
+    if (!/^mock\.jwt\./.test(rt)) {
+      return send(res, 401, { error: 'invalid refresh token' }, { 'WWW-Authenticate': 'Bearer' });
+    }
+    return send(res, 200, { accessToken: token(), refreshToken: token() });
   }
   if (method === 'GET' && path === '/api/v1/clients/me') {
     const c = currentClient(req);
-    if (!c) return send(res, 401, { error: 'unauthorized' });
+    if (!c) return send(res, 401, { error: 'unauthorized' }, { 'WWW-Authenticate': 'Bearer' });
     return send(res, 200, {
       id: c.id, phone: c.phone, displayName: c.displayName, gender: c.gender,
       verified: c.verified, linkedPartnerId: null,
@@ -127,12 +154,17 @@ const server = http.createServer(async (req, res) => {
   if (path === '/api/v1/partners' || path === '/api/v1/partners/') {
     const c = currentClient(req);
     if (method === 'GET') {
-      const mine = db.partners.filter((p) => !c || p.clientId === c.id).map(partnerView);
+      // без токена — 401: иначе globalSetup не подтвердит, что client-JWT обязателен
+      if (!c) return send(res, 401, { error: 'unauthorized' }, { 'WWW-Authenticate': 'Bearer' });
+      const mine = db.partners.filter((p) => p.clientId === c.id).map(partnerView);
       return send(res, 200, mine);
     }
     if (method === 'POST') {
       const b = await readBody(req);
-      const p = { id: uid('pt'), name: b.name || 'TE', clientId: (c && c.id) || 'cl-0001', createdAt: new Date().toISOString() };
+      const p = {
+        id: uid('pt'), name: b.name || 'TE', clientId: (c && c.id) || 'cl-0001',
+        createdAt: new Date().toISOString(), notes: b.notes, gender: b.gender,
+      };
       db.partners.push(p);
       return send(res, 200, partnerView(p));
     }
@@ -156,7 +188,9 @@ const server = http.createServer(async (req, res) => {
         id: uid('rc'), clientId: (c && c.id) || 'cl-0001',
         partnersNames: b.partnersNames || [], contraceptiveCount: b.contraceptiveCount || 0,
         startedAt: b.startedAt || new Date().toISOString(), places: b.places || [],
-        kind: b.kind || 'record',
+        place: b.place, durationMin: b.durationMin, positions: b.positions, tags: b.tags,
+        costumes: b.costumes, toys: b.toys, fantasies: b.fantasies, orgasms: b.orgasms,
+        notes: b.notes, kind: b.kind || 'record',
       };
       db.records.push(r);
       return send(res, 200, recordView(r));

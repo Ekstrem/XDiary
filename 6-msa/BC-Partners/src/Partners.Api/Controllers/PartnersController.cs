@@ -17,44 +17,98 @@ public sealed class PartnersController : ControllerBase
     public PartnersController(IMediator mediator) => _mediator = mediator;
     private IActionResult Respond(AggregateResult<IPartners, IPartnerAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
+    // BE-085 (IDOR): единый путь владельца — sub → clientId, иначе чужой объект доступен по одному id.
+    private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
+    private async Task<IActionResult?> OwnerGuardAsync(Guid id, Guid clientId, CancellationToken ct)
+    {
+        var existing = await _mediator.Send(new GetPartnerByIdQuery(id), ct);
+        if (existing is null) return NotFound();
+        return existing.ClientId != clientId ? Forbid() : null;
+    }
+
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Register([FromBody] RegisterPartnerCommand c, CancellationToken ct)
     {
-        var sub = User.FindFirst("sub")?.Value;
-        Console.WriteLine($"[Register] reached: name={c.Name}, clientId={sub ?? "<null>"}");
-        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
-        return Respond(await _mediator.Send(c with { ClientId = clientId }, ct));
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct));
     }
+
     [HttpPost("{id:guid}/name")]
-    public async Task<IActionResult> Rename(Guid id, [FromBody] RenamePartnerCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    [Authorize]
+    public async Task<IActionResult> Rename(Guid id, [FromBody] RenamePartnerCommand c, CancellationToken ct)
+    {
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        var guard = await OwnerGuardAsync(id, clientId.Value, ct);
+        if (guard is not null) return guard;
+        return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    }
+
     [HttpPost("{id:guid}/profile")]
-    public async Task<IActionResult> UpdateProfile(Guid id, [FromBody] UpdatePartnerProfileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile(Guid id, [FromBody] UpdatePartnerProfileCommand c, CancellationToken ct)
+    {
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        var guard = await OwnerGuardAsync(id, clientId.Value, ct);
+        if (guard is not null) return guard;
+        return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    }
+
     [HttpPost("{id:guid}/remove")]
     [Authorize]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct)
     {
-        // @TL 21:20 — владелец сверяется по sub, иначе чужой партнёр удаляется по одному id.
-        var sub = User.FindFirst("sub")?.Value;
-        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
-        var existing = await _mediator.Send(new GetPartnerByIdQuery(id), ct);
-        if (existing is null) return NotFound();
-        if (existing.ClientId != clientId) return Forbid();
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        var guard = await OwnerGuardAsync(id, clientId.Value, ct);
+        if (guard is not null) return guard;
         return Respond(await _mediator.Send(new RemovePartnerCommand(id), ct));
     }
+
     [HttpPost("{id:guid}/link-client")]
-    public async Task<IActionResult> LinkClient(Guid id, [FromBody] LinkPartnerClientCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+    [Authorize]
+    public async Task<IActionResult> LinkClient(Guid id, [FromBody] LinkPartnerClientCommand c, CancellationToken ct)
+    {
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        var guard = await OwnerGuardAsync(id, clientId.Value, ct);
+        if (guard is not null) return guard;
+        // BE-085: ClientId не из тела, а из sub.
+        return Respond(await _mediator.Send(c with { AggregateId = id, ClientId = clientId.Value }, ct));
+    }
+
     [HttpPost("{id:guid}/unlink-client")]
-    public async Task<IActionResult> UnlinkClient(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new UnlinkPartnerClientCommand(id), ct));
+    [Authorize]
+    public async Task<IActionResult> UnlinkClient(Guid id, CancellationToken ct)
+    {
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        var guard = await OwnerGuardAsync(id, clientId.Value, ct);
+        if (guard is not null) return guard;
+        return Respond(await _mediator.Send(new UnlinkPartnerClientCommand(id), ct));
+    }
+
     [HttpGet]
     [Authorize]
     public async Task<IActionResult> List(CancellationToken ct)
     {
-        var sub = User.FindFirst("sub")?.Value;
-        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
-        return Ok(await _mediator.Send(new ListPartnersQuery(clientId), ct));
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        return Ok(await _mediator.Send(new ListPartnersQuery(clientId.Value), ct));
     }
+
     [HttpGet("{id:guid}")]
+    [Authorize]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
-    { var r = await _mediator.Send(new GetPartnerByIdQuery(id), ct); return r is null ? NotFound() : Ok(r); }
+    {
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        var r = await _mediator.Send(new GetPartnerByIdQuery(id), ct);
+        if (r is null) return NotFound();
+        if (r.ClientId != clientId.Value) return Forbid();
+        return Ok(r);
+    }
 }

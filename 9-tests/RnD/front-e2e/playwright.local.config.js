@@ -13,6 +13,14 @@
 
 const { defineConfig } = require('@playwright/test');
 
+// Фича-спеки в обычном CI-прогоне помечены `test.skip` без флага (см. `front-e2e.md`):
+// `XDIARY_BUSY`, `XDIARY_STALENOTE`, `XDIARY_READPATH_OFFLINE`, `XDIARY_READPARITY`.
+// Локальный прогон их ВКЛЮЧАЕТ по умолчанию: двойник API их поддерживает, и смысл локального
+// прогона — увидеть эти сценарии, а не молча пропустить. Внешняя переменная переопределяет.
+for (const flag of ['XDIARY_BUSY', 'XDIARY_STALENOTE', 'XDIARY_READPATH_OFFLINE', 'XDIARY_READPARITY']) {
+  if (process.env[flag] === undefined) process.env[flag] = '1';
+}
+
 const API_PORT = Number(process.env.MOCK_API_PORT || 4180);
 const WEB_PORT = Number(process.env.FRONT_PORT || 4173);
 
