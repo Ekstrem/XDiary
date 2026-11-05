@@ -40,7 +40,7 @@ jobs:
         # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
         # --strict-times — то есть на одном и том же пуше проверки расходились.
         run: python tools/chat_lint.py --config loop.config.json --check --strict-times
-      - name: Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)
+      - name: "Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)"
         # Норма владельца: карточка и чат меняются вместе; без строки `→ @TL: <ID> было → стало`
         # смена статуса не считается. Гейт ловит это в последнем коммите.
         if: always()
@@ -51,7 +51,7 @@ jobs:
             echo "одиночный коммит — сравнивать не с чем"
           fi
 
-      - name: Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)
+      - name: "Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)"
         # Решение считается выданным только после подтверждения адресатом (строка «принято»
         # в его outbox или коммит/артефакт). Строки со ✅ в колонке «Статус» не проверяются.
         if: always()
@@ -78,7 +78,7 @@ jobs:
           python tools/check_edm.py --selftest
           python tools/check_edm.py --range "origin/main...HEAD"
 
-      - name: Дрейф контура в .env — хосты БД (DO-076, @TL 2026-11-05 02:33)
+      - name: "Дрейф контура в .env — хосты БД (DO-076, @TL 2026-11-05 02:33)"
         # Инцидент 2026-11-05: в прод-`secrets/.env` 10 строк ConnectionStrings__* смотрели на
         # dev-хост 77.91.73.67 вместо прод-БД 10.89.9.10. До первого пересоздания контейнера
         # дефект невидим; при пересоздании сервис падает 28P01 (или, хуже, пишет в чужую БД).
@@ -120,7 +120,7 @@ jobs:
       # @AR 15:00: маппинг есть, а DDL неполон — EF выбирает ВСЕ маппированные колонки,
       # поэтому ошибка переезжает из `42P01` в `42703`. Проверяем разность множеств:
       # поля модели ⊆ колонки `CREATE TABLE IF NOT EXISTS`.
-      - name: Канон «поля read-модели ⊆ колонки DDL» (@AR 15:00)
+      - name: "Канон «поля read-модели ⊆ колонки DDL» (@AR 15:00)"
         if: always()
         run: |
           python tools/check_readstore_ddl.py --selftest
@@ -138,7 +138,7 @@ jobs:
         run: |
           python tools/check_null_paging.py --selftest
           python tools/check_null_paging.py --root 6-msa
-      - name: Канон регистрации EventStoreDbContext (@AR 22:40/23:25)
+      - name: "Канон регистрации EventStoreDbContext (@AR 22:40/23:25)"
         # Правило: в каждом Program.cs с `AddEventStorePostgres` — РОВНО ОДНА типизированная
         # `AddDbContext<…EventStoreDbContext>` и она ПОСЛЕ DF-вызова (последняя побеждает).
         # История: `journal` и `partners` падали до `Bind`, потому что контекст получал
@@ -164,7 +164,16 @@ jobs:
         if: always()
         run: python tools/check_front_e2e.py
 
-      - name: Спеки фронта идут через E2E-фикстуру + контракт __XDIARY_E2E__ (TE-024, @TE 2026-11-04 08:37)
+      # @TE 11:03: гейт фронтового read-path (артефакты + role=alert + busyRun + версия)
+      # и FE-044 (ранний выход по `fromCache`, иначе бейдж «могли устареть» висит на свежих
+      # данных). Требует `js/app.js`, `js/repository.js`, `sw.js`. Доказан на дефекте:
+      # удаление строки `if (!st || !st.fromCache) return;` → rc=1 (проверено 2026-11-05).
+      - name: "Фронт: read-path и индикатор (FE-044, @TE)"
+        if: always()
+        run: |
+          python 9-tests/scripts/check_front_readpath.py --selftest
+          python 9-tests/scripts/check_front_readpath.py
+      - name: "Спеки фронта идут через E2E-фикстуру + контракт __XDIARY_E2E__ (TE-024, @TE 2026-11-04 08:37)"
         # Две части: (1) если в `*.spec.js` есть `page.goto(`, в файле обязана быть фикстура
         # (`installBase`/`loginWithPin`/`seedSession`) — иначе страница уйдёт на DEFAULT_BASE;
         # (2) `8-front/js/api.js` обязан содержать `__XDIARY_E2E__`.
