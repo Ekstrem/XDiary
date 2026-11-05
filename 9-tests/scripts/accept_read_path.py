@@ -217,6 +217,21 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     return issues, unmeasured
 
 
+def time_provenance_warning(provenance, partners_read):
+    """`time` как доказательство требует колонки `UpdatedAt`.
+
+    Факт @DO `chat/do.md` `[2026-11-05 16:54]`: у `partners_read` **нет** `UpdatedAt`
+    (`journal_read` имеет), поэтому для partners доказательство временем невозможно —
+    только пересборка. Предупреждаем, а не принимаем молча.
+    """
+    if provenance != "time" or partners_read is None:
+        return None
+    return ("::warning::accept_read_path: провенанс `time` заявлен для `partners_read`, "
+            "а у этой таблицы НЕТ `UpdatedAt` (есть только у `journal_read`) — "
+            "для partners доказательство временем невозможно, нужна пересборка "
+            "(`--projection-provenance rebuild`)")
+
+
 def receipt(args, issues, unmeasured):
     def num(v):
         return "НЕ ИЗМЕРЕНО" if v is None else str(v)
@@ -239,6 +254,9 @@ def receipt(args, issues, unmeasured):
         proj += f" [замер на {args.measured_on}]"
     print(f"  проекция «создал → увидел»: {proj}")
     print(f"  провенанс представления: {args.projection_provenance or 'НЕ УКАЗАН'}")
+    _warn = time_provenance_warning(args.projection_provenance, args.partners_read)
+    if _warn:
+        print(_warn)
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  события: {num(args.event_count)} → повтор {num(args.rerun_event_count)}")
     print(f"  доставка до консьюмера: "
@@ -364,8 +382,18 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] {name}: rc={rc}, ждали {want}; issues={issues}, unmeasured={unmeasured}")
-    print(f"accept_read_path --selftest: {ok}/{len(cases)} (каждый критерий проверен на дефекте)")
-    return 0 if ok == len(cases) else 1
+    # кейс на ТЕКСТ (@DO 16:54): `time` принимается только там, где есть `UpdatedAt`
+    total_extra = 1
+    _w1 = time_provenance_warning("time", 13)
+    _w2 = time_provenance_warning("time", None)
+    _w3 = time_provenance_warning("rebuild", 13)
+    if (_w1 and "НЕТ `UpdatedAt`" in _w1 and "пересборк" in _w1) and _w2 is None and _w3 is None:
+        ok += 1
+    else:
+        print("  [FAIL] текст: предупреждение о `time` для partners_read не сформировано")
+
+    print(f"accept_read_path --selftest: {ok}/{len(cases) + total_extra} (каждый критерий проверен на дефекте)")
+    return 0 if ok == len(cases) + total_extra else 1
 
 
 def main() -> int:
