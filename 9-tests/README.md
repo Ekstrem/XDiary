@@ -219,7 +219,7 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 не нажимает ни одна спека, — непроверенный путь. Гейт строит карту «обработчик ⇄ упоминание в спеке»;
 для критичных для MVP элементов (`confirm-no`, `btn-partner-delete`, `btn-catalog-delete`, `btn-import`,
 `onb-gender-female`, `btn-wizard-prev`) непокрытие — `::warning::`, под `--strict` — ошибка.
-Сейчас: **элементов 64 | трогают спеки 53 | не покрыто 11 | критичных без покрытия 0**, `rc=0`;
+Сейчас: **элементов 64 | трогают спеки 58 | не покрыто 6 | критичных без покрытия 0**, `rc=0`;
 `--selftest` **5/5**. По карте закрыто шесть путей: отмена удаления (`#confirm-no`), второй вариант пола
 (`#onb-gender-female`), возврат в мастере (`#btn-wizard-prev`), удаление партнёра
 (`#btn-partner-delete`), удаление позиции каталога (`#btn-catalog-delete`), кнопка «Импорт CSV»
@@ -227,8 +227,9 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 `#btn-partner-edit-back`, `#btn-import-back`), второй вариант пола у партнёра (`#pe-gender-female`),
 кнопка «Войти» на замке (`#pin-submit`), отмена модалки PIN (`#pin-cancel`), «Без партнёра» в мастере
 (`#w-partner-none`), защита опасных операций — подтверждение открывается и **отменяется**
-(`#btn-wipe`, `#btn-ident-logout`, `#btn-migrate` с нативным `window.confirm`), выбор файла
-(`#btn-import-pick`).
+(`#btn-wipe`, `#btn-ident-logout`, `#btn-migrate` с нативным `window.confirm`), выбор файла (`#btn-import-pick`), повторный запрос кода (`#btn-onb-resend`), бренд и партнёр позиции
+каталога (`#ce-brand`, `#ce-partner`), смена «я» и вход в идентификацию (`#btn-self-change`,
+`#btn-ident-start`).
 
 **`check_e2e_assertions.py` — у спеки есть поведенческое утверждение.** «Экран виден» — слабая
 проверка: зеленеет и на пустом состоянии, и на протухшей сессии. Гейт требует хотя бы одного

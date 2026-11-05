@@ -81,6 +81,21 @@ test('E2E: настройки — пол сохраняется после пе�
     expect(seen).toBe(true);
   });
 
+  await test.step('смена «я» и вход в идентификацию открывают онбординг', async () => {
+    // `#btn-self-change` и `#btn-ident-start` не проверялись: оба обязаны привести к экрану
+    // онбординга (профиль «я» / идентификация), не ломая текущую сессию.
+    await page.click('#btn-self-change');
+    await expect(page.locator('#view-onboarding'), 'смена «я» открывает онбординг').toBeVisible({ timeout: 20000 });
+    await page.reload();
+    await unlockIfLocked(page);
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible();
+
+    await page.click('#btn-ident-start');
+    await expect(page.locator('#view-onboarding'), 'вход в идентификацию открывает онбординг').toBeVisible({ timeout: 20000 });
+  });
+
   await test.step('вернуть «Мужской» (уборка)', async () => {
     await page.click('#my-gender-male');
     await expect(page.locator('#my-gender-male')).toHaveClass(/active/);
