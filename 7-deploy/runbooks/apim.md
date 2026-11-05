@@ -207,69 +207,66 @@ install-шаг консоли. Поэтому импорт спек (`import.sh`
 
 Шлюз APIM слушает `127.0.0.1:18082`. Консоль — `127.0.0.1:18084` (`up.sh run_ui`).
 
-## Публичный вход: APIM В ПУТИ (2026-11-05, DO-076 шаг 3)
+## Публичный вход: APIM В ПУТИ (2026-11-05, DO-076 — после исправления)
 
-**Состояние на проде после переключения:** `Funnel → Caddy:443 → …`
-и дальше **два маршрута**:
+**Действительный путь (проверено снаружи):**
 
-```caddyfile
-	handle /health* {
-		reverse_proxy 127.0.0.1:8080      # health идёт в YARP
-	}
-
-	handle {
-		reverse_proxy 127.0.0.1:18082     # всё остальное — в APIM-gateway
-	}
+```
+Tailscale Funnel  --(HTTP)-->  Caddy :8081
+                                  ├─ handle /health*  -> YARP   127.0.0.1:8080
+                                  └─ handle           -> APIM   127.0.0.1:18082
 ```
 
-**Почему `/health` остаётся на YARP:** в APIM **нет маршрута `/health`** — шлюз отвечает
-`404`, а внешняя проверка требует `200`. Если убрать это исключение, после переключения
-smoke падает, хотя сервисы живы. Проверено: `curl http://127.0.0.1:18082/health` → `404`.
+**Три ошибки, которые были допущены до этого — их надо помнить:**
 
-**Почему сначала тест на отдельном порту:** в этом же файле выше записан случай, когда
-matcher в Caddy дал `404` на **всё** (включая `/health`). Поэтому кандидат проверяется
-на `http://127.0.0.1:18080` (отдельный `caddy run --config`), и только потом применяется
-на живом `:443`.
+1. **Funnel не ходит в Caddy сам по себе.** `tailscale funnel status` показывал
+   `/ proxy http://127.0.0.1:8080`, то есть трафик шёл **прямо в YARP**, минуя Caddy
+   (это и есть `DO-067`). Правка `Caddyfile` на публичный путь не влияла.
+   **Проверять всегда:** `sudo tailscale funnel status`.
+2. **«Проверка с прода» — не проверка.** На самом проде имя `xdiary-vps1.taile0b6ee.ts.net`
+   резолвится локально и запрос попадает в **Caddy на :443**, а не в Funnel. Поэтому с прода
+   видно APIM, а снаружи — YARP. Мерить публичный вход можно **только с другой машины**
+   (dev подходит: `ssh ubuntu@77.91.73.67`).
+3. **Funnel терминирует TLS сам**, поэтому его апстрим — **HTTP**-порт. Отдать ему Caddy `:443`
+   нельзя; и сайт Caddy должен матчить любой Host (`http://:8081`, не `http://127.0.0.1:8081`),
+   иначе Caddy не находит сайт и отдаёт **пустой `200` на все пути** (включая `/internal/**`).
 
-**Откат — одной командой (проверено исполнением, не описано):**
+**Как включить (идемпотентно, на проде):**
 
 ```bash
-sudo cp /etc/caddy/Caddyfile.bak-switch-<STAMP> /etc/caddy/Caddyfile && sudo systemctl reload caddy
+# 1) HTTP-listener в Caddy (в конец Caddyfile):
+#    http://:8081 { handle /health* { reverse_proxy 127.0.0.1:8080 } handle { reverse_proxy 127.0.0.1:18082 } log }
+sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+sudo systemctl reload caddy
+
+# 2) проверка listener'а с публичным Host (иначе 200-пусто):
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: xdiary-vps1.taile0b6ee.ts.net' \
+  http://127.0.0.1:8081/api/v1/catalog          # ждём 401
+
+# 3) Funnel -> этот listener (HTTP, не 443):
+sudo tailscale funnel --bg 8081
+sudo tailscale funnel status                    # ждём `/ proxy http://127.0.0.1:8081`
 ```
 
-Проверка после отката: `/health` → `200`, `/api/v1/catalog` → `401`, и
-`sudo grep -c 18082 /etc/caddy/Caddyfile` → `0`. Возврат: `cp` кандидата + `reload`,
-проверка `/health` 200, `/catalog` 401, `/internal/journal/records` → `404`.
+**Откат одной командой:** `sudo tailscale funnel --bg 8080` (прежний прямой путь в YARP);
+проверено исполнением — после отката `/health` локально 200.
 
-**Замер «до/после» (публичный вход с прода, n=20 на путь; 2026-11-05 03:5x):**
+**Приёмка — только снаружи** (с dev), 2026-11-05 04:0x:
 
-| путь | p95 до | p95 после | порог отката |
+| путь | код | `x-gravitee-*` | кто ответил |
 |---|---|---|---|
-| `/health` | 23 мс | **28 мс** | > 145 мс |
-| `/api/v1/journal/records` | 28 | **28** | > 138 |
-| `/api/v1/catalog` | 37 | **25** | > 146 |
-| `/api/v1/partners` | 15 | **23** | > 134 |
+| `/health` | 200 | 0 | YARP (осознанное исключение: в APIM нет `/health` → 404) |
+| `/api/v1/catalog` | 401 | **3** | **APIM** |
+| `/api/v1/journal/records` | 401 | **3** | **APIM** |
+| `/api/v1/nonexistent-path-xyz` | 404, тело `No context-path matches the request URI.` (40 Б) | 0 | **APIM** |
+| `/internal/journal/records` | 404 | 0 | **APIM** (нет маршрута) |
 
-5xx за 15 мин — **0**. Стек APIM RSS: gateway 411.7 + management 533.1 + ui 20.3 + mongo 160
-= **≈1.13 ГБ** (порог отката 1.5 ГБ). Свободная RAM на проде — **3023 МБ** (порог < 500 МБ).
+**Признак «кто ответил» без заголовков:** путь без маршрута — APIM даёт `404` + тело
+`No context-path matches the request URI.`, YARP даёт `401` + `Unauthorized` (12 Б).
+Заголовки `Via`/`X-Gravitee-*` могут срезаться промежуточными прокси, а код и тело — нет.
 
-**Проверки на новом входе (обе — каноном `9-tests/scripts/check_apim_auth.py`):**
+**Латентность снаружи (с dev, n=10):** `/health` p50 101 / p95 119; `/journal` 101/118;
+`/catalog` 97/127; `/partners` 100/121 мс — в порогах 145/138/146/134.
 
-```bash
-# (ii-a): все jwt-операции обязаны давать 401 через публичный вход
-python3 9-tests/scripts/check_apim_auth.py --base https://xdiary-vps1.taile0b6ee.ts.net \
-  --where "Caddy 443 -> APIM 18082 (прод)"
-
-# (ii-c): /internal/** снаружи — только 401/403/404, никогда 2xx
-python3 9-tests/scripts/check_apim_auth.py --ii-c --base https://xdiary-vps1.taile0b6ee.ts.net \
-  --where "Caddy 443 -> APIM 18082 (прод)"
-```
-
-Результат на 2026-11-05: `(ii-a) PASS 74/74`, `(ii-c) PASS 2/2`, `rc=0` в обоих.
-До переключения через APIM было `21/76` — APIM не открывает операции сам по себе, но и не
-закрывает: **deny-by-default живёт в сервисах** (`[Authorize]` + fallback-политика, ADR-026),
-поэтому проверять надо после каждого изменения авторизации в коде, а не один раз.
-
-**Где смотреть метрики:** `podman stats --no-stream` по четырём контейнерам APIM; журнал
-Caddy — `journalctl -u caddy` (в Caddyfile включён `log`); коды и p95 — команды выше.
-
+**Метрики:** `podman stats --no-stream` по четырём контейнерам APIM; журнал Caddy —
+`journalctl -u caddy`; коды и p95 — команды выше.
