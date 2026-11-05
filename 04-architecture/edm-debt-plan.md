@@ -907,3 +907,38 @@ services.AddDbContext<TDbContext>(dbOptions =>
 
 **Ключевое следствие для приёмки:** пока стоит `try/catch`, `4/0` и «создал → увидел» **не доказывают** работу E1 —
 они доказывают только работу проекции. Это надо писать в карточке, иначе зелёная квитанция прочитается как «E1 работает».
+
+### Корень «событие публикуется, а `Handle` не вызывается» — в библиотеке, доказано IL (2026-11-05 22:10)
+
+Разобрал `DigiTFactory.Libraries.EventBus.InMemory 0.1.0` (DLL 9 728 байт, sha256 `5e90d7fb…`) **рефлексией и IL**
+(`dotnet 8.0.419`, `MethodBody.GetILAsByteArray()` + `ResolveMember`). Факты:
+
+| Метод | Что делает |
+|---|---|
+`Subscribe<TBc>(IDomainEventHandler<TBc>)` | `_handlers.AddOrUpdate(typeof(TBc), h => ImmutableList.Create(handler), …)` — кладёт **сам handler как `object`**, без обёртки |
+`Publish<TBc>(IDomainEvent<TBc>)` | `_handlers.TryGetValue(typeof(TBc), out list)` → `foreach` → **`IObserver<IDomainEvent<TBc>>.OnNext(evt)`** → в `catch` **`LogError(ex, "…{0}…{1}", item.GetType().Name, typeof(TBc).Name)`** |
+`PublishAsync<TBc>` | вызывает `Publish` и возвращает `Task.CompletedTask` (то есть **синхронно**) |
+`Unsubscribe<TBc>` | `AddOrUpdate` с `ImmutableList.Remove` |
+
+**Ключевое:** в `SeedWorks` интерфейс `IDomainEventHandler<TBc>` **не наследует** `IObserver<>` (проверено:
+`GetInterfaces()` → пусто). А `Publish` вызывает на элементе списка **`IObserver<…>.OnNext`**. Значит для обычной
+реализации `IDomainEventHandler<TBc>` приведение к `IObserver` **падает** `InvalidCastException`, библиотека **ловит
+исключение и пишет `LogError`**, а `Handle` **не вызывается**.
+
+Это ровно наблюдаемая картина: `_handlers[typeof(BC)]` = 1, `[consumer] subscribed` = 1, `[Save] event=<guid>` = 2,
+**`[handle] entered` = 0**, `POST` при этом `200`, исключение наружу не выходит.
+
+**Следствия:**
+
+1. **Дефект не в нашем коде и не в DI** (BE проверил: шина Singleton, один экземпляр) — и не в маппинге.
+2. **Наша реализация обязана быть подписчиком-наблюдателем:** либо handler реализует **и** `IObserver<IDomainEvent<TBc>>`
+   (`OnNext` → `Handle`), либо подписывается **адаптер**, реализующий `IObserver<…>` и вызывающий handler.
+3. **Библиотека глотает ошибку** — это отдельный дефект библиотеки: `catch` с `LogError` вместо проброса означает, что
+   «нет доставки» **не видно** тем, кто не читает логи уровня Error. Правильное поведение — падать или сообщать счётчиком.
+4. **Проверка «шина работает» должна быть behavioural:** опубликовать и увидеть вход в обработчик; «подписка создана» —
+   не доказательство (сегодня это стоило двух часов).
+
+**Что делать (по приоритету):** (а) адаптер `IObserver<IDomainEvent<TBc>>` → `handler.Handle` — правка в нашем коде
+(@BE), минимальная и не требует форка библиотеки; (б) параллельно — запрос владельцу на исправление в библиотеке
+(`catch` → проброс/счётчик, обёртка handler при `Subscribe`); (в) после починки — вернуться к `BE-075` (схема) и к трём
+фактам приёмки.
