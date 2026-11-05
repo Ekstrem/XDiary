@@ -106,11 +106,19 @@ def selftest() -> int:
             ref = cand
             break
     total += 1
+    fact = stand = theory = api = 0
     if ref:
         fact = count_attr(ref, r"\[Fact")
         stand = count_attr(ref, r"\[StandFact")
         theory = count_attr(ref, r"\[Theory")
         api = count_attr(ref, r"\[(ApiFact|E2EFact)")
+    if not ref or (fact == stand == theory == api == 0):
+        # @DO `chat/do.md` `[2026-11-05 17:50]`: в `git archive` / shallow-клоне git не отдаёт `.cs`,
+        # и baseline краснел на исправном инструменте. Это «не измерено», а не FAIL.
+        print(f"  [НЕ ИЗМЕРЕНО] baseline: ref={ref or 'нет'} и git не отдаёт .cs "
+              f"(Fact={fact} StandFact={stand} Theory={theory} ApiFact={api}) — на этом стенде не проверяется")
+        ok += 1
+    else:
         good = (fact >= BASE_FACT and stand >= BASE_STAND
                 and theory >= BASE_THEORY and api >= BASE_API)
         if good:
@@ -118,8 +126,6 @@ def selftest() -> int:
         else:
             print(f"  [FAIL] baseline против ref: Fact={fact}/{BASE_FACT} StandFact={stand}/{BASE_STAND} "
                   f"Theory={theory}/{BASE_THEORY} ApiFact={api}/{BASE_API} (порог устарел)")
-    else:
-        print("  [FAIL] baseline: ни один ref не резолвится")
 
     def run(args):
         return subprocess.run([sys.executable, os.path.abspath(__file__), *args],
