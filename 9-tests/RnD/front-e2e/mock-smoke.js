@@ -1,0 +1,132 @@
+// mock-smoke.js — самопроверка локального двойника API (без браузера).
+//
+// Зачем: `mock-api.js` нужен, чтобы гонять `front-e2e` без dev-стенда. Если сам двойник отвечает
+// не теми формами, прогон спек «упадёт на стенде» и это будет ложный красный по продукту.
+// Скрипт поднимает `mock-api.js` на свободном порту, дёргает те же пути, что и спеки
+// (`/clients`, `/clients/{id}/verify`, `/clients/me/profile`, `/partners`, `/journal/records`,
+// `/journal/recent`, `/privacy/pin/*`, `/somatic-series/*`, `/daily-metrics/*`, `/analytics/*`),
+// и проверяет **формы ответов**, а не только коды. `rc=0` — двойник пригоден для прогона.
+//
+// Использование: node mock-smoke.js
+
+const { spawn } = require('child_process');
+const path = require('path');
+
+const PORT = Number(process.env.SMOKE_PORT || 4181);
+const BASE = `http://127.0.0.1:${PORT}`;
+
+let ok = 0;
+let total = 0;
+
+function check(name, cond, detail) {
+  total += 1;
+  if (cond) {
+    ok += 1;
+    console.log(`  [OK]   ${name}`);
+  } else {
+    console.log(`  [FAIL] ${name}${detail ? ' :: ' + JSON.stringify(detail) : ''}`);
+  }
+}
+
+async function j(method, url, body, headers = {}) {
+  const res = await fetch(BASE + url, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { status: res.status, data };
+}
+
+async function waitReady(timeoutMs = 15000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const r = await j('GET', '/api/v1/privacy/pin/has');
+      if (r.status === 200) return true;
+    } catch {
+      /* сервер ещё поднимается */
+    }
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return false;
+}
+
+(async () => {
+  const srv = spawn(process.execPath, [path.join(__dirname, 'mock-api.js')], {
+    env: { ...process.env, PORT: String(PORT) },
+    stdio: 'ignore',
+  });
+  try {
+    const ready = await waitReady();
+    check('двойник поднялся и отвечает', ready);
+    if (!ready) throw new Error('not ready');
+
+    const has = await j('GET', '/api/v1/privacy/pin/has');
+    check('pin/has → 200 {has:false}', has.status === 200 && has.data && has.data.has === false, has);
+
+    const cli = await j('POST', '/api/v1/clients', { phone: '+79990009999' });
+    const clientId = cli.data && cli.data.id;
+    check('POST /clients → id', cli.status === 200 && typeof clientId === 'string' && clientId.length > 0, cli);
+
+    const ver = await j('POST', `/api/v1/clients/${clientId}/verify`, { code: '0000' });
+    check('verify → accessToken + refreshToken',
+      ver.status === 200 && ver.data && ver.data.accessToken && ver.data.refreshToken, ver);
+
+    const auth = { Authorization: 'Bearer ' + (ver.data && ver.data.accessToken) };
+
+    const prof = await j('POST', '/api/v1/clients/me/profile', { displayName: 'SMOKE', gender: 'female' }, auth);
+    check('me/profile → displayName', prof.status === 200 && prof.data && prof.data.displayName === 'SMOKE', prof);
+
+    const me = await j('GET', '/api/v1/clients/me', undefined, auth);
+    check('me → id и linkedPartnerId=null',
+      me.status === 200 && me.data && me.data.id && me.data.linkedPartnerId === null, me);
+
+    const pCreate = await j('POST', '/api/v1/partners', { name: 'SMOKE-PARTNER' }, auth);
+    check('POST /partners → id', pCreate.status === 200 && pCreate.data && pCreate.data.id, pCreate);
+
+    const pList = await j('GET', '/api/v1/partners', undefined, auth);
+    const list = Array.isArray(pList.data) ? pList.data : [pList.data];
+    check('GET /partners содержит созданного',
+      list.some((p) => p && p.name === 'SMOKE-PARTNER'), pList);
+
+    const rec = await j('POST', '/api/v1/journal/records',
+      { partnersNames: ['SMOKE-PARTNER'], contraceptiveCount: 1, places: ['SMOKE-PLACE'] }, auth);
+    check('POST /journal/records → id', rec.status === 200 && rec.data && rec.data.id, rec);
+
+    const recent = await j('GET', '/api/v1/journal/recent', undefined, auth);
+    const rl = Array.isArray(recent.data) ? recent.data : [recent.data];
+    check('GET /journal/recent содержит созданную запись',
+      rl.some((r) => r && r.id === (rec.data && rec.data.id)), recent);
+
+    const places = await j('GET', '/api/v1/journal/places', undefined, auth);
+    check('GET /journal/places → 200', places.status === 200, places);
+
+    for (const p of ['/api/v1/somatic-series/slice?fromT=2026-01-01&toT=2026-12-31',
+                     '/api/v1/somatic-series/points',
+                     '/api/v1/daily-metrics/series?kind=sleep',
+                     '/api/v1/analytics/summary']) {
+      const r = await j('GET', p, undefined, auth);
+      check(`GET ${p.split('?')[0]} → 200`, r.status === 200, r);
+    }
+
+    const pinSet = await j('POST', '/api/v1/privacy/pin/set', { pin: '1234' }, auth);
+    check('privacy/pin/set → 200', pinSet.status === 200, pinSet);
+    const pinRm = await j('POST', '/api/v1/privacy/pin/remove', { currentPin: '1234' }, auth);
+    check('privacy/pin/remove → 200', pinRm.status === 200, pinRm);
+
+    console.log(`mock-smoke: ${ok}/${total} проверок двойника пройдено`);
+    process.exitCode = ok === total ? 0 : 1;
+  } catch (e) {
+    console.log(`  [FAIL] smoke прерван: ${e.message}`);
+    process.exitCode = 1;
+  } finally {
+    srv.kill();
+  }
+})();
