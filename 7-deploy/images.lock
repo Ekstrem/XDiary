@@ -5,7 +5,7 @@
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
 journal              single-1dde681  6-msa/BC-Journal
-partners             single-c321053  6-msa/BC-Partners
+partners             single-f918091  6-msa/BC-Partners
 catalog              single-6647cdc  6-msa/BC-Catalog
 somatic-series       single-6647cdc  6-msa/BC-SomaticSeries
 daily-metrics        single-6647cdc  6-msa/BC-DailyMetrics
