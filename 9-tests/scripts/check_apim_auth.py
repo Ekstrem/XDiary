@@ -804,7 +804,7 @@ def main() -> int:
     if args.selftest:
         return selftest()
 
-    if args.probe_entry:
+    if args.probe_entry and not args.all_conditions:
         # «Переключено» = доказано заголовком/поведением, а не тем, что команда выполнена
         # (@DO `03:56`). Поэтому смотрим три факта: заголовки, несуществующий путь, /health.
         if not args.base:
@@ -842,7 +842,8 @@ def main() -> int:
             entry, why = "YARP (или APIM с catch-all)", \
                 "несуществующий путь даёт 401, а не 404: маршрут ловит всё и требует токен"
         elif code_unknown == 404:
-            entry, why = "НЕ YARP", "несуществующий путь даёт 404 — значит маршрутизация не YARP"
+            entry, why = "шлюз без маршрута (вероятно APIM)", \
+                "несуществующий путь даёт 404 и нет заголовка Server — так отвечает шлюз, а не приложение"
         else:
             entry, why = "НЕ ОПРЕДЕЛЕНО", "нет ни X-Gravitee-*, ни однозначного кода"
         print(f"ВХОД: {entry} — {why} (where={args.where or args.base}, tool={tool_id()})")
@@ -871,6 +872,38 @@ def main() -> int:
         print(receipt_line("ii-c", current_ref(), len(ok_c), len(iops), rc_c, where,
                            len(bad_c), 0, len(unk_c),
                            resolve_images(args.images, []) if not args.direct else "", args.network))
+        # Если попросили и пробу входа — печатаем её в том же прогоне: «после переключения»
+        # должно сниматься одной командой, иначе сравнивают два прогона из разных моментов.
+        if args.probe_entry:
+            code_unknown, h_unknown = None, {}
+            import http.client
+            from urllib.parse import urlsplit
+            u = urlsplit(args.base.rstrip("/"))
+            cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+            conn = cls(u.hostname, u.port, timeout=12)
+            try:
+                conn.request("GET", (u.path or "") + "/api/v1/does-not-exist-xyz")
+                r = conn.getresponse()
+                code_unknown = r.status
+                h_unknown = {k.lower(): v for k, v in r.getheaders()}
+                r.read(200)
+            except Exception as e:                       # noqa: BLE001
+                print(f"   проба входа: ошибка {type(e).__name__}: {e}")
+            finally:
+                conn.close()
+            grav = sorted(k for k in h_unknown if k.startswith("x-gravitee"))
+            server = h_unknown.get("server", "НЕ УКАЗАН")
+            print(f"   проба входа: неизвестный путь → {code_unknown} · Server: {server} · "
+                  f"X-Gravitee-*: {grav or 'нет'}")
+            if grav:
+                entry = "APIM (есть X-Gravitee-*)"
+            elif code_unknown == 401:
+                entry = "YARP/приложение (неизвестный путь требует токен)"
+            elif code_unknown == 404 and str(server).upper() in ("НЕ УКАЗАН", "НЕ УКАЗАНО", ""):
+                entry = "шлюз без маршрута (вероятно APIM: 404 и нет заголовка Server)"
+            else:
+                entry = "НЕ ОПРЕДЕЛЕНО"
+            print(f"   ВХОД: {entry}")
         worst = max(rc_a, rc_c)
         names = {0: "PASS", 1: "FAIL", 2: "UNKNOWN"}
         # Тождество протокола (ADR-026, @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
