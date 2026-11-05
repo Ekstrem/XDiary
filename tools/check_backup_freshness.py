@@ -122,6 +122,62 @@ def selftest():
     else:
         print("  [FAIL] отсутствующий файл: rc=%d, ждали 2" % rc)
 
+    # --- @TL 2026-11-05 15:38: гейт печатает ЧИСЛА, значит selftest обязан проверять ТЕКСТ.
+    # Подкласс: rc верный, а текст врёт (у нас уже был «граница None» в check_adr).
+    def text_case(label, mutate_check):
+        nonlocal ok, total
+        total += 1
+        if mutate_check():
+            ok += 1
+        else:
+            print("  [FAIL] текст: %s" % label)
+
+    good_path = os.path.join(tmp, "text-good.sql.gz")
+    with gzip.open(good_path, "wb") as fh:
+        fh.write(("\n".join(good) + "\n").encode())
+    part_path = os.path.join(tmp, "text-part.sql.gz")
+    with gzip.open(part_path, "wb") as fh:
+        fh.write(("\n".join(good[:3]) + "\n").encode())
+
+    def t_numbers():
+        rc, msg = verdict(part_path, 6, 24)
+        need = ("CREATE DATABASE 2" in msg) and ("кластере 6" in msg)
+        no_none = "None" not in msg
+        if not need or not no_none:
+            print("      текст обрезанного: %r" % msg)
+        return rc == 1 and need and no_none
+
+    def t_missing():
+        rc, msg = verdict(os.path.join(tmp, "нет.sql.gz"), 6, 24)
+        okay = ("НЕ ИЗМЕРЕНО" in msg) and ("None" not in msg)
+        if not okay:
+            print("      текст отсутствующего: %r" % msg)
+        return rc == 2 and okay
+
+    def t_stale():
+        old_path = os.path.join(tmp, "text-old.sql.gz")
+        with gzip.open(old_path, "wb") as fh:
+            fh.write(("\n".join(good) + "\n").encode())
+        mtime = time.time() - 30 * 3600
+        os.utime(old_path, (mtime, mtime))
+        rc, msg = verdict(old_path, 6, 24)
+        okay = ("устарел" in msg) and ("30.0" in msg) and ("None" not in msg)
+        if not okay:
+            print("      текст устаревшего: %r" % msg)
+        return rc == 1 and okay
+
+    def t_norm_text():
+        rc, msg = verdict(good_path, 6, 24)
+        okay = ("баз: 6" in msg) and ("None" not in msg)
+        if not okay:
+            print("      текст нормы: %r" % msg)
+        return rc == 0 and okay
+
+    text_case("обрезанный дамп: числа есть, None нет", t_numbers)
+    text_case("файла нет: НЕ ИЗМЕРЕНО без None", t_missing)
+    text_case("устарел: часы и порог в тексте", t_stale)
+    text_case("норма: число баз в тексте", t_norm_text)
+
     total += 1
     rc, msg = verdict(None, 6, 24)
     if rc == 2:
