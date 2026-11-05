@@ -110,6 +110,14 @@ jobs:
         if: always()
         run: python tools/check_api_index.py
 
+
+      # DO-079/BE-069: тот же класс, что BE-067 — `IPaging` передаётся null (`null!`
+      # глушит только компилятор, а библиотека читает `paging.Page` сразу). За сутки
+      # это случилось трижды в разных BC (journal → partners), поэтому теперь машинно.
+      - name: Канон «IPaging не null» (BE-067/BE-069)
+        run: |
+          python tools/check_null_paging.py --selftest
+          python tools/check_null_paging.py --root 6-msa
       - name: Канон регистрации EventStoreDbContext (@AR 22:40/23:25)
         # Правило: в каждом Program.cs с `AddEventStorePostgres` — РОВНО ОДНА типизированная
         # `AddDbContext<…EventStoreDbContext>` и она ПОСЛЕ DF-вызова (последняя побеждает).
