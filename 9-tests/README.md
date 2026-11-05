@@ -134,6 +134,10 @@ python 9-tests/scripts/check_apim_auth.py --direct --only Catalog,Analytics     
 - `--images auto` — digest'ы контейнеров через `podman inspect`; если podman нет — `НЕ ИЗМЕРЕНО` (не `REF`);
 - `--service-map map.json` — свои адреса (`host:port` | URL | имя сервиса); `--only BC,…` — срез;
 - `--5xx-unknown` — вернуть `5xx` в `unknown` (по умолчанию в `--direct` это нарушитель).
+- `--probe-entry` — доказать, **что стоит в пути**: заголовки (`X-Gravitee-*`) + поведение
+  несуществующего пути (`404` у шлюза против `401` у приложения). Квитанция всегда печатает
+  `via=` — **кто ответил** (`gravitee` | `yarp` | `gateway-no-route` | `НЕ ОПРЕДЕЛЕНО`);
+  `(ii-a)` засчитывается только при `via=gravitee`, иначе `rc=2`.
 
 **Пример вывода** (последняя строка, её и копируют):
 ```
