@@ -2,13 +2,12 @@ namespace Client.Api.Security;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using XDiary.Contracts;
 
 public sealed record ClientTokenResponse(string AccessToken, string RefreshToken, DateTime ExpiresAt);
 
 public sealed class ClientTokenService
 {
-    private const int AccessMinutes = 15;
-    private const int RefreshDays = 30;
     private readonly string _key;
     private readonly string _issuer;
     static ClientTokenService() => JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
@@ -19,10 +18,10 @@ public sealed class ClientTokenService
     {
         var now = DateTime.UtcNow;
         return new ClientTokenResponse(
-            CreateToken(clientId.ToString(), "access", now.AddMinutes(AccessMinutes), phone),
+            CreateToken(clientId.ToString(), "access", now.AddMinutes(TokenPolicy.AccessMinutes), phone),
             // AR-018: refresh без PII (только sub + kind); phone берётся из БД при обновлении.
-            CreateToken(clientId.ToString(), "refresh", now.AddDays(RefreshDays), null),
-            now.AddMinutes(AccessMinutes));
+            CreateToken(clientId.ToString(), "refresh", now.AddDays(TokenPolicy.RefreshDays), null),
+            now.AddMinutes(TokenPolicy.AccessMinutes));
     }
 
     public bool TryValidateRefresh(string token, out Guid clientId)

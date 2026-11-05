@@ -4,12 +4,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using Privacy.Application.Commands;
+using XDiary.Contracts;
 
 public sealed class TokenService
 {
-    private const int AccessMinutes = 15;
-    private const int DeviceAccessMinutes = 5;
-    private const int RefreshDays = 30;
     private readonly string _key;
     private readonly string _issuer;
 
@@ -23,14 +21,14 @@ public sealed class TokenService
     public TokenResponse Issue()
     {
         var now = DateTime.UtcNow;
-        return new TokenResponse(CreateToken("pin", "access", now.AddMinutes(AccessMinutes)), CreateToken("pin", "refresh", now.AddDays(RefreshDays)));
+        return new TokenResponse(CreateToken("pin", "access", now.AddMinutes(TokenPolicy.AccessMinutes)), CreateToken("pin", "refresh", now.AddDays(TokenPolicy.RefreshDays)));
     }
 
     // Без PIN — анонимный device-токен (sub="device", короткий TTL)
     public TokenResponse IssueDevice()
     {
         var now = DateTime.UtcNow;
-        return new TokenResponse(CreateToken("device", "access", now.AddMinutes(DeviceAccessMinutes)), CreateToken("device", "refresh", now.AddDays(RefreshDays)));
+        return new TokenResponse(CreateToken("device", "access", now.AddMinutes(TokenPolicy.DeviceAccessMinutes)), CreateToken("device", "refresh", now.AddDays(TokenPolicy.RefreshDays)));
     }
 
     public bool Verify(string token)

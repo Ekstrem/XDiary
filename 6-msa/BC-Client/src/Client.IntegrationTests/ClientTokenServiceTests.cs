@@ -50,6 +50,15 @@ public class ClientTokenServiceTests
     }
 
     [Fact]
+    public void TokenPolicy_CanonicalValues_MatchADR()
+    {
+        // AR-018: канон по ADR-008/021 — access 15 мин, refresh 30 дней, device 5 мин.
+        Assert.Equal(15, XDiary.Contracts.TokenPolicy.AccessMinutes);
+        Assert.Equal(30, XDiary.Contracts.TokenPolicy.RefreshDays);
+        Assert.Equal(5, XDiary.Contracts.TokenPolicy.DeviceAccessMinutes);
+    }
+
+    [Fact]
     public void TryValidateRefresh_AccessToken_ReturnsFalse()
     {
         var s = Create();
