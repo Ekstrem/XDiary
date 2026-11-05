@@ -1,9 +1,37 @@
 namespace Analytics.Api.Precompute;
 using Analytics.Application;
 using Analytics.Domain.Models;
+
+/// <summary>
+/// BE-083 (P0): снимок разделён по клиенту (sub). Каждый clientId получает только свои агрегаты.
+/// </summary>
 public sealed class AnalyticsSnapshot
 {
     private readonly object _lock = new();
+    private readonly Dictionary<Guid, ClientSnapshot> _clients = new();
+
+    private ClientSnapshot GetOrCreate(Guid clientId)
+    { if (!_clients.TryGetValue(clientId, out var c)) { c = new ClientSnapshot(); _clients[clientId] = c; } return c; }
+
+    public void Rebuild(Guid clientId, IReadOnlyList<JournalRecord> records, IReadOnlyList<MetricInput> metrics)
+    { lock (_lock) { GetOrCreate(clientId).Rebuild(records, metrics); } }
+    public void ApplyCompleted(Guid clientId, Guid id, JournalRecord r) { lock (_lock) { GetOrCreate(clientId).ApplyCompleted(id, r); } }
+    public void ApplyDeleted(Guid clientId, Guid id) { lock (_lock) { GetOrCreate(clientId).ApplyDeleted(id); } }
+    public void ApplySleep(Guid clientId, string date, int score) { lock (_lock) { GetOrCreate(clientId).ApplySleep(date, score); } }
+    public void ApplySomatic(Guid clientId, string t, int hr, int bodyBattery) { lock (_lock) { GetOrCreate(clientId).ApplySomatic(t, hr, bodyBattery); } }
+    public void ApplyStress(Guid clientId, string date, int stress) { lock (_lock) { GetOrCreate(clientId).ApplyStress(date, stress); } }
+
+    public SummaryCards GetSummary(Guid clientId, string period) { lock (_lock) { return GetOrCreate(clientId).GetSummary(period); } }
+    public List<CorrelationResult> Correlations(Guid clientId) { lock (_lock) { return GetOrCreate(clientId).Correlations; } }
+    public TopLists Tops(Guid clientId) { lock (_lock) { return GetOrCreate(clientId).Tops; } }
+    public Distribution Distribution(Guid clientId) { lock (_lock) { return GetOrCreate(clientId).Distribution; } }
+    public Thresholds Thresholds(Guid clientId) { lock (_lock) { return GetOrCreate(clientId).Thresholds; } }
+    public TrendsView Trends(Guid clientId) { lock (_lock) { return GetOrCreate(clientId).Trends; } }
+    public PhysioProfile Physio(Guid clientId) { lock (_lock) { return GetOrCreate(clientId).Physio; } }
+}
+
+public sealed class ClientSnapshot
+{
     private readonly Dictionary<Guid, JournalRecord> _records = new();
     private List<MetricInput> _metrics = new();
     private readonly Dictionary<string, (int Hr, int BodyBattery)> _somatic = new();
@@ -19,13 +47,13 @@ public sealed class AnalyticsSnapshot
     public DateTime UpdatedAt { get; private set; }
 
     public void Rebuild(IReadOnlyList<JournalRecord> records, IReadOnlyList<MetricInput> metrics)
-    { lock (_lock) { _records.Clear(); foreach (var r in records) _records[r.Id] = r; _metrics = metrics.ToList(); RecomputeLocked(); } }
+    { _records.Clear(); foreach (var r in records) _records[r.Id] = r; _metrics = metrics.ToList(); RecomputeLocked(); }
 
-    public void ApplyCompleted(Guid id, JournalRecord r) { lock (_lock) { _records[id] = r; RecomputeLocked(); } }
-    public void ApplyDeleted(Guid id) { lock (_lock) { if (_records.Remove(id)) RecomputeLocked(); } }
-    public void ApplySleep(string date, int score) { lock (_lock) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, SleepScore = score }; _metrics.Add(m); } else m.SleepScore = score; RecomputeLocked(); } }
-    public void ApplySomatic(string t, int hr, int bodyBattery) { lock (_lock) { _somatic[t] = (hr, bodyBattery); RecomputeLocked(); } }
-    public void ApplyStress(string date, int stress) { lock (_lock) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, Stress = stress }; _metrics.Add(m); } else m.Stress = stress; RecomputeLocked(); } }
+    public void ApplyCompleted(Guid id, JournalRecord r) { _records[id] = r; RecomputeLocked(); }
+    public void ApplyDeleted(Guid id) { if (_records.Remove(id)) RecomputeLocked(); }
+    public void ApplySleep(string date, int score) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, SleepScore = score }; _metrics.Add(m); } else m.SleepScore = score; RecomputeLocked(); }
+    public void ApplySomatic(string t, int hr, int bodyBattery) { _somatic[t] = (hr, bodyBattery); RecomputeLocked(); }
+    public void ApplyStress(string date, int stress) { var m = _metrics.FirstOrDefault(x => x.Date == date); if (m is null) { m = new MetricInput { Date = date, Stress = stress }; _metrics.Add(m); } else m.Stress = stress; RecomputeLocked(); }
 
     public SummaryCards GetSummary(string period) => period switch { "30" => Summary30, "90" => Summary90, _ => SummaryAll };
 

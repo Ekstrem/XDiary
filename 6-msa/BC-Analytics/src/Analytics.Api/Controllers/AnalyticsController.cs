@@ -22,31 +22,43 @@ public class AnalyticsController : ControllerBase
     {
         var clientId = ClientId();
         if (clientId is null) return Unauthorized();
-        return Ok(_snapshot.GetSummary(period));
+        return Ok(_snapshot.GetSummary(clientId.Value, period));
     }
 
     [HttpGet("correlations")]
-    public IActionResult Correlations() => Ok(_snapshot.Correlations);
+    public IActionResult Correlations()
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Correlations(clientId.Value)); }
 
     [HttpGet("tops")]
-    public IActionResult Tops() => Ok(_snapshot.Tops);
+    public IActionResult Tops()
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Tops(clientId.Value)); }
 
     [HttpGet("distribution")]
-    public IActionResult Distribution() => Ok(_snapshot.Distribution);
+    public IActionResult Distribution()
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Distribution(clientId.Value)); }
+
     [HttpGet("thresholds")]
-    public IActionResult Thresholds() => Ok(_snapshot.Thresholds);
+    public IActionResult Thresholds()
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Thresholds(clientId.Value)); }
+
     [HttpGet("trends")]
-    public IActionResult Trends() => Ok(_snapshot.Trends);
+    public IActionResult Trends()
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Trends(clientId.Value)); }
+
     [HttpGet("physio")]
-    public IActionResult Physio() => Ok(_snapshot.Physio);
+    public IActionResult Physio()
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Physio(clientId.Value)); }
+
     [HttpPost("events")]
     public IActionResult Events([FromBody] AnalyticsEvent e)
     {
-        if (e.EventType == "RecordCompleted" && e.Record is not null) _snapshot.ApplyCompleted(e.Id, e.Record);
-        else if (e.EventType == "RecordDeleted") _snapshot.ApplyDeleted(e.Id);
-        else if (e.EventType == "SleepRecorded") _snapshot.ApplySleep(e.Date, e.SleepScore);
-        else if (e.EventType == "SomaticPointRecorded") _snapshot.ApplySomatic(e.T, e.Hr, e.BodyBattery);
-        else if (e.EventType == "StressRecorded") _snapshot.ApplyStress(e.Date, e.Stress);
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        if (e.EventType == "RecordCompleted" && e.Record is not null) _snapshot.ApplyCompleted(clientId.Value, e.Id, e.Record);
+        else if (e.EventType == "RecordDeleted") _snapshot.ApplyDeleted(clientId.Value, e.Id);
+        else if (e.EventType == "SleepRecorded") _snapshot.ApplySleep(clientId.Value, e.Date, e.SleepScore);
+        else if (e.EventType == "SomaticPointRecorded") _snapshot.ApplySomatic(clientId.Value, e.T, e.Hr, e.BodyBattery);
+        else if (e.EventType == "StressRecorded") _snapshot.ApplyStress(clientId.Value, e.Date, e.Stress);
         return Ok();
     }
 }

@@ -29,6 +29,8 @@ public sealed class AnalyticsPrecomputeService : BackgroundService
         var records = await client.GetFromJsonAsync<List<JournalRecord>>($"{_journalUrl}/internal/journal/records", ct) ?? new();
         var metrics = await client.GetFromJsonAsync<List<DailyMetricDto>>($"{_metricsUrl}/api/v1/daily-metrics/series", ct) ?? new();
         var metricInputs = metrics.Select(m => new MetricInput { Date = m.Date, RestingHr = m.RestingHr, SleepScore = m.SleepScore }).ToList();
-        _snapshot.Rebuild(records, metricInputs);
+        // BE-083: снимок по клиенту — записи без владельца (ClientId=null) не попадают никому.
+        foreach (var group in records.Where(r => r.ClientId is not null).GroupBy(r => r.ClientId!.Value))
+            _snapshot.Rebuild(group.Key, group.ToList(), metricInputs);
     }
 }

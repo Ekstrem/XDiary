@@ -2,6 +2,7 @@ namespace Analytics.Api.Precompute;
 public sealed class JournalRecord
 {
     public Guid Id { get; set; }
+    public Guid? ClientId { get; set; }
     public string StartedAt { get; set; } = string.Empty;
     public int DurationMin { get; set; }
     public List<OrgasmDto> Orgasms { get; set; } = new();
