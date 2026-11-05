@@ -187,7 +187,7 @@ network=НЕ УКАЗАНО | tool=9-tests/scripts/check_apim_auth.py@e77f5c571b
 
 Все — без сети и браузера, у каждого `--selftest` с красным контролем на **каждом** критерии
 (правило: новый критерий = новый кейс в том же коммите). В CI (`.github/workflows/ci-guards.yml`)
-подключены `check_front_readpath` и `check_front_specs_base` (проверено по файлу, REF `5a349f99`);
+подключены `check_front_readpath` (строки 193–194) и `check_front_specs_base` (203–204), причём **у обоих** `--selftest` идёт строкой выше нормы (проверено по файлу, `2026-11-05`);
 `check_adr028_move` — **не подключён** (вспомогательный для ревью, не гейт), `check_read_paths` и
 `accept_read_path` — подключение за @DO.
 
