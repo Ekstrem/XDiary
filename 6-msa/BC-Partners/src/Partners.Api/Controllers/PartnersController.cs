@@ -22,6 +22,7 @@ public sealed class PartnersController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterPartnerCommand c, CancellationToken ct)
     {
         var sub = User.FindFirst("sub")?.Value;
+        Console.WriteLine($"[Register] reached: name={c.Name}, clientId={sub ?? "<null>"}");
         if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
         return Respond(await _mediator.Send(c with { ClientId = clientId }, ct));
     }
