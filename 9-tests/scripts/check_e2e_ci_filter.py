@@ -32,7 +32,7 @@ FORBIDDEN = ("--grep-invert", "--grep", "--shard", "--project")
 FLAG = re.compile(r"XDIARY_[A-Z0-9_]+")
 
 
-def evaluate(scripts, specs, marker_text, config_text=""):
+def evaluate(scripts, specs, marker_text, config_text="", guard_text=""):
     """(issues, stats)."""
     issues = []
     test_cmd = scripts.get("test", "")
@@ -53,10 +53,19 @@ def evaluate(scripts, specs, marker_text, config_text=""):
     # Если ВСЕ тесты уходят в skip, Playwright завершится кодом 0 («0 passed, N skipped»).
     # Набор в этом случае не проверил НИЧЕГО, значит прогон не зелёный — за это отвечает
     # репортёр-страж `reporters/executed-guard.js`, и он обязан быть подключён в конфиге.
+    # Артефакт `test-results/` уезжает из CI, а лог джобы — нет. Страж обязан писать рядом
+    # машиночитаемую квитанцию (`receipt.txt`), иначе числа прогона приходится копировать руками
+    # и `e2e_receipt.py` нечем накормить.
+    guard = None
     guard_ok = "executed-guard" in config_text
     if config_text and not guard_ok:
         issues.append("в `playwright.config.js` не подключён страж `reporters/executed-guard.js`   "
                       "прогон, где все тесты пропущены, выглядел бы зелёным")
+    # Артефакт `test-results/` уезжает из CI, а лог джобы — нет: страж обязан писать рядом
+    # машиночитаемую квитанцию, иначе числа прогона приходится копировать руками.
+    if guard_text and "receipt.txt" not in guard_text:
+        issues.append("страж `reporters/executed-guard.js` не пишет `test-results/receipt.txt` — "
+                      "в артефакте не будет машиночитаемых чисел прогона")
     stats = {"scripts": len(scripts), "specs": len(specs), "flags": len(flags), "grep": len(hits), "undocumented": len(undocumented), "guard": 1 if guard_ok else 0}
     return issues, stats
 
@@ -92,7 +101,9 @@ def main(argv=None):
         return 2
     cfg_path = base / "playwright.config.js"
     cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace") if cfg_path.exists() else ""
-    issues, stats = evaluate(scripts, specs, marker_text, cfg_text)
+    guard_path = base / "reporters" / "executed-guard.js"
+    guard_text = guard_path.read_text(encoding="utf-8", errors="replace") if guard_path.exists() else ""
+    issues, stats = evaluate(scripts, specs, marker_text, cfg_text, guard_text)
     for m in issues:
         print(f"::error::check_e2e_ci_filter: {m}")
     print(receipt_line(stats, issues))
@@ -153,6 +164,23 @@ def selftest():
             ok += 1
         else:
             print(f"  [FAIL] страж исполнения: rc={rc2} (ждали {want}), guard={stats2['guard']}")
+
+
+    # Страж обязан писать `test-results/receipt.txt` (числа едут в артефакте, а не в логе).
+    for guard_text, want in (("const x = 'receipt.txt';", 0), ("const x = '';", 1)):
+        total += 1
+        issues3, _ = evaluate(
+            {"test": "playwright test"},
+            {"a.spec.js": "test('x')"},
+            "marker",
+            "reporter: [['list'], ['./reporters/executed-guard.js']]",
+            guard_text,
+        )
+        rc3 = 1 if issues3 else 0
+        if rc3 == want:
+            ok += 1
+        else:
+            print(f"  [FAIL] receipt.txt в страже: rc={rc3} (ждали {want})")
 
     print(f"check_e2e_ci_filter --selftest: {ok}/{total} (grep в test / неописанный флаг = rc=1)")
     return 0 if ok == total else 1
