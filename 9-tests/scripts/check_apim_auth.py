@@ -330,6 +330,32 @@ def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, st
                      str(op.get("method", "GET")), timeout)
 
 
+def probe_op(base: str, op: dict, retries: int = 1, timeout: float = 8.0) -> tuple[int | None, str]:
+    """`check_one` + ретрай на `unknown`; возвращает ту же форму `(код, где)`."""
+    code, where, _n = probe_with_retry(lambda: check_one(base, op, timeout), retries)
+    return code, where
+
+
+def probe_with_retry(probe, retries: int = 1) -> tuple[int | None, str, int]:
+    """Повторяет запрос, ЕСЛИ ответа нет (`None` = `unknown`), и только в этом случае.
+
+    Зачем (@TL `chat/tl.md` `[2026-11-05 14:46]`): `(ii-a)` на 6 прогонах давала 4 × `PASS 74/74`
+    и 2 × `НЕ ЗАСЧИТАНО` (`73/74`, `72/74`, «неизвестно 1–2») при **нуле нарушителей** — это
+    транзиентные таймауты на 1–2 из 76 запросов, а не незащищённые операции. Один ретрай на
+    `unknown` делает условие доказуемым, **не меняя канон**: классы, знаменатель и `rc`-семантика
+    остаются прежними, а `violator`/`contract` **не ретраятся** (иначе ретрай маскировал бы дефект).
+
+    Возвращает `(код, где, сделано_попыток)`. `retries=0` — ровно одно обращение.
+    """
+    attempts = max(0, int(retries)) + 1
+    code, where = None, ""
+    for n in range(1, attempts + 1):
+        code, where = probe()
+        if code is not None:
+            return code, where, n
+    return code, where, attempts
+
+
 def verdict(results, five_xx_unknown=None, direct: bool = False):
     """Четыре класса (@AR `01:42`, @TL `01:43`, уточнение `01:45`): protected/violator/contract/unknown.
 
@@ -514,7 +540,7 @@ def selftest() -> int:
         # 1) HTTP-путь: реальные коды доходят до классификатора как есть
         for path, want in statuses.items():
             total += 1
-            code, _url = check_one(base, {"method": "GET", "path": path}, timeout=5)
+            code, _url = probe_op(base, {"method": "GET", "path": path}, 0, timeout=5)
             if code == want:
                 ok += 1
             else:
@@ -864,6 +890,29 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] final_rc: неверный код в кейсах {bad_rc}")
+        # Ретрай на `unknown` (@TL `14:46`): 6 прогонов дали 4 PASS и 2 `НЕ ЗАСЧИТАНО`
+        # (73/74, 72/74) при нуле нарушителей — транзиентные таймауты. Ретрай только для
+        # «нет ответа»; `violator`/`contract` не повторяются, иначе ретрай маскирует дефект.
+        retry_cases = [
+            ([None, 401], 1, (401, 2), "таймаут+ответ -> код 401, попыток 2"),
+            ([None, None], 1, (None, 2), "два таймаута -> unknown, попыток 2"),
+            ([401], 1, (401, 1), "ответ сразу -> ретрая нет"),
+            ([None], 0, (None, 1), "retries=0 -> одно обращение"),
+            ([None, None, None, 200], 3, (200, 4), "три таймаута, затем 200"),
+            ([500], 1, (500, 1), "5xx не ретраится (не unknown)"),
+        ]
+        bad_retry = []
+        for seq, retries, want, label in retry_cases:
+            it = iter(seq)
+            _c, _w, _n = probe_with_retry(lambda: (next(it), "url"), retries)
+            if (_c, _n) != want:
+                bad_retry.append(f"{label}: got={(_c, _n)}, want={want}")
+        if not bad_retry:
+            ok += 1
+        else:
+            print(f"  [FAIL] ретрай unknown: {bad_retry}")
+
+        total += 1
     finally:
         srv.shutdown()
         srv.server_close()
@@ -881,6 +930,9 @@ def main() -> int:
     ap.add_argument("--strict-via", action="store_true", dest="strict_via",
                     help="требовать via=gravitee для ВСЕХ условий (по умолчанию: строго только (ii-a), "
                          "как решил @AR 05:15)")
+    ap.add_argument("--retry-unknown", type=int, default=1, dest="retry_unknown",
+                    help="ретраев при отсутствии ответа (класс unknown); 0 — не повторять. "
+                         "Канон не меняется: violator/contract НЕ ретраятся (иначе маскировка)")
     ap.add_argument("--probe-entry", action="store_true", dest="probe_entry",
                     help="доказать, ЧТО стоит в пути трафика: заголовки ответа + поведение "
                          "несуществующего пути (APIM отдаёт 404 и X-Gravitee-*, YARP — 401)")
@@ -966,13 +1018,13 @@ def main() -> int:
             print("::error::check_apim_auth: для --all нужен --base <публичный вход>")
             return 2
         ops_all = [o for o in load_ops(args.index) if requires_auth(o)]
-        res_all = [(op, *check_one(args.base, op)) for op in ops_all]
+        res_all = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in ops_all]
         v_a, c_a, u_a, p_a = verdict(res_all, args.five_xx_unknown if args.direct else True,
                                      direct=args.direct)
         rc_a = identity_rc(final_rc(v_a, c_a, u_a, p_a, len(ops_all)), p_a,
                            len(v_a), len(c_a), len(u_a), len(ops_all))
         iops = internal_ops(load_ops(args.index))
-        res_c = [(op, *check_one(args.base, op)) for op in iops]
+        res_c = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in iops]
         ok_c, bad_c, unk_c = verdict_internal(res_c)
         rc_c = 1 if bad_c else (2 if (unk_c or not ok_c) else 0)
         where = args.where or args.base
@@ -1048,7 +1100,7 @@ def main() -> int:
         if not args.base:
             print("::error::check_apim_auth: для (ii-c) нужен --base <публичный вход> (Funnel/YARP)")
             return 2
-        results = [(op, *check_one(args.base, op)) for op in ops]
+        results = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in ops]
         ok, bad, unk = verdict_internal(results)
         rc_c = 0
         if bad:
@@ -1210,7 +1262,7 @@ def main() -> int:
         return 2
 
     images_note = resolve_images(args.images, []) if not args.direct else ""
-    results = [(op, *check_one(args.base, op)) for op in targets]
+    results = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in targets]
     violators, contracts, unknown, protected_count = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
     passed = protected_count
     if not args.json:
