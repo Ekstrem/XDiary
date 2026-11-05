@@ -1,0 +1,53 @@
+name: Backup freshness (@AR 2026-11-05 15:25 / DO-089)
+
+# Гейт «бэкап вчерашний и полный»: проверяет ПОСЛЕДСТВИЕ (файл полный и свежий), а не наличие файла.
+# История: 2026-11-05 найдено, что дампы молча обрезались шесть дней — `podman exec … | gzip`
+# терял вывод, а rc конвейера приходил от gzip = 0, поэтому cron писал `done`.
+#
+# Критерии @AR:
+#   файла нет  -> rc=2 (НЕ ИЗМЕРЕНО)     обрезан -> rc=1 с числами
+#   старше 24ч -> rc=1                    норма    -> rc=0
+# Плюс --selftest с кейсом «обрезанный дамп» — гейт обязан уметь краснеть на нашем же дефекте.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+concurrency:
+  group: backup-freshness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Самопроверка гейта (кейс «обрезанный дамп» + норма)
+        run: python3 tools/check_backup_freshness.py --selftest
+
+      - name: Копировать гейт на прод
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "tools/check_backup_freshness.py"
+          target: "/home/deploy"
+
+      - name: Проверить свежесть и полноту последнего бэкапа
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -u
+            # число прикладных баз в живом кластере — знаменатель для проверки полноты
+            EXPECT=$(podman exec xdiary-pg psql -U postgres -Atc \
+              "select count(*) from pg_database where not datistemplate and datname <> 'postgres';")
+            echo "баз в кластере: $EXPECT"
+            python3 /home/deploy/tools/check_backup_freshness.py \
+              --dir /home/deploy/backups --expected-dbs "$EXPECT" --max-age-hours 24
