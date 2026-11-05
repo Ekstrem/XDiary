@@ -5,6 +5,23 @@
 const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps2.taile0b6ee.ts.net').replace(/\/+$/, '');
 const PIN = process.env.XDIARY_E2E_PIN || '1234';
 
+// Ключ, под которым приложение хранит JWT. Источник правды — `8-front/js/api.js:8`
+// (`var ACCESS_KEY = "xdiary.accessToken"`). Держим литерал ЗДЕСЬ, а не в спеках:
+// 2026-11-05 `partners-read-parity` читала несуществующий `xdiary.token` и падала до своей
+// проверки (@DO, REF=7bf8c3e9). Один литерал в тестовой обвязке = одна точка правки при смене ключа.
+const ACCESS_KEY = 'xdiary.accessToken';
+
+/** Прочитать JWT из хранилища страницы (после `waitToken` он гарантированно есть). */
+async function readToken(page) {
+  return page.evaluate((key) => {
+    try {
+      return localStorage.getItem(key) || '';
+    } catch (e) {
+      return '';
+    }
+  }, ACCESS_KEY);
+}
+
 // FE-027: диагностика браузера. Приложение «остаётся на #view-lock» без видимой ошибки,
 // поэтому ловим JS-исключения и console.error — иначе причина угадывается.
 // Вызывается из installBase, то есть во всех спеках автоматически.
@@ -79,7 +96,7 @@ async function installBase(page) {
 
 async function waitToken(page) {
   try {
-    await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 30000 });
+    await page.waitForFunction((key) => !!localStorage.getItem(key), ACCESS_KEY, { timeout: 30000 });
   } catch (e) {
     const failed = [];
     page.on('requestfailed', (r) => {
@@ -510,4 +527,4 @@ function watchLinkPartner(page) {
   };
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+module.exports = { API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
