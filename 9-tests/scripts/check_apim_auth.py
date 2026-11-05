@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_apim_auth.py — машинная проверка условия переключения трафика (ADR-031).
+"""check_apim_auth.py — машинная проверка условия переключения трафика (ADR-026).
 
 Что проверяет: каждая операция из `04-architecture/api-index.yaml`, у которой `auth != anonymous`,
 при **прямом** запросе в сервис **без** `Authorization` обязана отвечать `401`.
@@ -182,7 +182,7 @@ def resolve_images(arg_value: str, services: list) -> str:
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
                  violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "",
                  network: str = "") -> str:
-    """Квитанция (канон `ADR-031 → «Канон измерения периметра»`; перенесён из `ADR-026` 2026-11-05):
+    """Квитанция (канон `ADR-026 → «Канон измерения периметра»`; перенесён из `ADR-026` 2026-11-05):
 
         REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=V | contract=C |
         неизвестно=U | rc=N | where=<чем измерено> | images=<svc:digest, …>
@@ -198,8 +198,8 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     else:
         body = f"{label}UNKNOWN защищено={passed}/{total} (не засчитывается)"
     # `contract` — подкласс нарушителя для счёта (@TL `01:45`): PASS требует 0 нарушителей
-    # ВКЛЮЧАЯ contract, но отдельное число нужно, чтобы в ADR-031 было видно, КАКОЙ это дефект.
-    # `V` и `C` печатаются РАЗДЕЛЬНО (ADR-031 §7): `B = V + C` — производное, и если печатать
+    # ВКЛЮЧАЯ contract, но отдельное число нужно, чтобы в ADR-026 было видно, КАКОЙ это дефект.
+    # `V` и `C` печатаются РАЗДЕЛЬНО (ADR-026 §7): `B = V + C` — производное, и если печатать
     # только его, сумму `N+V+C+U` нельзя проверить («выпавшая группа» спрячется за агрегацией).
     line = (f"REF={ref} | {body} | нарушителей={violators} | contract={contracts} "
             f"| неизвестно={unknown} | rc={rc}")
@@ -257,7 +257,7 @@ def probe_via(base: str, timeout: float = 12.0) -> str:
 
 
 def tool_id() -> str:
-    """`tool=<путь>@<sha256 скрипта[:12]>` (ADR-031 §7, @AR `19:40`).
+    """`tool=<путь>@<sha256 скрипта[:12]>` (ADR-026 §7, @AR `19:40`).
 
     `REF` доказывает версию **репозитория**, но не версию **скрипта**: его могли править в рабочем
     дереве. Классификация менялась трижды за сутки, поэтому «16 защищено» и «21 защищено» — числа
@@ -432,7 +432,7 @@ def via_rc(rc: int, kind: str = "ii-b") -> int:
         return rc
     if VIA_NOTE in ("", "НЕ ОПРЕДЕЛЕНО"):
         print("::error::check_apim_auth: `via=` не определён — PASS не засчитывается "
-              "(ADR-031: квитанция обязана называть, кто ответил); rc=2")
+              "(ADR-026: квитанция обязана называть, кто ответил); rc=2")
         return 2
     return rc
 
@@ -451,7 +451,7 @@ def classify_code(code: int | None, five_xx_unknown: bool) -> str:
 
 
 def breakdown_by_bc(results, five_xx_unknown: bool) -> dict:
-    """Расшифровка по BC (ADR-031: «`UNKNOWN` обязан быть расшифрован по BC, а не числом»).
+    """Расшифровка по BC (ADR-026: «`UNKNOWN` обязан быть расшифрован по BC, а не числом»).
 
     Без неё `28 unknown` — агрегат из двух разных фактов: «измеритель не видит сервис» (наш дефект)
     против «сервис лежит» (дефект продукта). По BC видно, чей это дефект, без переписки.
@@ -859,7 +859,7 @@ def selftest() -> int:
             print(f"  [FAIL] identity_rc: неверно {bad_irc}")
 
         total += 1
-        # Расшифровка UNKNOWN по BC (ADR-031): «28 неизвестно» — агрегат двух разных фактов,
+        # Расшифровка UNKNOWN по BC (ADR-026): «28 неизвестно» — агрегат двух разных фактов,
         # поэтому квитанция обязана называть BC, а не только число.
         dres = [
             ({"method": "GET", "path": "/a", "operationId": "A", "bc": "Catalog"}, 401, "u"),
@@ -958,7 +958,7 @@ def main() -> int:
     ap.add_argument("--5xx-unknown", action="store_true", dest="five_xx_unknown",
                     help="в --direct считать 5xx снова UNKNOWN (по умолчанию в --direct 5xx = нарушитель: прокси в пути нет)")
     ap.add_argument("--network", default="",
-                    help="сеть контура, если мерили из контейнера (например xdiary); обязательна для --direct (ADR-031)")
+                    help="сеть контура, если мерили из контейнера (например xdiary); обязательна для --direct (ADR-026)")
     ap.add_argument("--images", default="",
                     help="диджесты образов для квитанции: auto (podman inspect) | journal:abc123, catalog:def456")
     ap.add_argument("--service-map", default="",
@@ -1078,7 +1078,7 @@ def main() -> int:
             print(f"   ВХОД: {entry}")
         worst = max(rc_a, rc_c)
         names = {0: "PASS", 1: "FAIL", 2: "НЕ ЗАСЧИТАНО"}
-        # Тождество протокола (ADR-031, перенесено из ADR-026; @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
+        # Тождество протокола (ADR-026, перенесено из ADR-026; @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
         # покрывают ВСЕ операции индекса, кроме `anonymous` (74 + 2 = 76 из 80). Если сумма
         # разойдётся — значит класс операций выпал из обоих условий, и протокол недействителен.
         all_ops = load_ops(args.index)
@@ -1190,11 +1190,11 @@ def main() -> int:
                                resolve_images(args.images, sorted(host_map)), args.network))
             return 2
 
-        # ADR-031 (перенесён из ADR-026): при замере из контейнера `network=` обязателен. Проверяем ДО запросов,
+        # ADR-026 (перенесён из ADR-026): при замере из контейнера `network=` обязателен. Проверяем ДО запросов,
         # иначе получим «измерил, но квитанция недействительна» — wasted run.
         if not args.network:
             print("::error::check_apim_auth: для (ii-b) обязателен `--network <имя сети>` "
-                  "(ADR-031: замер изнутри контура обязан называть сеть); rc=2 UNKNOWN")
+                  "(ADR-026: замер изнутри контура обязан называть сеть); rc=2 UNKNOWN")
             print(receipt_line("ii-b", current_ref(), 0, len(targets), 2, args.where,
                                0, 0, len(targets), "", ""))
             return 2
@@ -1242,7 +1242,7 @@ def main() -> int:
         # а измерение без provenance → трактуем как UNKNOWN (rc=2), а не как PASS.
         if rc == 0 and not args.where:
             print("::error::check_apim_auth: для квитанции (ii-b) обязателен `--where` "
-                  "(ADR-031 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
+                  "(ADR-026 / round-checklist §3.1: без «чем измерено» rc=0 не засчитывается)")
             print(receipt_line("ii-b", current_ref(), passed, len(targets), 2, "", len(violators), len(contracts), len(unknown), images_note, args.network))
             return 2
         print(receipt_line("ii-b", current_ref(), passed, len(targets), rc, args.where, len(violators), len(contracts), len(unknown), images_note, args.network))
