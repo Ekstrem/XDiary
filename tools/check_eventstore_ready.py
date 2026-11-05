@@ -29,13 +29,14 @@ echo "events=$(Q partners "select count(*) from \"Commands\".\"DomainEvents\";")
 echo "partners_read=$(Q partners "select count(*) from partners_read;")"
 echo "records=$(Q journal "select count(*) from records;")"
 echo "journal_read=$(Q journal "select count(*) from journal_read;")"
+echo "journal_read_updated=$(Q journal "select coalesce(max(\"UpdatedAt\")::text,'none') from journal_read;")"
 '''
 
 
 def parse(out):
     facts = {}
     for line in (out or '').splitlines():
-        m = re.match(r'^(schema|history|events|partners_read|records|journal_read)=(\S*)$', line.strip())
+        m = re.match(r'^(schema|history|events|partners_read|records|journal_read|journal_read_updated)=(\S*)$', line.strip())
         if m:
             facts[m.group(1)] = m.group(2)
     return facts
@@ -60,10 +61,21 @@ def verdict(facts):
     p2 = events > 0
     items.append(('(2) Handle исполняется', p2,
                   'строк событий=%d (маркер `[handle] entered` проверяется в логе)' % events))
-    p3 = pread > 0 or jread > 0
+    # @AR 2026-11-05 16:51: «числа непусты» ≠ «проекция работает». На проде read-модель
+    # заполнена ручным ремонтом `repair-2026-11-05-readmodels.sql`. Доказательство (3) —
+    # провенанс: строки read-модели обновлены ПОЗЖЕ ремонта, либо пересборка дала те же числа.
+    # ОГРАНИЧЕНИЕ: `partners_read` не имеет `UpdatedAt`, поэтому по времени он не проверяется
+    # вовсе — для него доказательством может быть только пересборка (способ (а) @AR).
+    updated = facts.get('journal_read_updated', 'none')
+    repaired_at = facts.get('repaired_at')
+    provenance_ok = False
+    if jread > 0 and updated not in ('none', '') and repaired_at:
+        provenance_ok = updated > repaired_at
+    p3 = provenance_ok
     items.append(('(3) представление из проекции', p3,
-                  'partners_read=%d, journal records=%d, journal_read=%d'
-                  % (pread, recs, jread)))
+                  'partners_read=%d (без UpdatedAt — провенанс не проверяем), '
+                  'journal records=%d, journal_read=%d, max UpdatedAt=%s, ремонт=%s'
+                  % (pread, recs, jread, updated, repaired_at or 'не задан')))
 
     if all(ok for _, ok, _ in items):
         return 0, items
@@ -86,21 +98,30 @@ def selftest():
             print('  [FAIL] %s: rc=%d, ждали %d' % (label, rc, want))
         return items
 
-    case('всё выполнено', {'schema': 'yes', 'history': '1', 'events': '5',
-                           'partners_read': '13', 'records': '4', 'journal_read': '4'}, 0)
-    case('схемы нет', {'schema': 'no', 'history': '0', 'events': '0',
-                       'partners_read': '0', 'records': '2481', 'journal_read': '0'}, 2)
-    case('схема есть, событий нет', {'schema': 'yes', 'history': '1', 'events': '0',
-                                     'partners_read': '0', 'records': '0',
-                                     'journal_read': '0'}, 1)
+    # Провенанс (3): строка read-модели должна быть обновлена ПОЗЖЕ ремонта.
+    REP = '2026-11-05'
+    case('всё выполнено (провенанс после ремонта)',
+         {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
+          'records': '4', 'journal_read': '4',
+          'journal_read_updated': '2026-11-06T10:00:00+00:00', 'repaired_at': REP}, 0)
+    case('read непуст, но ВСЁ до ремонта (ручной ремонт)',
+         {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
+          'records': '4', 'journal_read': '4',
+          'journal_read_updated': '2026-11-03T17:03:18+00:00', 'repaired_at': REP}, 2)
+    case('схемы нет', {'schema': 'no', 'history': '0', 'events': '0', 'partners_read': '0',
+                       'records': '2481', 'journal_read': '0', 'repaired_at': REP}, 2)
+    case('схема есть, событий нет',
+         {'schema': 'yes', 'history': '1', 'events': '0', 'partners_read': '0',
+          'records': '0', 'journal_read': '0', 'repaired_at': REP}, 1)
     case('схема есть, события есть, read пуст',
          {'schema': 'yes', 'history': '1', 'events': '3', 'partners_read': '0',
-          'records': '10', 'journal_read': '0'}, 2)
+          'records': '10', 'journal_read': '0', 'repaired_at': REP}, 2)
 
     # текстовый кейс (норма @TL): в выводе обязаны быть числа, а не «None»
     total += 1
     _, items = verdict({'schema': 'no', 'history': '0', 'events': '0',
-                        'partners_read': '0', 'records': '2481', 'journal_read': '0'})
+                        'partners_read': '0', 'records': '2481', 'journal_read': '0',
+                        'repaired_at': '2026-11-05'})
     text = ' | '.join(t for _, _, t in items)
     if 'миграций EventStore=0' in text and 'journal records=2481' in text and 'None' not in text:
         ok += 1
@@ -115,6 +136,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--remote', default='deploy@31.192.111.168')
     ap.add_argument('--key', default='~/.ssh/id_ed25519_xdiary')
+    ap.add_argument('--repaired-at', default='2026-11-05',
+                    help='дата ручного ремонта read-модели: строки с UpdatedAt '
+                         'раньше неё не доказывают проекцию')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
     if a.selftest:
@@ -134,6 +158,7 @@ def main():
         return 2
 
     facts = parse(r.stdout)
+    facts['repaired_at'] = a.repaired_at
     if 'schema' not in facts:
         print('check_eventstore_ready: НЕ ИЗМЕРЕНО — вывод не разобран: %r' % (r.stdout or '')[:160])
         return 2

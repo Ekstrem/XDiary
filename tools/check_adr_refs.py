@@ -30,7 +30,11 @@ VOCAB = ('Черновик', 'Предложено', 'Принято', 'Пере
 # `ADR-031` (`Предложено`) | ADR-031 (**`Принято`**) | ADR-026 (`Пересмотрен 2026-11-05` — действует)
 REF = re.compile(r'ADR\s?-?(\d{3})`?\s*[(\[«]\s*\**`?(' + '|'.join(VOCAB) + r')', re.UNICODE)
 
+# @AR 2026-11-05 16:51: его зона открыта для чтения гейтом. Включается флагом
+# `--include-arch`: на 2026-11-05 в его файлах есть 2 нарушения, и включать их
+# в блокирующий шаг раньше правки значило бы красить main чужой зоной.
 SCAN_DIRS = ('7-deploy', '5-tech-backlog/devops', 'tools')
+ARCH_DIR = ('04-architecture',)
 
 
 def adr_status_map(root):
@@ -48,11 +52,11 @@ def adr_status_map(root):
     return out
 
 
-def scan(root, statuses=None):
+def scan(root, statuses=None, dirs=None):
     """([(файл, строка, adr, заявлено, факт)], проверено_ссылок)."""
     statuses = statuses if statuses is not None else adr_status_map(root)
     problems, refs = [], 0
-    for d in SCAN_DIRS:
+    for d in (dirs or SCAN_DIRS):
         base = os.path.join(root, d)
         if not os.path.isdir(base):
             continue
@@ -117,6 +121,8 @@ def selftest():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--root', '--repo-root', dest='root', default='.')
+    ap.add_argument('--include-arch', action='store_true',
+                    help='сканировать и 04-architecture (зона @AR, открыта для чтения гейтом)')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
     if a.selftest:
@@ -127,7 +133,9 @@ def main():
         print('check_adr_refs: НЕ ИЗМЕРЕНО — нет каталога ADL в %s' % root)
         return 2
 
-    problems, refs = scan(root)
+    dirs = SCAN_DIRS + ARCH_DIR if a.include_arch else SCAN_DIRS
+    problems, refs = scan(root, dirs=dirs)
+    print('check_adr_refs: каталоги: %s' % ', '.join(dirs))
     for rel, no, adr, claimed, fact in problems:
         print('::error::(adr-refs) %s:%d — `ADR-%s` заявлен как `%s`, фактически `%s`'
               % (rel, no, adr, claimed, fact))
