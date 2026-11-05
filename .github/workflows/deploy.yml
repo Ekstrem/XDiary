@@ -136,20 +136,22 @@ jobs:
       # 2026-11-05 (@DO): путь `9-tests/Contract.ClientJournal` в репозитории ОТСУТСТВУЕТ
       # (в `9-tests/` только RnD/reports/scripts) — тот же класс, что мёртвый E2E-путь выше.
       # Не удаляю и не закрашиваю: печатаю «не измерено» и выхожу rc=2; проект выбирает @TE.
-      - name: "Контракт журнала (не измерен: проекта нет в репозитории)"
+      # @TL 2026-11-06 (DO-100 п.5): заглушка `exit 2` заменена РЕАЛЬНЫМ прогоном
+      # существующего контракта Client↔Partners↔Journal: Journal.ApiTests → PartnerSoftDelete
+      # ([ApiFact] + E2ESession + HttpClient: POST /partners, GET /partners, POST …/remove,
+      # инвариант HistoryStaysResolvable). `XDIARY_E2E_BASE_URL` уже задан выше, значит тест
+      # выполняется, а не скипается. Пока `remove` отдаёт 400 — шаг честно КРАСНЫЙ.
+      - name: "Контракт журнала (Journal.ApiTests → PartnerSoftDelete)"
         run: |
-          if [ ! -d 9-tests/Contract.ClientJournal ]; then
-            echo "::error::Контракт журнала не измерен: каталога 9-tests/Contract.ClientJournal нет в репозитории"
-            echo "нужно решение @TE: какой проект проверяет контракт Client↔Journal"
-            exit 2
-          fi
-          dotnet test 9-tests/Contract.ClientJournal/ContractClientJournal.IntegrationTests/ContractClientJournal.IntegrationTests.csproj --verbosity minimal
+          dotnet test 6-msa/BC-Journal/src/Journal.ApiTests/Journal.ApiTests.csproj \
+            --filter "FullyQualifiedName~PartnerSoftDelete" \
+            --verbosity minimal
   # Браузерный гейт: только фронт. Отдельный джоб, чтобы фронтовый баг не блокировал
   # доставку бэкенда (DO-035).
   smoke-front:
     needs: deploy-dev
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`

@@ -48,6 +48,8 @@ jobs:
       # ADR-028 + @TL 2026-11-14 11:11: тесты сервисов переехали в `6-msa/BC-<X>/src/*Tests`,
       # поэтому прежний шаг (`find 9-tests -name '*.IntegrationTests.csproj'`) находил НОЛЬ
       # проектов и тихо проходил. Теперь зона считается по изменённым BC.
+      # DO-100 п.2 (@DO 2026-11-06): пустой список BC раньше валил шаг: `grep` даёт код 1,
+      # `bash -eo pipefail` прерывает присваивание. `|| true` => пустое становится NONE.
       - name: Определить зону (какие BC изменились)
         id: zone
         shell: bash
@@ -77,7 +79,7 @@ jobs:
           else
             # ApiGateway не `BC-*`, но его тесты и код тоже трогаются — зона учитывает и его.
             bcs=$(printf '%s\n' "$changed" | grep -oE '^6-msa/(BC-[A-Za-z0-9]+|ApiGateway(\.Tests)?)' \
-                  | cut -d/ -f2 | sed 's/\.Tests$//' | sort -u | tr '\n' ' ')
+                  | cut -d/ -f2 | sed 's/\.Tests$//' | sort -u | tr '\n' ' ' || true)
             echo "bc_list=${bcs:-NONE}" >> "$GITHUB_OUTPUT"
             echo "зона: ${bcs:-NONE}"
           fi
