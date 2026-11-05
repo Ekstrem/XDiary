@@ -357,59 +357,89 @@ async function seedSession(page) {
 // `Before Hooks` со `status: "timedOut"`, то есть «не дождались», а не «продукт ответил не то».
 // Чтобы следующий прогон сам ответил, ГДЕ время, логируем длительность каждой фазы входа
 // (`::notice::` видно в логе джобы) и при провале входа прикладываем экран/токен/ошибки.
+// TE-057 (@DO 2026-11-06 02:34): прогон дал `18 failed / 8 passed`, падения — `timedOut`
+// в хуках, то есть время входа прямо влияло на результат. Поэтому:
+//   1) быстрый путь: если журнал уже открыт и токен на месте — `reload` и ожидание замка не нужны
+//      (экономит 3–5 с на каждом тесте);
+//   2) если сессию убили на стороне стенда (`401/404` на `/clients/me` или `/journal`), это НЕ дефект
+//      продукта: параллельный прогон мог удалить клиента (`Очистить E2E-данные` убирает `+7999…`).
+//      В этом случае засеваем сессию заново с НОВЫМ телефоном и повторяем вход ОДИН раз;
+//   3) фазы входа печатаются в `::notice::login`, чтобы лог сам отвечал «где время».
 async function loginWithPin(page, pin) {
-  // TE-032: основной путь — seedSession (client-JWT). Локальный PIN остаётся вторым слоем
-  // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
   const t0 = Date.now();
-  await seedSession(page);
-  const tSeed = Date.now() - t0;
   const p = pin || PIN;
-  // TE-036: ставим локальный PIN ВСЕГДА, а не только когда передан аргумент.
-  // Было `if (pin) { setPin(pin) }` — а спеки зовут `loginWithPin(page)` без аргумента,
-  // поэтому PIN не создавался, `unlockIfLocked` вводил 1234 в пустой замок,
-  // `Pin.verifyPin` возвращал false → `showPinError()` → приложение оставалось на `#view-lock`.
-  // Именно это давало `{"view-lock":true,…}` и `hasPinLocal = false`.
-  try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
-  // TE-036 (@TL 20:25): setPin идёт ПОСЛЕ goto('/') из seedSession, поэтому приложение
-  // уже показало #view-lock без PIN, а потом «сломалось» логикой загрузки — отсюда
-  // 90-секундное залипание в #976. Правильный порядок:
-  //   setPin → reload (init() видит PIN корректно) → дождаться ЛЮБОГО из двух состояний
-  //   (#view-lock или #view-journal) → и только потом unlockIfLocked снимает замок.
-  const tPin = Date.now() - t0 - tSeed;
-  await page.reload();
-  const tReload = Date.now() - t0 - tSeed - tPin;
-  await Promise.race([
-    page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
-    page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
-  ]);
-  // TE-036: `seedSession` + локальный PIN = законный замок при загрузке. Спеки, которые
-  // не проверяют сам замок, обязаны его снять, иначе `#view-journal`/`#view-catalog` hidden
-  // 20–90 с. Делаем это здесь, а не в каждом спеке: забыть вызов — типовая ошибка
-  // (именно так падали `catalog`, `csv`, `remove-pin`, `wizard-record`).
-  const tWait = Date.now() - t0 - tSeed - tPin - tReload;
-  try {
-    await unlockIfLocked(page, p);
-    // Вход считается состоявшимся только когда виден журнал: иначе спека уйдёт дальше и упадёт
-    // на «селектор не найден», хотя причина — незавершённый вход.
-    await expectScreen(page, '#view-journal', 'после входа по PIN', UI_WAIT);
-  } catch (e) {
-    const views = await dumpViews(page, 'вход не завершился').catch(() => null);
-    const errs = (page.__xdiaryErrors || []).slice(-6);
-    throw new Error(
-      'Вход не завершился (' + Math.round((Date.now() - t0) / 1000) + ' с: seed ' +
-      Math.round(tSeed / 1000) + ' c, PIN ' + Math.round(tPin / 1000) + ' c, reload ' +
-      Math.round(tReload / 1000) + ' c, ожидание ' + Math.round(tWait / 1000) + ' c). ' +
-      'views=' + JSON.stringify(views) + ' ошибки=' + JSON.stringify(errs) + ' причина=' +
-      String((e && e.message) || e).slice(0, 300)
-    );
+  const phases = { seedMs: 0, pinMs: 0, reloadMs: 0, waitMs: 0, retries: 0, fastPath: false };
+
+  // Быстрый путь: сессия уже жива и журнал открыт.
+  const journalOpen = await page.locator('#view-journal').isVisible().catch(() => false);
+  const tokenAlive = await page
+    .evaluate((k) => !!localStorage.getItem(k), ACCESS_KEY)
+    .catch(() => false);
+  if (journalOpen && tokenAlive) {
+    phases.fastPath = true;
+    console.log('::notice::' + JSON.stringify({ title: 'login', elapsedMs: Date.now() - t0, fastPath: true }));
+    return;
   }
+
+  const seed = async () => {
+    const t = Date.now();
+    await seedSession(page);
+    phases.seedMs += Date.now() - t;
+  };
+
+  const unlock = async () => {
+    const t = Date.now();
+    // TE-036: локальный PIN ставим ВСЕГДА (спеки зовут `loginWithPin(page)` без аргумента),
+    // затем reload → init() видит PIN корректно → снимаем замок.
+    try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+    phases.pinMs += Date.now() - t;
+    const t2 = Date.now();
+    await page.reload();
+    phases.reloadMs += Date.now() - t2;
+    const t3 = Date.now();
+    await Promise.race([
+      page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+      page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+    ]);
+    await unlockIfLocked(page, p);
+    await expectScreen(page, '#view-journal', 'после входа по PIN', UI_WAIT);
+    phases.waitMs += Date.now() - t3;
+  };
+
+  try {
+    await seed();
+    await unlock();
+  } catch (e) {
+    const errs = (page.__xdiaryErrors || []).slice(-8);
+    const killed = errs.some((x) => /http (401|404)/.test(x) && /clients\/me|journal/.test(x));
+    if (!killed || phases.retries > 0) {
+      const views = await dumpViews(page, 'вход не завершился').catch(() => null);
+      throw new Error(
+        'Вход не завершился (' + Math.round((Date.now() - t0) / 1000) + ' с: seed ' +
+        Math.round(phases.seedMs / 1000) + ' c, PIN ' + Math.round(phases.pinMs / 1000) +
+        ' c, reload ' + Math.round(phases.reloadMs / 1000) + ' c, ожидание ' +
+        Math.round(phases.waitMs / 1000) + ' c, повторов ' + phases.retries + '). ' +
+        'views=' + JSON.stringify(views) + ' ошибки=' + JSON.stringify(errs) +
+        ' причина=' + String((e && e.message) || e).slice(0, 300)
+      );
+    }
+    phases.retries += 1;
+    console.log('::warning::' + JSON.stringify({
+      title: 'login: сессия потеряна, повтор с новым телефоном',
+      reason: errs.filter((x) => /http (401|404)/.test(x)).slice(-2),
+    }));
+    await seed();
+    await unlock();
+  }
+
   console.log('::notice::' + JSON.stringify({
     title: 'login',
     elapsedMs: Date.now() - t0,
-    seedMs: tSeed,
-    pinMs: tPin,
-    reloadMs: tReload,
-    waitMs: tWait,
+    seedMs: phases.seedMs,
+    pinMs: phases.pinMs,
+    reloadMs: phases.reloadMs,
+    waitMs: phases.waitMs,
+    retries: phases.retries,
   }));
 }
 
