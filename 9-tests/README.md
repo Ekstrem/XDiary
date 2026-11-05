@@ -165,8 +165,10 @@ network=НЕ УКАЗАНО | tool=9-tests/scripts/check_apim_auth.py@e77f5c571b
 ## Остальные приёмочные гейты (мои, в `9-tests/scripts/`)
 
 Все — без сети и браузера, у каждого `--selftest` с красным контролем на **каждом** критерии
-(правило: новый критерий = новый кейс в том же коммите). Подключены в CI (`ci-guards.yml`), кроме
-`check_adr028_move`/`check_front_specs_base` (они — вспомогательные для ревью, не гейты).
+(правило: новый критерий = новый кейс в том же коммите). В CI (`.github/workflows/ci-guards.yml`)
+подключены `check_front_readpath` и `check_front_specs_base` (проверено по файлу, REF `5a349f99`);
+`check_adr028_move` — **не подключён** (вспомогательный для ревью, не гейт), `check_read_paths` и
+`accept_read_path` — подключение за @DO.
 
 ```bash
 python 9-tests/scripts/check_read_paths.py --selftest      # 9/9
