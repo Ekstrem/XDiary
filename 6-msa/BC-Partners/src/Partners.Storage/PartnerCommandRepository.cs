@@ -1,4 +1,5 @@
 namespace Partners.Storage;
+using System.Text.Json;
 using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,18 @@ public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAn
     {
         // BE-073 диагностика (@TL 15:02): null-событие = причина «200 без схемы».
         Console.WriteLine($"[Save] event={(result.Event is null ? "<null>" : result.Event.Id.ToString())}");
+        // BE-059: persist события в outbox (backstop «хотя бы один раз») + текущая доставка.
+        if (result.Event is not null)
+        {
+            _db.Outbox.Add(new OutboxMessage
+            {
+                Id = result.Event.Id,
+                EventType = "Partners",
+                Payload = JsonSerializer.Serialize(result.Event.ChangedValueObjects),
+                CreatedAt = DateTime.UtcNow,
+            });
+            await _db.SaveChangesAsync(ct);
+        }
         // E1: command-path пишет событием (Partners по тому же конвейеру, что Journal).
         await _bus.PublishAsync(result.Event);
     }
