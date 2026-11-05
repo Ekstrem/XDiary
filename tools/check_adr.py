@@ -170,7 +170,9 @@ def iter_adrs(adr_dir):
             yield name, os.path.join(adr_dir, name)
 
 
-CUTOFF_DEFAULT = "2026-11-08"   # ADR, созданные раньше, грандфазерятся (warning, не error)
+# @AR 2026-11-05 20:40: граница грандфазеринга = 2026-11-05 (раньше стояла 2026-11-08 —
+# дата в будущем относительно дат коммитов, из-за чего гейт проверял 0 документов).
+CUTOFF_DEFAULT = "2026-11-05"   # ADR, созданные раньше, грандфазерятся (warning, не error)
 
 
 def parse_creation_log(text):
