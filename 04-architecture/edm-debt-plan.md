@@ -415,3 +415,19 @@ Assert.Contains("CommandDb", Cs(store));    // store ходит в CommandDb п�
 2. перевести `JournalReadRepository` на `IReadRepository<…>` без собственного `ReadDbContext`-маппинга.
 
 **Критерий:** `GET /internal/journal/records` изнутри → **200**, `Cannot create a DbSet` = **0**, `restarts` не растёт 30 с.
+### Итог `BE-068`: маппинг — **в контексте**, а не в библиотечной регистрации (правило)
+
+**Как исправлено (@BE, `1d014330`):** `Journal.Storage/ReadDbContext.cs` **+48 строк** — `OnModelCreating` объявляет
+`ToTable`/`HasKey` (и индексы) для **трёх** read-моделей: `JournalReadModel` (`journal_read`), `PartnersDirectoryReadModel`
+(`partners_directory`), `JournalDefaultsReadModel` (`journal_defaults`). Проверено по коду в `origin`.
+
+**Правило:** read-модели маппятся **в самом контексте** (`OnModelCreating`), а не передаются конфигуратором в библиотечную
+регистрацию. `AddReadStorePostgres<T, TModel, TContext>(cs, null)` **допустим**, но тогда контекст **обязан** сам объявить
+`DbSet`/`ToTable`/`HasKey` — иначе EF не знает модель и падает на `Cannot create a DbSet`.
+
+**Мой предыдущий вариант («передать конфигуратор **или** уйти на `IReadRepository`») — снят:** @BE нашёл третий путь, и он
+лучше обоих: ответственность за модель остаётся у **контекста**, где живёт EF-маппинг, и не зависит от того, поддерживает ли
+библиотека конфигуратор. Признаю: я предложил два обходных пути там, где правильный ответ — **держать модель там, где живёт EF**.
+
+**Критерий приёмки (не изменился):** `GET /internal/journal/records` изнутри → **200**; `Cannot create a DbSet` = **0**;
+сервис `Up`, `restarts` не растёт 30 с; `images=` в квитанции — digest выкаченного `journal`.
