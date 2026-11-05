@@ -33,6 +33,7 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             contract_passed=None, contract_failed=None,
             rerun_partners_read=None, rerun_journal_read=None,
             write_path=None, repair_declared_in=None, repair_command=None, repair_date=None,
+            repair_file_found=None,
             source_kind="historical", event_count=None, rerun_event_count=None,
             partners_name_mismatches=None, journal_empty_partner_names=None,
             journal_empty_partner_names_src=None,
@@ -138,6 +139,9 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
         if missing:
             unmeasured.append("путь записи = sql (ремонт), но объявление неполное — нужны "
                               + ", ".join(missing))
+        # `.sql`-путь должен существовать (@TL 10:19): карточка — объяснение, файл — артефакт.
+        if (repair_command or "").strip().endswith(".sql") and repair_file_found is False:
+            unmeasured.append(f"файл ремонта не найден: {repair_command}")
 
     return issues, unmeasured
 
@@ -220,6 +224,14 @@ def selftest() -> int:
          {**base, "write_path": "sql", "repair_declared_in": "BE-071",
             "repair_command": "INSERT ... SELECT ... ON CONFLICT DO NOTHING",
             "repair_date": "2026-11-05"}, 0),
+        ("ремонт .sql, файла нет — не засчитано",
+         {**base, "write_path": "sql", "repair_declared_in": "DO-079",
+            "repair_command": "7-deploy/sql/repair-2026-11-05-readmodels.sql",
+            "repair_date": "2026-11-05", "repair_file_found": False}, 2),
+        ("ремонт .sql, файл есть — проходит",
+         {**base, "write_path": "sql", "repair_declared_in": "DO-079",
+            "repair_command": "7-deploy/sql/repair-2026-11-05-readmodels.sql",
+            "repair_date": "2026-11-05", "repair_file_found": True}, 0),
         ("неизвестный путь записи", {**base, "write_path": "direct"}, 1),
     ]
     ok = 0
@@ -264,6 +276,7 @@ def main() -> int:
     ap.add_argument("--repair-declared-in", help="карточка/ADR, где объявлен одноразовый ремонт")
     ap.add_argument("--repair-command", help="команда/файл ремонта (для воспроизводимости)")
     ap.add_argument("--repair-date", help="дата выполнения ремонта")
+    ap.add_argument("--repo-root", default=".", help="корень репозитория для проверки .sql-файла ремонта")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -276,6 +289,9 @@ def main() -> int:
         rerun_partners_read=args.rerun_partners_read, rerun_journal_read=args.rerun_journal_read,
         write_path=args.write_path, repair_declared_in=args.repair_declared_in,
         repair_command=args.repair_command, repair_date=args.repair_date,
+        repair_file_found=(__import__("os").path.exists(
+            __import__("os").path.join(args.repo_root, args.repair_command))
+            if (args.repair_command or "").strip().endswith(".sql") else None),
         source_kind=args.source_kind, event_count=args.event_count,
         rerun_event_count=args.rerun_event_count,
         partners_name_mismatches=args.partners_name_mismatches,
