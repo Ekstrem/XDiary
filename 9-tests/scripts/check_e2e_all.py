@@ -48,6 +48,7 @@ GATES = (
     ("check_e2e_api_contract.py", "эндпоинты спек есть в api-index.yaml"),
     ("check_e2e_globalsetup_behaviour.py", "global-setup проверяется поведением, не текстом"),
     ("check_e2e_prod_guard.py", "предохранитель DO-017: E2E только против dev"),
+    ("check_e2e_local_stack.py", "локальный стек: serve.js и репортёр notice.js"),
     ("check_e2e_local_parity.py", "локальный конфиг не разъезжается с CI"),
     ("check_e2e_diagnostics.py", "каждая спека оставляет след для разбора упавшего прогона"),
     ("check_e2e_assertion_strength.py", "утверждения проверяют поведение, а не «что-то истинное»"),
