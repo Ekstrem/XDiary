@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.90"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.91"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1880,6 +1880,59 @@
 
   function openTrends() { showView("trends"); renderTrends(); }
 
+  // FE-040: индикатор для тяжёлых операций. Появляется только если операция длится > 300 мс
+  // (быстрые ответы не «мигают»), на > 3 c переключается на «дольше обычного» + «Повторить».
+  // Не блокирует интерфейс: баннер внизу, pointer-events только у кнопки.
+  var busyState = null;
+  function busyStart(label, retry) {
+    if (busyState) busyStop();
+    var el = document.createElement("div");
+    el.className = "busy-banner";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    el.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:60;padding:10px 12px;" +
+      "border-radius:12px;background:#1f2430;color:#fff;font:14px/1.3 system-ui,sans-serif;" +
+      "box-shadow:0 6px 24px rgba(0,0,0,.35);display:none;pointer-events:none;";
+    var text = document.createElement("span");
+    text.textContent = label + "…";
+    el.appendChild(text);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "Повторить";
+    btn.style.cssText = "display:none;margin-left:10px;pointer-events:auto;border:0;border-radius:8px;" +
+      "padding:6px 10px;background:#3b82f6;color:#fff;font:inherit;cursor:pointer;";
+    el.appendChild(btn);
+    document.body.appendChild(el);
+    var showTimer = setTimeout(function () { el.style.display = "block"; }, 300);
+    var slowTimer = setTimeout(function () {
+      el.style.display = "block";
+      text.textContent = label + ": дольше обычного";
+      if (retry) {
+        btn.style.display = "inline-block";
+        btn.addEventListener("click", function () { busyStop(); retry(); });
+      }
+    }, 3000);
+    busyState = { el: el, showTimer: showTimer, slowTimer: slowTimer };
+    return busyState;
+  }
+  function busyStop() {
+    if (!busyState) return;
+    clearTimeout(busyState.showTimer);
+    clearTimeout(busyState.slowTimer);
+    if (busyState.el.parentNode) busyState.el.parentNode.removeChild(busyState.el);
+    busyState = null;
+  }
+  function busyRun(label, task, retry) {
+    busyStart(label, retry);
+    return Promise.resolve().then(task).then(function (v) {
+      busyStop();
+      return v;
+    }, function (e) {
+      busyStop();
+      throw e;
+    });
+  }
+
   function renderTrends() {
     var isCorr = trendTab === "corr";
     $("trend-trends").classList.toggle("hidden", isCorr);
@@ -1912,7 +1965,9 @@
     var SERVER_FIELD = { stress: "stress", resting_hr: "restingHr", sleep: "sleepScore", hrv: "hrv" };
     var sf = SERVER_FIELD[trendMetric];
 
-    Api.daily.series(dayKey(-90), dayKey(0)).then(function (items) {
+    busyRun("Считаем тренды", function () {
+      return Api.daily.series(dayKey(-90), dayKey(0));
+    }, renderTrends).then(function (items) {
       items = (items || []).slice().sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; });
 
       if (trendMetric === "sleep") {
@@ -2133,7 +2188,7 @@
   }
 
   function downloadCsv() {
-    DB.getAllRecords().then(function (records) {
+    busyRun("Готовим CSV", function () { return DB.getAllRecords(); }, downloadCsv).then(function (records) {
       var csv = "\uFEFF" + recordsToCsv(records);
       var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       var url = URL.createObjectURL(blob);
@@ -2145,6 +2200,9 @@
       a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
       toast("Экспортировано в CSV");
+    }).catch(function (e) {
+      // FE-040: раньше ошибка выгрузки терялась молча — спиннер висел бы бесконечно
+      toast("Не удалось выгрузить: " + (e && e.message ? e.message : "ошибка"));
     });
   }
 
