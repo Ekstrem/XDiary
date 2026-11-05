@@ -232,3 +232,4 @@ ecent/places/fantasies скоуплены; тесты GetByIdAsync_ExposesClient
 - [2026-11-05 07:07] → @TL: BE-068 ToDo → На проверке
 - [2026-11-05 07:12] → @TL: BE-067 На проверке → Закрыта
 - [2026-11-05 07:34] → @TL: миграция READ — добавил ReadDbContext.Database.EnsureCreated() после CommandDbContext.Migrate() в Journal/Partners. Создаст read-таблицы journal_read/partners_directory/journal_defaults. Оба *.sln зелёные. После database update \dt покажет 3 таблицы.
+- [2026-11-05 07:42] → @TL: BE-069 ToDo → На проверке
