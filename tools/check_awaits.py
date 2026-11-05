@@ -67,6 +67,22 @@ def parse_awaits(path):
     return rows
 
 
+def bad_stamps(path):
+    """[(stamp, line_no)] — метки с часом вне 0..23 (дефект данных генератора)."""
+    out = []
+    if not os.path.exists(path):
+        return out
+    for n, line in enumerate(open(path, encoding='utf-8').read().splitlines(), 1):
+        if not line.strip().startswith('|'):
+            continue
+        m = STAMP.search(line)
+        if not m:
+            continue
+        if int(m.group(1).split()[1].split(':')[0]) > 23:
+            out.append((m.group(1), n))
+    return out
+
+
 def chat_accepts(root, role, after):
     """Есть ли в chat/<role>.md сообщение после `after` со словом принятия."""
     path = os.path.join(root, "5-tech-backlog", "chat", role + ".md")
@@ -201,11 +217,14 @@ def main():
     if not rows:
         print("check_awaits: AWAIT.md нет или таблица пуста — висящих решений 0")
         return 0
+    bad = bad_stamps(os.path.join(root, AWAIT))
+    for stamp, n in bad:
+        print("::error::AWAIT.md:%d — метка вне диапазона (час>23): %s" % (n, stamp))
     for role, what, stamp in hanging:
         print("::warning::висит: @%s — «%s» (выдано %s, подтверждения нет)" % (role, what, stamp))
     print("check_awaits: решений в AWAIT.md %d (закрыто по статусу %d), висит %d"
           % (len(rows), done_rows, len(hanging)))
-    if a.strict and hanging:
+    if a.strict and (hanging or bad):
         return 1
     return 0
 
