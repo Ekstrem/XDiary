@@ -166,6 +166,11 @@ def main():
     rc, items = verdict(facts)
     for name, okay, text in items:
         print('  [%s] %s — %s' % ('OK  ' if okay else 'НЕТ ', name, text))
+    if not items[2][1]:
+        print('  примечание: непустая read-модель НЕ доказывает проекцию, если '
+              'max(UpdatedAt) строк раньше ремонта (%s) — это может быть ручной ремонт '
+              '(repair-2026-11-05-readmodels.sql), а не работа проекции'
+              % (facts.get('repaired_at') or 'не задан'))
     print('check_eventstore_ready: предпосылки §5 %s'
           % ('выполнены' if rc == 0 else ('противоречие' if rc == 1 else 'НЕ ВЫПОЛНЕНЫ')))
     return rc
