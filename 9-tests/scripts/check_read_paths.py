@@ -104,6 +104,15 @@ def check(md: str, operations: dict) -> list:
         mentioned = op_id in section or any(c in section for c in calls)
         if not mentioned:
             problems.append(f"индекс → §2: MV `{op_id}` читается фронтом, но не назван в §2 read-paths.md")
+
+    # C. покрытие: каждый вызов `Api.*.*()` в §2 обязан быть в SOURCES.
+    #    Иначе новая строка реестра молча выпадает из сверки, и гейт остаётся зелёным
+    #    ровно на том, что должен ловить («контроль, который не может провалиться»).
+    declared = {call for call, _ in SOURCES}
+    in_registry = set(re.findall(r"`(Api\.[A-Za-z]+\.[A-Za-z]+\(\))`", section))
+    for call in sorted(in_registry - declared):
+        problems.append(f"покрытие: `{call}` есть в §2, но нет в таблице SOURCES — "
+                        f"этот источник не сверяется с api-index.yaml (добавь строку в SOURCES)")
     return problems
 
 
@@ -181,6 +190,12 @@ def selftest() -> int:
     ops_no_places = dict(GOOD_OPS)
     ops_no_places.pop("Journal.Places")
     cases.append(("MV отсутствует в индексе → rc=1", GOOD_MD, ops_no_places, 1))
+    # источник в §2, которого нет в SOURCES → сверка его «молча» не покрывает (направление C)
+    md_new_source = GOOD_MD.replace(
+        "| Профиль | свой профиль | `Api.clients.me()` |",
+        "| Профиль | свой профиль | `Api.clients.me()` |\n| Фантазии | список | `Api.journal.fantasies()` |",
+    )
+    cases.append(("источник вне SOURCES → rc=1", md_new_source, dict(GOOD_OPS), 1))
 
     ok = 0
     for name, md, ops, want in cases:
