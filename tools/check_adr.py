@@ -15,6 +15,7 @@
 КОПИЯ в проекте: источник правды — LoopMaker/tools/check_adr.py.
 """
 import argparse
+import io
 import datetime
 import os
 import re
@@ -405,6 +406,32 @@ def selftest():
         print("  [%s] старые пропущены -> rc=%d" % ("OK " if rc == 0 else "FAIL", rc))
         ok = ok and rc == 0
     shutil.rmtree(tmp, ignore_errors=True)
+
+    # Текст ПРЕДУПРЕЖДЕНИЯ о 0 проверенных (@TL 2026-11-05 15:34): подкласс «гейт считает верно,
+    # а текст врёт». Ровно так я напечатал «граница None», взяв args.cutoff вместо вычисленного.
+    # Теперь это ловится автоматически: в тексте должна быть ВЫЧИСЛЕННАЯ граница, а не None.
+    tmp2 = os.path.join(os.getcwd(), ".tmp-check-adr-empty")
+    shutil.rmtree(tmp2, ignore_errors=True)
+    os.makedirs(tmp2, exist_ok=True)
+    open(os.path.join(tmp2, "adr-997-old.md"), "w", encoding="utf-8", newline="\n").write(BAD)
+    saved_argv = sys.argv
+    sys.argv = ["check_adr.py", "--dir", tmp2, "--cutoff", "2099-01-01"]
+    buf = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = buf
+    try:
+        rc_empty = main()
+    finally:
+        sys.stdout = old_stdout
+        sys.argv = saved_argv
+    text = buf.getvalue()
+    has_date = "граница 2099-01-01" in text
+    no_none = "None" not in text
+    print("  [%s] текст при 0 ADR: граница вычислена=%s, без None=%s, rc=%d"
+          % ("OK " if has_date and no_none and rc_empty == 0 else "FAIL",
+             has_date, no_none, rc_empty))
+    ok = ok and has_date and no_none and rc_empty == 0
+    shutil.rmtree(tmp2, ignore_errors=True)
 
     # Текст сообщения — отдельная проверка (@TL 11:05): гейт может быть прав, а ТЕКСТ врать.
     # Раньше здесь печаталось «создан до None» при default --cutoff.
