@@ -306,6 +306,54 @@ def identity_ok(protected: int, violators: int, contracts: int, unknown: int, to
     """
     return protected + violators + contracts + unknown == total
 
+def identity_rc(rc: int, passed: int, violators: int, contracts: int, unknown: int, total: int) -> int:
+    """Тождество на **основном пути** (`@DO 02:37`): если `N+V+C+U != total`, квитанция недействительна.
+
+    Раньше `identity_ok()` вызывался только в `--selftest`, поэтому прогон с `сумма=41/76` уходил как
+    `rc=1` — то есть защита существовала, но не срабатывала. `rc=2` уже недействителен, его не трогаем.
+    """
+    if rc in (0, 1) and not identity_ok(passed, violators, contracts, unknown, total):
+        return 2
+    return rc
+
+
+def classify_code(code: int | None, five_xx_unknown: bool) -> str:
+    """Класс одного ответа — единственный источник правды для `verdict` и `breakdown_by_bc`."""
+    if code is None:
+        return "unknown"
+    if code in (401, 403):
+        return "protected"
+    if code in (404, 405):
+        return "contract"
+    if code in (502, 503, 504) and five_xx_unknown:
+        return "unknown"
+    return "violator"
+
+
+def breakdown_by_bc(results, five_xx_unknown: bool) -> dict:
+    """Расшифровка по BC (ADR-026: «`UNKNOWN` обязан быть расшифрован по BC, а не числом»).
+
+    Без неё `28 unknown` — агрегат из двух разных фактов: «измеритель не видит сервис» (наш дефект)
+    против «сервис лежит» (дефект продукта). По BC видно, чей это дефект, без переписки.
+    """
+    out: dict = {}
+    for op, code, _url in results:
+        bc = str(op.get("bc"))
+        row = out.setdefault(bc, {"protected": 0, "violator": 0, "contract": 0, "unknown": 0})
+        row[classify_code(code, five_xx_unknown)] += 1
+    return out
+
+
+def breakdown_line(table: dict) -> str:
+    """Компактная строка для лога: только ненулевые классы, по BC."""
+    parts = []
+    for cls in ("violator", "contract", "unknown"):
+        items = [f"{bc}:{row[cls]}" for bc, row in sorted(table.items()) if row[cls]]
+        if items:
+            parts.append(f"{cls} = " + ", ".join(items))
+    return " | ".join(parts) if parts else "нарушителей/contract/unknown нет"
+
+
 def selftest() -> int:
     """Доказательство, что проверка краснеет на открытой операции и зеленеет на 401.
 
@@ -525,6 +573,48 @@ def selftest() -> int:
         else:
             print(f"  [FAIL] network= в квитанции: {with_net!r} / {no_net!r}")
 
+        total += 1
+        # Тождество на ОСНОВНОМ пути (@DO `02:37`): пока `identity_ok` вызывался только в selftest,
+        # прогон с `сумма=41/76` уходил как `rc=1`. `identity_rc` обязан превратить это в `rc=2`.
+        irc = [
+            ((1, 0, 8, 0, 33, 76), 2, "сумма 41/76 -> недействительна"),
+            ((1, 40, 8, 0, 28, 76), 1, "сумма 76/76 -> rc сохраняется"),
+            ((0, 76, 0, 0, 0, 76), 0, "всё защищено -> PASS"),
+            ((2, 0, 0, 0, 76, 76), 2, "rc=2 не пересчитывается"),
+        ]
+        bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
+        if not bad_irc:
+            ok += 1
+        else:
+            print(f"  [FAIL] identity_rc: неверно {bad_irc}")
+
+        total += 1
+        # Расшифровка UNKNOWN по BC (ADR-026): «28 неизвестно» — агрегат двух разных фактов,
+        # поэтому квитанция обязана называть BC, а не только число.
+        dres = [
+            ({"method": "GET", "path": "/a", "operationId": "A", "bc": "Catalog"}, 401, "u"),
+            ({"method": "GET", "path": "/b", "operationId": "B", "bc": "Catalog"}, 403, "u"),
+            ({"method": "GET", "path": "/c", "operationId": "C", "bc": "Journal"}, None, "u"),
+            ({"method": "GET", "path": "/d", "operationId": "D", "bc": "Partners"}, None, "u"),
+            ({"method": "GET", "path": "/e", "operationId": "E", "bc": "Analytics"}, 200, "u"),
+            ({"method": "GET", "path": "/f", "operationId": "F", "bc": "Privacy"}, 404, "u"),
+        ]
+        table = breakdown_by_bc(dres, five_xx_unknown=False)
+        line_txt = breakdown_line(table)
+        want_table = {
+            "Catalog": {"protected": 2, "violator": 0, "contract": 0, "unknown": 0},
+            "Journal": {"protected": 0, "violator": 0, "contract": 0, "unknown": 1},
+            "Partners": {"protected": 0, "violator": 0, "contract": 0, "unknown": 1},
+            "Analytics": {"protected": 0, "violator": 1, "contract": 0, "unknown": 0},
+            "Privacy": {"protected": 0, "violator": 0, "contract": 1, "unknown": 0},
+        }
+        if (table == want_table and "violator = Analytics:1" in line_txt
+                and "contract = Privacy:1" in line_txt
+                and "unknown = Journal:1, Partners:1" in line_txt):
+            ok += 1
+        else:
+            print(f"  [FAIL] расшифровка по BC: {table} / {line_txt!r}")
+
         bad_ident = [t for (args, want, t) in ident if identity_ok(*args) != want]
         if not bad_ident:
             ok += 1
@@ -638,6 +728,9 @@ def main() -> int:
                 results.append((op, code, got))
         violators, contracts, unknown, protected_count = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
         passed = protected_count
+        rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
+        print("   расшифровка по BC: " + breakdown_line(breakdown_by_bc(
+            results, args.five_xx_unknown if args.direct else True)))
         rc = final_rc(violators, contracts, unknown, passed, len(targets))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
         # в логе не видно, какие именно `метод+путь+bc` не измерены (@TL `00:16` п.3).
@@ -693,9 +786,14 @@ def main() -> int:
     results = [(op, *check_one(args.base, op)) for op in targets]
     violators, contracts, unknown, protected_count = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
     passed = protected_count
+    if not args.json:
+        print("   расшифровка по BC: " + breakdown_line(breakdown_by_bc(
+            results, args.five_xx_unknown if args.direct else True)))
     # `@DO 2026-11-05 01:17`: `--base` на пустом порту давал `PASS 0/76` и `rc=0` — «зелено на
     # пустоте». Единое правило: нет ни одного реального ответа → `rc=2` (UNKNOWN), не успех.
     rc = final_rc(violators, contracts, unknown, passed, len(targets))
+    # Тождество на основном пути (`@DO` `02:37`): расхождение суммы делает квитанцию недействительной.
+    rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
 
     if args.json:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
