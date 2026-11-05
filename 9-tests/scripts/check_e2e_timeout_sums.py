@@ -52,6 +52,32 @@ def evaluate(specs, limit_sec):
     return issues, stats
 
 
+def plan_for_spec(text, limit_sec, target_ratio=0.8):
+    """[(было_с, стало_с, сколько_раз)] — минимальный набор сокращений, чтобы уложиться в цель.
+
+    Режем САМЫЕ БОЛЬШИЕ объявленные ожидания первыми и не ниже 10 с: меньше на локальных
+    переходах рискованно (может добавить флейк), поэтому下限 — 10 с.
+    """
+    vals = sorted((int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(text)), reverse=True)
+    target = limit_sec * target_ratio
+    total = sum(vals)
+    changes = []
+    for value in vals:
+        if total <= target or value <= 10:
+            continue
+        new_value = 10.0
+        saved = value - new_value
+        if total - saved < target:
+            # частичное сокращение: ровно до цели, с шагом 5 с
+            need = total - target
+            new_value = max(10.0, value - (int(need) // 5 + 1) * 5)
+            saved = value - new_value
+        total -= saved
+        if saved > 0:
+            changes.append((value, new_value, 1))
+    return changes, round(total, 1), round(target, 1)
+
+
 def receipt_line(stats, issues):
     return (f"квитанция: спек {stats['specs']} | лимит теста {stats['limit']:.0f} с | "
             f"превышений {stats['over']} | максимум {stats['max']:.0f} с "
@@ -62,6 +88,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--plan", action="store_true",
+                    help="показать план сокращений ожиданий (ничего не меняет)")
     ap.add_argument("--strict", action="store_true",
                     help="превышение — ошибка (rc=1); без флага — ::warning::")
     a = ap.parse_args(argv)
@@ -80,6 +108,19 @@ def main(argv=None):
     except OSError as e:
         print(f"::error::check_e2e_timeout_sums: не читается вход: {e} — не измерено (rc=2)")
         return 2
+    if a.plan:
+        print(f"  лимит теста {limit:.0f} с, цель 80% = {limit * 0.8:.0f} с")
+        for name, text in sorted(specs.items()):
+            total = round(sum(int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(text)), 1)
+            if total <= limit:
+                continue
+            changes, after, target = plan_for_spec(text, limit)
+            note = "" if after <= target else "  ← ниже 10 с не режем, цель не достигается"
+            print(f"  {name}: {total:.0f} с → {after:.0f} с (цель {target:.0f} с){note}")
+            for was, now, times in changes:
+                print(f"      {was:.0f} с → {now:.0f} с ×{times}")
+        return 0
+
     issues, stats = evaluate(specs, limit)
     marker = "::error::" if a.strict else "::warning::"
     for m in issues:
@@ -113,6 +154,22 @@ def selftest():
          ["превышений 1"])
     case("граница ровно в лимит",
          {"c.spec.js": "{ timeout: 45000 } { timeout: 45000 }"}, 90, True, 0, ["превышений 0"])
+
+    # план сокращений: три по 30 с → цель 72 с ⇒ режем до достижения цели
+    total += 1
+    changes, after, target = plan_for_spec("{ timeout: 30000 } { timeout: 30000 } { timeout: 30000 }", 90)
+    if after <= target and changes and all(now >= 10 for _was, now, _n in changes):
+        ok += 1
+    else:
+        print(f"  [FAIL] план: after={after}, target={target}, changes={changes}")
+
+    # ожидания меньше 10 с не трогаем
+    total += 1
+    changes2, after2, _t2 = plan_for_spec("{ timeout: 5000 } { timeout: 5000 }", 10)
+    if not changes2 and after2 == 10:
+        ok += 1
+    else:
+        print(f"  [FAIL] мелкие ожидания не должны резаться: {changes2}, after={after2}")
 
     total += 1
     line = receipt_line({"specs": 2, "limit": 90.0, "over": 0, "max": 45.0, "max_spec": "a.spec.js"}, [])
