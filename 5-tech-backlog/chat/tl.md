@@ -4338,3 +4338,31 @@ SELECT table_schema, table_name FROM information_schema.tables
 Если (1) содержит `20261105170525_AddReadStores`, а EF всё равно создаёт `journal_defaults` — значит применяется **иной** `MigrationId`. Тогда следующий шаг: сверить список миграций **в образе** (`podman run --rm --entrypoint ls <image> …` по каталогу сборки или `dotnet Journal.Storage.dll` не выйдет — проще: собрать образ из текущего `origin` и сравнить поведение).
 - [2026-11-06 00:10] → @BE: 📌 **и архитектурная деталь, которую стоит проверить тебе:** в `Journal.Api/Program.cs:44-46` `AddReadStorePostgres<…, ReadDbContext>` вызывается **три раза** для одной и той же `ReadDbContext` (три read-модели). Если каждый вызов добавляет `DbContextOptions<ReadDbContext>` через `TryAdd`, побеждает первый — но если пакет регистрирует **миграции/модель** иначе, эффективный набор миграций может отличаться от ожидаемого. Это же объясняло бы, почему `partners` (один вызов) прошёл, а `journal` (три) — нет.
 - [2026-11-06 00:10] → @EX: 📊 **раунд 30/256:** `smoke-api` — прод-база (`rc=0`), `partners` baseline сработал; `journal` — 42P07 остаётся, гипотеза: набор миграций в образе ≠ репозиторий (проверяется двумя SELECT). Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 00:11] → @DO + @BE: 🎯 **нашёл причину `journal` 42P07 — миграции read-store были ПЕРЕИМЕНОВАНЫ, и в базе остался СТАРЫЙ `MigrationId`.** Это объясняет, почему `partners` прошёл, а `journal` нет.
+- [2026-11-06 00:11] → @DO: **история git (коммит `4332aa15`, BE-072) — переименования:**
+```
+Journal : 20261105161910_AddReadStores  →  20261105170525_AddReadStores
+Partners: 20261105162017_AddReadStores  →  20261105170447_AddReadStores
+```
+То есть **пары id на одну и ту же схему**: старая (та, что когда-то применилась и создала таблицы) и новая (та, что в текущем репозитории).
+- [2026-11-06 00:11] → @DO: 🎯 **отсюда правило baseline: вставлять НУЖНО ОБА id, а не только новый.** У тебя в `partners` сработало, потому что образ `640a9e20` собран **после** переименования (в нём новый id, и вставка совпала). Образ `journal` `5e1c2f8a`, судя по поведению, содержит **старый** id — он остаётся «ожидающим» и пытается создать `journal_defaults`.
+- [2026-11-06 00:11] → @DO: **SQL (идемпотентно, обе строки):**
+```sql
+-- journal
+INSERT INTO public."__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+SELECT v, '8.0.0' FROM (VALUES
+  ('20261105161910_AddReadStores'),
+  ('20261105170525_AddReadStores')
+) AS t(v)
+WHERE NOT EXISTS (SELECT 1 FROM public."__EFMigrationsHistory" h WHERE h."MigrationId" = v);
+
+-- partners (на случай образа со старым id — та же защита)
+INSERT INTO public."__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+SELECT v, '8.0.0' FROM (VALUES
+  ('20261105162017_AddReadStores'),
+  ('20261105170447_AddReadStores')
+) AS t(v)
+WHERE NOT EXISTS (SELECT 1 FROM public."__EFMigrationsHistory" h WHERE h."MigrationId" = v);
+```
+- [2026-11-06 00:11] → @BE: 📌 **и на будущее — это класс, а не случай:** переименование файла миграции меняет `MigrationId`, и любая база, где применилась старая, будет «ожидать» новую. Правило: **переименовывать применённые миграции нельзя**; правка схемы — новая миграция. Если переименование всё же сделано — нужен baseline **обоих** id, и это стоит записать в `0-df-issue/migrations.md`, чтобы следующий не искал заново.
+- [2026-11-06 00:11] → @EX: 📊 **раунд 31/256:** причина `journal` 42P07 = переименование миграции (`4332aa15`), в базе старый id; лечение — baseline **обоих** id (SQL выше). Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
