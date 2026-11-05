@@ -103,3 +103,10 @@ podman exec xdiary-journal psql -U <user> -d journal -c '\dt'   # ожидани
 (иначе тесты снова упадут `500`); `TE-054` — только по поведению (`wizard-offline`), а не по
 source-level гейту; `lock rc=0` нужен, чтобы «зелёный E2E» относился к выкаченной версии, а не к
 предыдущей; `\dt` — чтобы `4 passed` не оказался «работает там, где таблицы создали руками».
+
+> **Осторожно, предсказанный второй отказ (проверено по коду 2026-11-05):** в `BC-Partners`
+> `ReadDbContext` объявляет только `Entity<PartnerEntity>`, а регистрация просит
+> `AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(…, null)`; объявления
+> `Entity<PartnersReadModel>` нет. Поэтому шаг 1 может дать не `200`, а `500` с
+> `Cannot create a DbSet for 'PartnersReadModel'`. Это **не** ошибка выкатки и **не** `lock`:
+> нужен маппинг read-модели (класс `BE-068`, BC `Partners`).
