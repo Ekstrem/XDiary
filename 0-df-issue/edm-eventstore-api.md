@@ -90,11 +90,20 @@ IDomainOperationResult`; геттеры `Command` + `ChangedValueObjects`.
 Раскатка = «вернуть наследование DF-базы» (E1), по BC; точный `BusAdapter`-пример — в
 `microservice-implementation-guide.md` (в нашем репо отсутствует).
 
-### Регистрация (round 55)
+### Регистрация (round 55–56, через `ServiceCollection` + перечень сервисов)
 
 `CommandRepository.Postgres.Extensions.ServiceCollectionExtensions` — публичный метод **один**:
-`AddEventStorePostgres(IServiceCollection, String, Action<EventStoreOptions>)`. Отдельных
-`AddAggregateProvider`/`AddAnemicModelRepository` нет — `IAggregateProvider`/`IAnemicModelRepository`
-регистрируются **внутри** `AddEventStorePostgres` (доступны через DI, но сигнатуры регистрации
-не читаются офлайн). Для E1 нужно читать исходник `ServiceCollectionExtensions.cs` (публичный
-`Ekstrem/DigiTFactory.Libraries`) — точный набор регистрируемых абстракций.
+`AddEventStorePostgres(IServiceCollection, String, Action<EventStoreOptions>)`. Что он регистрирует
+(7 сервисов, фактически):
+
+1. `EventStoreOptions` — Singleton;
+2. `ServiceProviderAccessor` — Singleton;
+3. `DbContextOptions<EventStoreDbContext>` + `DbContextOptions` — Scoped;
+4. `EventStoreDbContext` — Scoped;
+5. `IEventStoreRepository<TBC,TAnemicModel>` → `FullEventSourcingRepository<…>` — Scoped;
+6. `IAnemicModelRepository<TBC,TAnemicModel>` → (factory) — Scoped.
+
+**Вывод для E1:** `IAnemicModelRepository`/`IEventStoreRepository` — есть в DI; **`IAggregateProvider`
+не регистрируется** этим методом (значит `IAggregateProvider` — либо другая библиотека, либо пишется
+свой). E1 заменяет `IRepository.GetByIdAsync` → `IAnemicModelRepository.GetById`, `SaveAsync` →
+`IEventBusProducer.Publish(result.Event)`; `BusAdapter`/`Notifier` — не нужны (канон публикует напрямую).
