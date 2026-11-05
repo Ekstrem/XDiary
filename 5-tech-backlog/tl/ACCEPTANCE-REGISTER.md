@@ -331,3 +331,57 @@ helper-контейнером вручную — команда выше вос�
 | Карточка | Состояние |
 |---|---|
 | `BE-050` | две из трёх сторон сверки закрыты: индекс↔спеки **80/80**, спеки↔код **79/80**; APIM↔спеки — `rc=2` до bootstrap Gravitee |
+
+## L. Команды для закрытия остатка — copy-paste, по одной на пункт
+
+Ниже — ровно то, чего не хватает. Каждая команда **самодостаточна** и даёт квитанцию.
+
+### 1. `BE-073` + `DO-090` — «создал → увидел» (нужен настоящий client-JWT)
+
+```bash
+TOKEN=<client-JWT с dev>
+curl -s -o /dev/null -w '%{http_code}
+' -X POST "https://xdiary-vps2.taile0b6ee.ts.net/api/v1/partners"   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json'   -d '{"Name":"TL-probe-<stamp>","ClientId":"<тот же clientId, что в sub>"}'
+curl -s "https://xdiary-vps2.taile0b6ee.ts.net/api/v1/partners" -H "Authorization: Bearer $TOKEN"
+```
+
+**Засчитывается, если:** `POST` → 200 **и** имя из запроса присутствует в `GET` **и** `partners_read` вырос.
+Проверено 2026-11-05: подделанный JWT (неверная подпись) → **401**, то есть нужен настоящий токен.
+
+### 2. `TE-050` — 4 контрактных теста (локально блокирует песочница)
+
+```bash
+# на CI или на dev, где не блокируется testhost
+dotnet test 6-msa/BC-Partners/src/Partners.ApiTests
+dotnet test 6-msa/BC-Journal/src/Journal.ApiTests
+```
+
+**Засчитывается:** прогон собрал ≥1 проект и прогнал ≥1 тест; «0 тестов» — **не доказательство**.
+
+### 3. APIM ↔ спеки (сторона «в») — сначала мастер, потом drift
+
+```bash
+# 1) владелец: 2 минуты в браузере — первичная настройка Gravitee (admin/пароль)
+# 2) @DO: токен в секрет репозитория
+GRAVITEE_TOKEN=<token> python tools/check_apim_drift.py   --root /tmp/xdiary-specs --api http://127.0.0.1:18083 --container xdiary-apim-management
+```
+
+**Засчитывается:** `rc=0` и «расхождений 0» **с** `REF`/образом/временем в квитанции; `rc=2` — «не измерено», а не «совпало».
+
+### 4. `BE-077` — бэкфилл журнала (12 / 2481)
+
+```bash
+# исторический ремонт объявлен в DO-079, идемпотентен (ON CONFLICT)
+psql -f 7-deploy/sql/repair-2026-11-05-readmodels.sql
+```
+
+**Засчитывается:** `journal_read` = числу строк в `records` (или числу, объявленному как целевое), **и** `PartnersNames` ≠ `'[]'`, `ContraceptiveCount` из `records` (требование @AR 20:20).
+
+### 5. `AR-018` — PII по типу
+
+```csharp
+// было: CreateToken(sub, kind, phone)  → добавит claim, если phone непустой
+// стало: CreateAccess(sub, phone) / CreateRefresh(sub)
+```
+
+**Засчитывается:** параметра `phone` для refresh **не существует** в сигнатуре; тест `RefreshToken_HasNoPhone` остаётся страховкой.
