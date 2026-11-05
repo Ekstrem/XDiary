@@ -60,13 +60,23 @@ def verdict(facts):
                   % (schema, hist, events)))
     # (2) — ПО ЛОГУ: `[handle] entered`. Строки событий для этого не годятся: их нет
     # и тогда, когда консьюмер просто не смог записать (нет схемы) — разные дефекты.
+    # @TL 2026-11-05 20:17: маркер в логе — плохой критерий САМ ПО СЕБЕ: после перезапуска
+    # лог пуст, а строки в БД остаются (124 события / 123 представления / маркер 0 ⇒ ложный
+    # красный). Поэтому (2) = маркер>0 ЛИБО «представления догнали события».
     handle = int(facts.get('handle_entered') or 0)
-    p2 = handle > 0
-    # @TL 2026-11-05 18:53: счётчик растёт во времени, поэтому число без окна — не число.
     window = facts.get('window') or 'весь лог текущего контейнера (с момента старта)'
-    items.append(('(2) Handle исполняется', p2,
-                  'маркер `[handle] entered`=%d, окно: %s; строк событий=%d'
-                  % (handle, window, events)))
+    by_log = handle > 0
+    by_ratio = events > 0 and pread > 0 and pread + 1 >= events
+    p2 = by_log or by_ratio
+    if by_log:
+        basis = 'маркер `[handle] entered`=%d, окно: %s' % (handle, window)
+    elif by_ratio:
+        basis = ('маркер=0 (лог пуст после перезапуска), но представления догнали '
+                 'события: partners_read=%d при событиях=%d' % (pread, events))
+    else:
+        basis = ('маркер=0 (окно: %s) и представления НЕ догнали события: %d при %d'
+                 % (window, pread, events))
+    items.append(('(2) Handle исполняется', p2, basis))
     # @AR 2026-11-05 16:51: «числа непусты» ≠ «проекция работает». На проде read-модель
     # заполнена ручным ремонтом `repair-2026-11-05-readmodels.sql`. Доказательство (3) —
     # провенанс: строки read-модели обновлены ПОЗЖЕ ремонта, либо пересборка дала те же числа.
@@ -141,6 +151,10 @@ def selftest():
           'provenance': 'repair', 'handle_entered': '6'}, 1)
     case('схемы нет', {'schema': 'no', 'history': '0', 'events': '0', 'partners_read': '0',
                        'records': '2481', 'journal_read': '0', 'repaired_at': REP}, 2)
+    case('маркер 0, но представления догнали события (ложный красный) -> (2) ЗАСЧИТАН',
+         {'schema': 'yes', 'history': '1', 'events': '124', 'partners_read': '123',
+          'records': '4', 'journal_read': '22', 'repaired_at': REP,
+          'handle_entered': '0', 'provenance': 'rebuild'}, 0)
     case('Handle НЕ вызывается (маркер 0) -> пункт 2 не выполнен',
          {'schema': 'no', 'history': '0', 'events': '0', 'partners_read': '0',
           'records': '0', 'journal_read': '0', 'repaired_at': REP,
