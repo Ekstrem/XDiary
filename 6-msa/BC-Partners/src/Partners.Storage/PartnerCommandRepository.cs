@@ -5,6 +5,7 @@ using DigiTFactory.Libraries.SeedWorks.Result;
 using Microsoft.EntityFrameworkCore;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
+using Partners.Storage.Outbox;
 using XDiary.Contracts;
 public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAnemicModel>
 {
@@ -20,11 +21,14 @@ public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAn
         // BE-059: persist события в outbox (backstop «хотя бы один раз») + текущая доставка.
         if (result.Event is not null)
         {
+            var jsonOptions = new JsonSerializerOptions();
+            jsonOptions.Converters.Add(new IValueObjectJsonConverter());
             _db.Outbox.Add(new OutboxMessage
             {
                 Id = result.Event.Id,
                 EventType = "Partners",
-                Payload = JsonSerializer.Serialize(result.Event.ChangedValueObjects),
+                // $type-дискриминатор для реконструкции IValueObject (BE-059).
+                Payload = JsonSerializer.Serialize(result.Event.ChangedValueObjects, jsonOptions),
                 CreatedAt = DateTime.UtcNow,
             });
             await _db.SaveChangesAsync(ct);
