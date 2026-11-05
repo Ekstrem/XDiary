@@ -6,7 +6,8 @@
     "test": "playwright test",
     "test:local": "playwright test --config=playwright.local.config.js",
     "mock-api": "node mock-api.js",
-    "dryrun": "node e2e-dryrun.js"
+    "dryrun": "node e2e-dryrun.js",
+    "dryrun:selftest": "node e2e-dryrun.js --selftest"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1"

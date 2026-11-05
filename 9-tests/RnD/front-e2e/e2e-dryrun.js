@@ -18,7 +18,7 @@ const path = require('path');
 const fs = require('fs');
 
 const ROOT = __dirname;
-const TESTS = path.join(ROOT, 'tests');
+const TESTS = process.env.DRYRUN_TESTS || path.join(ROOT, 'tests');
 
 let ok = 0;
 let failed = 0;
@@ -231,11 +231,16 @@ function describeArg(a) {
   return 'obj';
 }
 
+const COUNTER = { asserts: 0 };
+
 function makeExpect() {
   const matcher = () => new Proxy({}, {
     get: () => () => Promise.resolve(true),
   });
   const expectFn = (value, message) => {
+    // Считаем ВЫПОЛНЕННЫЕ утверждения: если тело теста дошло до нуля `expect`,
+    // значит проверка недостижима (мёртвая ветка) — и «зелено» тут ничего не значит.
+    COUNTER.asserts += 1;
     const chain = {
       toBe: () => true, toEqual: () => true, toContain: () => true, toMatch: () => true,
       toBeTruthy: () => true, toBeFalsy: () => true, toBeGreaterThan: () => true,
@@ -290,6 +295,11 @@ function stubApi(registry, page, log) {
   // чтобы исполнялись только тела спек.
   const call = (name) => async (...args) => {
     log.push('api.' + name);
+    // реальная обвязка открывает приложение (`installBase` → `goto('/')`, `loginWithPin` → reload),
+    // поэтому в трассе это тоже навигация — иначе ложное «тело без навигации»
+    if (name === 'installBase' || name === 'loginWithPin' || name === 'seedSession' || name === 'seedSessionOnce') {
+      log.push('goto(/via api.' + name + ')');
+    }
     if (name === 'readToken') return 'token';
     if (name === 'waitAppReady') return null;
     return anyValue('api.' + name);
@@ -309,7 +319,9 @@ function stubApi(registry, page, log) {
 }
 
 async function runSpec(file) {
-  const full = path.join(TESTS, file);
+  // каталог спек читаем В МОМЕНТ вызова: самопроверка подменяет его через DRYRUN_TESTS
+  const dir = process.env.DRYRUN_TESTS || path.join(ROOT, 'tests');
+  const full = path.join(dir, file);
   const { stub, registry } = makePlaywrightStub();
   const log = [];
   const page = makeFakePage(log, {});
@@ -341,10 +353,13 @@ async function runSpec(file) {
   const results = [];
   for (const t of registry.tests) {
     const before = log.length;
+    const assertsBefore = COUNTER.asserts;
     try {
       await t.fn({ page, request: anyValue('request'), context: anyValue('context'), browser: anyValue('browser') });
       const calls = log.slice(before);
-      results.push({ name: t.name, status: 'ok', calls: calls.length, navigated: calls.some((c) => c.startsWith('goto(')) || calls.some((c) => c === 'reload()') });
+      const asserts = COUNTER.asserts - assertsBefore;
+      results.push({ name: t.name, status: 'ok', calls: calls.length, asserts,
+        navigated: calls.some((c) => c.startsWith('goto(')) || calls.some((c) => c === 'reload()') });
     } catch (e) {
       if (e && e.__skip) {
         results.push({ name: t.name, status: 'skipped', calls: 0, navigated: false });
@@ -356,7 +371,49 @@ async function runSpec(file) {
   return { file, loadError, results, skippedBlocks: registry.skips, calls: log.length };
 }
 
+// Самопроверка: гейт обязан КРАСНЕТЬ на спеке без достижимых утверждений.
+// Иначе «ноль утверждений» — просто надпись, а не проверка.
+async function dryrunSelftest() {
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dryrun-selftest-'));
+  const cases = [];
+  const mk = (name, body) => {
+    fs.writeFileSync(path.join(dir, name),
+      "const { test, expect } = require('@playwright/test');\n" + body, 'utf8');
+  };
+  mk('ok.spec.js', "test('с утверждением', async ({ page }) => { await page.goto('/'); expect(1).toBe(1); });\n");
+  mk('noassert.spec.js', "test('без утверждений', async ({ page }) => { await page.goto('/'); });\n");
+  mk('skip.spec.js', "test('пропуск', async () => { test.skip(true, 'pending:TE-999 — проверка пропуска'); });\n");
+
+  const prev = process.env.DRYRUN_TESTS;
+  process.env.DRYRUN_TESTS = dir;
+  const out = [];
+  for (const f of ['ok.spec.js', 'noassert.spec.js', 'skip.spec.js']) {
+    const r = await runSpec(f);
+    const first = r.results[0] || { status: 'none', asserts: 0 };
+    out.push({ file: f, status: first.status, asserts: first.asserts || 0 });
+  }
+  if (prev === undefined) delete process.env.DRYRUN_TESTS; else process.env.DRYRUN_TESTS = prev;
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  let ok = 0;
+  const total = 3;
+  const has = (f) => out.find((o) => o.file === f);
+  if (has('ok.spec.js').status === 'ok' && has('ok.spec.js').asserts >= 1) ok += 1;
+  else console.log('  [FAIL] спека с утверждением не выполнилась:', JSON.stringify(has('ok.spec.js')));
+  if (has('noassert.spec.js').status === 'ok' && has('noassert.spec.js').asserts === 0) ok += 1;
+  else console.log('  [FAIL] спека без утверждений не распознана:', JSON.stringify(has('noassert.spec.js')));
+  if (has('skip.spec.js').status === 'skipped') ok += 1;
+  else console.log('  [FAIL] skip не распознан:', JSON.stringify(has('skip.spec.js')));
+
+  console.log(`e2e-dryrun --selftest: ${ok}/${total} (ноль утверждений распознаётся, skip считается)`);
+  return ok === total ? 0 : 1;
+}
+
 (async () => {
+  if (process.argv.includes('--selftest')) {
+    process.exit(await dryrunSelftest());
+  }
   const only = process.argv.slice(2).filter((a) => a.endsWith('.spec.js'));
   const specs = only.length ? only : fs.readdirSync(TESTS).filter((f) => f.endsWith('.spec.js')).sort();
   if (!specs.length) {
@@ -367,6 +424,7 @@ async function runSpec(file) {
   let tests = 0;
   let skipped = 0;
   let loadErrors = 0;
+  let noAsserts = 0;
   for (const file of specs) {
     let report;
     try {
@@ -393,6 +451,12 @@ async function runSpec(file) {
         if (!r.navigated) {
           console.log(`  [WARN] ${file} :: ${r.name}: тело исполнилось без навигации (goto/reload)`);
         }
+        if (!r.asserts) {
+          noAsserts += 1;
+          console.log(`  [FAIL] ${file} :: ${r.name}: тело дошло до нуля утверждений — проверка недостижима`);
+          failed += 1;
+          ok -= 1;
+        }
       }
     }
     if (!report.results.length) skippedSpecs += 1;
@@ -401,7 +465,8 @@ async function runSpec(file) {
 
   const specCount = reports.length;
   console.log(`e2e-dryrun: спек ${specCount} | тестов исполнено ${ok} | пропущено по skip ${skipped} | `
-    + `упало ${failed} | ошибок загрузки ${loadErrors} | спек без тестов ${skippedSpecs}`);
+    + `упало ${failed} (без утверждений ${noAsserts}) | ошибок загрузки ${loadErrors} | `
+    + `спек без тестов ${skippedSpecs} | утверждений выполнено ${COUNTER.asserts}`);
   if (!tests) {
     console.log('::error::e2e-dryrun: ни одного теста не исполнено — не измерено (rc=2)');
     process.exit(2);
