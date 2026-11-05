@@ -72,8 +72,46 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] {label}: got={got}, want={want}")
-    print(f"file_same_as --selftest: {ok}/{len(cases)} (хэш, а не пересчёт строк)")
-    return 0 if ok == len(cases) else 1
+    # кейсы на ТЕКСТ (норма @TL `15:38`): нужное значение есть, ложное отсутствует
+    text = "\n".join(output_lines(
+        [("a.md", "SAME", "aaaa1111", "aaaa1111"),
+         ("b.md", "DIFF", "bbbb2222", "cccc3333"),
+         ("c.md", "UNKNOWN", "-", "-")], 1, "gh/main"))
+    must = ["SAME", "DIFF", "UNKNOWN", "local=aaaa1111", "ИТОГ: SAME=1, DIFF=1, UNKNOWN=1 из 3",
+            "отличается от gh/main"]
+    must_not = ["ИТОГ: SAME=0", "None"]
+    miss = [m for m in must if m not in text]
+    bad = [m for m in must_not if m in text]
+    if not miss and not bad:
+        ok += 1
+    else:
+        print(f"  [FAIL] текст: нет {miss}, лишнее {bad}")
+    text_cases = 1
+
+    print(f"file_same_as --selftest: {ok}/{len(cases) + text_cases} (хэш, а не пересчёт строк)")
+    return 0 if ok == len(cases) + 1 else 1
+
+
+def row_line(path: str, verdict: str, local: str, in_ref: str, width: int) -> str:
+    return f"  {path:<{width}}  {verdict:<7} local={local} ref={in_ref}"
+
+
+def summary_line(rows: list, unknown: int, ref: str) -> str:
+    same = sum(1 for r in rows if r[1] == "SAME")
+    diff = sum(1 for r in rows if r[1] == "DIFF")
+    return f"ИТОГ: SAME={same}, DIFF={diff}, UNKNOWN={unknown} из {len(rows)} (ref={ref})"
+
+
+def output_lines(rows: list, unknown: int, ref: str) -> list:
+    width = max((len(r[0]) for r in rows), default=1)
+    lines = []
+    for path, v, local, in_ref in rows:
+        lines.append(row_line(path, v, local, in_ref, width))
+        if v == "DIFF":
+            lines.append(f"    ::warning::file_same_as: {path} отличается от {ref} "
+                         f"(-- может быть CRLF в рабочей копии, проверять через `git diff {ref} -- <path>`)")
+    lines.append(summary_line(rows, unknown, ref))
+    return lines
 
 
 def main() -> int:
@@ -91,18 +129,11 @@ def main() -> int:
         print(f"::error::file_same_as: ref '{args.ref}' не резолвится — сравнение невозможно (rc=2)")
         return 2
     rows, unknown = check(args.ref, args.paths)
-    width = max(len(p) for p, *_ in rows)
-    for path, v, local, in_ref in rows:
-        print(f"  {path:<{width}}  {v:<7} local={local} ref={in_ref}")
-        if v == "DIFF":
-            print(f"    ::warning::file_same_as: {path} отличается от {args.ref} "
-                  f"(-- может быть CRLF в рабочей копии, проверять через `git diff {args.ref} -- <path>`)")
-    same = sum(1 for *_, v in ((r[0], r[1]) for r in rows) if v == "SAME")
-    diff = sum(1 for r in rows if r[1] == "DIFF")
-    print(f"ИТОГ: SAME={same}, DIFF={diff}, UNKNOWN={unknown} из {len(rows)} (ref={args.ref})")
+    for line in output_lines(rows, unknown, args.ref):
+        print(line)
     if unknown:
         return 2
-    return 1 if diff else 0
+    return 1 if any(r[1] == "DIFF" for r in rows) else 0
 
 
 if __name__ == "__main__":
