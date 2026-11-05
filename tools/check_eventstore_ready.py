@@ -37,7 +37,7 @@ echo "handle_entered=$($SUDO podman logs xdiary-partners 2>&1 | grep -c '\[handl
 def parse(out):
     facts = {}
     for line in (out or '').splitlines():
-        m = re.match(r'^(schema|history|events|partners_read|records|journal_read|journal_read_updated|handle_entered)=(\S*)$', line.strip())
+        m = re.match(r'^(schema|history|events|partners_read|records|journal_read|journal_read_updated|handle_entered)=([^\s]+)$', line.strip())
         if m:
             facts[m.group(1)] = m.group(2)
     return facts
@@ -62,8 +62,11 @@ def verdict(facts):
     # и тогда, когда консьюмер просто не смог записать (нет схемы) — разные дефекты.
     handle = int(facts.get('handle_entered') or 0)
     p2 = handle > 0
+    # @TL 2026-11-05 18:53: счётчик растёт во времени, поэтому число без окна — не число.
+    window = facts.get('window') or 'весь лог текущего контейнера (с момента старта)'
     items.append(('(2) Handle исполняется', p2,
-                  'маркер `[handle] entered` в логе=%d, строк событий=%d' % (handle, events)))
+                  'маркер `[handle] entered`=%d, окно: %s; строк событий=%d'
+                  % (handle, window, events)))
     # @AR 2026-11-05 16:51: «числа непусты» ≠ «проекция работает». На проде read-модель
     # заполнена ручным ремонтом `repair-2026-11-05-readmodels.sql`. Доказательство (3) —
     # провенанс: строки read-модели обновлены ПОЗЖЕ ремонта, либо пересборка дала те же числа.
@@ -171,6 +174,9 @@ def main():
     ap.add_argument('--projection-provenance', default=None,
                     choices=('rebuild', 'time', 'repair', 'none'),
                     help='как доказан провенанс (та же лексика, что у @TE в accept_read_path)')
+    ap.add_argument('--window', default=None,
+                    help='окно замера счётчика (например «60 с после старта»); '
+                         'по умолчанию — весь лог текущего контейнера')
     ap.add_argument('--repaired-at', default='2026-11-05',
                     help='дата ручного ремонта read-модели: строки с UpdatedAt '
                          'раньше неё не доказывают проекцию')
@@ -194,6 +200,8 @@ def main():
 
     facts = parse(r.stdout)
     facts['repaired_at'] = a.repaired_at
+    if a.window:
+        facts['window'] = a.window
     if a.projection_provenance:
         facts['provenance'] = a.projection_provenance
     if 'schema' not in facts:
