@@ -35,6 +35,9 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Journal.Application.Commands.StartManualEntryCommand>());
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
+// BE-075 (порядок важен, НЕ менять): первая регистрация DbContextOptions выигрывает (TryAdd),
+// поэтому AddDbContext с MigrationsAssembly обязан идти ДО AddEventStorePostgres — иначе
+// DF-пакет перекроет MigrationsAssembly и Migrate() увидит пустой набор (42P01). Доказано на dev: de5507f0.
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Journal.Storage")));
 builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddEventBusInMemory();
