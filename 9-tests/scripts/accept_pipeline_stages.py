@@ -53,7 +53,7 @@ def evaluate(subscribed, migrations, handle, read, measured_on):
         blocked = blocked or STAGES[1]
     elif migrations == 0:
         rows.append((STAGES[1], "НАРУШЕНО",
-                     "EF видит 0 миграций -> Migrate() — молчаливый no-op"))
+                     "EF видит 0 миграций event store -> Migrate() — молчаливый no-op (BE-075)"))
         failed += 1
         blocked = blocked or STAGES[1]
     else:
@@ -112,7 +112,8 @@ def output_lines(rows, counted, not_counted, failed, measured_on):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="приёмка конвейера по ступеням")
     ap.add_argument("--subscribed", choices=["yes", "no"])
-    ap.add_argument("--migrations", type=int)
+    ap.add_argument("--migrations", type=int,
+                    help="миграции, которые видит EventStoreDbContext (строка [migrate] migrations=); провижининг BE-075, read-схема BE-072")
     ap.add_argument("--handle-entered", type=int)
     ap.add_argument("--partners-read", type=int)
     ap.add_argument("--measured-on")
@@ -153,7 +154,7 @@ def selftest():
          ["шин", "`[handle] entered` = 0", "НАРУШЕНО"],
          ["ступеней 4 | засчитано: 4"])
     case("нет миграций", ("yes", 0, 5, 7, "dev@abc"), 1,
-         ["EF видит 0 миграций", "молчаливый no-op"])
+         ["EF видит 0 миграций event store", "молчаливый no-op", "BE-075"])
     case("нет подписки", ("no", 3, 5, 7, "dev@abc"), 1, ["подписки нет"])
     case("без measured-on", ("yes", 3, 5, 7, None), 2,
          ["без --measured-on", "не засчитано"], ["PASS 5"])
