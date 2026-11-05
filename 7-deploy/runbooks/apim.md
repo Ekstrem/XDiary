@@ -270,3 +270,23 @@ sudo tailscale funnel status                    # ждём `/ proxy http://127.0
 
 **Метрики:** `podman stats --no-stream` по четырём контейнерам APIM; журнал Caddy —
 `journalctl -u caddy`; коды и p95 — команды выше.
+
+## Четыре точки замера — почему «переключено» полдня было ложным
+
+Одно и то же имя `xdiary-vps1.taile0b6ee.ts.net` и один и тот же путь дают **разные ответы**
+в зависимости от того, **откуда** мерить. Это не баг, а разные хопы:
+
+| точка замера | что видно | как проверить |
+|---|---|---|
+| **снаружи по имени (интернет)** | `via: 1.1 Caddy` + `X-Gravitee-*`; неизвестный путь → **404** | `curl --resolve xdiary-vps1.taile0b6ee.ts.net:443:<IP ingress>` |
+| **с прода/tailnet по имени** | то же, что и Caddy `:443` (tailnet-IP `100.x`) | `curl https://xdiary-vps1…` **с прода или с dev** |
+| **APIM напрямую** | `401` + `X-Gravitee-Client-Identifier` | `curl http://127.0.0.1:18082/api/v1/catalog` |
+| **YARP напрямую** | `401` **без** Gravitee, тело `Unauthorized` (12 Б) | `curl http://127.0.0.1:8080/api/v1/catalog` |
+
+**Правило:** публичный вход доказывается только точкой, которую видит **пользователь** —
+`--resolve` на ingress-IP Funnel или машина **вне tailnet**. Замер с прода/dev идёт tailnet-путём
+и доказывает состояние **хопа** (Caddy), а не то, что интернет идёт через APIM.
+
+**Дискриминатор без заголовков** (прокси может срезать `Via`/`X-Gravitee-*`):
+неизвестный путь — APIM даёт `404` + тело `No context-path matches the request URI.` (40 Б),
+YARP даёт `401` + `Unauthorized` (12 Б).
