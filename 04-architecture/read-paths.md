@@ -23,11 +23,18 @@
 |---|---|---|---|---|
 | **Визард записи** (открытие «+») | партнёры | `Api.partners.list()` → `Partners.List` (обёртка `DB.getAllPartners()`) | live | **сейчас: хуже тихого** — у `DB.getAllPartners()` нет `.catch`, поэтому `Promise.all` отвергается, а у `reopenWizard`/`openWizard` нет обработчика → **визард не открывается вовсе**, ошибка не показана (`app.js:584,593,599`) |
 | | `recent` (lastPartner/lastPlace/lastPositions/lastTags/lastContraceptives/lastFantasies) | `Api.journal.recent()` — MV | live | **сейчас: тихо `null`** → предзаполнение исчезает (`app.js:585`) |
-| | `places` | `Api.journal.places()` — MV | live | **сейчас: тихо `[]`** → шаг места пуст (`app.js:586`) |
-| | каталог (виды, оргазмы, контрацепция) | `Api.catalog.list()` → `Catalog.List` (обёртка `DB.getAllCatalog()`) | live | **сейчас: тихо `[]`** (`app.js:587`) |
+| | `places` | `Api.journal.places()` — MV | live | **с 0.92: `readError` («Не удалось загрузить: …»), шаг места остаётся пустым, ложных значений нет** (было: тихо `[]`) |
+| | каталог (виды, оргазмы, контрацепция) | `Api.catalog.list()` → `Catalog.List` (обёртка `DB.getAllCatalog()`) | live | **с 0.92: `readError`, без тихого `[]`.** Было: тихо `[]`** (`app.js:587`) |
 | Журнал (лента) | записи | `Api.journal.list()` | live | показать ошибку, не пустую ленту |
 | Партнёры (вкладка) | список | `Api.partners.list()` (MV/таблица) | live | показать ошибку |
 | Профиль «я» | свой профиль | `Api.clients.me()` | live | показать ошибку |
+
+> **Обновлено 2026-11-16 (`FE-043`, версия `0.92`):** молчаливые потери устранены не в `repository.js` (там `catch` не было),
+> а в `app.js`: `showReadError()` (баннер `role="alert"` + `console.error("read-path:", …)`), сбор сбоев четырёх источников
+> в `readError[]`, `reportReadFailure()` → «Не удалось загрузить: …», и `openWizardDegraded()` — визард **открывается**,
+> `draft` пустой, `.partner-card.selected` = 0 (без ложной подстановки). Плюс закрыты точечные `return []` (метрики дня,
+> метрики за 90 дней, соматика за период, фантазии в каталоге). **Прогон `XDIARY_READPATH_OFFLINE=1` — за @TE/`DO-079`**,
+> то есть п.1 §5 пока «покрыт спецификацией, но не прогоном».
 
 **Почему это важно именно сейчас:** решение @PO (`chat/fe.md`, 2026-11-03 19:00) — «предзагружаем **все данные MV одним
 пакетом**» — на деле даёт **2 кэш-чтения + 2 HTTP-MV** (`app.js:582-591`), то есть «все данные» не из одного источника.
