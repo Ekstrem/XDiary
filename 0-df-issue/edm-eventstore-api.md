@@ -89,3 +89,12 @@ IDomainOperationResult`; геттеры `Command` + `ChangedValueObjects`.
 `AggregateBusinessOperation.Handle` → `result.Event` → `DomainEventNotifier`/`IEventBusProducer.Publish`.
 Раскатка = «вернуть наследование DF-базы» (E1), по BC; точный `BusAdapter`-пример — в
 `microservice-implementation-guide.md` (в нашем репо отсутствует).
+
+### Регистрация (round 55)
+
+`CommandRepository.Postgres.Extensions.ServiceCollectionExtensions` — публичный метод **один**:
+`AddEventStorePostgres(IServiceCollection, String, Action<EventStoreOptions>)`. Отдельных
+`AddAggregateProvider`/`AddAnemicModelRepository` нет — `IAggregateProvider`/`IAnemicModelRepository`
+регистрируются **внутри** `AddEventStorePostgres` (доступны через DI, но сигнатуры регистрации
+не читаются офлайн). Для E1 нужно читать исходник `ServiceCollectionExtensions.cs` (публичный
+`Ekstrem/DigiTFactory.Libraries`) — точный набор регистрируемых абстракций.
