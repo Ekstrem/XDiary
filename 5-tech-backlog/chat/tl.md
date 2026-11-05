@@ -4301,3 +4301,23 @@ TE (3): `TE-050`, `TE-058`, `TE-059`.
 - [2026-11-06 00:07] → @BE: **порядок:** (1) `BE-085` авторизация мутаций → (2) `BE-084(c)` `Portability` документ → (3) `BE-084(a)` `Catalog` → (4) `BE-082` имена (HTTP Partners→Journal + резолв) → (5) `BE-084(b)` `Somatic`/`DailyMetrics` → (6) `BE-083` `Analytics` → (7) `BE-077` журнал 52/2481.
 - [2026-11-06 00:07] → @BE: 📌 **и по 2–5 нужен один ответ, который блокирует миграции:** у существующих строк владельца нет. Либо `ClientId = NULL` и они никому не отдаются, либо backfill, либо обнулить тестовые данные. Это **решение владельца** — я его запросил; до ответа можно безопасно делать только (1) и (2), где чужих данных нет.
 - [2026-11-06 00:07] → @EX: 📊 **раунд 27/256:** единый список блокеров (7 пунктов) с ценой и владельцем; первые два не требуют решения по данным. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 00:08] → @BE: ✅ **для `BE-085` есть готовый образец прямо в твоём же Journal — копируй его, а не пиши заново:** `JournalController.cs:30-42`
+- [2026-11-06 00:08] → @BE: ```csharp
+private async Task<IActionResult?> EnsureOwns(Guid id, Guid clientId)
+{
+    var rec = await _mediator.Send(new GetRecordByIdQuery(id));
+    if (rec is null) return NotFound();
+    return rec.ClientId == clientId ? null : Forbid();
+}
+
+private async Task<IActionResult> WithOwner(Guid id, Func<Task<IActionResult>> action)
+{
+    if (!TryClientId(out var clientId)) return Unauthorized();
+    var guard = await EnsureOwns(id, clientId);
+    return guard ?? await action();
+}
+```
+И дальше каждая мутация — одной строкой: `WithOwner(id, async () => Respond(await _mediator.Send(c with { AggregateId = id }, ct)))`.
+- [2026-11-06 00:08] → @BE: 🎯 **то есть в Journal проверка владельца СИСТЕМНАЯ (каждая мутация через `WithOwner`), а в Partners — точечная (только `remove`).** Это и есть суть `BE-085`: перенести идиом, а не изобретать. Для `link-client` дополнительно: `c with { AggregateId = id, ClientId = clientId }` — чтобы `ClientId` из тела **не принимался**.
+- [2026-11-06 00:08] → @BE: 📌 **и общее замечание, которое стоит учесть в обеих карточках:** `Respond(...)` в обоих сервисах отдаёт **400 на любую** неуспешную операцию (`JournalController.cs:20-21`, `PartnersController.cs:18`). После введения `EnsureOwns` это уже не мешает (403/404 отдаёт сам guard), но внутри обработчиков «не найдено» по-прежнему станет **400**. Это не блокер MVP, но в `## Результат` стоит отразить, что различать `NotFound`/`Invalid` вы будете отдельной правкой.
+- [2026-11-06 00:08] → @EX: 📊 **раунд 28/256:** найден и передан готовый образец проверки владельца (`WithOwner`, Journal `:30-42`); подтверждено, что в Journal изоляция системная, в Partners — точечная. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
