@@ -65,6 +65,7 @@ function installDiagnostics(page) {
       if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser requestfailed', error: line }));
     } catch (e) {}
   });
+  page.__xdiaryErrors = errors;
   return errors;
 }
 
@@ -352,10 +353,16 @@ async function seedSession(page) {
   throw lastErr;
 }
 
+// TE-056 (@DO 2026-11-06 02:34): прогон `18 failed, 3 skipped, 8 passed` — падения в
+// `Before Hooks` со `status: "timedOut"`, то есть «не дождались», а не «продукт ответил не то».
+// Чтобы следующий прогон сам ответил, ГДЕ время, логируем длительность каждой фазы входа
+// (`::notice::` видно в логе джобы) и при провале входа прикладываем экран/токен/ошибки.
 async function loginWithPin(page, pin) {
   // TE-032: основной путь — seedSession (client-JWT). Локальный PIN остаётся вторым слоем
   // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
+  const t0 = Date.now();
   await seedSession(page);
+  const tSeed = Date.now() - t0;
   const p = pin || PIN;
   // TE-036: ставим локальный PIN ВСЕГДА, а не только когда передан аргумент.
   // Было `if (pin) { setPin(pin) }` — а спеки зовут `loginWithPin(page)` без аргумента,
@@ -368,7 +375,9 @@ async function loginWithPin(page, pin) {
   // 90-секундное залипание в #976. Правильный порядок:
   //   setPin → reload (init() видит PIN корректно) → дождаться ЛЮБОГО из двух состояний
   //   (#view-lock или #view-journal) → и только потом unlockIfLocked снимает замок.
+  const tPin = Date.now() - t0 - tSeed;
   await page.reload();
+  const tReload = Date.now() - t0 - tSeed - tPin;
   await Promise.race([
     page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
     page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
@@ -377,7 +386,31 @@ async function loginWithPin(page, pin) {
   // не проверяют сам замок, обязаны его снять, иначе `#view-journal`/`#view-catalog` hidden
   // 20–90 с. Делаем это здесь, а не в каждом спеке: забыть вызов — типовая ошибка
   // (именно так падали `catalog`, `csv`, `remove-pin`, `wizard-record`).
-  await unlockIfLocked(page, p);
+  const tWait = Date.now() - t0 - tSeed - tPin - tReload;
+  try {
+    await unlockIfLocked(page, p);
+    // Вход считается состоявшимся только когда виден журнал: иначе спека уйдёт дальше и упадёт
+    // на «селектор не найден», хотя причина — незавершённый вход.
+    await expectScreen(page, '#view-journal', 'после входа по PIN', UI_WAIT);
+  } catch (e) {
+    const views = await dumpViews(page, 'вход не завершился').catch(() => null);
+    const errs = (page.__xdiaryErrors || []).slice(-6);
+    throw new Error(
+      'Вход не завершился (' + Math.round((Date.now() - t0) / 1000) + ' с: seed ' +
+      Math.round(tSeed / 1000) + ' c, PIN ' + Math.round(tPin / 1000) + ' c, reload ' +
+      Math.round(tReload / 1000) + ' c, ожидание ' + Math.round(tWait / 1000) + ' c). ' +
+      'views=' + JSON.stringify(views) + ' ошибки=' + JSON.stringify(errs) + ' причина=' +
+      String((e && e.message) || e).slice(0, 300)
+    );
+  }
+  console.log('::notice::' + JSON.stringify({
+    title: 'login',
+    elapsedMs: Date.now() - t0,
+    seedMs: tSeed,
+    pinMs: tPin,
+    reloadMs: tReload,
+    waitMs: tWait,
+  }));
 }
 
 // После reload локальный PIN уже стоит → приложение показывает экран блокировки.
