@@ -16,6 +16,12 @@
 const { test, expect } = require('@playwright/test');
 const { loginWithPin, reportStep } = require('./api');
 
+// ВАЖНО (триаж прогона 2026-11-05, @TL 09:14): приложение регистрирует `sw.js`
+// (`app.js:2453`), а `page.route` **не перехватывает** запросы, инициированные service worker'ом.
+// Без блокировки SW задержка не срабатывает, `busyRun` завершается быстрее 300 мс и баннер
+// законно не появляется — то есть первый прогон падал по условию теста, а не по дефекту фронта.
+test.use({ serviceWorkers: 'block' });
+
 const ENABLED = process.env.XDIARY_BUSY === '1';
 const BANNER = '.busy-banner';
 const SERIES = '**/api/v1/daily-metrics/series**';

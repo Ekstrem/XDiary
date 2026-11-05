@@ -16,7 +16,11 @@
 //
 // Включается `XDIARY_STALENOTE=1`; без признака — `skip`, чтобы не менять поведение обычных прогонов.
 const { test, expect } = require('@playwright/test');
-const { loginWithPin, reportStep } = require('./api');
+const { loginWithPin, reportStep, unlockIfLocked } = require('./api');
+
+// SW блокируем по той же причине, что и в busy-indicator: `page.route` не видит запросы
+// service worker'а, а спека опирается на подмену сети и на перезагрузку.
+test.use({ serviceWorkers: 'block' });
 
 const ENABLED = process.env.XDIARY_STALENOTE === '1';
 
@@ -75,6 +79,9 @@ test('E2E: stale-note — нет на свежих данных, есть на �
   await page.route('**/api/v1/catalog**', (route) => route.abort('failed'));
   try {
     await page.reload();
+    // После reload приложение может показать замок (PIN) — снимаем его, а не ждём журнал вслепую.
+    // Именно на этом упал первый прогон (@TL 09:14): «#view-journal hidden после reload».
+    await unlockIfLocked(page);
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 25000 });
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 25000 });
