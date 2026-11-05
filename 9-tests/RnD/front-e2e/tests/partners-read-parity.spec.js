@@ -5,7 +5,7 @@
 // нет. Значит после выкатки `GET /partners` может вернуть **`200` с пустым списком** — и критерий
 // «эндпоинт отвечает 200» пройдёт **на пустоте**, то есть «зелено» и «данных нет» снова сольются.
 // Поэтому проверяем не код ответа, а **содержимое**: создали партнёра → он должен появиться в
-// read-модели (с ретраем, потому что проекция асинхронная), и количество в списке должно
+// read-модели ПОСЛЕ успешного создания (контракт @BE `08:46`: проекция синхронная, `200` ⇒ строка уже есть;
 // соответствовать тому, что видит приложение.
 //
 // Включается признаком `XDIARY_READPARITY=1` (как `wizard-offline` включается `XDIARY_READPATH_OFFLINE`),
@@ -18,7 +18,8 @@ const ENABLED = process.env.XDIARY_READPARITY === '1';
 const POLL_MS = Number(process.env.XDIARY_READPARITY_POLL_MS || 1000);
 const TIMEOUT_MS = Number(process.env.XDIARY_READPARITY_TIMEOUT_MS || 30000);
 
-// Сколько ждать появления записи в read-модели: проекция асинхронная, поэтому «сразу» — не критерий.
+// Страховочное окно ожидания: контракт синхронный, поэтому первая проверка идёт сразу, а ретрай
+// нужен только чтобы инфраструктурная задержка не давала ложный красный (о ней сообщаем отдельно).
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -61,10 +62,17 @@ test('E2E: read-модель партнёров не пуста при живы�
     expect([200, 201], 'создание партнёра не удалось: ' + created.status + ' ' + created.body.slice(0, 200))
       .toContain(created.status);
 
-    // 2. Ждём, пока read-модель догонит: `200` сам по себе ничего не доказывает (@TL `08:22`).
-    const deadline = Date.now() + TIMEOUT_MS;
-    let last = { matched: false, count: 0, sample: '' };
+    // 2. Ждём появления в read-модели. По контракту @BE (`08:46`) проекция **синхронная**:
+    // `POST /partners` → `SaveAsync` → `PublishAsync` → `PartnerEventHandler.Handle` → `UpsertAsync`
+    // (`GetAwaiter().GetResult`) внутри запроса, то есть `200/201` уже означает «строка в `partners_read`».
+    // Поэтому первая проверка идёт **без задержки**, а ретрай оставлен только как страховка от
+    // инфраструктурной задержки — и если он понадобился, это видно в отчёте шага (контракт стал async?).
+    const startedAt = Date.now();
+    const deadline = startedAt + TIMEOUT_MS;
+    let last = { matched: false, count: 0, sample: '', status: 0 };
+    let attempts = 0;
     while (Date.now() < deadline) {
+      attempts += 1;
       const got = await page.evaluate(
         async ({ base, tok }) => {
           const r = await fetch(base + '/api/v1/partners', { headers: { Authorization: 'Bearer ' + tok } });
@@ -85,12 +93,20 @@ test('E2E: read-модель партнёров не пуста при живы�
       if (matched) break;
       await sleep(POLL_MS);
     }
+    const waitedMs = Date.now() - startedAt;
 
     await reportStep(
       page,
       'шаг 3: read-модель — status=' + last.status + ', count=' + last.count +
-        ', имя в ответе=' + last.matched
+        ', имя в ответе=' + last.matched + ', попыток=' + attempts + ', ждали=' + waitedMs + ' мс'
     );
+    if (last.matched && waitedMs > 2000) {
+      // Не красный: страховка отработала. Но контракт «200 ⇒ строка уже есть» перестал быть синхронным.
+      console.warn(
+        '::warning::проекция partners_read ответила не сразу: ждали ' + waitedMs + ' мс при контракте ' +
+        '"POST 200 ⇒ строка уже в partners_read" (@BE 08:46) — проверить, не стала ли проекция асинхронной'
+      );
+    }
 
     // 3. Главное утверждение: не «200», а «200 и данные на месте».
     expect(
