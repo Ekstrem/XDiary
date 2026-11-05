@@ -30,13 +30,14 @@ echo "partners_read=$(Q partners "select count(*) from partners_read;")"
 echo "records=$(Q journal "select count(*) from records;")"
 echo "journal_read=$(Q journal "select count(*) from journal_read;")"
 echo "journal_read_updated=$(Q journal "select coalesce(max(\"UpdatedAt\")::text,'none') from journal_read;")"
+echo "handle_entered=$($SUDO podman logs xdiary-partners 2>&1 | grep -c '\[handle\] entered' || true)"
 '''
 
 
 def parse(out):
     facts = {}
     for line in (out or '').splitlines():
-        m = re.match(r'^(schema|history|events|partners_read|records|journal_read|journal_read_updated)=(\S*)$', line.strip())
+        m = re.match(r'^(schema|history|events|partners_read|records|journal_read|journal_read_updated|handle_entered)=(\S*)$', line.strip())
         if m:
             facts[m.group(1)] = m.group(2)
     return facts
@@ -57,10 +58,12 @@ def verdict(facts):
                   p1,
                   'schema=%s, миграций EventStore=%d, строк в DomainEvents=%d'
                   % (schema, hist, events)))
-    # (2) измеряется по логу: здесь только косвенно — наличие строк событий
-    p2 = events > 0
+    # (2) — ПО ЛОГУ: `[handle] entered`. Строки событий для этого не годятся: их нет
+    # и тогда, когда консьюмер просто не смог записать (нет схемы) — разные дефекты.
+    handle = int(facts.get('handle_entered') or 0)
+    p2 = handle > 0
     items.append(('(2) Handle исполняется', p2,
-                  'строк событий=%d (маркер `[handle] entered` проверяется в логе)' % events))
+                  'маркер `[handle] entered` в логе=%d, строк событий=%d' % (handle, events)))
     # @AR 2026-11-05 16:51: «числа непусты» ≠ «проекция работает». На проде read-модель
     # заполнена ручным ремонтом `repair-2026-11-05-readmodels.sql`. Доказательство (3) —
     # провенанс: строки read-модели обновлены ПОЗЖЕ ремонта, либо пересборка дала те же числа.
@@ -117,22 +120,28 @@ def selftest():
     case('всё выполнено (провенанс после ремонта)',
          {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
           'records': '4', 'journal_read': '4',
-          'journal_read_updated': '2026-11-06T10:00:00+00:00', 'repaired_at': REP}, 0)
+          'journal_read_updated': '2026-11-06T10:00:00+00:00', 'repaired_at': REP,
+          'handle_entered': '6'}, 0)
     # @TE 16:56: `repair` — нарушение §5 п.3 (rc=1), а не «не измерено»
     case('read непуст, но ВСЁ до ремонта (ручной ремонт) -> нарушение',
          {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
           'records': '4', 'journal_read': '4',
-          'journal_read_updated': '2026-11-03T17:03:18+00:00', 'repaired_at': REP}, 1)
-    case('явно передан rebuild -> доказательство принято',
+          'journal_read_updated': '2026-11-03T17:03:18+00:00', 'repaired_at': REP,
+          'handle_entered': '6'}, 1)
+    case('явно передан rebuild + Handle вызывается -> принято',
          {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
           'records': '4', 'journal_read': '4', 'journal_read_updated': '2026-11-03T00:00:00+00:00',
-          'repaired_at': REP, 'provenance': 'rebuild'}, 0)
+          'repaired_at': REP, 'provenance': 'rebuild', 'handle_entered': '6'}, 0)
     case('явно передан repair -> нарушение',
          {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
           'records': '4', 'journal_read': '4', 'repaired_at': REP,
-          'provenance': 'repair'}, 1)
+          'provenance': 'repair', 'handle_entered': '6'}, 1)
     case('схемы нет', {'schema': 'no', 'history': '0', 'events': '0', 'partners_read': '0',
                        'records': '2481', 'journal_read': '0', 'repaired_at': REP}, 2)
+    case('Handle НЕ вызывается (маркер 0) -> пункт 2 не выполнен',
+         {'schema': 'no', 'history': '0', 'events': '0', 'partners_read': '0',
+          'records': '0', 'journal_read': '0', 'repaired_at': REP,
+          'handle_entered': '0'}, 2)
     case('схема есть, событий нет',
          {'schema': 'yes', 'history': '1', 'events': '0', 'partners_read': '0',
           'records': '0', 'journal_read': '0', 'repaired_at': REP}, 1)
