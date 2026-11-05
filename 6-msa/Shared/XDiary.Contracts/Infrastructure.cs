@@ -5,15 +5,6 @@ using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
-/// <summary>Read repository.</summary>
-public interface IReadRepository<TBC, TModel>
-    where TBC : IBoundedContext
-    where TModel : IReadModel<TBC>
-{
-    Task<TModel?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<TModel>> GetAllAsync(CancellationToken ct = default);
-}
-
 /// <summary>Command-side repository.</summary>
 public interface IRepository<TBC, TModel>
     where TBC : IBoundedContext
