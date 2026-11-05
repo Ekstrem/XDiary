@@ -588,3 +588,26 @@ PowerShell трактует бэктик как escape, и `\`` + `n` → пер
 
 **Почему это не «ослабить приёмку»:** `500` на записи не помогает пользователю и не сохраняет данные — он **мешает** записи,
 которая уже корректна доменно. Хуже того: он маскирует настоящую причину (проекция) под «сервер сломан».
+
+#### Точный список колонок для DDL `journal_read` (2026-11-05 09:05, сведено по модели и конвертерам)
+
+`ReadDbContext.OnModelCreating` задаёт конвертеры: списки строк → `text` (`StringList()`), `Orgasms` → `text` (`Orgasms()`),
+остальные поля — по типу CLR. Отсюда полный набор (19 скалярных + 5 списков = 24 поля минус вложенный класс):
+
+| Колонка | Тип в DDL | Источник |
+|---|---|---|
+| `Id` | `uuid` | `Guid` (ключ) |
+| `ClientId` | `uuid` | `Guid?` |
+| `Partners`, `PartnersNames`, `Positions`, `Tags`, `Costumes`, `Toys`, `Fantasies`, `Contraceptives`, `Types` | `text` | `StringList()` |
+| `StartedAt`, `Place`, `GarminId`, `CreatedAt`, `UpdatedAt`, `Participant` | `text` | `string` |
+| `DurationMin`, `ContraceptiveCount`, `Count`, `Rating` | `integer` | `int` |
+| `Garmin`, `Deleted` | `boolean` | `bool` |
+| `Orgasms` | `text` | `Orgasms()` |
+
+**Дефект в `origin` двумя частями:** (1) колонка называется **`Contraceptives`**, тогда как запрос идёт по
+**`ContraceptiveCount`** (это разные поля модели — оба обязаны быть); (2) отсутствуют ещё **9** колонок
+(`Garmin`, `GarminId`, `CreatedAt`, `UpdatedAt`, `Deleted`, `Participant`, `Count`, `Types`, `Rating`).
+Поэтому «переименовать `Contraceptives` → `ContraceptiveCount`» **недостаточно** — таблица должна содержать **все** поля модели.
+
+@DO подтвердил то же по `information_schema` на dev (`journal_read` без `ContraceptiveCount`) и что на проде таблицы нет
+вовсе, а @TE — по разности множеств (24 vs 14). Три независимых замера, один вывод.
