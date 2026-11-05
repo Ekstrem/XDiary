@@ -92,7 +92,13 @@ jobs:
     - name: Build and push Docker image (Single profile)
       uses: docker/build-push-action@v6
       with:
-        context: 6-msa/BC-Analytics
+        # Контекст = `6-msa`, как у Catalog/DailyMetrics/SomaticSeries/Portability:
+        # `Analytics.Api.csproj` ссылается на `..\..\..\Shared\XDiary.Contracts`, поэтому при
+        # контексте `6-msa/BC-Analytics` docker-сборка падала на
+        # `CS0246: The type or namespace name 'XDiary' could not be found`
+        # (job `build-and-test` при этом зелёный — он собирает из корня репозитория).
+        context: 6-msa
+        file: 6-msa/BC-Analytics/Dockerfile
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
