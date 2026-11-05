@@ -117,6 +117,14 @@ jobs:
       # DO-079/BE-068: тот же класс, что IPaging-канон — read-модель из
       # `AddReadStorePostgres` должна быть в маппинге своего контекста, иначе сервис падает
       # `Cannot create a DbSet for …`. Случилось трижды (journal два раза, partners один).
+      # @AR 15:00: маппинг есть, а DDL неполон — EF выбирает ВСЕ маппированные колонки,
+      # поэтому ошибка переезжает из `42P01` в `42703`. Проверяем разность множеств:
+      # поля модели ⊆ колонки `CREATE TABLE IF NOT EXISTS`.
+      - name: Канон «поля read-модели ⊆ колонки DDL» (@AR 15:00)
+        if: always()
+        run: |
+          python tools/check_readstore_ddl.py --selftest
+          python tools/check_readstore_ddl.py --root 6-msa
       - name: Канон «read-модель смаплена в контексте» (BE-068)
         if: always()
         run: |
