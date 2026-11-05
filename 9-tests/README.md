@@ -199,6 +199,12 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 `/swagger/v1/swagger.json` → `200` + валидный JSON, и каждый адрес печатается в квитанции.
 Это шаг (2) порядка `@TL 18:44` — после `Swagger__Enabled=true` на dev; до него мерить нечего (`rc=2`).
 
+**`check_e2e_selectors.py` — статическая сверка селекторов `front-e2e` с фронтом.** Берёт все `#id`
+из `9-tests/RnD/front-e2e/tests/*.spec.js` и ищет их в `8-front`: `index.html`, **JS-шаблонах**
+(`'<input id="w-place">'`) и вызовах `getElementById`/`querySelector`. `rc=1` — спека ищет id, которого
+фронт не отдаёт (самый частый класс поломки при изменении `8-front`); `rc=0` — «спек 20 из 22,
+селекторов 128, нарушено 0, id во фронте 154»; `rc=2` — нет фронта/спек. `--selftest` **3/3**.
+
 **Два гейта, два вопроса (не путать):**
 
 | Гейт | Вопрос | `rc=2` значит |
