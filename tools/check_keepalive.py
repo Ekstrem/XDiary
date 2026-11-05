@@ -24,20 +24,22 @@ STAMP = re.compile(r'^- \[(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})\] → @([A-Za-z]+)
 THRESHOLD_MIN = 15
 
 
-def pings(chat_dir, addressee=None):
-    """[(дата, минуты_суток, роль)] из всех чатов."""
+def pings(chat_dir, addressee=None, since='1970-01-01'):
+    """[(дата, минуты_суток, роль)] из всех чатов, не старше since."""
     out = []
     for name in sorted(os.listdir(chat_dir)):
         if not name.endswith('.md'):
             continue
         for line in open(os.path.join(chat_dir, name), encoding='utf-8', errors='replace'):
-            if 'keepalive' not in line:
-                continue
+            if 'keepalive' not in line or 'тишина' not in line:
+                continue  # реальный пинг — «keepalive — тишина N мин», не обсуждение
             m = STAMP.match(line)
             if not m:
                 continue
             role = m.group(4)
             if addressee and role != addressee:
+                continue
+            if m.group(1) < since:
                 continue
             out.append((m.group(1), int(m.group(2)) * 60 + int(m.group(3)), role))
     return out
@@ -94,6 +96,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--root', default='.')
     ap.add_argument('--strict', action='store_true')
+    ap.add_argument('--since', default='2026-11-05', help='грандфазеринг: не ругать пинги раньше даты')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
     if a.selftest:
@@ -103,7 +106,7 @@ def main():
     if not os.path.isdir(chat):
         print('::warning::check_keepalive: нет %s' % CHAT)
         return 0
-    items = pings(chat)
+    items = pings(chat, since=a.since)
     bad = violations(items)
     for role, x, y, gap in bad[:20]:
         msg = ('keepalive → @%s: два пинга с интервалом %d мин (порог %d) — %02d:%02d и %02d:%02d'
