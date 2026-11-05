@@ -1,0 +1,52 @@
+name: public-probe
+
+# DO-076: APIM стоит В ПУТИ трафика, то есть единая точка отказа публичного API;
+# автоматической деградации нет (свойство решения, см. `adr-023`). Значит нужно
+# хотя бы ОБНАРУЖЕНИЕ — до этого ни один workflow не проверял вход снаружи, а
+# `/health` идёт МИМО APIM и мёртвый gateway не показал бы.
+#
+# Проба идёт из интернета (runner), а не с прода: замер с прода/dev идёт tailnet-путём
+# (резолв в 100.x → Caddy :443) и НЕ показывает, что видят пользователи.
+#
+# Что проверяется: `/health` 200 (жив YARP) · `/api/v1/catalog` 401 + `X-Gravitee-*`
+# (APIM в пути) · несуществующий путь 404 (маршрутизация APIM, у YARP было бы 401).
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'Публичный вход (по умолчанию прод)'
+        required: false
+        default: 'https://xdiary-vps1.taile0b6ee.ts.net'
+
+concurrency:
+  group: public-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Selftest пробы (обе стороны: норма и дефект)"
+        run: python3 tools/check_public_entry.py --selftest
+
+      - name: Проба публичного входа
+        run: |
+          python3 tools/check_public_entry.py \
+            --base "${{ inputs.base || 'https://xdiary-vps1.taile0b6ee.ts.net' }}"
+
+      - name: Рецепт отката в summary (если проба красная)
+        if: failure()
+        run: |
+          {
+            echo "### Публичный вход не в норме"
+            echo ""
+            echo "Откат маршрута (одна команда, проверено): \`sudo tailscale funnel --bg 8080\`."
+            echo "Диагностика: \`sudo tailscale funnel status\`, \`podman ps | grep apim\`,"
+            echo "\`python3 tools/check_apim_health.py --remote deploy@<host>\`."
+          } >> "$GITHUB_STEP_SUMMARY"
