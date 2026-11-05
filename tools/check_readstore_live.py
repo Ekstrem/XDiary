@@ -48,12 +48,23 @@ def compare_live(props, cols):
 # На проде podman rootless (deploy видит контейнеры сам), на dev — rootful (нужен sudo).
 # Поэтому выбираем режим по ФАКТУ наличия контейнера, а не по «есть ли sudo»:
 # на проде sudo есть, но root-podman контейнеры deploy не видит (@DO 2026-11-05).
+def build_query(db, schema, table):
+    """Запрос по схеме-параметру (условие @DO к ADR-034: гейт не смотрит в старое место).
+
+    Раньше схема была жёстко `public` — после раскладки (`Events`, `MaterializedViews`,
+    `Commands`) гейт оставался бы «зелёным», глядя в пустое место.
+    """
+    return ("select column_name || ':' || data_type from information_schema.columns "
+            "where table_schema='%s' and table_name='%s' order by ordinal_position;"
+            % (schema, table))
+
+
 REMOTE = r'''set -u
 if podman container exists xdiary-pg 2>/dev/null; then SUDO="";
 elif sudo -n podman container exists xdiary-pg 2>/dev/null; then SUDO="sudo -n";
 else SUDO=""; fi
 $SUDO podman exec xdiary-pg psql -U postgres -d {db} -Atc \
- "select column_name || ':' || data_type from information_schema.columns where table_schema='public' and table_name='{table}' order by ordinal_position;" 2>&1
+ "select column_name || ':' || data_type from information_schema.columns where table_schema='{schema}' and table_name='{table}' order by ordinal_position;" 2>&1
 '''
 
 
@@ -75,6 +86,15 @@ def selftest():
     case({'deleted'}, {'deleted': 'integer'}, 0, 1, 'boolean объявлен integer — ловится')
     case({'startedat'}, {'startedat': 'text'}, 0, 0, 'text не проверяется')
 
+    # текстовый кейс (норма @TL): схема-параметр обязан попадать в запрос
+    total += 1
+    q_pub = build_query('journal', 'public', 'journal_read')
+    q_ev = build_query('journal', 'Events', 'journal_read')
+    if "table_schema='public'" in q_pub and "table_schema='Events'" in q_ev:
+        ok += 1
+    else:
+        print('  [FAIL] схема не попадает в запрос: %r / %r' % (q_pub, q_ev))
+
     print('check_readstore_live --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
 
@@ -85,6 +105,7 @@ def main():
     ap = argparse.ArgumentParser(description='Сверка read-модели с живой БД')
     ap.add_argument('--db', required=False, default='journal')
     ap.add_argument('--table', required=False, default='journal_read')
+    ap.add_argument('--schema', default='public')
     ap.add_argument('--model', required=False,
                     default='6-msa/BC-Journal/src/Journal.InternalContracts/JournalReadModel.cs')
     ap.add_argument('--remote', default='deploy@31.192.111.168')
@@ -98,7 +119,7 @@ def main():
     # (24 вместо 20 полей — расхождение 10 vs 6, @TL 2026-11-05 09:18).
     class_name = os.path.basename(a.model)[:-3] if a.model.endswith('.cs') else None
     props = model_props(open(a.model, encoding='utf-8', errors='replace').read(), class_name)
-    script = REMOTE.format(db=a.db, table=a.table)
+    script = REMOTE.format(db=a.db, table=a.table, schema=a.schema)
     cmd = ['ssh', '-i', os.path.expanduser(a.key), '-o', 'BatchMode=yes',
            '-o', 'StrictHostKeyChecking=no', a.remote, 'bash -s']
     try:
@@ -122,8 +143,8 @@ def main():
         cols[name.lower()] = typ.strip()
     if not cols:
         print('  сырой ответ: %s' % out.strip()[:200])
-        print('::error::check_readstore_live: таблица %s.%s не найдена или пустая схема' % (a.db, a.table))
-        return 1
+        print('::error::check_readstore_live: НЕ ИЗМЕРЕНО — таблица %s.%s не найдена или пустая схема' % (a.db, a.table))
+        return 2
 
     missing, type_bad = compare_live(props, cols)
     print('  модель: %d полей | живая таблица %s.%s: %d колонок'
