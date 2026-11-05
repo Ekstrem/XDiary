@@ -47,8 +47,62 @@ def read(ref: str, path: str, worktree: bool) -> str:
     return git("show", f"{ref}:{path}")
 
 
+def newest_ref(candidates=("origin/main", "gh/main", "HEAD")) -> str:
+    """Самый СВЕЖИЙ ref, а не первый по имени (@AR `09:40`).
+
+    Класс ошибки: гейт читал `origin/main`, который в общем дереве отстаёт от явно
+    `fetch`-нутого `gh/main`, и краснел на уже исправленном (как пин `0.88` на `0.89`).
+    Берём ref с максимальным временем коммита.
+    """
+    best, best_ts = "", -1
+    for cand in candidates:
+        if not git("rev-parse", "--verify", "--quiet", cand):
+            continue
+        raw = git("log", "-1", "--format=%ct", cand).strip()
+        try:
+            ts = int(raw or 0)
+        except ValueError:
+            ts = 0
+        if ts > best_ts:
+            best, best_ts = cand, ts
+    return best or "HEAD"
+
+
+def describe_ref(ref: str) -> str:
+    sha = git("rev-parse", "--short", ref).strip()
+    when = git("log", "-1", "--format=%ad", "--date=format:%H:%M", ref).strip()
+    return f"{ref}@{sha} ({when})"
+
+
+def selftest_ref() -> int:
+    """Красный контроль выбора ref: свежий важнее «правильного по имени»."""
+    cases = [
+        ([("a", 100), ("b", 200)], "b", "поздний важнее первого"),
+        ([("a", 300), ("b", 200)], "a", "первый остаётся, если он свежее"),
+        ([("a", 5)], "a", "единственный кандидат"),
+        ([], "HEAD", "нет кандидатов -> HEAD"),
+    ]
+    ok = 0
+    for cands, want, name in cases:
+        best, best_ts = "", -1
+        for cand, ts in cands:
+            if ts > best_ts:
+                best, best_ts = cand, ts
+        got = best or "HEAD"
+        if got == want:
+            ok += 1
+        else:
+            print(f"  [FAIL] ref: {name} -> {got}, ждали {want}")
+    print(f"check_front_088 --selftest-ref: {ok}/{len(cases)} (свежесть важнее имени)")
+    return 0 if ok == len(cases) else 1
+
+
 def main() -> int:
-    ref = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REF") or "origin/main").strip()
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest-ref":
+        return selftest_ref()
+    explicit = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REF") or "").strip()
+    ref = explicit or newest_ref()
+    print(f"   REF={describe_ref(ref)}" + (" (задан явно)" if explicit else " (выбран как самый свежий)"))
     expect_ver = (sys.argv[2] if len(sys.argv) > 2 else os.environ.get("EXPECT_VERSION") or "").strip()
     worktree = ref.upper() in ("WORKTREE", ".")
     if not worktree and not git("rev-parse", "--verify", f"{ref}^{{commit}}"):
