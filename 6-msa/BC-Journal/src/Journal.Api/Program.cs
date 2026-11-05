@@ -63,15 +63,7 @@ using (var scope = app.Services.CreateScope())
     es.Database.Migrate();
     scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
-    readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS journal_read (\"Id\" uuid PRIMARY KEY, \"ClientId\" uuid NULL, \"Partners\" text NOT NULL, \"PartnersNames\" text NOT NULL, \"StartedAt\" text NOT NULL, \"DurationMin\" integer NOT NULL, \"Place\" text NOT NULL, \"Positions\" text NOT NULL, \"Tags\" text NOT NULL, \"Costumes\" text NOT NULL, \"Toys\" text NOT NULL, \"Fantasies\" text NOT NULL, \"Contraceptives\" text NOT NULL, \"ContraceptiveCount\" integer NOT NULL, \"Orgasms\" text NOT NULL, \"Garmin\" boolean NOT NULL, \"GarminId\" text NOT NULL, \"CreatedAt\" text NOT NULL, \"UpdatedAt\" text NOT NULL, \"Deleted\" boolean NOT NULL);");
-    readDb.Database.ExecuteSqlRaw("ALTER TABLE journal_read ADD COLUMN IF NOT EXISTS \"ContraceptiveCount\" integer NOT NULL DEFAULT 0;");
-    readDb.Database.ExecuteSqlRaw("ALTER TABLE journal_read ADD COLUMN IF NOT EXISTS \"Garmin\" boolean NOT NULL DEFAULT false;");
-    readDb.Database.ExecuteSqlRaw("ALTER TABLE journal_read ADD COLUMN IF NOT EXISTS \"GarminId\" text NOT NULL DEFAULT '';");
-    readDb.Database.ExecuteSqlRaw("ALTER TABLE journal_read ADD COLUMN IF NOT EXISTS \"CreatedAt\" text NOT NULL DEFAULT '';");
-    readDb.Database.ExecuteSqlRaw("ALTER TABLE journal_read ADD COLUMN IF NOT EXISTS \"UpdatedAt\" text NOT NULL DEFAULT '';");
-    readDb.Database.ExecuteSqlRaw("ALTER TABLE journal_read ADD COLUMN IF NOT EXISTS \"Deleted\" boolean NOT NULL DEFAULT false;");
-    readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS partners_directory (\"PartnerId\" uuid PRIMARY KEY, \"Name\" text NOT NULL, \"ClientId\" uuid NULL, \"DeletedAt\" timestamptz NULL);");
-    readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS journal_defaults (\"Id\" uuid PRIMARY KEY, \"ClientId\" uuid NOT NULL, \"LastPartnerId\" text NOT NULL, \"LastPlace\" text NOT NULL, \"Places\" text NOT NULL, \"Fantasies\" text NOT NULL, \"Positions\" text NOT NULL, \"Tags\" text NOT NULL, \"Contraceptives\" text NOT NULL);");
+    readDb.Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();

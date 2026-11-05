@@ -56,7 +56,7 @@ using (var scope = app.Services.CreateScope())
     es.Database.Migrate();
     scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
-        readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS partners_read (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL, \"Photo\" text NOT NULL, \"Gender\" text NOT NULL, \"Notes\" text NOT NULL, \"ClientId\" uuid NULL, \"DeletedAt\" timestamptz NULL);");
+    readDb.Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();
