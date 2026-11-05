@@ -4,8 +4,8 @@
 # деплой читает только этот файл, откат = revert коммита, изменившего строку.
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
-journal              single-b9173f0  6-msa/BC-Journal
-partners             single-e25f5c4  6-msa/BC-Partners
+journal              single-1d01433  6-msa/BC-Journal
+partners             single-68644da  6-msa/BC-Partners
 catalog              single-f67cf53  6-msa/BC-Catalog
 somatic-series       single-f67cf53  6-msa/BC-SomaticSeries
 daily-metrics        single-f67cf53  6-msa/BC-DailyMetrics
@@ -16,4 +16,4 @@ privacy              single-73293e0  6-msa/BC-Privacy
 portability          single-f67cf53  6-msa/BC-Portability
 client               single-fa5e4c3  6-msa/BC-Client
 api-gateway          single-5075ab5  6-msa/ApiGateway
-front                single-6d4c477  8-front
+front                single-5649cf3  8-front
