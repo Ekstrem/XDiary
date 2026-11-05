@@ -77,6 +77,29 @@ def selftest():
         print('  [FAIL] пароль попал в вывод проверки — так нельзя')
     total += 1
 
+    # развилка «не тот --expect» vs «известный чужой контур»
+    def classify_rows(rows, expect):
+        bad = check(rows, expect)
+        matched = len(rows) - len(bad)
+        if matched:
+            return 'ok' if not bad else 'drift'
+        known_foreign = {h for _k, h in bad if h in KNOWN}
+        return 'drift' if known_foreign else 'bad-expect'
+
+    if classify_rows(parse_hosts('ConnectionStrings__A=Host=77.91.73.67;x=1'), '10.89.9.10') == 'drift':
+        ok += 1
+    else:
+        print('  [FAIL] known dev-хост должен давать drift (rc=1), а не «не тот expect»')
+    if classify_rows(parse_hosts('ConnectionStrings__A=Host=10.0.0.99;x=1'), '10.89.9.10') == 'bad-expect':
+        ok += 1
+    else:
+        print('  [FAIL] неизвестный хост при нулевом совпадении — это «не тот expect» (rc=2)')
+    if classify_rows(parse_hosts('ConnectionStrings__A=Host=10.89.9.10;x=1'), '10.89.9.10') == 'ok':
+        ok += 1
+    else:
+        print('  [FAIL] совпадение с ожидаемым хостом должно давать ok')
+
+    total += 3   # три кейса развилки drift / bad-expect добавлены ниже по коду
     print('check_env_hosts --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
 
@@ -106,6 +129,19 @@ def main():
     print('  ожидаемый хост: %s (%s)' % (a.expect, KNOWN.get(a.expect, 'не из списка известных')))
     print('  строк ConnectionStrings: %d | соответствуют: %d | чужих: %d'
           % (len(rows), len(rows) - len(bad), len(bad)))
+    matched = len(rows) - len(bad)
+    if matched == 0:
+        known_foreign = {h for _k, h in bad if h in KNOWN}
+        if not known_foreign:
+            # ни одна строка не совпала и хосты неизвестны: скорее всего --expect не тот,
+            # иначе гейт выдавал бы «нарушение» там, где просто указан чужой контур
+            print('::error::check_env_hosts: ни одна строка не совпала с --expect %s, и хосты не из '
+                  'списка известных — вероятно, --expect указан не для этого контура (rc=2, не «чисто» '
+                  'и не «нарушение»)' % a.expect)
+            return 2
+        # все строки ушли на известный другой контур — это ровно инцидент, rc=1
+        print('  все строки смотрят на известный другой контур: %s'
+              % ', '.join(sorted(known_foreign)))
     for key, host in bad:
         print('   ЧУЖОЙ ХОСТ: %s -> %s (%s)' % (key, host or 'НЕТ Host=', KNOWN.get(host, 'неизвестный')))
     if bad:
