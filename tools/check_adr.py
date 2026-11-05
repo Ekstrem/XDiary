@@ -247,6 +247,8 @@ def main():
                     help="алиас --cutoff для совместимости (AGENTS §5.2); значение меньше "
                          "нормы %s не принимается" % CUTOFF_DEFAULT)
     ap.add_argument("--strict", action="store_true", help="предупреждения считать ошибками")
+    ap.add_argument("--strict-empty", action="store_true",
+                    help="0 проверенных ADR считать НЕ ИЗМЕРЕНО (rc=2), а не «в норме»")
     ap.add_argument("--range", default=None,
                     help="git-диапазон (a..b): проверять только изменённые ADR")
     ap.add_argument("--selftest", action="store_true", help="негативный контроль (D-12)")
@@ -328,6 +330,14 @@ def main():
 
     print("check_adr: проверено %d (старых пропущено %d, старых с понижением %d), нарушений %d"
           % (checked, skipped, downgraded, bad))
+
+    # 0 проверенных ADR — это «не смотрел», а не «чисто» (@AR 2026-11-05 17:45, DO-093).
+    if checked == 0:
+        _msg = ("ПРОВЕРЕНО 0 ADR — гейт НЕ СМОТРЕЛ документы (граница %s)" % cutoff)
+        print("::warning::check_adr: " + _msg)
+        if getattr(args, "strict_empty", False):
+            print("::error::check_adr: НЕ ИЗМЕРЕНО — " + _msg)
+            return 2
     return 1 if bad else 0
 
 
