@@ -256,6 +256,16 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 разметки 13 | исключений 1 | нарушено 0**, `rc=0`; `--selftest` **5/5**. Исключение — `view-splash`
 (стартовый экран виден до инициализации, скрывается напрямую, а не через `showView`).
 
+**`check_e2e_assertion_strength.py` — утверждения проверяют поведение, а не «что-то истинное».**
+`expect(x).toBeTruthy()` зеленеет и на `{}`, и на `'undefined'`; гейт считает долю слабых
+(`toBeTruthy`, `not.toBeNull`, `toBeDefined`, `not.toBeFalsy`) против сильных (`toBe`, `toEqual`,
+`toMatch`, `toMatchObject`, `toBeTypeOf`, `toHaveText`, `toBeVisible`, …): порог **30%** в спеке и
+**15%** в наборе, LEGACY не считается. Сейчас: **спек 20 | слабых 12 | сильных 225 | доля 5.1%**,
+`rc=0`; `--selftest` **5/5**. По этой карте усилены 6 проверок: `GET /catalog/{id}` и
+`GET /partners/{id}` теперь `toMatchObject({ id })` (падает и на `null`), список журнала —
+`Array.isArray`, `displayName` — `typeof … 'string'` + непустой, client-JWT — проверка формы
+`header.payload.signature`, `stand.has` — `toBeTypeOf('boolean')`.
+
 **`check_e2e_diagnostics.py` — у каждой спеки есть след для разбора падения.** Требует хотя бы один
 из `reportStep(page, …)`, `console.log(…)`, `.annotations.push(…)`, `.attach(…)`: иначе у дежурного
 в CI только «тест упал», без шага, тоста и ответа API. LEGACY-спеки (`describe.skip`) исключены.

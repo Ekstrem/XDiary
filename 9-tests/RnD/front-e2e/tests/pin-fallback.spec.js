@@ -66,7 +66,7 @@ test('E2E: без локального PIN замка нет; с локальн�
   expect(
     stand.has,
     'неизвестное состояние стенда: POST /privacy/token {pin:""} → ' + stand.status + ' (не «пропускаем»)'
-  ).not.toBeNull();
+  ).toBeTypeOf('boolean');
   console.log('::notice::стенд: PIN ' + (stand.has ? 'задан' : 'не задан') + ' (ответ ' + stand.status + ')');
 
   // Сессия получается штатно (адаптивная фикстура: PIN не нужен, потому что на 0.90 он не первичен).
@@ -115,7 +115,8 @@ test('E2E: без локального PIN замка нет; с локальн�
 
   // Поведенческое утверждение: после разблокировки сессия ЖИВА, а не просто «экран сменился».
   const token = await readToken(page);
-  expect(token, 'client-JWT на устройстве после разблокировки').toBeTruthy();
+  expect(token, 'client-JWT после разблокировки имеет вид header.payload.signature')
+    .toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
   const me = await page.evaluate(async (base) => {
     const t = localStorage.getItem('xdiary.accessToken');
     const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });

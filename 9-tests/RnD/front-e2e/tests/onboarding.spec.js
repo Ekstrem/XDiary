@@ -106,7 +106,8 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
       return { status: r.status, body: j };
     }, { base: API_BASE });
     expect(me.status, 'GET /clients/me → ' + me.status).toBe(200);
-    expect(me.body.displayName, 'профиль должен содержать displayName').toBeTruthy();
+    expect(typeof me.body.displayName, 'displayName имеет тип string').toBe('string');
+    expect(me.body.displayName, 'displayName не пустой').toMatch(/\S/);
     expect(['male', 'female'], 'пол — канонический (ADR-024 §3)').toContain(me.body.gender);
     expect(me.body, 'в E7 у клиента больше нет linkedPartnerId').not.toHaveProperty('linkedPartnerId');
   });

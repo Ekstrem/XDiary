@@ -69,7 +69,8 @@ test('E2E: каталог — archive и restore через UI, проверка
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: UI_WAIT });
 
       const archived = await getItem(page, id);
-      expect(archived, 'GET /catalog/{id}').toBeTruthy();
+      // `toMatchObject` падает и на `null`, и на неверном id   строже, чем «truthy».
+      expect(archived, 'GET /catalog/{id} вернул позицию с тем же id').toMatchObject({ id });
       expect(archived.archived, 'archived = true после «В архив» (API)').toBe(true);
     });
 
