@@ -185,8 +185,13 @@
 
 ```
 python 9-tests/scripts/check_swagger_perimeter.py \
-  --public-base https://<публичный вход> --internal-base http://<внутри контура>
+  --public-base https://<публичный вход> \
+  --internal-base http://partners:8080 --internal-base http://journal:8080
 ```
+
+`--internal-base` можно указывать **несколько раз** (12 сервисов): для каждого проверяется
+`/swagger/v1/swagger.json` → `200` + валидный JSON, и каждый адрес печатается в квитанции.
+Это шаг (2) порядка `@TL 18:44` — после `Swagger__Enabled=true` на dev; до него мерить нечего (`rc=2`).
 
 **Два гейта, два вопроса (не путать):**
 
