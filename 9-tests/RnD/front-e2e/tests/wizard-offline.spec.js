@@ -73,10 +73,29 @@ test('E2E: визард без сети — ошибка видна, форма 
     const errorSignal = page.locator('#toast, #view-wizard').filter({
       hasText: /(не удалось|ошибк|нет связи|офлайн|offline)/i,
     });
-    await expect(errorSignal.first(),
+    const signal = errorSignal.first();
+    await expect(signal,
       'нет видимого признака отказа чтения (read-paths §1 п.1); версия фронта = ' +
       (frontVersion || '?') + vHint)
       .toBeVisible({ timeout: 20000 });
+
+    // 2а. Признак обязан НАЗЫВАТЬ упавшие источники, а не быть общим «ошибка».
+    // `app.js` собирает `readError[]` из конкретных подписей: «партнёры», «последняя запись»,
+    // «места», «каталог» (`app.js:624-627`) и печатает «Не удалось загрузить: …» (`:642`).
+    // Мы блокируем `**/api/v1/journal/**` и `**/api/v1/partners**`, поэтому в тексте обязаны
+    // появиться партнёры и хотя бы один журнальный источник. Без этого утверждения спека
+    // прошла бы на любом тексте со словом «ошибка» — то есть на пустом сигнале.
+    const signalText = (await signal.textContent()) || '';
+    await expect(
+      signalText,
+      'признак отказа не называет источники (ожидали «партнёры» и «последняя запись»/«места»); ' +
+      'текст: ' + signalText.slice(0, 200)
+    ).toMatch(/партн[её]р/i);
+    await expect(
+      signalText,
+      'признак не называет журнальный источник (ожидали «последняя запись» или «места»); ' +
+      'текст: ' + signalText.slice(0, 200)
+    ).toMatch(/(последн[а-я]*\s*запис|мест)/i);
 
     // 3. Предзаполнение не выдаётся за прочитанные данные.
     await expect(page.locator('#w-partner-grid .partner-card.selected'),
