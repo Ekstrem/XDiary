@@ -182,7 +182,7 @@ def resolve_images(arg_value: str, services: list) -> str:
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
                  violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "",
                  network: str = "") -> str:
-    """Квитанция (канон `ADR-026 → «Канон измерения периметра»`; перенесён из `ADR-026` 2026-11-05):
+    """Квитанция
 
         REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=V | contract=C |
         неизвестно=U | rc=N | where=<чем измерено> | images=<svc:digest, …>
@@ -1078,7 +1078,7 @@ def main() -> int:
             print(f"   ВХОД: {entry}")
         worst = max(rc_a, rc_c)
         names = {0: "PASS", 1: "FAIL", 2: "НЕ ЗАСЧИТАНО"}
-        # Тождество протокола (ADR-026, перенесено из ADR-026; @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
+        # Тождество протокола
         # покрывают ВСЕ операции индекса, кроме `anonymous` (74 + 2 = 76 из 80). Если сумма
         # разойдётся — значит класс операций выпал из обоих условий, и протокол недействителен.
         all_ops = load_ops(args.index)
@@ -1190,7 +1190,7 @@ def main() -> int:
                                resolve_images(args.images, sorted(host_map)), args.network))
             return 2
 
-        # ADR-026 (перенесён из ADR-026): при замере из контейнера `network=` обязателен. Проверяем ДО запросов,
+        # ADR-026
         # иначе получим «измерил, но квитанция недействительна» — wasted run.
         if not args.network:
             print("::error::check_apim_auth: для (ii-b) обязателен `--network <имя сети>` "
