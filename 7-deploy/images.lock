@@ -11,7 +11,7 @@ somatic-series       single-6647cdc  6-msa/BC-SomaticSeries
 daily-metrics        single-6647cdc  6-msa/BC-DailyMetrics
 garmin-gateway       single-6647cdc  6-msa/BC-GarminGateway
 apple-health-gateway single-6647cdc  6-msa/BC-AppleHealthGateway
-analytics            single-d44de3a  6-msa/BC-Analytics
+analytics            single-d129cfd  6-msa/BC-Analytics
 privacy              single-6647cdc  6-msa/BC-Privacy
 portability          single-6647cdc  6-msa/BC-Portability
 client               single-2339460  6-msa/BC-Client
