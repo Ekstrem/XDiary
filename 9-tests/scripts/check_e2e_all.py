@@ -42,6 +42,7 @@ GATES = (
     ("check_e2e_assertions.py", "у каждой спеки есть поведенческое утверждение"),
     ("check_e2e_ui_coverage.py", "карта: какие элементы фронта не трогает ни одна спека"),
     ("check_e2e_error_paths.py", "негативные пути: элементы ошибок утверждаются спеками"),
+    ("check_e2e_api_contract.py", "эндпоинты спек есть в api-index.yaml"),
     ("check_e2e_ci_filter.py", "в npm test нет фильтров, которые тихо убирают спеки"),
     ("check_e2e_time_budget.py", "худший случай прогона помещается в timeout-minutes джобы"),
     ("check_e2e_timeout_sums.py", "сумма объявленных ожиданий спеки помещается в лимит теста"),
