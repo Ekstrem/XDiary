@@ -71,17 +71,23 @@ test('E2E: новое устройство → онбординг (без PIN-э
     const lock = page.locator('#view-lock');
     const onb = page.locator('#view-onboarding');
     const jr = page.locator('#view-journal');
-    await expect(lock.or(onb).or(jr).first()).toBeVisible({ timeout: 20000 });
+
+    // УСТРОЙСТВО УЖЕ ПРОШЛО ОНБОРДИНГ — значит допустимы только ДВА исхода: журнал или замок.
+    // Онбординг здесь = потеря сохранённого `clientId`/сессии, то есть дефект, а не «новое устройство».
+    // Раньше шаг принимал любой из трёх экранов и печатал console.log — спека была зелёной даже при
+    // регрессе входа (@AR 19:30: первичная аутентификация — телефон+OTP, PIN — только локальный замок,
+    // повторный онбординг на пройденном устройстве не предусмотрен).
+    await expect(lock.or(jr).first(), 'после reload на пройденном устройстве — журнал или замок').toBeVisible({ timeout: 20000 });
+    await expect(onb, 'повторный онбординг на устройстве, где он уже пройден — потеря clientId/сессии').toBeHidden();
+
     if (await lock.isVisible()) {
       // TE-036 (@TL 03:30): unlockIfLocked ждёт ИСЧЕЗНОВЕНИЯ #view-lock; раньше waitToken
       // возвращался мгновенно (токен не удалялся), и expect(jr) стартовал при видимом замке.
       await unlockIfLocked(page, PIN);
       await expectScreen(page, '#view-journal', 'после PIN журнал открылся', 20000);
-      console.log('::notice::после reload — PIN-экран, вход выполнен');
-    } else if (await onb.isVisible()) {
-      console.log('::notice::после reload — онбординг (новое устройство)');
+      console.log('::notice::после reload — PIN-экран (локальный замок), вход выполнен');
     } else {
-      console.log('::notice::после reload — сразу журнал');
+      console.log('::notice::после reload — сразу журнал (сессия сохранена)');
     }
   });
 });
