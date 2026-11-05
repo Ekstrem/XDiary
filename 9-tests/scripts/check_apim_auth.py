@@ -382,9 +382,22 @@ def identity_rc(rc: int, passed: int, violators: int, contracts: int, unknown: i
     return rc
 
 
-def via_rc(rc: int) -> int:
-    """`PASS` без доказанного `via=` не засчитывается (@TL `05:00`: поле обязательное)."""
-    if rc == 0 and VIA_NOTE in ("", "НЕ ОПРЕДЕЛЕНО"):
+def via_rc(rc: int, kind: str = "ii-b") -> int:
+    """Засчитывать `PASS` только при доказанном `via=` (@TL `05:00`, @AR `05:15`).
+
+    `(ii-a)` считается **только снаружи по публичному имени** и **требует `via=gravitee`**
+    (@AR `05:15`): иначе замер доказывает «публичный вход закрыт», но не «пользователь идёт
+    через APIM» — это верно и для YARP. Прочие условия требуют лишь определённого `via=`.
+    """
+    if rc != 0:
+        return rc
+    if kind == "ii-a":
+        if VIA_NOTE != "gravitee":
+            print(f"::error::check_apim_auth: (ii-a) не засчитывается — `via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}` "
+                  "(требуется `via=gravitee`: APIM в пути публичного входа); rc=2")
+            return 2
+        return rc
+    if VIA_NOTE in ("", "НЕ ОПРЕДЕЛЕНО"):
         print("::error::check_apim_auth: `via=` не определён — PASS не засчитывается "
               "(ADR-026: квитанция обязана называть, кто ответил); rc=2")
         return 2
@@ -788,9 +801,13 @@ def selftest() -> int:
         VIA_NOTE = ""
         rc_no_via = via_rc(0)
         VIA_NOTE = "yarp"
-        rc_via = via_rc(0)
+        rc_via = via_rc(0)                 # (ii-b)/(ii-c): yarp достаточно
+        rc_iia_yarp = via_rc(0, "ii-a")    # (ii-a): yarp НЕ достаточно (@AR 05:15)
+        VIA_NOTE = "gravitee"
+        rc_iia_grav = via_rc(0, "ii-a")
         VIA_NOTE = saved2
-        if not bad_via and "via=gravitee" in with_via and rc_no_via == 2 and rc_via == 0:
+        if (not bad_via and "via=gravitee" in with_via and rc_no_via == 2 and rc_via == 0
+                and rc_iia_yarp == 2 and rc_iia_grav == 0):
             ok += 1
         else:
             print(f"  [FAIL] via=: {bad_via or 'поле не печатается'} / {with_via!r}")
@@ -947,6 +964,10 @@ def main() -> int:
         ok_c, bad_c, unk_c = verdict_internal(res_c)
         rc_c = 1 if bad_c else (2 if (unk_c or not ok_c) else 0)
         where = args.where or args.base
+        # `via_rc` ДО печати: иначе квитанция скажет `PASS rc=0`, а ИТОГ — `rc=2` (разные вердикты
+        # об одном замере — ровно тот класс, который вычищаем).
+        rc_a = via_rc(rc_a, "ii-a")
+        rc_c = via_rc(rc_c, "ii-c")
         print(receipt_line("ii-a", current_ref(), p_a, len(ops_all), rc_a, where,
                            len(v_a), len(c_a), len(u_a),
                            resolve_images(args.images, []) if not args.direct else "", args.network))
@@ -986,8 +1007,7 @@ def main() -> int:
                 entry = "НЕ ОПРЕДЕЛЕНО"
             print(f"   ВХОД: {entry}")
         worst = max(rc_a, rc_c)
-        worst = via_rc(worst)
-        names = {0: "PASS", 1: "FAIL", 2: "UNKNOWN"}
+        names = {0: "PASS", 1: "FAIL", 2: "НЕ ЗАСЧИТАНО"}
         # Тождество протокола (ADR-026, @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
         # покрывают ВСЕ операции индекса, кроме `anonymous` (74 + 2 = 76 из 80). Если сумма
         # разойдётся — значит класс операций выпал из обоих условий, и протокол недействителен.
@@ -1122,7 +1142,7 @@ def main() -> int:
         # потом печать. Обратный порядок затирал результат `identity_rc` вызовом `final_rc`.
         rc = final_rc(violators, contracts, unknown, passed, len(targets))
         rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
-        rc = via_rc(rc)
+        rc = via_rc(rc, "ii-a")
         print("   расшифровка по BC: " + breakdown_line(breakdown_by_bc(
             results, args.five_xx_unknown if args.direct else True)))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
@@ -1189,7 +1209,7 @@ def main() -> int:
     rc = final_rc(violators, contracts, unknown, passed, len(targets))
     # Тождество на основном пути (`@DO` `02:37`): расхождение суммы делает квитанцию недействительной.
     rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
-    rc = via_rc(rc)
+    rc = via_rc(rc, "ii-a")
 
     if args.json:
         print(json.dumps({"base": args.base, "targets": len(targets), "passed": passed,
