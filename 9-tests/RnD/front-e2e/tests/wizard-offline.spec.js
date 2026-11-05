@@ -35,6 +35,29 @@ test('E2E: визард без сети — ошибка видна, форма 
   await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
   await reportStep(page, 'шаг 1: сессия получена, дальше — имитация «нет сети» для MV журнала');
 
+  // Версия измеряемого фронта. Прогон поднимает СТАТИКУ из `8-front/` на момент запуска, поэтому
+  // устаревший прогон может «краснеть» по уже исправленной причине: в `0.92` баннер вешался только
+  // на `document.body` и не попадал под селектор ниже (`@FE 0.93`, `332027bc`). Версия НЕ влияет на
+  // вердикт — она попадает в сообщения, чтобы красный был самообъясняющимся.
+  // `APP_VERSION` живёт внутри IIFE, поэтому читаем исходник, а не `window`.
+  const frontVersion = await page.evaluate(async () => {
+    try {
+      const src = await (await fetch('js/app.js')).text();
+      const m = src.match(/APP_VERSION\s*=\s*"([\d.]+)"/);
+      return m ? m[1] : '';
+    } catch (e) {
+      return '';
+    }
+  }).catch(() => '');
+  await reportStep(page, 'шаг 1.1: версия измеряемого фронта = ' + (frontVersion || 'НЕ ИЗВЕСТНА'));
+  const vNum = (v) => {
+    const p = String(v || '').split('.').map((n) => parseInt(n, 10));
+    return (p[0] || 0) * 1000 + (p[1] || 0);
+  };
+  const vHint = frontVersion && vNum(frontVersion) < vNum('0.93')
+    ? ' (прогон до 0.93 объясняется известным дефектом 0.92: баннер вне селектора спеки)'
+    : '';
+
   await page.route('**/api/v1/journal/**', (route) => route.abort('failed'));
   await page.route('**/api/v1/partners**', (route) => route.abort('failed'));
   try {
@@ -42,17 +65,22 @@ test('E2E: визард без сети — ошибка видна, форма 
     await dumpViews(page, 'wizard-offline: после нажатия «+» без сети');
 
     // 1. Форма сохраняется: визард обязан открыться, а не «молча ничего».
-    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-wizard'),
+      'визард не открылся при отказе read-path; версия фронта = ' + (frontVersion || '?') + vHint)
+      .toBeVisible({ timeout: 20000 });
 
     // 2. Ошибка обязана быть видна и отличима от «данных нет».
     const errorSignal = page.locator('#toast, #view-wizard').filter({
       hasText: /(не удалось|ошибк|нет связи|офлайн|offline)/i,
     });
-    await expect(errorSignal.first(), 'нет видимого признака отказа чтения (read-paths §1 п.1)')
+    await expect(errorSignal.first(),
+      'нет видимого признака отказа чтения (read-paths §1 п.1); версия фронта = ' +
+      (frontVersion || '?') + vHint)
       .toBeVisible({ timeout: 20000 });
 
     // 3. Предзаполнение не выдаётся за прочитанные данные.
-    await expect(page.locator('#w-partner-grid .partner-card.selected'))
+    await expect(page.locator('#w-partner-grid .partner-card.selected'),
+      'ложная подстановка партнёра при отказе read-path; версия фронта = ' + (frontVersion || '?') + vHint)
       .toHaveCount(0, { timeout: 10000 });
   } finally {
     await page.unroute('**/api/v1/journal/**').catch(() => {});

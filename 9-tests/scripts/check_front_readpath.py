@@ -55,6 +55,38 @@ def check_alert_role(text: str) -> list[str]:
     return ["FE-043: баннер read-path создаётся без `role=\"alert\"`"]
 
 
+def check_observable(text: str) -> list[str]:
+    """(2b) признак ошибки обязан быть **наблюдаемым** (`read-paths.md` §5, уточнение 2026-11-16).
+
+    Спека ищет текст в `#view-wizard`/`#toast`. Баннер, вставленный только в `document.body`
+    или вытесняемый `innerHTML` шага, — «верный по смыслу, но невидимый для проверки» код.
+    Требуем оба канала: `toast(...)` И предпочтение `#view-wizard` как host.
+    """
+    problems = []
+    if "toast(" not in text:
+        problems.append("FE-043: нет `toast(...)` — признак не попадёт в `#toast` (наблюдаемость)")
+    if "getElementById(\"view-wizard\")" not in text and "getElementById('view-wizard')" not in text:
+        problems.append("FE-043: баннер не предпочитает `#view-wizard` как host (спека ищет признак там)")
+    return problems
+
+
+def check_order(text: str) -> list[str]:
+    """(2c) `reportReadFailure` обязан вызываться **после** `renderWizard` (@FE `0.93`).
+
+    Причина: `renderWizard` перерисовывает шаг через `innerHTML`, поэтому баннер, вставленный
+    раньше, сносится — поведение «правильное по смыслу», но невидимое. Проверка структурная:
+    позиция вызова `reportReadFailure(` должна быть **позже** `renderWizard(data)`. Это
+    подсказка, а не доказательство: переживание перерисовки доказывает только спека.
+    """
+    i_render = text.find("renderWizard(data)")
+    i_report = text.find("reportReadFailure(data)")
+    if i_render < 0 or i_report < 0:
+        return ["FE-043: нет пары `renderWizard(data)` + `reportReadFailure(data)` — порядок не проверить"]
+    if i_report < i_render:
+        return ["FE-043: `reportReadFailure` вызывается ДО `renderWizard` — баннер снесёт `innerHTML` шага"]
+    return []
+
+
 def check_busy(text: str) -> list[str]:
     """(3) индикатор применяется там, где операции тяжёлые: тренды и экспорт CSV."""
     if "function busyRun" not in text and "busyRun =" not in text:
@@ -95,7 +127,8 @@ def run(root: str) -> int:
         print(f"::error::check_front_readpath: не читается {app} ({e}); проверять нечего (rc=2)")
         return 2
     problems = (check_artifacts(app_text) + check_alert_role(app_text)
-                + check_busy(app_text) + check_version_sync(app_text, sw_text))
+                + check_observable(app_text) + check_order(app_text) + check_busy(app_text)
+                + check_version_sync(app_text, sw_text))
     for p in problems:
         print(f"::error::check_front_readpath: {p}")
     if problems:
@@ -110,9 +143,12 @@ def selftest() -> int:
     good_app = (
         'var APP_VERSION = "0.93";\n'
         'function showReadError(t){ var el=document.createElement("div"); '
-        'el.setAttribute("role","alert"); }\n'
+        'el.setAttribute("role","alert"); toast(t, 6000); '
+        'document.getElementById("view-wizard").appendChild(el); }\n'
         'function hideReadError(){}\nfunction reportReadFailure(d){}\nfunction openWizardDegraded(e){}\n'
         'function busyRun(l,t,r){ setTimeout(function(){},300); }\n'
+        'function renderWizard(d){} function reportReadFailure(d){}\n'
+        'renderWizard(data); reportReadFailure(data);\n'
         'busyRun("Считаем тренды", function(){ return 1; });\n'
         'busyRun("Готовим CSV", function(){ return 1; }, downloadCsv);\n'
     )
@@ -122,14 +158,16 @@ def selftest() -> int:
         ("нет showReadError", good_app.replace("function showReadError(t)", "function showReadErr(t)"),
          good_sw, 1),
         ("баннер без role", good_app.replace('el.setAttribute("role","alert");', ""), good_sw, 1),
+        ("баннер без toast/визарда", good_app.replace('toast(t, 6000); ', "").replace('document.getElementById("view-wizard").appendChild(el); ', ""), good_sw, 1),
+        ("reportReadFailure до renderWizard", good_app.replace('renderWizard(data); reportReadFailure(data);', 'reportReadFailure(data); renderWizard(data);'), good_sw, 1),
         ("busyRun без трендов", good_app.replace('busyRun("Считаем тренды", function(){ return 1; });', ""),
          good_sw, 1),
         ("версия рассинхронена", good_app, 'var CACHE = "xdiary-v92";\n', 1),
     ]
     ok = 0
     for name, app, sw, want_fail in cases:
-        problems = (check_artifacts(app) + check_alert_role(app) + check_busy(app)
-                    + check_version_sync(app, sw))
+        problems = (check_artifacts(app) + check_alert_role(app) + check_observable(app)
+                    + check_order(app) + check_busy(app) + check_version_sync(app, sw))
         got = 1 if problems else 0
         if got == want_fail:
             ok += 1
