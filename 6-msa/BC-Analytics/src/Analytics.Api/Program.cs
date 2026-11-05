@@ -2,6 +2,7 @@ using XDiary.Contracts;
 using Analytics.Api.Precompute;
 using Analytics.Application.Queries;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
@@ -25,6 +26,7 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(GetSu
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<AnalyticsSnapshot>();
 builder.Services.AddHostedService<AnalyticsPrecomputeService>();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -32,6 +34,7 @@ app.UseXdiarySwagger();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();
