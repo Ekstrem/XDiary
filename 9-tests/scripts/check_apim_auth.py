@@ -213,7 +213,8 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     return line
 
 
-VIA_NOTE = ""   # кто ответил в текущем прогоне (@TL `05:00`); заполняется один раз в main
+VIA_NOTE = ""      # кто ответил в текущем прогоне
+STRICT_VIA = False  # требовать via=gravitee для всех условий (--strict-via) (@TL `05:00`); заполняется один раз в main
 
 
 def via_from_headers(headers: dict, code) -> str:
@@ -391,9 +392,9 @@ def via_rc(rc: int, kind: str = "ii-b") -> int:
     """
     if rc != 0:
         return rc
-    if kind == "ii-a":
+    if kind == "ii-a" or STRICT_VIA:
         if VIA_NOTE != "gravitee":
-            print(f"::error::check_apim_auth: (ii-a) не засчитывается — `via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}` "
+            print(f"::error::check_apim_auth: ({kind}) не засчитывается — `via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}` "
                   "(требуется `via=gravitee`: APIM в пути публичного входа); rc=2")
             return 2
         return rc
@@ -805,9 +806,16 @@ def selftest() -> int:
         rc_iia_yarp = via_rc(0, "ii-a")    # (ii-a): yarp НЕ достаточно (@AR 05:15)
         VIA_NOTE = "gravitee"
         rc_iia_grav = via_rc(0, "ii-a")
+        # --strict-via: то же требование распространяется и на (ii-c) (формулировка @TL 06:59)
+        VIA_NOTE = "yarp"
+        rc_strict_off = via_rc(0, "ii-c")
+        globals()["STRICT_VIA"] = True
+        rc_strict_on = via_rc(0, "ii-c")
+        globals()["STRICT_VIA"] = False
         VIA_NOTE = saved2
         if (not bad_via and "via=gravitee" in with_via and rc_no_via == 2 and rc_via == 0
-                and rc_iia_yarp == 2 and rc_iia_grav == 0):
+                and rc_iia_yarp == 2 and rc_iia_grav == 0
+                and rc_strict_off == 0 and rc_strict_on == 2):
             ok += 1
         else:
             print(f"  [FAIL] via=: {bad_via or 'поле не печатается'} / {with_via!r}")
@@ -870,6 +878,9 @@ def main() -> int:
     ap.add_argument("--index", default=INDEX)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--strict-via", action="store_true", dest="strict_via",
+                    help="требовать via=gravitee для ВСЕХ условий (по умолчанию: строго только (ii-a), "
+                         "как решил @AR 05:15)")
     ap.add_argument("--probe-entry", action="store_true", dest="probe_entry",
                     help="доказать, ЧТО стоит в пути трафика: заголовки ответа + поведение "
                          "несуществующего пути (APIM отдаёт 404 и X-Gravitee-*, YARP — 401)")
@@ -896,7 +907,8 @@ def main() -> int:
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
 
-    global VIA_NOTE
+    global VIA_NOTE, STRICT_VIA
+    STRICT_VIA = bool(args.strict_via)
     VIA_NOTE = probe_via(args.base) if args.base else ""
 
     if args.selftest:
