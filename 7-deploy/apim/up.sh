@@ -133,6 +133,20 @@ echo "3) management-api"; run_mgmt
 echo "3b) management-ui"; run_ui
 echo "4) gateway"; run_gw
 echo "5) health management"; health
-echo "6) контроль: APIM НЕ в пути трафика"
+echo "6) контроль: APIM В ПУТИ ТРАФИКА (с 2026-11-05, DO-076)"
 say "YARP /api/v1/clients: $(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:8080/api/v1/clients || echo 000)"
 say "APIM gateway /:        $(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/ || echo 000)"
+# Публичный вход обязан идти через gateway: 401 + наличие X-Gravitee (на проде — Caddy :8081,
+# на тесте/локально публичного входа в APIM может не быть — тогда здесь будет 000/404, и это
+# означает «вход не переключён», а не «APIM не в пути»).
+if [ -n "${PUBLIC_HOST:-}" ]; then
+  hdr=$(curl -sS -D - -o /dev/null -m 8 -H "Host: $PUBLIC_HOST" http://127.0.0.1:8081/api/v1/catalog 2>/dev/null || true)
+  code=$(printf '%s' "$hdr" | head -1 | awk '{print $2}')
+  gcount=$(printf '%s' "$hdr" | grep -ci 'x-gravitee' || true)
+  say "публичный вход /api/v1/catalog: ${code:-000}, x-gravitee: ${gcount:-0}"
+  [ "${code:-000}" = "401" ] && [ "${gcount:-0}" -ge 1 ] \
+    && say "вердикт: APIM в пути (401 + X-Gravitee)" \
+    || say "вердикт: вход НЕ через APIM (ожидали 401 + X-Gravitee)"
+else
+  say "публичная проверка пропущена: задай PUBLIC_HOST=<публичное имя> для проверки входа"
+fi
