@@ -280,9 +280,14 @@ def selftest() -> int:
                 contraceptive_count_mismatches=0, event_count=4, rerun_event_count=4,
                 projection_verified_by="partners-read-parity",
                 measured_on="xdiary-partners:47dfd808",
-                schema_present="yes", post_partners_status=200, delivery_reached="yes")
+                schema_present="yes", post_partners_status=200, delivery_reached="yes",
+                projection_provenance="rebuild")
     cases = [
-        ("норма (история + содержимое + проекция)", dict(base), 0),
+        ("норма (история + содержимое + проекция, доказано пересборкой)", dict(base), 0),
+        ("представление из ручного ремонта = НЕ проекция (§5 п.3)",
+         {**base, "projection_provenance": "repair"}, 1),
+        ("провенанс представления не указан -> не засчитано",
+         {**base, "projection_provenance": None}, 2),
         ("пусто при непустом источнике (BE-071)", {**base, "partners_read": 0}, 1),
         ("проекция неполна (12 из 13)", {**base, "partners_read": 12}, 1),
         ("повтор изменил число строк", {**base, "rerun_partners_read": 14}, 1),
