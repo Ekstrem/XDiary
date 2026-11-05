@@ -45,9 +45,13 @@ def compare_live(props, cols):
     return missing, type_bad
 
 
-# На проде podman rootless (deploy), на dev — rootful (нужен sudo). Пробуем оба.
+# На проде podman rootless (deploy видит контейнеры сам), на dev — rootful (нужен sudo).
+# Поэтому выбираем режим по ФАКТУ наличия контейнера, а не по «есть ли sudo»:
+# на проде sudo есть, но root-podman контейнеры deploy не видит (@DO 2026-11-05).
 REMOTE = r'''set -u
-if sudo -n true 2>/dev/null; then SUDO="sudo -n"; else SUDO=""; fi
+if podman container exists xdiary-pg 2>/dev/null; then SUDO="";
+elif sudo -n podman container exists xdiary-pg 2>/dev/null; then SUDO="sudo -n";
+else SUDO=""; fi
 $SUDO podman exec xdiary-pg psql -U postgres -d {db} -Atc \
  "select column_name || ':' || data_type from information_schema.columns where table_schema='public' and table_name='{table}' order by ordinal_position;" 2>&1
 '''
@@ -90,7 +94,10 @@ def main():
     if a.selftest:
         return selftest()
 
-    props = model_props(open(a.model, encoding='utf-8', errors='replace').read())
+    # имя класса = имя файла модели: без этого model_props захватывал вложенный класс
+    # (24 вместо 20 полей — расхождение 10 vs 6, @TL 2026-11-05 09:18).
+    class_name = os.path.basename(a.model)[:-3] if a.model.endswith('.cs') else None
+    props = model_props(open(a.model, encoding='utf-8', errors='replace').read(), class_name)
     script = REMOTE.format(db=a.db, table=a.table)
     cmd = ['ssh', '-i', os.path.expanduser(a.key), '-o', 'BatchMode=yes',
            '-o', 'StrictHostKeyChecking=no', a.remote, 'bash -s']
