@@ -18,9 +18,9 @@ public sealed class ClientTokenService
     {
         var now = DateTime.UtcNow;
         return new ClientTokenResponse(
-            CreateToken(clientId.ToString(), "access", now.AddMinutes(TokenPolicy.AccessMinutes), phone),
-            // AR-018: refresh без PII (только sub + kind); phone берётся из БД при обновлении.
-            CreateToken(clientId.ToString(), "refresh", now.AddDays(TokenPolicy.RefreshDays), null),
+            CreateAccess(clientId.ToString(), phone, now),
+            // AR-018: refresh без PII — phone невозможен по сигнатуре (CreateRefresh не принимает phone).
+            CreateRefresh(clientId.ToString(), now),
             now.AddMinutes(TokenPolicy.AccessMinutes));
     }
 
@@ -47,7 +47,13 @@ public sealed class ClientTokenService
         catch { return false; }
     }
 
-    private string CreateToken(string sub, string kind, DateTime expires, string? phone)
+    private string CreateAccess(string sub, string? phone, DateTime now)
+        => WriteToken(sub, "access", now.AddMinutes(TokenPolicy.AccessMinutes), phone);
+
+    private string CreateRefresh(string sub, DateTime now)
+        => WriteToken(sub, "refresh", now.AddDays(TokenPolicy.RefreshDays), null);
+
+    private string WriteToken(string sub, string kind, DateTime expires, string? phone)
     {
         var handler = new JwtSecurityTokenHandler();
         var key = new SymmetricSecurityKey(Convert.FromBase64String(_key));
