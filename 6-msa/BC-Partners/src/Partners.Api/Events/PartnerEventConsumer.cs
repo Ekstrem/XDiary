@@ -43,6 +43,7 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>
 
     public void Handle(IDomainEvent<IPartners> domainEvent)
     {
+        Console.WriteLine("[handle] entered");
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
