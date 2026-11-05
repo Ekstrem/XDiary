@@ -323,6 +323,8 @@ async function seedSessionOnce(page) {
 const NET_ERROR_RE = /Failed to fetch|ERR_FAILED|net::ERR|ECONNRESET|ETIMEDOUT/i;
 const SEED_ATTEMPTS = 3; // 1 + 2 повтора
 
+// `seedSession` вызывается ВНУТРИ обвязки (installBase → seedSessionOnce → seedSession), поэтому
+// в спеках его нет: экспорт оставлен для будущих сценариев и для отладки вручную.
 async function seedSession(page) {
   let lastErr;
   for (let attempt = 1; attempt <= SEED_ATTEMPTS; attempt++) {
@@ -338,7 +340,7 @@ async function seedSession(page) {
       }
       if (attempt === SEED_ATTEMPTS) break;
       console.log('::notice::seedSession: retry ' + attempt + ' на шаге старт (сеть): ' + msg.slice(0, 120));
-      await page.waitForTimeout(500 * attempt);
+      await page.waitForTimeout(500 * attempt); // backoff: сетевой ретрай seedSession, не догадка о времени
     }
   }
   throw lastErr;
@@ -374,6 +376,27 @@ async function loginWithPin(page, pin) {
 
 // После reload локальный PIN уже стоит → приложение показывает экран блокировки.
 // Разблокируем, чтобы попасть в журнал.
+// Ждать, пока приложение отрисует ЛЮБОЙ известный экран.
+// Зачем: после `page.reload()` спеки спали фиксированные 1.5 с — это догадка
+// о времени загрузки (и лишние 1.5 с, и флейк на медленном стенде). Здесь ждём настоящий признак:
+// один из экранов реально виден. В `8-front/js/app.js` нет объекта готовности (`window.__ready`),
+// поэтому признак — сам экран, а не переменная.
+async function waitAppReady(page, timeout = 20000) {
+  await page.waitForFunction(
+    () => {
+      const ids = ['view-lock', 'view-journal', 'view-onboarding', 'view-splash'];
+      return ids.some((id) => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        const st = window.getComputedStyle(el);
+        return st.display !== 'none' && st.visibility !== 'hidden' && el.offsetHeight > 0;
+      });
+    },
+    null,
+    { timeout }
+  );
+}
+
 async function unlockIfLocked(page, pin) {
   const p = pin || PIN;
   const lock = page.locator('#view-lock');
@@ -492,6 +515,10 @@ async function expectScreen(page, selector, where, timeout) {
 // В логе #17 сетевых вызовов нет, а `#onb-link-error` остался `hidden` — то есть
 // невозможно отличить «запрос не отправлялся» от «отправлялся и вернул ошибку».
 // Поэтому перехватываем ВСЁ, что матчит `/link-partner`: метод+URL, статус, тело (200 симв.).
+//
+// LEGACY (`ADR-021`/`TE-037`): после E7 (0.88) шага привязки в UI нет, ни одна спека эту функцию
+// не вызывает — она оставлена для разбора старых образов (< 0.88) и это видно в квитанции
+// `check_e2e_fixture_contract.py` строкой «не используют спеки». Удалять — только с решением @TL.
 function watchLinkPartner(page) {
   const events = [];
   const match = (url) => String(url || '').indexOf('/link-partner') >= 0;
@@ -527,4 +554,4 @@ function watchLinkPartner(page) {
   };
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+module.exports = { waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };

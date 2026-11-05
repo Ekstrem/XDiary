@@ -1,0 +1,177 @@
+"""e2e_receipt.py — квитанция прогона `front-e2e` из вывода Playwright (list или json).
+
+Зачем: прогон набора живёт в CI, и его результат сейчас разбирается **скриптом внутри workflow**
+(`front-e2e-repeat.yml`, шаг «Итог по спекам»). Дублировать эту логику и читать вывод глазами — два
+источника правды. Этот скрипт даёт одну форму квитанции для обоих случаев и может вызываться локально:
+
+    npx playwright test --reporter=list  > /tmp/e2e.txt
+    python 9-tests/scripts/e2e_receipt.py --input /tmp/e2e.txt --ref <sha>
+
+Квитанция: `итого N: passed P, failed F, skipped S | спек M | упавшие: … | REF=…`.
+Коды: `0` — все passed (пропуски допустимы и попадают в квитанцию числом); `1` — есть failed;
+`2` — не измерено (нет вывода / вывод не разобран).
+"""
+
+import argparse
+import collections
+import json
+import re
+import sys
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
+# маркеры list-репортёра Playwright: ✓ passed, ✘/✗/× failed, - skipped
+MARK = {"\u2713": "passed", "\u2717": "failed", "\u2718": "failed", "\u00d7": "failed",
+        "-": "skipped", "\u203a": "skipped", "\u00bb": "skipped"}
+LINE = re.compile(r"^\s*([\u2713\u2717\u2718\u00d7\-\u203a\u00bb])\s+\d+\s+(tests/[\w./\-\[\]() ]+?\.spec\.js)")
+
+
+def parse_list(text):
+    per_spec = collections.OrderedDict()
+    totals = collections.Counter()
+    for line in text.splitlines():
+        m = LINE.search(line)
+        if not m:
+            continue
+        state = MARK.get(m.group(1))
+        if not state:
+            continue
+        spec = m.group(2)
+        c = per_spec.setdefault(spec, collections.Counter())
+        c[state] += 1
+        totals[state] += 1
+    return per_spec, totals
+
+
+def parse_json(text):
+    """Поддержка `--reporter=json` (одна JSON-структура на весь прогон)."""
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return None, None
+    per_spec = collections.OrderedDict()
+    totals = collections.Counter()
+    for suite in doc.get("suites", []):
+        for spec in suite.get("specs", []):
+            state = "passed"
+            for t in spec.get("tests", []):
+                res = t.get("results", [])
+                statuses = {r.get("status") for r in res}
+                if "failed" in statuses or "timedOut" in statuses:
+                    state = "failed"
+                elif statuses and statuses <= {"skipped"}:
+                    state = "skipped"
+            name = spec.get("file") or spec.get("title") or "?"
+            per_spec.setdefault(name, collections.Counter())
+            per_spec[name][state] += 1
+            totals[state] += 1
+    return per_spec, totals
+
+
+def receipt(per_spec, totals, ref):
+    def n(k):
+        return totals.get(k, 0)
+
+    failed_specs = [s for s, c in per_spec.items() if c.get("failed")]
+    total = sum(totals.values())
+    parts = [f"итого {total}: passed {n('passed')}, failed {n('failed')}, skipped {n('skipped')}",
+             f"спек {len(per_spec)}"]
+    if failed_specs:
+        parts.append("упавшие: " + ", ".join(sorted(failed_specs)[:8])
+                     + (" …" if len(failed_specs) > 8 else ""))
+    parts.append(f"REF={ref or 'НЕ УКАЗАН'}")
+    return "квитанция front-e2e: " + " | ".join(parts), failed_specs, total
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input", help="файл с выводом Playwright (list или json)")
+    ap.add_argument("--text", help="вывод Playwright строкой (для проверки)")
+    ap.add_argument("--ref", help="REF, на котором шёл прогон")
+    ap.add_argument("--selftest", action="store_true")
+    a = ap.parse_args(argv)
+    if a.selftest:
+        return selftest()
+
+    if a.text is not None:
+        text = a.text
+    elif a.input:
+        try:
+            text = open(a.input, encoding="utf-8", errors="replace").read()
+        except OSError as e:
+            print(f"::error::e2e_receipt: не читается {a.input}: {e} — не измерено (rc=2)")
+            return 2
+    else:
+        print("::error::e2e_receipt: не передан --input/--text — не измерено (rc=2)")
+        return 2
+
+    per_spec, totals = parse_list(text)
+    if not per_spec:
+        per_spec, totals = parse_json(text)
+    if not per_spec:
+        print("::error::e2e_receipt: вывод не разобран (нет ни list-строк, ни JSON) — "
+              "не измерено, а не «зелено» (rc=2)")
+        return 2
+
+    line, failed, total = receipt(per_spec, totals, a.ref)
+    print(line)
+    for s in failed:
+        print(f"::error::e2e_receipt: упавшая спека: {s}")
+    if failed:
+        return 1
+    return 0 if total > 0 else 2
+
+
+def selftest():
+    ok = total = 0
+
+    def case(name, text, want_rc, must=()):
+        nonlocal ok, total
+        total += 1
+        per_spec, totals = parse_list(text)
+        if not per_spec:
+            per_spec, totals = parse_json(text)
+        if not per_spec:
+            rc, line = 2, "не разобран"
+        else:
+            line, failed, n = receipt(per_spec, totals, "abc123")
+            rc = 1 if failed else (0 if n else 2)
+        miss = [m for m in must if m not in line]
+        if rc == want_rc and not miss:
+            ok += 1
+        else:
+            print(f"  [FAIL] {name}: rc={rc} (ждали {want_rc}), нет {miss}, line={line[:120]}")
+
+    list_ok = (
+        "  \u2713  1 tests/a.spec.js:1:1 › первый (120ms)\n"
+        "  \u2713  2 tests/a.spec.js:20:1 › второй (130ms)\n"
+        "  -  3 tests/b.spec.js:5:1 › legacy (skipped)\n"
+    )
+    case("list: всё зелено + skip", list_ok, 0,
+         ["passed 2", "failed 0", "skipped 1", "спек 2", "REF=abc123"])
+
+    list_bad = list_ok + "  \u2718  4 tests/c.spec.js:7:1 › упал (5s)\n"
+    case("list: одна упавшая", list_bad, 1, ["failed 1", "упавшие: tests/c.spec.js"])
+
+    json_ok = json.dumps({"suites": [{"specs": [
+        {"file": "tests/a.spec.js", "tests": [{"results": [{"status": "passed"}]}]},
+        {"file": "tests/b.spec.js", "tests": [{"results": [{"status": "skipped"}]}]},
+    ]}]})
+    case("json: passed + skipped", json_ok, 0, ["passed 1", "skipped 1"])
+
+    json_bad = json.dumps({"suites": [{"specs": [
+        {"file": "tests/d.spec.js", "tests": [{"results": [{"status": "failed"}]}]},
+    ]}]})
+    case("json: failed", json_bad, 1, ["failed 1", "tests/d.spec.js"])
+
+    case("пустой вывод", "", 2, ["не разобран"])
+
+    print(f"e2e_receipt --selftest: {ok}/{total} (упавшая спека = rc=1, неразобранный вывод = rc=2)")
+    return 0 if ok == total else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

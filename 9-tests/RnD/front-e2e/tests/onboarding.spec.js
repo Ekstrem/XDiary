@@ -32,6 +32,10 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
     await page.reload();
     await expectScreen(page, '#view-onboarding', 'чистое устройство → онбординг', 20000);
     await expect(page.locator('#view-lock')).toBeHidden();
+    // Экран загрузки обязан УЙТИ: залипший splash — это «вечная загрузка» для пользователя.
+    // Проверяем исчезновение, а не появление: на быстром стенде он может не успеть отрисоваться,
+    // и ожидание его появления было бы догадкой о времени (см. check_e2e_no_sleeps).
+    await expect(page.locator('#view-splash'), 'экран загрузки остался висеть').toBeHidden({ timeout: 20000 });
   });
 
   await test.step('шаг 1: телефон → запрос OTP', async () => {

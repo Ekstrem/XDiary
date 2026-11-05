@@ -7,7 +7,7 @@
 //   2) старый локальный PIN больше не проходит проверку;
 //   3) `Pin.hasPin()` = true, а в `finally` исходный PIN возвращается (чистота стенда).
 const { test, expect } = require('@playwright/test');
-const { PIN, loginWithPin, unlockIfLocked } = require('./api');
+const { waitAppReady, PIN, loginWithPin, unlockIfLocked } = require('./api');
 
 const NEW_PIN = process.env.XDIARY_E2E_NEW_PIN || '5678';
 
@@ -50,7 +50,7 @@ test('E2E: смена локального PIN — новый пускает, с
 
     await test.step('перезагрузка: замок снимается НОВЫМ PIN', async () => {
       await page.reload();
-      await page.waitForTimeout(1500);
+      await waitAppReady(page);
       if (await page.locator('#view-lock').isVisible()) {
         await unlockIfLocked(page, NEW_PIN);
         await expect(page.locator('#view-lock')).toBeHidden({ timeout: 15000 });

@@ -5,13 +5,13 @@
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
 journal              single-1dde681  6-msa/BC-Journal
-partners             single-af62a04  6-msa/BC-Partners
+partners             single-c321053  6-msa/BC-Partners
 catalog              single-6647cdc  6-msa/BC-Catalog
 somatic-series       single-6647cdc  6-msa/BC-SomaticSeries
 daily-metrics        single-6647cdc  6-msa/BC-DailyMetrics
 garmin-gateway       single-6647cdc  6-msa/BC-GarminGateway
 apple-health-gateway single-6647cdc  6-msa/BC-AppleHealthGateway
-analytics            single-d129cfd  6-msa/BC-Analytics
+analytics            single-7edf426  6-msa/BC-Analytics
 privacy              single-6647cdc  6-msa/BC-Privacy
 portability          single-6647cdc  6-msa/BC-Portability
 client               single-2339460  6-msa/BC-Client
