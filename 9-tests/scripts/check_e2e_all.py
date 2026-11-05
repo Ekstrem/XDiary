@@ -45,6 +45,7 @@ GATES = (
     ("check_e2e_ui_coverage.py", "карта: какие элементы фронта не трогает ни одна спека"),
     ("check_e2e_error_paths.py", "негативные пути: элементы ошибок утверждаются спеками"),
     ("check_e2e_api_contract.py", "эндпоинты спек есть в api-index.yaml"),
+    ("check_e2e_prod_guard.py", "предохранитель DO-017: E2E только против dev"),
     ("check_e2e_diagnostics.py", "каждая спека оставляет след для разбора упавшего прогона"),
     ("check_e2e_assertion_strength.py", "утверждения проверяют поведение, а не «что-то истинное»"),
     ("check_e2e_ci_filter.py", "в npm test нет фильтров, которые тихо убирают спеки"),
