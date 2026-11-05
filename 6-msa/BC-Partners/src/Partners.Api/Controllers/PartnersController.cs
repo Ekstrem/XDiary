@@ -31,7 +31,17 @@ public sealed class PartnersController : ControllerBase
     [HttpPost("{id:guid}/profile")]
     public async Task<IActionResult> UpdateProfile(Guid id, [FromBody] UpdatePartnerProfileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("{id:guid}/remove")]
-    public async Task<IActionResult> Remove(Guid id, CancellationToken ct) => Respond(await _mediator.Send(new RemovePartnerCommand(id), ct));
+    [Authorize]
+    public async Task<IActionResult> Remove(Guid id, CancellationToken ct)
+    {
+        // @TL 21:20 — владелец сверяется по sub, иначе чужой партнёр удаляется по одному id.
+        var sub = User.FindFirst("sub")?.Value;
+        if (sub is null || !Guid.TryParse(sub, out var clientId)) return Unauthorized();
+        var existing = await _mediator.Send(new GetPartnerByIdQuery(id), ct);
+        if (existing is null) return NotFound();
+        if (existing.ClientId != clientId) return Forbid();
+        return Respond(await _mediator.Send(new RemovePartnerCommand(id), ct));
+    }
     [HttpPost("{id:guid}/link-client")]
     public async Task<IActionResult> LinkClient(Guid id, [FromBody] LinkPartnerClientCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     [HttpPost("{id:guid}/unlink-client")]
