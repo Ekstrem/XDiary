@@ -163,6 +163,14 @@ async function snapshotStorage(page, where) {
   }
 }
 
+// TE-058: `seedSessionOnce` создавал ПАРТНЁРА на каждый вход, то есть ~29 партнёров за прогон
+// (`TE-SEED-<ts>`), а шаг очистки в CI удаляет только клиентов `+7999…`. Список партнёров рос от
+// прогона к прогону; при 2 600+ карточках `#partners-list` доходил до 588 КБ (см. `DO-044`), то есть
+// это прямое топливо для «не дождались» в хуках. Теперь партнёр создаётся ОДИН раз на процесс
+// (workers: 1 — процесс один), дальше переиспользуется; создание партнёра как функции проверяют
+// спеки `add-partner` / `partner-edit` / `wizard-record`, а не фикстура.
+let SEED_PARTNER = null;
+
 async function seedSessionOnce(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
@@ -170,9 +178,11 @@ async function seedSessionOnce(page) {
   await page.goto('/');
 
   const phone = '+7999' + String(Date.now()).slice(-7);
-  const partnerName = 'TE-SEED-' + Date.now();
+  const partnerName = (SEED_PARTNER && SEED_PARTNER.name) || 'TE-SEED-' + Date.now();
+  const needPartner = !SEED_PARTNER;
 
-  const seeded = await page.evaluate(async ({ base, phone, otp, partnerName }) => {
+  const expectedPartnerId = (SEED_PARTNER && SEED_PARTNER.id) || null;
+  const seeded = await page.evaluate(async ({ base, phone, otp, partnerName, needPartner, expectedPartnerId }) => {
     const j = async (r) => ({ status: r.status, data: await r.json().catch(() => null) });
     // клиент
     const c = await j(await fetch(base + '/api/v1/clients', {
@@ -206,10 +216,12 @@ async function seedSessionOnce(page) {
     // Партнёра создаём всегда: это функция спек add-partner/wizard-record, а не путь онбординга.
     // Шим `link-partner` зовём ТОЛЬКО на старом образе (profileMode !== "profile"):
     // на 0.88+ он не нужен, и `grep -rn "linkPartner" 8-front` в сдаче @FE = 0.
-    const p = await j(await fetch(base + '/api/v1/partners', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ name: partnerName }),
-    }));
+    const p = needPartner
+      ? await j(await fetch(base + '/api/v1/partners', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ name: partnerName }),
+      }))
+      : { status: 0, data: null, reused: true };
     const shimUsed = profileMode !== "profile";
     if (shimUsed && p.data && p.data.id) {
       await fetch(base + '/api/v1/clients/' + clientId + '/link-partner', {
@@ -246,9 +258,14 @@ async function seedSessionOnce(page) {
       partnersStatus: lp.status,
       anonStatus: anon.status,
       partnersCount: Array.isArray(lp.data) ? lp.data.length : null,
-      partnersOwn: Array.isArray(lp.data) ? lp.data.some((x) => x && x.id === (p.data && p.data.id)) : null,
+      partnersOwn: Array.isArray(lp.data)
+        ? lp.data.some((x) => x && x.id === ((p.data && p.data.id) || expectedPartnerId))
+        : null,
     };
-  }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
+  }, { base: API_BASE, phone, otp: TEST_OTP, partnerName, needPartner, expectedPartnerId });
+  if (needPartner && seeded && seeded.partnerId) {
+    SEED_PARTNER = { id: seeded.partnerId, name: partnerName };
+  }
 
   if (!seeded.ok) {
     throw new Error('seedSession: шаг ' + seeded.step + ' вернул ' + seeded.status);
