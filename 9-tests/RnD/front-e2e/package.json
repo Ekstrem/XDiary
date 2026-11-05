@@ -3,7 +3,7 @@
   "private": true,
   "description": "RnD: UI-автотесты фронта XDiary (Playwright)",
   "scripts": {
-    "test": "playwright test --grep-invert \"смена PIN\"",
+    "test": "playwright test",
     "test:local": "playwright test --config=playwright.local.config.js",
     "mock-api": "node mock-api.js",
     "dryrun": "node e2e-dryrun.js"

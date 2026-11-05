@@ -19,7 +19,14 @@ async function verifyLocal(page, pin) {
   return page.evaluate((v) => window.Pin.verifyPin(v), pin);
 }
 
+// Деструктивный сценарий: меняет локальный PIN и в `finally` возвращает исходный. В CI по умолчанию
+// ВЫКЛЮЧЕН явным флагом — раньше он исключался тихо фильтром названия (`--grep-invert "смена PIN"`
+// в `npm test`), и в квитанции прогона этого не было видно. Теперь видно как `skipped`.
+const ENABLED = process.env.XDIARY_CHANGE_PIN === '1';
+
 test('E2E: смена локального PIN — новый пускает, старый больше нет', async ({ page }) => {
+  test.skip(!ENABLED, 'деструктивный: меняет PIN — включается XDIARY_CHANGE_PIN=1; в CI по умолчанию выключен');
+
   try {
     await test.step('login по локальному PIN', async () => {
       await loginWithPin(page, PIN);
