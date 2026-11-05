@@ -472,6 +472,20 @@ async function loginWithPin(page, pin) {
 
   try {
     await seed();
+    // TE-060: если после засева журнал уже открыт (кэш сессии — токен приняли, замка нет),
+    // `reload` + ожидание замка (до 15 с) не нужны. PIN всё равно ставим: спеки PIN-контура
+    // (change-pin/remove-pin/pin-first-login) делают свой `reload` и должны увидеть замок.
+    const openAfterSeed = await page.locator('#view-journal').isVisible().catch(() => false);
+    if (openAfterSeed) {
+      const tSet = Date.now();
+      try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+      phases.pinMs += Date.now() - tSet;
+      phases.fastPath = true;
+      console.log('::notice::' + JSON.stringify({
+        title: 'login', fastPath: 'after-seed', elapsedMs: Date.now() - t0, pinMs: phases.pinMs,
+      }));
+      return;
+    }
     await unlock();
   } catch (e) {
     const errs = (page.__xdiaryErrors || []).slice(-8);
