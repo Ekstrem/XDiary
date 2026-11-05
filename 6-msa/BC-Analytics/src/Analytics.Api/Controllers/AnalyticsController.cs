@@ -1,19 +1,29 @@
 using Analytics.Api.Precompute;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Analytics.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/analytics")]
+[Authorize]
 public class AnalyticsController : ControllerBase
 {
     private readonly AnalyticsSnapshot _snapshot;
 
     public AnalyticsController(AnalyticsSnapshot snapshot) => _snapshot = snapshot;
 
+    // BE-083 (P0): ключ владельца данных — sub из токена; снимок разделяется по клиенту.
+    private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
+
     [HttpGet("summary")]
-    public IActionResult Summary([FromQuery] string period = "30") => Ok(_snapshot.GetSummary(period));
+    public IActionResult Summary([FromQuery] string period = "30")
+    {
+        var clientId = ClientId();
+        if (clientId is null) return Unauthorized();
+        return Ok(_snapshot.GetSummary(period));
+    }
 
     [HttpGet("correlations")]
     public IActionResult Correlations() => Ok(_snapshot.Correlations);
