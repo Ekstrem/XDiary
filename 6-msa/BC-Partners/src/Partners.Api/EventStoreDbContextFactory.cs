@@ -3,7 +3,7 @@ using DigiTFactory.Libraries.CommandRepository.Postgres.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace Partners.Storage;
+namespace Partners.Api;
 
 /// <summary>
 /// BE-075: design-time фабрика для миграции EventStoreDbContext (Commands.DomainEvents).
