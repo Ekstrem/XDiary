@@ -40,6 +40,14 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
 
   await test.step('шаг 1: телефон → запрос OTP', async () => {
     await reportStep(page, 'шаг 1: телефон → запрос OTP');
+    // Негативный путь валидации: пустой телефон обязан дать видимую ошибку с текстом,
+    // а не «тихий» отказ. `#onb-phone-error` не проверялся ни одной спекой.
+    await page.fill('#onb-phone-input', '');
+    await page.click('#btn-onb-phone');
+    await expect(page.locator('#onb-phone-error'), 'пустой телефон → видимая ошибка')
+      .toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#onb-phone-error')).toContainText(/введите номер телефона/i);
+
     await page.fill('#onb-phone-input', PHONE);
     await page.click('#btn-onb-phone');
     await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
