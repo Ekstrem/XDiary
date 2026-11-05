@@ -22,6 +22,7 @@ public sealed class PartnerEventConsumer : BackgroundService
     {
         _consumer = consumer;
         _consumer.Subscribe(handler);
+        Console.WriteLine("[consumer] subscribed");
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;

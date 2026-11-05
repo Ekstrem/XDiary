@@ -14,6 +14,8 @@ public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAn
     { var e = await _db.Partners.FirstOrDefaultAsync(x => x.Id == id, ct); return e is null ? null : PartnerMapper.MapToModel(e); }
     public async Task SaveAsync(AggregateResult<IPartners, IPartnerAnemicModel> result, CancellationToken ct = default)
     {
+        // BE-073 диагностика (@TL 15:02): null-событие = причина «200 без схемы».
+        Console.WriteLine($"[Save] event={(result.Event is null ? "<null>" : result.Event.Id.ToString())}");
         // E1: command-path пишет событием (Partners по тому же конвейеру, что Journal).
         await _bus.PublishAsync(result.Event);
     }
