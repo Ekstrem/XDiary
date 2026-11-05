@@ -15,6 +15,7 @@
 
 import argparse
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -42,6 +43,12 @@ GATES = (
 
 # гейты, которые требуют аргумента и в сводку как «прогон» не входят
 ARGS_REQUIRED = {"e2e_receipt.py": "квитанция прогона: нужен файл вывода Playwright"}
+
+# JS-проверки: запускаются через node, если он есть (иначе — «не измерено»)
+JS_GATES = (
+    ("9-tests/RnD/front-e2e/e2e-dryrun.js",
+     "исполняет тела спек на заглушках (без браузера): нет исключений в коде тестов"),
+)
 
 
 def run_gate(path: pathlib.Path, extra=()):
@@ -88,6 +95,20 @@ def main(argv=None):
         return 0
 
     results = []
+    node = shutil.which("node")
+    for rel, about in JS_GATES:
+        path = ROOT / rel
+        if not path.exists():
+            results.append((pathlib.Path(rel).name, 2, 2, "файла нет — не измерено"))
+            continue
+        if not node:
+            results.append((pathlib.Path(rel).name, 2, 2, "нет node — не измерено"))
+            continue
+        run = subprocess.run([node, str(path)], cwd=str(path.parent),
+                             capture_output=True, text=True, encoding="utf-8", errors="replace")
+        last = (run.stdout or "").strip().splitlines()
+        results.append((pathlib.Path(rel).name, 0 if run.returncode in (0, 1) else 2,
+                        run.returncode, last[-1] if last else about))
     for name, _about in GATES:
         path = ROOT / "9-tests" / "scripts" / name
         if not path.exists():
