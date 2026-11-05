@@ -73,6 +73,7 @@ jobs:
         run: |
           python tools/check_lock.py --selftest
           python tools/check_lock.py
+          python tools/gen_images_lock.py --selftest
           python tools/gen_images_lock.py --check
 
       - name: EDM-маркер и код (DO-058, канон @AR 2026-11-04)

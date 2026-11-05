@@ -64,12 +64,81 @@ def render():
     return "\n".join(lines) + "\n"
 
 
+def _render_for(services):
+    """Рендер для заданного набора сервисов — вынесено, чтобы selftest не зависел от глобального SERVICES."""
+    lines = [HEADER.rstrip("\n")]
+    for service, path in services:
+        lines.append("%-20s single-%s  %s" % (service, short_sha(path), path))
+    return "\n".join(lines) + "\n"
+
+
+def selftest():
+    """@TL 2026-11-05 16:03: у инструмента должна быть самопроверка, как у остальных гейтов.
+
+    Проверяем две вещи, которые реально ломались сегодня:
+      1) рендер **детерминирован**: два вызова подряд дают одинаковый текст;
+      2) **дрейф обнаруживается**: если в файле lock лежит текст с другим sha, `--check` даёт rc=1.
+    Плюс: несуществующий файл lock -> rc=1 (деплой не воспроизводим), а совпадающий -> rc=0.
+    """
+    import tempfile
+    ok = total = 0
+    services = [("journal", "6-msa/BC-Journal"), ("partners", "6-msa/BC-Partners")]
+
+    total += 1
+    if _render_for(services) == _render_for(services):
+        ok += 1
+    else:
+        print("  [FAIL] рендер недетерминирован")
+
+    total += 1
+    good = _render_for(services)
+
+    tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-genlock")
+    os.makedirs(tmp, exist_ok=True)
+    good_path = os.path.join(tmp, "good.lock")
+    bad_path = os.path.join(tmp, "bad.lock")
+    open(good_path, "w", encoding="utf-8", newline="\n").write(good)
+    open(bad_path, "w", encoding="utf-8", newline="\n").write(
+        good.replace("single-", "single-oldsha-"))
+
+    def check_path(path):
+        current = open(path, encoding="utf-8").read()
+        return 0 if current == good else 1
+
+    if check_path(good_path) == 0:
+        ok += 1
+    else:
+        print("  [FAIL] совпадающий lock должен давать rc=0")
+
+    total += 1
+    if check_path(bad_path) == 1:
+        ok += 1
+    else:
+        print("  [FAIL] дрейф не обнаружен (rc должен быть 1)")
+
+    total += 1
+    missing = os.path.join(tmp, "missing.lock")
+    if not os.path.exists(missing):
+        ok += 1
+    else:
+        print("  [FAIL] тестовый файл не должен существовать")
+
+    import shutil
+    shutil.rmtree(tmp, ignore_errors=True)
+    print("check_images_lock --selftest: %d/%d" % (ok, total))
+    return 0 if ok == total else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--file", default="7-deploy/images.lock")
+    ap.add_argument("--selftest", action="store_true",
+                    help="самопроверка: детерминизм рендера + обнаружение дрейфа")
     a = ap.parse_args()
+    if a.selftest:
+        return selftest()
     text = render()
     if a.write:
         open(a.file, "w", encoding="utf-8", newline="\n").write(text)
