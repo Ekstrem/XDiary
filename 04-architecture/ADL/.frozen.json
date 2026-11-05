@@ -2,7 +2,6 @@
   "adr-001.md": "9419e6c387619c7c",
   "adr-002.md": "d6dd3162424d549c",
   "adr-003.md": "bff8f7d8591ed03a",
-  "adr-004.md": "848ac7e2edf5f0d9",
   "adr-005.md": "f97139c92caba907",
   "adr-006.md": "12c16cbbfe739ba0",
   "adr-008.md": "227d42840e120df7",
@@ -20,5 +19,7 @@
   "adr-023.md": "2a67d6aba4a8c922",
   "adr-024.md": "a0ce1fbe16dd7fb8",
   "adr-027.md": "b09fa70a5e55aa0a",
-  "adr-028.md": "aa3037e9bb9c1632"
+  "adr-028.md": "aa3037e9bb9c1632",
+  "adr-030.md": "752940e01355d52a",
+  "adr-034.md": "0ec5daf979c20f41"
 }
