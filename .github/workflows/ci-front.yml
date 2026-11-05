@@ -40,12 +40,19 @@ on:
 jobs:
   front-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
       # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
+      # @TE 2026-11-06 01:07: без этих четырёх флагов 4 сценария (5 тестов) ПРОПУСКАЮТСЯ,
+      # и «зелено» значит меньше, чем записано в маркере. Все — "1".
+      # XDIARY_CHANGE_PIN намеренно НЕ ставим: сценарий деструктивный (меняет PIN).
+      XDIARY_BUSY: "1"
+      XDIARY_STALENOTE: "1"
+      XDIARY_READPATH_OFFLINE: "1"
+      XDIARY_READPARITY: "1"
     steps:
       - name: Ждать здоровый dev-стенд (DO-041)
         # Стенд пересоздаётся деплоем, а `front-e2e` и `deploy-dev` не сериализованы.
@@ -121,6 +128,21 @@ jobs:
       - name: Install Playwright browsers
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright install --with-deps chromium
+      # @TE 2026-11-06: 20 статических гейтов по спекам одной командой (набор, позиционные
+      # проверки, сон-тесты, селекторы, контракт фикстур и т.д.) — до запуска браузера.
+      - name: E2E-гейты по спекам (check_e2e_all)
+        run: python 9-tests/scripts/check_e2e_all.py
       - name: Front E2E
         working-directory: 9-tests/RnD/front-e2e
         run: npm test
+
+      # @TE 2026-11-06: артефакт прогона (скриншоты/трейсы Playwright). `if: always()`,
+      # иначе при падении артефакта нет — а именно он отличает «тест упал» от «стенд не ответил».
+      - name: Сохранить артефакты Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: front-e2e-results
+          path: 9-tests/RnD/front-e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 7
