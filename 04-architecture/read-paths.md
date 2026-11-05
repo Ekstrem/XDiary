@@ -21,8 +21,8 @@
 
 | Экран / действие | Данные | Источник | Свежесть | Если чтение упало |
 |---|---|---|---|---|
-| **Визард записи** (открытие «+») | партнёры | `Api.partners.list()` → `Partners.List` (обёртка `DB.getAllPartners()`) | live | **сейчас: хуже тихого** — у `DB.getAllPartners()` нет `.catch`, поэтому `Promise.all` отвергается, а у `reopenWizard`/`openWizard` нет обработчика → **визард не открывается вовсе**, ошибка не показана (`app.js:584,593,599`) |
-| | `recent` (lastPartner/lastPlace/lastPositions/lastTags/lastContraceptives/lastFantasies) | `Api.journal.recent()` — MV | live | **сейчас: тихо `null`** → предзаполнение исчезает (`app.js:585`) |
+| **Визард записи** (открытие «+») | партнёры | `Api.partners.list()` → `Partners.List` (обёртка `DB.getAllPartners()`) | live | **с 0.92: `readError` («Не удалось загрузить: партнёры»), визард открывается с пустым списком.** Было (до 0.92): хуже тихого — у `DB.getAllPartners()` не было `.catch`, `Promise.all` отвергался, обработчика не было → **визард не открывался вовсе**, ошибка не показывалась. Сейчас `DB.getAllPartners().catch(...)` (`app.js:624`) кладёт имя в `readError` (`:629`, `:641`) |
+| | `recent` (lastPartner/lastPlace/lastPositions/lastTags/lastContraceptives/lastFantasies) | `Api.journal.recent()` — MV | live | **с 0.92: попадает в `readError` вместе с остальными, предзаполнение остаётся пустым, ложных значений нет.** Было (до 0.92): тихо `null` → предзаполнение исчезало без сообщения |
 | | `places` | `Api.journal.places()` — MV | live | **с 0.92: `readError` («Не удалось загрузить: …»), шаг места остаётся пустым, ложных значений нет** (было: тихо `[]`) |
 | | каталог (виды, оргазмы, контрацепция) | `Api.catalog.list()` → `Catalog.List` (обёртка `DB.getAllCatalog()`) | live | **с 0.92: `readError`, без тихого `[]`.** Было: тихо `[]`** (`app.js:587`) |
 | Журнал (лента) | записи | `Api.journal.list()` | live | показать ошибку, не пустую ленту |
