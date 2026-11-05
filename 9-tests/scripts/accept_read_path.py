@@ -35,7 +35,7 @@ except Exception:                             # noqa: BLE001
 def verdict(partners_read, partners_src, journal_read, journal_src,
             partners_http, journal_http, contract_passed, contract_failed,
             rerun_partners_read=None, rerun_journal_read=None,
-            write_path=None, repair_declared_in=None):
+            write_path=None, repair_declared_in=None, repair_command=None, repair_date=None):
     """Возвращает (issues, unmeasured) — списки строк. Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
 
@@ -89,8 +89,16 @@ def verdict(partners_read, partners_src, journal_read, journal_src,
     # Путь записи в read-модель (@TL 09:51): проекция — канонный путь; прямой INSERT…SELECT —
     # второй путь, и он обязан быть ОБЪЯВЛЕН (карточка/ADR), иначе через месяц никто не вспомнит,
     # почему read-строки не совпадают с событиями.
-    if write_path == "sql" and not repair_declared_in:
-        unmeasured.append("путь записи = sql (ремонт), но не объявлено где — укажи --repair-declared-in")
+    if write_path == "sql":
+        # Объявление ремонта самодостаточно: ГДЕ объявлено + ЧЕМ выполнено + КОГДА.
+        # Только «где» недостаточно: через месяц по нему не воспроизвести, а «объявлено» без команды
+        # и даты — это ссылка, а не факт (@DO 10:10: «путь + дата + команда»).
+        missing = [flag for flag, val in (("--repair-declared-in", repair_declared_in),
+                                          ("--repair-command", repair_command),
+                                          ("--repair-date", repair_date)) if not val]
+        if missing:
+            unmeasured.append("путь записи = sql (ремонт), но объявление неполное — нужны "
+                              + ", ".join(missing))
     if write_path not in (None, "projection", "sql"):
         issues.append(f"путь записи '{write_path}' неизвестен: ожидали projection|sql")
 
@@ -108,6 +116,8 @@ def receipt(args, issues, unmeasured):
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  путь записи в read-модель: {args.write_path or 'НЕ ИЗМЕРЕНО'}"
           + (f" (объявлен в {args.repair_declared_in})" if args.repair_declared_in else ""))
+    if args.write_path == "sql":
+        print(f"    ремонт: команда={args.repair_command or 'НЕ УКАЗАНА'}, дата={args.repair_date or 'НЕ УКАЗАНА'}")
     print(f"  повтор: partners_read={num(args.rerun_partners_read)}, "
           f"journal_read={num(args.rerun_journal_read)}")
     for u in unmeasured:
@@ -140,8 +150,11 @@ def selftest() -> int:
         ("чистая БД: 0 при 0 — норма", {**base, "partners_read": 0, "partners_src": 0,
                                         "rerun_partners_read": 0}, 0),
         ("ремонт SQL без объявления — не засчитано", {**base, "write_path": "sql"}, 2),
-        ("ремонт SQL с объявлением — проходит", {**base, "write_path": "sql",
-                                                  "repair_declared_in": "BE-071"}, 0),
+        ("ремонт SQL: объявление без команды/даты — не засчитано",
+         {**base, "write_path": "sql", "repair_declared_in": "BE-071"}, 2),
+        ("ремонт SQL с полным объявлением — проходит",
+         {**base, "write_path": "sql", "repair_declared_in": "BE-071",
+            "repair_command": "INSERT ... SELECT ... ON CONFLICT DO NOTHING", "repair_date": "2026-11-05"}, 0),
         ("неизвестный путь записи — нарушение", {**base, "write_path": "direct"}, 1),
     ]
     ok = 0
@@ -171,6 +184,8 @@ def main() -> int:
     ap.add_argument("--write-path", choices=["projection", "sql"],
                     help="как read-строки попали в таблицу: канонная проекция или одноразовый SQL-ремонт")
     ap.add_argument("--repair-declared-in", help="карточка/ADR, где объявлен одноразовый ремонт")
+    ap.add_argument("--repair-command", help="команда/файл ремонта (для воспроизводимости)")
+    ap.add_argument("--repair-date", help="дата выполнения ремонта")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -179,7 +194,7 @@ def main() -> int:
         args.partners_read, args.partners_src, args.journal_read, args.journal_src,
         args.partners_http, args.journal_http, args.contract_passed, args.contract_failed,
         args.rerun_partners_read, args.rerun_journal_read,
-        args.write_path, args.repair_declared_in,
+        args.write_path, args.repair_declared_in, args.repair_command, args.repair_date,
     )
     return receipt(args, issues, unmeasured)
 
