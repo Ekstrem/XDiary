@@ -41,6 +41,7 @@ CRITERIA = (
     "идемпотентность по событиям",
     "идемпотентность по строкам",
     "путь записи и объявление ремонта",
+    "критерий A: без схемы POST не 200",
 )
 
 
@@ -54,7 +55,7 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             partners_name_mismatches=None, journal_empty_partner_names=None,
             journal_empty_partner_names_src=None,
             contraceptive_count_mismatches=None, projection_verified_by=None,
-            measured_on=None,
+            measured_on=None, schema_present=None, post_partners_status=None,
             projection_result=None, projection_waited_ms=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
@@ -133,7 +134,9 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     if (projection_result or projection_verified_by) and not measured_on:
         unmeasured.append("версия замера: поведенческий результат без `--measured-on` "
                           "(образ/коммит) не засчитывается — на какой версии мерили, такой вердикт и верен")
-    if projection_result == "failed":
+    if schema_present == "no" and post_partners_status is not None and post_partners_status >= 500:
+        pass                              # при A поведенческая проверка неприменима: без схемы записи нет
+    elif projection_result == "failed":
         waited = f" за {projection_waited_ms} мс" if projection_waited_ms else ""
         issues.append(f"проекция: «создал → увидел» ПРОВАЛЕН (POST 200, но read-модель пуста{waited}) — "
                       f"новые строки не пишутся")
@@ -159,6 +162,20 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
                                 ("journal_read", journal_read, rerun_journal_read)):
         if given(again) and given(first) and again != first:
             issues.append(f"{label}: повтор изменил число строк {first} → {again} (legacy-критерий)")
+
+    # ── Критерий A (@TL `chat/tl.md` `[2026-11-05 15:02]`) ───────────────────────────────
+    # «Схемы нет ⇒ `POST` не 200». Наблюдение @DO: схемы `Commands` нет, а `POST` вернул 200 —
+    # это НЕ «не измерено», а НАРУШЕНИЕ: значит событие не доходит до консьюмера, либо в образе
+    # остался `try/catch`. Обе причины проверяемы, но сам факт — уже дефект.
+    if schema_present == "no" and post_partners_status is not None:
+        if post_partners_status == 200:
+            issues.append("критерий A НАРУШЕН: схемы `Commands` нет, а `POST /partners` вернул 200 — "
+                          "событие не доходит до консьюмера (или в образе остался `try/catch`)")
+        elif post_partners_status >= 500:
+            pass                                     # A работает: падает громко
+        else:
+            issues.append(f"критерий A: без схемы `POST` вернул {post_partners_status}, "
+                          f"ожидали `5xx` (или 200 только при наличии схемы)")
 
     # ── Путь записи и объявление ремонта ─────────────────────────────────────────────────
     if write_path not in (None, "projection", "sql"):
@@ -200,6 +217,8 @@ def receipt(args, issues, unmeasured):
     print(f"  проекция «создал → увидел»: {proj}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  события: {num(args.event_count)} → повтор {num(args.rerun_event_count)}")
+    print(f"  критерий A: схема={'есть' if args.schema_present == 'yes' else 'нет' if args.schema_present == 'no' else 'НЕ ИЗМЕРЕНО'}"
+          f" | POST /partners={num(args.post_partners_status)}")
     print(f"  путь записи в read-модель: {args.write_path or 'НЕ ИЗМЕРЕНО'}"
           + (f" (объявлен в {args.repair_declared_in})" if args.repair_declared_in else ""))
     if args.write_path == "sql":
@@ -233,7 +252,8 @@ def selftest() -> int:
                 journal_empty_partner_names_src=0,
                 contraceptive_count_mismatches=0, event_count=4, rerun_event_count=4,
                 projection_verified_by="partners-read-parity",
-                measured_on="xdiary-partners:47dfd808")
+                measured_on="xdiary-partners:47dfd808",
+                schema_present="yes", post_partners_status=200)
     cases = [
         ("норма (история + содержимое + проекция)", dict(base), 0),
         ("пусто при непустом источнике (BE-071)", {**base, "partners_read": 0}, 1),
@@ -265,6 +285,14 @@ def selftest() -> int:
         ("поведенческий замер без версии — не засчитано",
          {k: v for k, v in base.items() if k != "measured_on"}, 2),
         ("поведенческий замер с версией — проходит", dict(base), 0),
+        ("критерий A нарушен: схемы нет, POST 200",
+         {**base, "schema_present": "no", "post_partners_status": 200}, 1),
+        ("критерий A работает: схемы нет, POST 500",
+         {**base, "schema_present": "no", "post_partners_status": 500,
+            "projection_result": None, "projection_verified_by": None,
+            "measured_on": None}, 0),
+        ("критерий A: схемы нет, POST 400 — не по правилу",
+         {**base, "schema_present": "no", "post_partners_status": 400}, 1),
         ("ремонт SQL без объявления", {**base, "write_path": "sql"}, 2),
         ("ремонт SQL: где+дата без команды",
          {**base, "write_path": "sql", "repair_declared_in": "BE-071", "repair_date": "2026-11-05"}, 2),
@@ -333,6 +361,10 @@ def main() -> int:
     ap.add_argument("--projection-result", choices=["passed", "failed"],
                     help="результат поведенческой проверки: создали → увидели (passed) или нет (failed)")
     ap.add_argument("--projection-waited-ms", type=int, help="сколько ждали появления в read-модели")
+    ap.add_argument("--schema-present", choices=["yes", "no"],
+                    help="есть ли схема Commands в базе (to_regclass по DomainEvents)")
+    ap.add_argument("--post-partners-status", type=int,
+                    help="HTTP-код POST /partners (для критерия A: без схемы ожидаем 5xx)")
     ap.add_argument("--measured-on", help="образ/коммит, на котором сделан поведенческий замер "
                                           "(обязателен, если передан --projection-result/--projection-verified-by)")
     ap.add_argument("--write-path", choices=["projection", "sql"],
@@ -366,6 +398,8 @@ def main() -> int:
         projection_result=args.projection_result,
         projection_waited_ms=args.projection_waited_ms,
         measured_on=args.measured_on,
+        schema_present=args.schema_present,
+        post_partners_status=args.post_partners_status,
     )
     return receipt(args, issues, unmeasured)
 
