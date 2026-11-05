@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace DailyMetrics.InternalContracts;
 using XDiary.Contracts;
 public sealed class DailyMetricsReadModel : IReadModel<DailyMetrics.Domain.IDailyMetrics>

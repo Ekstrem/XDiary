@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace GarminGateway.InternalContracts;
 using XDiary.Contracts;
 public sealed class GarminSyncReadModel : IReadModel<GarminGateway.Domain.IGarminGateway>

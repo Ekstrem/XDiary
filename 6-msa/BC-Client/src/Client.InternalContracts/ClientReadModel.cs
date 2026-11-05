@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Client.InternalContracts;
 using XDiary.Contracts;
 public sealed class ClientReadModel : IReadModel<Client.Domain.IClients>

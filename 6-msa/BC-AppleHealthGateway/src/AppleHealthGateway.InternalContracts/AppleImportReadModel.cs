@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace AppleHealthGateway.InternalContracts;
 using XDiary.Contracts;
 public sealed class AppleImportReadModel : IReadModel<AppleHealthGateway.Domain.IAppleHealthGateway>

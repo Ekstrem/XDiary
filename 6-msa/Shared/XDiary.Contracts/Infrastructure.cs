@@ -5,9 +5,6 @@ using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
-/// <summary>Read model marker.</summary>
-public interface IReadModel<TBC> where TBC : IBoundedContext { }
-
 /// <summary>Read repository.</summary>
 public interface IReadRepository<TBC, TModel>
     where TBC : IBoundedContext
