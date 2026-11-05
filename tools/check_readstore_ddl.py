@@ -54,10 +54,47 @@ def ddl_tables(text):
     return out
 
 
-def model_props(text):
-    """{свойства} из текста модели, кроме [NotMapped]."""
+def class_body(text, class_name):
+    """Тело класса по имени: от `class <name>` до парной закрывающей скобки (учёт вложенности).
+
+    Без этого `model_props` захватывал свойства **вложенного** класса (`OrgasmsReadModel`
+    внутри `JournalReadModel`) и давал 24 поля вместо 20 — то есть врал в сторону «больше
+    не хватает», и цифра расходилась с DDL-ом (@TL 2026-11-05 09:18).
+    """
+    m = re.search(r'\bclass\s+%s\b[^{]*\{' % re.escape(class_name), text)
+    if not m:
+        return text
+    start = m.end()
+    depth, i = 1, start
+    while i < len(text) and depth > 0:
+        ch = text[i]
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+        i += 1
+    return text[start:i - 1]
+
+
+def model_props(text, class_name=None):
+    """{свойства} из ТЕЛА класса (если имя дано), кроме [NotMapped] и вложенных классов."""
+    body = class_body(text, class_name) if class_name else text
+    # вложенные классы внутри тела вырезаем (brace-aware), чтобы их свойства не попадали
+    if class_name:
+        while True:
+            m = re.search(r'\b(?:record|class|struct)\s+[A-Za-z0-9_]+[^{]*\{', body)
+            if not m:
+                break
+            depth, i = 1, m.end()
+            while i < len(body) and depth > 0:
+                if body[i] == '{':
+                    depth += 1
+                elif body[i] == '}':
+                    depth -= 1
+                i += 1
+            body = body[:m.start()] + body[i:]
     props, skip_next = set(), False
-    for line in text.splitlines():
+    for line in body.splitlines():
         if '[NotMapped]' in line:
             skip_next = True
             continue
@@ -163,11 +200,34 @@ def selftest():
         ok += 1
     else:
         print('  [FAIL] разбор DDL:', t)
-    p = model_props('public Guid Id { get; set; }\n[NotMapped]\npublic string Skip { get; set; }')
+    p = model_props('public class M\n{\n public Guid Id { get; set; }\n[NotMapped]\n'
+                    ' public string Skip { get; set; }\n}', 'M')
     if p == {'id'}:
         ok += 1
     else:
         print('  [FAIL] разбор свойств (NotMapped):', p)
+
+    # @TL 09:18: вложенный класс не должен попадать в свойства внешнего
+    nested_src = '''
+public class JournalReadModel
+{
+    public Guid Id { get; set; }
+    public int ContraceptiveCount { get; set; }
+    public OrgasmsReadModel Orgasms { get; set; }
+
+    public class OrgasmsReadModel
+    {
+        public int Count { get; set; }
+        public int Rating { get; set; }
+    }
+}
+'''
+    total += 1
+    got = model_props(nested_src, 'JournalReadModel')
+    if got == {'id', 'contraceptivecount', 'orgasms'}:
+        ok += 1
+    else:
+        print('  [FAIL] вложенный класс попал в свойства:', sorted(got))
 
     # типы (@AR 16:30): uuid/integer/boolean сверяем, text — нет
     total += 4
@@ -221,7 +281,7 @@ def main():
                 continue
             props = set()
             for f in files:
-                props |= model_props(open(f, encoding='utf-8', errors='replace').read())
+                props |= model_props(open(f, encoding='utf-8', errors='replace').read(), model)
             missing, extra = compare(model, props, tables[table])
             type_bad = type_mismatches(tables[table])
             if missing:
