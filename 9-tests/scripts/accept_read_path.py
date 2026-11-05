@@ -54,6 +54,7 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             partners_name_mismatches=None, journal_empty_partner_names=None,
             journal_empty_partner_names_src=None,
             contraceptive_count_mismatches=None, projection_verified_by=None,
+            measured_on=None,
             projection_result=None, projection_waited_ms=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
@@ -126,6 +127,12 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     # «Не проверяли» и «проверили — не работает» — разные состояния: первое НЕ ИЗМЕРЕНО,
     # второе НАРУШЕНИЕ. Данные для второго уже есть: @DO 11:14 — POST /partners 200,
     # опрос GET /partners 30 000 мс → count=0.
+    # Версия, на которой сделан замер (@TL `chat/tl.md` `[2026-11-05 14:50]` п.3):
+    # замер 11:14 был сделан на варианте B, а вердикт применяли к A — именно так родилось
+    # «проекция не пишет». Поэтому поведенческий результат без образа/коммита не засчитывается.
+    if (projection_result or projection_verified_by) and not measured_on:
+        unmeasured.append("версия замера: поведенческий результат без `--measured-on` "
+                          "(образ/коммит) не засчитывается — на какой версии мерили, такой вердикт и верен")
     if projection_result == "failed":
         waited = f" за {projection_waited_ms} мс" if projection_waited_ms else ""
         issues.append(f"проекция: «создал → увидел» ПРОВАЛЕН (POST 200, но read-модель пуста{waited}) — "
@@ -188,6 +195,8 @@ def receipt(args, issues, unmeasured):
     proj = args.projection_verified_by or "НЕ ПОДТВЕРЖДЕНО"
     if args.projection_result == "failed":
         proj = f"ПРОВАЛЕН (ждали {args.projection_waited_ms or '?'} мс, count=0)"
+    if args.measured_on:
+        proj += f" [замер на {args.measured_on}]"
     print(f"  проекция «создал → увидел»: {proj}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  события: {num(args.event_count)} → повтор {num(args.rerun_event_count)}")
@@ -223,7 +232,8 @@ def selftest() -> int:
                 partners_name_mismatches=0, journal_empty_partner_names=0,
                 journal_empty_partner_names_src=0,
                 contraceptive_count_mismatches=0, event_count=4, rerun_event_count=4,
-                projection_verified_by="partners-read-parity")
+                projection_verified_by="partners-read-parity",
+                measured_on="xdiary-partners:47dfd808")
     cases = [
         ("норма (история + содержимое + проекция)", dict(base), 0),
         ("пусто при непустом источнике (BE-071)", {**base, "partners_read": 0}, 1),
@@ -252,6 +262,9 @@ def selftest() -> int:
         ("проекция: проверено и ПРОВАЛЕНО (POST 200, count=0 за 30000 мс)",
          {**base, "projection_result": "failed", "projection_waited_ms": 30000,
             "projection_verified_by": None}, 1),
+        ("поведенческий замер без версии — не засчитано",
+         {k: v for k, v in base.items() if k != "measured_on"}, 2),
+        ("поведенческий замер с версией — проходит", dict(base), 0),
         ("ремонт SQL без объявления", {**base, "write_path": "sql"}, 2),
         ("ремонт SQL: где+дата без команды",
          {**base, "write_path": "sql", "repair_declared_in": "BE-071", "repair_date": "2026-11-05"}, 2),
@@ -320,6 +333,8 @@ def main() -> int:
     ap.add_argument("--projection-result", choices=["passed", "failed"],
                     help="результат поведенческой проверки: создали → увидели (passed) или нет (failed)")
     ap.add_argument("--projection-waited-ms", type=int, help="сколько ждали появления в read-модели")
+    ap.add_argument("--measured-on", help="образ/коммит, на котором сделан поведенческий замер "
+                                          "(обязателен, если передан --projection-result/--projection-verified-by)")
     ap.add_argument("--write-path", choices=["projection", "sql"],
                     help="как read-строки попали в таблицу: канонная проекция или одноразовый SQL-ремонт")
     ap.add_argument("--repair-declared-in", help="карточка/ADR, где объявлен одноразовый ремонт")
@@ -350,6 +365,7 @@ def main() -> int:
         projection_verified_by=args.projection_verified_by,
         projection_result=args.projection_result,
         projection_waited_ms=args.projection_waited_ms,
+        measured_on=args.measured_on,
     )
     return receipt(args, issues, unmeasured)
 
