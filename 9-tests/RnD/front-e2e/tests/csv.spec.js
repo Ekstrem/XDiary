@@ -6,7 +6,7 @@
 // ВАЖНО: экспорт журнала и импорт — РАЗНЫЕ форматы (журнал обратно не импортируется) — отмечено в TE-021.
 const fs = require('fs');
 const { test, expect } = require('@playwright/test');
-const { loginWithPin } = require('./api');
+const { loginWithPin, reportStep } = require('./api');
 
 test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', async ({ page }) => {
   await test.step('кнопка «Импорт CSV» в настройках открывает выбор файла (#btn-import)', async () => {
@@ -81,6 +81,8 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     await page.click('#btn-import-apply');
     await expect(page.locator('#import-result')).toBeVisible({ timeout: 20000 });
     await expect(page.locator('#import-result')).not.toHaveText(/^\s*$/);
+    // Диагностика для разбора в CI: печатает тост, если импорт что-то сказал пользователю.
+    await reportStep(page, 'csv: импорт Garmin');
 
     // Импорт журнала через кнопку «Импорт CSV» в настройках (`#import-file`): это ЛОКАЛЬНЫЙ
     // путь (пишет в IndexedDB контекста), на стенд ничего не уходит. Ни одна спека его не трогала.

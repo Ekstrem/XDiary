@@ -3,7 +3,7 @@
 // темы/единиц измерения в UI нет — это отмечено в TE-021.
 // Проверяем: пол переключается и сохраняется после перезагрузки, состояние кнопки активное.
 const { test, expect } = require('@playwright/test');
-const { loginWithPin, unlockIfLocked } = require('./api');
+const { loginWithPin, unlockIfLocked, reportStep } = require('./api');
 
 test('E2E: настройки — пол сохраняется после перезагрузки', async ({ page }) => {
   await test.step('login по PIN', async () => {
@@ -14,6 +14,8 @@ test('E2E: настройки — пол сохраняется после пе�
     await page.click('#tab-settings');
     await expect(page.locator('#view-settings')).toBeVisible();
     await expect(page.locator('#my-gender-male')).toHaveClass(/active/);
+    // Диагностика для разбора в CI: если настройки показали тост (ошибка сохранения), он попадёт в лог.
+    await reportStep(page, 'settings: пол сохранён');
   });
 
   await test.step('переключить на «Женский»', async () => {
