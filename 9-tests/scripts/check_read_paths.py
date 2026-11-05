@@ -116,12 +116,27 @@ def check(md: str, operations: dict) -> list:
     return problems
 
 
-def front_reads(root: str, operations: dict) -> list:
-    """Какие GET-операции индекса читает фронт (поиск пути в `8-front/js/*.js`).
+def reads_from_text(text: str, operations: dict) -> list:
+    """Какие GET-операции индекса встречаются в тексте фронта (чистая функция — тестируема).
 
-    Мера полноты реестра, которую требует @AR (`read-paths.md` §2.1, 2026-11-05):
-    гейт обязан печатать «зарегистрировано N из M чтений фронта» и падать **только**
-    на расхождении зарегистрированного. Неполнота §2 — видимый пробел, не красный гейт.
+    Считаются только `GET` и только **конкретные** пути: шаблон `{id}` обрезается до префикса,
+    чтобы `/api/v1/journal/records/{id}` не «совпал» с `/api/v1/journal/records` случайно.
+    """
+    found = []
+    for op_id, (method, path) in operations.items():
+        if str(method).upper() != "GET":
+            continue
+        concrete = re.sub(r"\{[^}]+\}", "", str(path)).rstrip("/")
+        if concrete and concrete in text:
+            found.append(op_id)
+    return sorted(set(found))
+
+
+def front_reads(root: str, operations: dict) -> list:
+    """Мера полноты реестра, которую требует @AR (`read-paths.md` §2.1, 2026-11-05).
+
+    Гейт обязан печатать «зарегистрировано N из M чтений фронта» и падать **только** на расхождении
+    зарегистрированного: неполнота §2 — видимый пробел, не красный гейт.
     """
     js_dir = os.path.join(root, "8-front", "js")
     text = ""
@@ -131,14 +146,7 @@ def front_reads(root: str, operations: dict) -> list:
                 text += read_text(os.path.join(js_dir, name))
     except OSError:
         return []                       # фронта рядом нет — полноту не измеряем
-    found = []
-    for op_id, (method, path) in operations.items():
-        if str(method).upper() != "GET":
-            continue
-        concrete = re.sub(r"\{[^}]+\}", "", str(path)).rstrip("/")
-        if concrete and concrete in text:
-            found.append(op_id)
-    return sorted(set(found))
+    return reads_from_text(text, operations)
 
 
 def run(root: str) -> int:
@@ -254,7 +262,36 @@ def selftest() -> int:
         ok += 1
     else:
         print("  [FAIL] структура: отсутствие §3 не дало ошибки чтения (ждали rc=2)")
-    total = len(cases) + 1
+
+    # Красный контроль подсчёта полноты: функция без своего контроля — «проверка, которая не
+    # может провалиться». Проверяем **чистую** функцию на строках (без файловой системы:
+    # sandbox не даёт создавать каталоги в %TEMP%, и это к лучшему — контроль не зависит от ФС).
+    ops_case = {
+        "Partners.List": ("GET", "/api/v1/partners"),
+        "Journal.Get": ("GET", "/api/v1/journal/records/{id}"),
+        "Journal.List": ("POST", "/api/v1/journal/records"),
+    }
+    # (а) конкретный GET-путь считается, POST — нет, шаблон {id} не «совпадает» сам с собой
+    got = reads_from_text('fetch("/api/v1/partners");', ops_case)
+    if got == ["Partners.List"]:
+        ok += 1
+    else:
+        print(f"  [FAIL] reads_from_text: получили {got}, ждали ['Partners.List'] "
+              f"(POST и {{id}}-шаблоны чтениями не считаются)")
+    # (б) префикс шаблонного пути тоже считается (журнал читается как /records)
+    got_prefix = reads_from_text('get("/api/v1/journal/records?limit=5");', ops_case)
+    if got_prefix == ["Journal.Get"]:
+        ok += 1
+    else:
+        print(f"  [FAIL] reads_from_text/префикс: получили {got_prefix}, ждали ['Journal.Get']")
+    # (в) фронта рядом нет → пусто, а не падение
+    got_none = front_reads("нет-такой-папки", ops_case)
+    if got_none == []:
+        ok += 1
+    else:
+        print(f"  [FAIL] front_reads без 8-front/js: получили {got_none}, ждали []")
+
+    total = len(cases) + 1 + 3   # кейсы + структурный + три контроля полноты
     print(f"check_read_paths --selftest: {ok}/{total} (красный контроль на каждом направлении)")
     return 0 if ok == total else 1
 
