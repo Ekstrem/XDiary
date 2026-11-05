@@ -64,7 +64,13 @@ jobs:
             git merge --no-edit origin/main || { echo "::error::конфликт в lock-sync"; exit 1; }
             python tools/gen_images_lock.py --write
             git add 7-deploy/images.lock
-            git commit -m "bot: images.lock синхронизирован с git (lock-sync, повтор $i) [skip ci]" || true
+            # @TE 09:50: «нечего коммитить» — это НЕ ошибка, и её нельзя глушить `|| true`
+            # (иначе цикл из трёх попыток упадёт с ложным `::error::`, хотя причина — пустой диф).
+            if git diff --cached --quiet -- 7-deploy/images.lock; then
+              echo "после интеграции lock не изменился — нечего коммитить"
+              exit 0
+            fi
+            git commit -m "bot: images.lock синхронизирован с git (lock-sync, повтор $i) [skip ci]"
           done
           echo "::error::lock-sync не смог закоммитить за 3 попытки"
           exit 1
