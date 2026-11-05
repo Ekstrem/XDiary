@@ -87,6 +87,43 @@ def analyze_read_contexts(text):
     return [(ctx, lines[0], manual[ctx]) for ctx, lines in owned.items() if ctx in manual]
 
 
+def manual_after_library(text, owned_contexts):
+    """DO-083: ручной `AddDbContext<T>` ПОСЛЕ библиотечной регистрации, где T — контекст библиотеки.
+
+    Ловушка: библиотека регистрирует контекст со своими опциями (`MigrationsAssembly`,
+    провайдер), а приложение ниже добавляет свой `AddDbContext<T>` и **перекрывает** его.
+    При `Database.Migrate()` это даёт тихий отказ: миграции не применяются, ошибки нет.
+    История: так уже было с `EventStoreDbContext` (b9173f09, затем BE-066).
+
+    Исключения (осознанные, объяснены в шапке файла):
+      * `EventStoreDbContext` — наоборот, требует ручной типизированной регистрации для моста
+        `DbContextOptions` (BE-067), поэтому «после» здесь — канон, а не дефект;
+      * тестовые хосты (`*HostSmokeTest`, `*IntegrationTests`) — вне проверки.
+
+    Возвращает [(контекст, строка_df, строка_ручная)].
+    """
+    library = {}
+    for i, line in enumerate(text.splitlines(), 1):
+        m = STORE.search(line)
+        if not m:
+            continue
+        args = [a.strip() for a in m.group(1).split(',')]
+        if len(args) >= 3:
+            library.setdefault(args[2].split('.')[-1], []).append(i)
+    manual = {}
+    for i, line in enumerate(text.splitlines(), 1):
+        for m in MANUAL_CTX.finditer(line):
+            manual.setdefault(m.group(1).split('.')[-1], []).append(i)
+    out = []
+    for ctx, df_lines in library.items():
+        if ctx == 'EventStoreDbContext':
+            continue
+        for line_no in manual.get(ctx, []):
+            if line_no > df_lines[0]:
+                out.append((ctx, df_lines[0], line_no))
+    return out
+
+
 def selftest():
     ok = total = 0
 
@@ -122,6 +159,25 @@ def selftest():
     else:
         print('  [FAIL] ручной AddDbContext<ReadDbContext> после AddReadStorePostgres — дефект')
 
+    # DO-083: порядок «ручная регистрация после библиотечной»
+    total += 3
+    df_read = 'builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(cs, null);\n'
+    manual_read = 'builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(cs));\n'
+    if manual_after_library(df_read + manual_read, None):
+        ok += 1
+    else:
+        print('  [FAIL] ручной AddDbContext<ReadDbContext> после DF не пойман')
+    if not manual_after_library(manual_read + df_read, None):
+        ok += 1
+    else:
+        print('  [FAIL] ручная регистрация ДО библиотечной — не дефект (перекрывает библиотека)')
+    if not manual_after_library(
+            'builder.Services.AddEventStorePostgres<IA, IAM>(cs, null);\n'
+            'builder.Services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs));\n', None):
+        ok += 1
+    else:
+        print('  [FAIL] типизированная регистрация EventStoreDbContext — канон, не дефект')
+
     print('check_eventstore_registration --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
 
@@ -138,7 +194,12 @@ def main():
     if a.selftest:
         return selftest()
 
-    files = sorted(glob.glob(os.path.join(a.root, '**', 'Program.cs'), recursive=True))
+    # DO-083: тестовые хосты (`*HostSmokeTest`, `*IntegrationTests`) — ВНЕ проверки,
+    # и это сказано явно, а не следует из случайного пути: берём только `*.Api/Program.cs`.
+    files = sorted(glob.glob(os.path.join(a.root, '**', '*.Api', 'Program.cs'), recursive=True))
+    if not files:  # обратная совместимость: старые раскладки без *.Api
+        files = sorted(glob.glob(os.path.join(a.root, '**', 'Program.cs'), recursive=True))
+        files = [f for f in files if 'Tests' not in f and 'SmokeTest' not in f]
     checked = bad = 0
     for path in files:
         text = open(path, encoding='utf-8', errors='replace').read()
@@ -146,6 +207,11 @@ def main():
         if line_df is None:
             continue
         checked += 1
+        for ctx, df_line, manual_line in manual_after_library(text, None):
+            print('  %-64s DBCTX %s: библиотека на %d, ручной AddDbContext на %d — '
+                  'он перекроет библиотечные опции (MigrationsAssembly), Migrate() станет тихим'
+                  % (path.replace(os.sep, '/'), ctx, df_line, manual_line))
+            bad += 1
         for ctx, df_line, manual_lines in analyze_read_contexts(text):
             print('  %-64s READ-CTX %s: DF на %d, ручной AddDbContext на %s — контекст получит '
                   'модель без маппингов read-моделей'
