@@ -184,6 +184,72 @@ def wired_selftest():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+
+# Мутационная проверка: гейты обязаны КРАСНЕТЬ на реальных дефектах в спеках.
+# `--selftest` гейта проверяет логику на словарях, `wired_selftest` — что гейт читает файлы.
+# Здесь третий уровень: подкладываем дефект в спеку и требуем красный ИМЕННО от нужного гейта,
+# потом возвращаем норму и требуем зелёный. Иначе «22 зелёных гейта» может значить
+# «22 гейта ничего не смотрят».
+MUTATIONS = (
+    ("check_e2e_selectors.py", "селектор-призрак",
+     "test('x', async ({ page }) => { await page.click('#btn-ghost-zzz'); expect(1).toBe(1); });\n",
+     "test('x', async ({ page }) => { await page.click('#btn-new'); expect(1).toBe(1); });\n"),
+    ("check_e2e_assertions.py", "спека без поведенческого утверждения",
+     "test('x', async ({ page }) => { await page.click('#btn-new'); });\n",
+     "test('x', async ({ page }) => { await page.click('#btn-new'); expect(1).toBe(1); });\n"),
+    ("check_e2e_no_sleeps.py", "фиксированная пауза",
+     "test('x', async ({ page }) => { await page.waitForTimeout(50); expect(1).toBe(1); });\n",
+     "test('x', async ({ page }) => { expect(1).toBe(1); });\n"),
+    ("check_e2e_diagnostics.py", "спека без диагностики",
+     "test('x', async ({ page }) => { expect(1).toBe(1); });\n",
+     "console.log('[mutation] ok');\ntest('x', async ({ page }) => { expect(1).toBe(1); });\n"),
+)
+
+
+def wired_mutation():
+    """(ok, total). Дефект -> rc=1 от своего гейта, норма -> rc=0."""
+    ok = total = 0
+    builtin = pathlib.Path(__file__).resolve().parent
+    tmp = pathlib.Path(tempfile.gettempdir()) / f"e2e-mut-{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    try:
+        tests = tmp / "9-tests" / "RnD" / "front-e2e" / "tests"
+        tests.mkdir(parents=True)
+        front = tmp / "8-front"
+        front.mkdir()
+        src_index = ROOT / "8-front" / "index.html"
+        (front / "index.html").write_text(
+            src_index.read_text(encoding="utf-8", errors="replace")
+            if src_index.exists() else '<button id="btn-new"></button>',
+            encoding="utf-8",
+        )
+        for gate_name, about, bad, good in MUTATIONS:
+            gate = builtin / gate_name
+            total += 1
+            if not gate.exists():
+                print(f"  [FAIL] мутация {about}: файла гейта {gate_name} нет")
+                continue
+            spec = tests / "mutation.spec.js"
+            spec.write_text(bad, encoding="utf-8")
+            red = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            spec.write_text(good, encoding="utf-8")
+            green = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if red.returncode == 1 and green.returncode == 0:
+                ok += 1
+            else:
+                print(f"  [FAIL] мутация {about}: на дефекте rc={red.returncode} (ждали 1), "
+                      f"на норме rc={green.returncode} (ждали 0) — гейт {gate_name} дефект не ловит")
+        return ok, total
+    except OSError as e:  # noqa: BLE001
+        print(f"  [FAIL] мутации: не удалось подготовить корень: {e}")
+        return 0, len(MUTATIONS)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def selftest():
     ok = total = 0
 
@@ -226,11 +292,13 @@ def selftest():
         print(f"  [FAIL] текст сводки: {line}")
 
     w_ok, w_total = wired_selftest()
-    ok, total = ok + w_ok, total + w_total
+    m_ok, m_total = wired_mutation()
+    ok, total = ok + w_ok + m_ok, total + w_total + m_total
 
     print(f"check_e2e_all --selftest: {ok}/{total} "
           f"(сводка: красный = rc=1, только \u00abне измерено\u00bb = rc=2; "
-          f"связь с файлами: {w_ok}/{w_total} \u2014 дефект краснеет, норма зеленеет)")
+          f"связь с файлами: {w_ok}/{w_total}; мутации: {m_ok}/{m_total} — "
+          f"дефект краснеет, норма зеленеет)")
     return 0 if ok == total else 1
 
 
