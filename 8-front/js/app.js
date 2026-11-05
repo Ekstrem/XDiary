@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.94"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.95"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1311,7 +1311,15 @@
         var pid = created && (created.id || created.aggregateId);
         var cid = onbClientId || storedClientId();
         if (!pid || !cid) return created;
-        return Api.partners.linkClient(pid, cid).then(function () { return created; }, function (e) {
+        var doLink = function () { return Api.partners.linkClient(pid, cid); };
+        return doLink().catch(function (e) {
+          var st = e && e.status;
+          if (st !== 400 && st !== 404) throw e;
+          return new Promise(function (res) { setTimeout(res, 200); }).then(function () {
+            console.log("retry after lag: linkClient → " + st);
+            return doLink();
+          });
+        }).then(function () { return created; }, function (e) {
           // FE-033: ошибку связи НЕ глотаем — иначе «создал, а списка нет» без причины
           console.error("linkClient after create:", e);
           partnerLinkWarning = "Партнёр создан, но не связан с вами: " + apiErrorText(e, "ошибка") + ". Нажмите «Создать партнёра» ещё раз.";
@@ -1320,22 +1328,19 @@
       });
     }
     promise.then(function () {
-      if (partnerLinkWarning) {
-        var warn = partnerLinkWarning;
-        partnerLinkWarning = "";
-        toast(warn);
-        if (partnerEditReturn === "onboarding") {
-          showProfileStep();
-          setTimeout(function () { showOnbError("onb-link-error", warn); }, 0);
-        }
+      // FE-045 (P0): предупреждение о связи НЕ отменяет навигацию — иначе пользователь
+      // остаётся на форме без видимого успеха (ровно то, что ловила спека add-partner).
+      var warn = partnerLinkWarning;
+      partnerLinkWarning = "";
+      if (partnerEditReturn === "onboarding") {
+        showProfileStep();
+        if (warn) setTimeout(function () { showOnbError("onb-link-error", warn); }, 0);
         return;
       }
-      toast("Сохранено");
+      if (warn) toast(warn); else toast("Сохранено");
       if (partnerEditReturn === "wizard") {
         if (wasNew) { draft.partner = name; draft.partnerTouched = true; }
         reopenWizard();
-      } else if (partnerEditReturn === "onboarding") {
-        showProfileStep();
       } else {
         showView("partners");
         renderPartners();

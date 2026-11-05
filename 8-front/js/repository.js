@@ -173,16 +173,43 @@
   };
   DB.getPartner = function (id) { return Api.partners.get(id).then(function (rm) { return rm ? mapPartner(rm) : null; }); };
   DB.deletePartner = function (id) { return Api.partners.remove(id); };
+  // FE-045: profile после register/rename нужен только если форма отличается от дефолтов
+  // (photo="", gender="female", notes="") — иначе это лишний вызов в цепочке создания.
+  function needProfile(p) {
+    if (p.photo) return true;
+    if (p.gender && p.gender !== "female") return true;
+    if (p.notes && String(p.notes).trim()) return true;
+    return false;
+  }
+  // FE-045: один retry на 400/404 для идемпотентного profile — проекция может отставать.
+  // Логируем «retry after lag», чтобы не превратить настоящую 400 в молчаливое скрытие.
+  function retryOnce(fn) {
+    return fn().catch(function (e) {
+      var st = e && e.status;
+      if (st !== 400 && st !== 404) throw e;
+      return new Promise(function (res) { setTimeout(res, 200); }).then(function () {
+        console.log("retry after lag: profile → " + st);
+        return fn();
+      });
+    });
+  }
+
   DB.putPartner = function (p) {
     if (p.id) {
-      return Api.partners.rename(p.id, p.name)
-        .then(function () { return Api.partners.profile(p.id, { photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" }); })
-        .then(function () { return p; });
+      return Api.partners.rename(p.id, p.name).then(function () {
+        if (!needProfile(p)) return p;
+        return retryOnce(function () {
+          return Api.partners.profile(p.id, { photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" });
+        }).then(function () { return p; });
+      });
     }
     return Api.partners.register(p.name).then(function (m) {
       var id = m.id;
-      return Api.partners.profile(id, { photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" })
-        .then(function () { p.id = id; return p; });
+      p.id = id;
+      if (!needProfile(p)) return p;
+      return retryOnce(function () {
+        return Api.partners.profile(id, { photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" });
+      }).then(function () { return p; });
     });
   };
 
