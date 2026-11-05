@@ -1,0 +1,61 @@
+name: read-model-check
+
+# DO-079/@TL 08:22: «`GET /partners` → 200» недостаточно — read-модели наполняются ТОЛЬКО
+# проекцией событий (`BE-071`), бэкфилла нет, поэтому 200 легко означает «пустой экран».
+# Критерий: 200 **и** число элементов == `SELECT count(*)` по таблице-источнику.
+#
+# `journal` проверяется всегда (эндпоинт `/internal/journal/records` — anonymous-inside).
+# `partners` требует client-JWT: если секрет `PARTNERS_READ_TOKEN` не задан, шаг честно
+# пропускается с предупреждением (а не зеленеет).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+concurrency:
+  group: read-model-check
+  cancel-in-progress: false
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    environment: prod
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ключ для прод
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.PROD_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: "selftest гейта (8 кейсов: норма, пусто, расхождение, 401, 42P01)"
+        run: python3 tools/check_read_model_freshness.py --selftest
+
+      - name: "journal: 200 и число записей == count(*) records"
+        run: |
+          python3 tools/check_read_model_freshness.py \
+            --service journal \
+            --endpoint http://xdiary-journal:8080/internal/journal/records \
+            --db-name journal --db-table records \
+            --remote "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" \
+            --key ~/.ssh/id_deploy
+
+      - name: "partners: 200 и число элементов == count(*) partners"
+        if: ${{ secrets.PARTNERS_READ_TOKEN != '' }}
+        run: |
+          python3 tools/check_read_model_freshness.py \
+            --service partners \
+            --endpoint http://xdiary-partners:8080/api/v1/partners \
+            --db-name partners --db-table partners \
+            --token "${{ secrets.PARTNERS_READ_TOKEN }}" \
+            --remote "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" \
+            --key ~/.ssh/id_deploy
+
+      - name: partners без токена — измерить нельзя
+        if: ${{ secrets.PARTNERS_READ_TOKEN == '' }}
+        run: |
+          echo "::warning::partners не измерен: нет секрета PARTNERS_READ_TOKEN (без client-JWT эндпоинт даёт 401, и это НЕ проверка)"
