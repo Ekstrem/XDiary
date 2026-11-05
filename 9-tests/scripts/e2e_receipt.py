@@ -151,6 +151,15 @@ def main(argv=None):
         print(f"::error::e2e_receipt: упавшая спека: {s}")
     if failed:
         return 1
+
+    # Класс «прогон без шагов — не прогон» (AGENTS §5): если ВСЕ тесты пропущены условиями
+    # стенда, набор «зелёный», но ничего не проверил. Это НЕ измерено (rc=2), а не успех.
+    executed = totals.get('passed', 0) + totals.get('failed', 0)
+    if executed == 0:
+        print(f"::error::e2e_receipt: ни один тест не исполнялся "
+              f"(passed 0, failed 0, skipped {totals.get('skipped', 0)}) \u2014 "
+              f"\u00abпрогон без шагов \u2014 не прогон\u00bb: не измерено (rc=2)")
+        return 2
     return 0 if total > 0 else 2
 
 
@@ -167,7 +176,8 @@ def selftest():
             rc, line = 2, "не разобран"
         else:
             line, failed, n = receipt(per_spec, totals, "abc123")
-            rc = 1 if failed else (0 if n else 2)
+            executed = totals.get("passed", 0) + totals.get("failed", 0)
+            rc = 1 if failed else (2 if (not n or executed == 0) else 0)
         miss = [m for m in must if m not in line]
         if rc == want_rc and not miss:
             ok += 1
@@ -206,7 +216,8 @@ def selftest():
         "-  1 [chromium] \u203a change-pin.spec.js:8:1 \u203a E2E: pin",
         "-  2 [chromium] \u203a no-pin.spec.js:14:1 \u203a legacy",
     )
-    case("real list: all skipped", "\n".join(real_skips), 0, ["skipped 2", "passed 0"])
+    # «Всё пропущено» — НЕ зелёный прогон: набор ничего не проверил, значит «не измерено».
+    case("real list: all skipped", "\n".join(real_skips), 2, ["skipped 2", "passed 0"])
 
     list_bad = list_ok + "  \u2718  4 tests/c.spec.js:7:1 › упал (5s)\n"
     case("list: одна упавшая", list_bad, 1, ["failed 1", "упавшие: tests/c.spec.js"])
