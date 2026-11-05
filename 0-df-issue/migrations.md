@@ -25,3 +25,16 @@
 - `dotnet ef migrations add InitialCreate` для `CommandDbContext` всех 9 сервисов + `CommandDbContextFactory`.
 - `Program.cs`: `EnsureCreated()` → `Database.Migrate()`.
 - Portability: дополнительная миграция `AddKind` (поле `Kind`).
+
+## Дефект: `AddEventStorePostgres` перекрывает `MigrationsAssembly` (2026-11-05)
+
+`AddEventStorePostgres<T,M>` (CommandRepository.Postgres 0.1.0) регистрирует `EventStoreDbContext`/`DbContextOptions`
+через `TryAdd` **первым** и **без** `MigrationsAssembly`. Поэтому `AddDbContext<EventStoreDbContext>(..., x.MigrationsAssembly(...))`,
+вызванный ПОСЛЕ, не перекрывает регистрацию (`TryAdd` добавляет только отсутствующее) → `Migrate()` применяет пустой набор
+(`GetMigrations()` = пусто; `[migrate] migrations=` пусто).
+
+**Обход (рабочий):** регистрировать `AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(conn, x => x.MigrationsAssembly("<Storage>")))`
+**ДО** `AddEventStorePostgres` — тогда наш `TryAdd` срабатывает первым и `MigrationsAssembly` сохраняется.
+Проверка: `[migrate] migrations=AddEventStore` (не пусто) + `to_regclass('"Commands"."DomainEvents"')` не NULL.
+
+**Коммит:** `31e0d03a` (Partners + Journal). Сборки зелёные.
