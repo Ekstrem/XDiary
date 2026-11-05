@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.91"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.92"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -545,20 +545,72 @@
     };
   }
 
+  // FE-043 / read-paths.md §3 п.1: молчаливый catch запрещён — сбой чтения обязан быть виден.
+  var readErrorEl = null;
+  function showReadError(text) {
+    console.error("read-path:", text);
+    if (!readErrorEl) {
+      readErrorEl = document.createElement("div");
+      readErrorEl.className = "read-error";
+      readErrorEl.setAttribute("role", "alert");
+      readErrorEl.style.cssText = "position:fixed;left:12px;right:12px;top:12px;z-index:70;padding:10px 12px;" +
+        "border-radius:12px;background:#7f1d1d;color:#fff;font:14px/1.3 system-ui,sans-serif;" +
+        "box-shadow:0 6px 24px rgba(0,0,0,.35);";
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "\u00d7";
+      b.setAttribute("aria-label", "\u0417\u0430\u043a\u0440\u044b\u0442\u044c");
+      b.style.cssText = "float:right;border:0;background:transparent;color:#fff;font:16px/1 inherit;cursor:pointer;";
+      b.addEventListener("click", function () { hideReadError(); });
+      readErrorEl.appendChild(b);
+      var span = document.createElement("span");
+      span.textContent = text;
+      readErrorEl.appendChild(span);
+      document.body.appendChild(readErrorEl);
+    } else {
+      var s = readErrorEl.children[readErrorEl.children.length - 1];
+      if (s) s.textContent = text;
+    }
+  }
+  function hideReadError() {
+    if (readErrorEl && readErrorEl.parentNode) readErrorEl.parentNode.removeChild(readErrorEl);
+    readErrorEl = null;
+  }
+
   // FE-015: НЕ кэшируем (правило PO) — один getAllJournalData на открытие, данные идут в шаги параметром
   // FE-014/015: данные визарда — партнёры+журнал (шаги), recent/places — лёгкие MV вместо клиентского скана
   function loadWizardData() {
+    var failed = [];
     return Promise.all([
-      DB.getAllPartners(),
-      Api.journal.recent().catch(function () { return null; }),
-      Api.journal.places().catch(function () { return []; }),
-      DB.getAllCatalog().catch(function () { return []; })
+      DB.getAllPartners().catch(function () { failed.push("партнёры"); return []; }),
+      Api.journal.recent().catch(function () { failed.push("последняя запись"); return null; }),
+      Api.journal.places().catch(function () { failed.push("места"); return []; }),
+      DB.getAllCatalog().catch(function () { failed.push("каталог"); return []; })
     ]).then(function (res) {
-      return { partners: res[0], recent: res[1] || {}, places: res[2] || [], catalog: res[3] || [] };
+      return { partners: res[0], recent: res[1] || {}, places: res[2] || [], catalog: res[3] || [], readError: failed };
+    }, function (e) {
+      failed.push("журнал");
+      return { partners: [], recent: {}, places: [], catalog: [], readError: failed, readFailed: e };
     });
   }
   function reopenWizard() {
-    loadWizardData().then(function (data) { showView("wizard"); renderWizard(data); });
+    loadWizardData().then(function (data) { reportReadFailure(data); showView("wizard"); renderWizard(data); })
+      .catch(function (e) { openWizardDegraded(e); });
+  }
+  // FE-043: видимая ошибка вместо молчаливой пустоты; данные не подставляются
+  function reportReadFailure(data) {
+    if (data && data.readError && data.readError.length) {
+      showReadError("Не удалось загрузить: " + data.readError.join(", ") + ". Данные могут быть неполными.");
+      return true;
+    }
+    hideReadError();
+    return false;
+  }
+  function openWizardDegraded(e) {
+    showReadError("Не удалось загрузить данные визарда: " + (e && e.message ? e.message : "ошибка") + ". Данные могут быть неполными.");
+    draft = newDraft();
+    showView("wizard");
+    renderWizard({ partners: [], recent: {}, places: [], catalog: [], readError: ["данные"] });
   }
 
   function openWizard(id) {
@@ -587,9 +639,10 @@
         draft.partner = (data.recent.lastPartner && data.recent.lastPartner.name) || "";
         draft.place = data.recent.lastPlace || "";
       }
+      reportReadFailure(data);
       showView("wizard");
       renderWizard(data);
-    });
+    }).catch(function (e) { openWizardDegraded(e); });
   }
 
   function renderWizard(data) {
@@ -1265,7 +1318,7 @@
     DB.getAllCatalog().then(function (items) {
       var filtered = items.filter(function (it) { return it.kind === catalogKind; });
       filtered.sort(function (a, b) { return (a.archived ? 1 : 0) - (b.archived ? 1 : 0); });
-      var recPromise = catalogKind === "fantasy" ? Api.journal.fantasies().catch(function () { return []; }) : Promise.resolve([]);
+      var recPromise = catalogKind === "fantasy" ? Api.journal.fantasies().catch(function (e) { showReadError("Не удалось загрузить фантазии: " + e.message); return []; }) : Promise.resolve([]);
       recPromise.then(function (names) {
         var realized = new Set(names || []);
         var list = $("catalog-list");
@@ -1475,7 +1528,7 @@
     var somaticFailed = false;
     Promise.all([
       Api.somatic.slice(rangeStart, rangeEnd).catch(function () { somaticFailed = true; return []; }),
-      Api.daily.series(day, day).catch(function () { return []; })
+      Api.daily.series(day, day).catch(function (e) { showReadError("Не удалось загрузить метрики дня: " + e.message); return []; })
     ]).then(function (res) {
       var points = (res[0] || []).map(function (p) { return { t: p.t, hr: p.hr, body_battery: p.bodyBattery }; });
       var d = (res[1] || [])[0] || {};
@@ -2051,7 +2104,7 @@
       return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
     }
     // FE-012: корреляции — из серверных daily-metrics + somatic-series (не локальных weekly/sleep)
-    Promise.all([DB.getAllRecords(), Api.daily.series(dayKey(-90), dayKey(0)).catch(function () { return []; })]).then(function (res) {
+    Promise.all([DB.getAllRecords(), Api.daily.series(dayKey(-90), dayKey(0)).catch(function (e) { showReadError("Не удалось загрузить метрики за 90 дней: " + e.message); return []; })]).then(function (res) {
       var records = res[0].slice().sort(function (a, b) { return (a.startedAt || "") < (b.startedAt || "") ? -1 : 1; });
       var daily = {};
       (res[1] || []).forEach(function (d) { daily[d.date] = d; });
@@ -2066,7 +2119,7 @@
         var startMs = new Date(r.startedAt).getTime();
         var rs = minuteKeyFromDate(new Date(startMs - 10 * 60000));
         var re = minuteKeyFromDate(new Date(startMs + ((r.durationMin || 0) + 10) * 60000));
-        return Api.somatic.slice(rs, re).catch(function () { return []; }).then(function (points) {
+        return Api.somatic.slice(rs, re).catch(function (e) { showReadError("Не удалось загрузить соматику за период: " + e.message); return []; }).then(function (points) {
           points = points || [];
           var hr = points.filter(function (p) { return p.hr != null; }).map(function (p) { return p.hr; });
           var bb = points.filter(function (p) { return p.bodyBattery != null; })
