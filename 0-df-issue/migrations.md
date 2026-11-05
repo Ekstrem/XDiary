@@ -37,4 +37,4 @@
 **ДО** `AddEventStorePostgres` — тогда наш `TryAdd` срабатывает первым и `MigrationsAssembly` сохраняется.
 Проверка: `[migrate] migrations=AddEventStore` (не пусто) + `to_regclass('"Commands"."DomainEvents"')` не NULL.
 
-**Коммит:** `31e0d03a` (Partners + Journal). Сборки зелёные.
+**Коммит (фикс):** `de5507f0` (Partners + Journal, swap порядка регистрации). Сборки зелёные. (`31e0d03a` — merge, не фикс.)
