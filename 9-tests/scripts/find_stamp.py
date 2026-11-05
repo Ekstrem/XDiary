@@ -192,9 +192,59 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] {label}: got={got}, want={want}")
-    total = len(filter_cases) + len(parse_cases) + len(line_cases) + len(cases)
+    # кейсы на ТЕКСТ (норма @TL `15:38`): нужное значение есть, ложное — отсутствует
+    text_cases = [
+        (0, 0, [], [], "НЕТ НИГДЕ",
+         ["НЕТ НИГДЕ", "штампов 0"], ["ТОЛЬКО В ИСТОРИИ"],
+         "нет нигде: вердикт есть, ложного вердикта нет"),
+        (0, 3, [], [("bcc6e822", "2026-11-05", "фикс")],
+         "ТОЛЬКО В ИСТОРИИ",
+         ["ТОЛЬКО В ИСТОРИИ", "штампов 0", "с КАНОНИЧЕСКИМ штампом 1", "метка была и исчезла"],
+         ["НЕТ НИГДЕ"],
+         "только в истории: вердикт + предупреждение, «нет нигде» отсутствует"),
+        (2, 4, [("fe.md", "246"), ("fe.md", "247")], [], "СЕЙЧАС",
+         ["СЕЙЧАС", "штампов 2", "fe.md:246", "упоминаний в тексте: 4"],
+         ["ТОЛЬКО В ИСТОРИИ", "НЕТ НИГДЕ"],
+         "сейчас: адрес штампа напечатан, ложных вердиктов нет"),
+    ]
+    for now, mentions, stamps, hist, verdict, must, must_not, label in text_cases:
+        cands = [("c%02d" % i, "2026-01-01", "s") for i in range(len(hist))]
+        text = "\n".join(report_lines("2026-01-01 00:00", "chat", stamps, mentions,
+                                       cands, hist, verdict))
+        miss = [m for m in must if m not in text]
+        bad = [m for m in must_not if m in text]
+        if not miss and not bad:
+            ok += 1
+        else:
+            print(f"  [FAIL] текст: {label}: нет {miss}, лишнее {bad}")
+
+    total = len(text_cases) + len(filter_cases) + len(parse_cases) + len(line_cases) + len(cases)
     print(f"find_stamp --selftest: {ok}/{total} (история + различение «штамп / упоминание»)")
     return 0 if ok == total else 1
+
+
+def report_lines(stamp: str, path: str, stamps: list, mentions: int,
+                 candidates: list, hist: list, verdict: str) -> list:
+    """Текст квитанции отдельной функцией — чтобы `--selftest` проверял **текст**, а не только логику.
+
+    Норма @TL `chat/tl.md` `[2026-11-05 15:38]`: гейт, печатающий числа, обязан иметь кейс на текст
+    (нужное значение присутствует, ложное — отсутствует) с негативным контролем. Иначе подкласс
+    «гейт считает верно, а текст врёт» живёт в чате, а не в CI.
+    """
+    where = ", ".join(f"{f}:{n}" for f, n in stamps[:3])
+    lines = [
+        f"find_stamp: метка «{stamp}» в {path or 'репозитории'}",
+        f"  текущее состояние: штампов {len(stamps)}" + (f" ({where})" if where else "")
+        + f" | упоминаний в тексте: {mentions}",
+        f"  история: кандидатов {len(candidates)}, с КАНОНИЧЕСКИМ штампом {len(hist)}",
+    ]
+    for h in hist:
+        lines.append(f"    {h[0]} {h[1]} {str(h[2])[:80]}")
+    lines.append(f"  ВЕРДИКТ: {verdict}")
+    if verdict == "ТОЛЬКО В ИСТОРИИ":
+        lines.append("  ::warning::find_stamp: метка была и исчезла (правка меток) — "
+                     "«нет в origin» ≠ «фантом»; смотреть `git show <commit>^:<file>`")
+    return lines
 
 
 def main() -> int:
@@ -220,16 +270,8 @@ def main() -> int:
     hist = canonical_in_history(args.stamp, candidates, path)
     verdict = classify(now, len(hist))
     print(f"find_stamp: метка «{args.stamp}» в {path or 'репозитории'}")
-    where = ", ".join(f"{f}:{n}" for f, n in stamps[:3])
-    print(f"  текущее состояние: штампов {now}" + (f" ({where})" if where else "")
-          + f" | упоминаний в тексте: {mentions}")
-    print(f"  история: кандидатов {len(candidates)}, с КАНОНИЧЕСКИМ штампом {len(hist)}")
-    for h in hist:
-        print(f"    {h[0]} {h[1]} {h[2][:80]}")
-    print(f"  ВЕРДИКТ: {verdict}")
-    if verdict == "ТОЛЬКО В ИСТОРИИ":
-        print("  ::warning::find_stamp: метка была и исчезла (правка меток) — "
-              "«нет в origin» ≠ «фантом»; смотреть `git show <commit>^:<file>`")
+    for line in report_lines(args.stamp, path, stamps, mentions, candidates, hist, verdict):
+        print(line)
     if verdict == "НЕТ НИГДЕ":
         return 1
     return 0

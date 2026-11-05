@@ -56,6 +56,7 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             journal_empty_partner_names_src=None,
             contraceptive_count_mismatches=None, projection_verified_by=None,
             measured_on=None, schema_present=None, post_partners_status=None,
+            delivery_reached=None,
             projection_result=None, projection_waited_ms=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
@@ -167,7 +168,14 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     # «Схемы нет ⇒ `POST` не 200». Наблюдение @DO: схемы `Commands` нет, а `POST` вернул 200 —
     # это НЕ «не измерено», а НАРУШЕНИЕ: значит событие не доходит до консьюмера, либо в образе
     # остался `try/catch`. Обе причины проверяемы, но сам факт — уже дефект.
-    if schema_present == "no" and post_partners_status is not None:
+    if delivery_reached == "no":
+        # @DO `chat/do.md` `[2026-11-05 15:45]`: `[handle] entered` = 0 при `subscribed`=1 и
+        # `[Save] event=<guid>` — шина НЕ доставляет. Значит критерий A («без схемы → 5xx»)
+        # **неприменим**: он предполагает, что обработчик исполняется. `POST` 200 здесь —
+        # не нарушение A, а следствие разрыва доставки, и виновата не схема.
+        unmeasured.append("критерий A не применим: до консьюмера не дошло (`[handle] entered`=0) — "
+                          "сначала доставка события, схема/маппинг/A проверяются после неё")
+    elif schema_present == "no" and post_partners_status is not None:
         if post_partners_status == 200:
             issues.append("критерий A НАРУШЕН: схемы `Commands` нет, а `POST /partners` вернул 200 — "
                           "событие не доходит до консьюмера (или в образе остался `try/catch`)")
@@ -217,6 +225,9 @@ def receipt(args, issues, unmeasured):
     print(f"  проекция «создал → увидел»: {proj}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  события: {num(args.event_count)} → повтор {num(args.rerun_event_count)}")
+    print(f"  доставка до консьюмера: "
+          f"{'ДОШЛО' if args.delivery_reached == 'yes' else 'НЕ ДОШЛО' if args.delivery_reached == 'no' else 'НЕ ИЗМЕРЕНО'}"
+          + (" (критерий A не применим)" if args.delivery_reached == "no" else ""))
     print(f"  критерий A: схема={'есть' if args.schema_present == 'yes' else 'нет' if args.schema_present == 'no' else 'НЕ ИЗМЕРЕНО'}"
           f" | POST /partners={num(args.post_partners_status)}")
     print(f"  путь записи в read-модель: {args.write_path or 'НЕ ИЗМЕРЕНО'}"
@@ -253,7 +264,7 @@ def selftest() -> int:
                 contraceptive_count_mismatches=0, event_count=4, rerun_event_count=4,
                 projection_verified_by="partners-read-parity",
                 measured_on="xdiary-partners:47dfd808",
-                schema_present="yes", post_partners_status=200)
+                schema_present="yes", post_partners_status=200, delivery_reached="yes")
     cases = [
         ("норма (история + содержимое + проекция)", dict(base), 0),
         ("пусто при непустом источнике (BE-071)", {**base, "partners_read": 0}, 1),
@@ -285,6 +296,9 @@ def selftest() -> int:
         ("поведенческий замер без версии — не засчитано",
          {k: v for k, v in base.items() if k != "measured_on"}, 2),
         ("поведенческий замер с версией — проходит", dict(base), 0),
+        ("доставки нет: критерий A не применим (200 не нарушение)",
+         {**base, "delivery_reached": "no", "schema_present": "no", "post_partners_status": 200,
+            "projection_result": None, "projection_verified_by": None, "measured_on": None}, 2),
         ("критерий A нарушен: схемы нет, POST 200",
          {**base, "schema_present": "no", "post_partners_status": 200}, 1),
         ("критерий A работает: схемы нет, POST 500",
@@ -361,6 +375,8 @@ def main() -> int:
     ap.add_argument("--projection-result", choices=["passed", "failed"],
                     help="результат поведенческой проверки: создали → увидели (passed) или нет (failed)")
     ap.add_argument("--projection-waited-ms", type=int, help="сколько ждали появления в read-модели")
+    ap.add_argument("--delivery-reached", choices=["yes", "no"],
+                    help="дошло ли событие до обработчика (маркер `[handle] entered` в логе)")
     ap.add_argument("--schema-present", choices=["yes", "no"],
                     help="есть ли схема Commands в базе (to_regclass по DomainEvents)")
     ap.add_argument("--post-partners-status", type=int,
@@ -399,6 +415,7 @@ def main() -> int:
         projection_waited_ms=args.projection_waited_ms,
         measured_on=args.measured_on,
         schema_present=args.schema_present,
+        delivery_reached=args.delivery_reached,
         post_partners_status=args.post_partners_status,
     )
     return receipt(args, issues, unmeasured)
