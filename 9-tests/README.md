@@ -162,6 +162,52 @@ network=НЕ УКАЗАНО | tool=9-tests/scripts/check_apim_auth.py@e77f5c571b
 `2` — результат недействителен или не измерен (ни одного ответа, не сходится сумма по целям, база не
 резолвится, `--direct` без `--where`/`--network`).
 
+## Остальные приёмочные гейты (мои, в `9-tests/scripts/`)
+
+Все — без сети и браузера, у каждого `--selftest` с красным контролем на **каждом** критерии
+(правило: новый критерий = новый кейс в том же коммите). Подключены в CI (`ci-guards.yml`), кроме
+`check_adr028_move`/`check_front_specs_base` (они — вспомогательные для ревью, не гейты).
+
+```bash
+python 9-tests/scripts/check_read_paths.py --selftest      # 9/9
+python 9-tests/scripts/check_read_paths.py                 # A/B/C + полнота «N из M»
+python 9-tests/scripts/check_front_readpath.py --selftest  # 9/9
+python 9-tests/scripts/check_front_readpath.py             # read-path + stale-note + busyRun + версия
+python 9-tests/scripts/check_front_088.py                  # версия фронта (PASS на 0.94)
+python 9-tests/scripts/accept_read_path.py --selftest      # 22/22
+```
+
+**`check_read_paths.py`** — сверка `read-paths.md` §2 ↔ `api-index.yaml` в **обе** стороны плюс
+покрытие: **A** §2 → индекс; **B** MV, читаемый фронтом, → §2; **C** каждый `Api.*.*()` из §2 обязан
+иметь строку в `SOURCES` (иначе `rc=1`). Неполнота реестра — **`INFO`** с числом
+(«проверено 6 из 18»), а не красное: принцип @AR «гейт блокирует только то, что автор правит в том же
+коммите». `rc=0/1/2` (2 — вход не читается).
+
+**`check_front_readpath.py`** — 5 предикатов по `8-front`: артефакты read-path; `role="alert"`;
+наблюдаемость (`toast` + host `#view-wizard`); **порядок** `reportReadFailure` после `renderWizard`;
+**`stale-note`** (`FE-044`: бейдж, `role="status"`, ранний выход по `fromCache`, ≥3 вьюхи, синхрон
+порогов `24/24`); `busyRun` на трендах и CSV; синхрон `APP_VERSION`↔`CACHE`. `rc=0/1/2`.
+
+**`accept_read_path.py`** — квитанция приёмки read-моделей (`TE-050`/`BE-068`/`BE-071`). Принимает
+**числа и содержание** и различает три состояния: `0` — всё измерено и в норме; `1` — нарушение;
+`2` — **не засчитано** (нет данных). Ключевые флаги:
+- `--source-kind historical|live` — для `live` (E1: командная таблица больше не пишется) числовая
+  сверка **не применяется**, доказательство — `--projection-verified-by`;
+- `--journal-empty-partner-names[-src]` — различение `both_empty` (норма) и `lost_names` (`rc=1`);
+- `--partners-name-mismatches`, `--contraceptive-count-mismatches` — содержание, не счётчик;
+- `--event-count`/`--rerun-event-count` — идемпотентность **по событиям**;
+- `--write-path projection|sql` + `--repair-declared-in`/`--repair-date`/`--repair-command`:
+  `sql` без полного объявления → `rc=2`, а `.sql`-путь обязан **существовать** (`--repo-root`).
+
+```bash
+python 9-tests/scripts/accept_read_path.py \
+  --partners-read 13 --partners-src 13 --journal-read 4 --journal-src 4 \
+  --partners-http 200 --journal-http 200 --contract-passed 4 --contract-failed 0 \
+  --partners-name-mismatches 0 --journal-empty-partner-names 4 \
+  --journal-empty-partner-names-src 4 --contraceptive-count-mismatches 0 \
+  --event-count 4 --rerun-event-count 4 --projection-verified-by partners-read-parity
+```
+
 
 ## Runbook: E2E и нагрузка на стенде (TE-007..011)
 1. Получить access-токен: `POST {BASE}/api/v1/privacy/token` с телом `{"pin":"<PIN>"}` → `{accessToken, refreshToken}`.
