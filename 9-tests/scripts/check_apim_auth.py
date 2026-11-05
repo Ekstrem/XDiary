@@ -775,6 +775,9 @@ def main() -> int:
     ap.add_argument("--index", default=INDEX)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--probe-entry", action="store_true", dest="probe_entry",
+                    help="доказать, ЧТО стоит в пути трафика: заголовки ответа + поведение "
+                         "несуществующего пути (APIM отдаёт 404 и X-Gravitee-*, YARP — 401)")
     ap.add_argument("--all", action="store_true", dest="all_conditions",
                     help="одна квитанция на все условия: (ii-a) публичный вход + (ii-c) /internal/** "
                          "(при --direct дополнительно (ii-b))")
@@ -800,6 +803,50 @@ def main() -> int:
 
     if args.selftest:
         return selftest()
+
+    if args.probe_entry:
+        # «Переключено» = доказано заголовком/поведением, а не тем, что команда выполнена
+        # (@DO `03:56`). Поэтому смотрим три факта: заголовки, несуществующий путь, /health.
+        if not args.base:
+            print("::error::check_apim_auth: для --probe-entry нужен --base <публичный вход>")
+            return 2
+        import http.client
+        from urllib.parse import urlsplit
+
+        def probe(path: str, method: str = "GET"):
+            u = urlsplit(args.base.rstrip("/"))
+            cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+            conn = cls(u.hostname, u.port, timeout=12)
+            try:
+                conn.request(method, (u.path or "") + path, headers={"Accept": "*/*"})
+                r = conn.getresponse()
+                hdrs = {k.lower(): v for k, v in r.getheaders()}
+                r.read(200)
+                return r.status, hdrs
+            except Exception as e:                      # noqa: BLE001 — нужен факт, не трасса
+                return None, {"error": f"{type(e).__name__}: {e}"}
+            finally:
+                conn.close()
+
+        code_unknown, h_unknown = probe("/api/v1/does-not-exist-xyz")
+        code_health, h_health = probe("/health")
+        code_api, h_api = probe("/api/v1/catalog")
+        grav = sorted(k for k in h_api if k.startswith("x-gravitee"))
+        server = h_api.get("server", h_api.get("Server", "НЕ УКАЗАН"))
+        print(f"   несуществующий путь /api/v1/does-not-exist-xyz → {code_unknown}")
+        print(f"   /health → {code_health} · /api/v1/catalog → {code_api}")
+        print(f"   Server: {server} · X-Gravitee-*: {grav or 'нет'}")
+        if grav:
+            entry, why = "APIM", "есть заголовки X-Gravitee-*"
+        elif code_unknown == 401:
+            entry, why = "YARP (или APIM с catch-all)", \
+                "несуществующий путь даёт 401, а не 404: маршрут ловит всё и требует токен"
+        elif code_unknown == 404:
+            entry, why = "НЕ YARP", "несуществующий путь даёт 404 — значит маршрутизация не YARP"
+        else:
+            entry, why = "НЕ ОПРЕДЕЛЕНО", "нет ни X-Gravitee-*, ни однозначного кода"
+        print(f"ВХОД: {entry} — {why} (where={args.where or args.base}, tool={tool_id()})")
+        return 0 if entry != "НЕ ОПРЕДЕЛЕНО" else 2
 
     if args.all_conditions:
         # Одно действие — один артефакт: перед переключением трафика решение принимается по ТРЁМ
