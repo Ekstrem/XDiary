@@ -27,7 +27,8 @@ def yes_no(value):
     return value if value in ("yes", "no") else None
 
 
-def evaluate(subscribed, migrations, handle, read, measured_on):
+def evaluate(subscribed, migrations, handle, read, measured_on,
+             handle_before=None, read_before=None):
     """Возвращает (rows, counted, not_counted, failed). rows: (ступень, вердикт, причина)."""
     rows = []
     counted = not_counted = failed = 0
@@ -60,7 +61,16 @@ def evaluate(subscribed, migrations, handle, read, measured_on):
         counted += 1
         rows.append((STAGES[1], "PASS", f"миграций видно: {migrations}"))
 
-    # Ступень 3 — доставка до обработчика.
+    # Ступень 3 — доставка до обработчика. Дельту считаем, если задан --handle-before:
+    # маркер в логе живёт только в окне текущего контейнера (@TL `chat/tl.md` `[2026-11-05 20:17]`:
+    # после перезапуска лог пуст, строки в БД остаются ⇒ абсолютный 0 = ложный красный).
+    delta = None
+    if handle is not None and handle_before is not None:
+        delta = handle - handle_before
+    read_delta = None
+    if read is not None and read_before is not None:
+        read_delta = read - read_before
+
     if handle is None:
         rows.append((STAGES[2], "НЕ ИЗМЕРЕНО", "не передан --handle-entered"))
         not_counted += 1
@@ -69,9 +79,25 @@ def evaluate(subscribed, migrations, handle, read, measured_on):
         rows.append((STAGES[2], "НЕ ЗАСЧИТАНО", "поведенческий факт без --measured-on"))
         not_counted += 1
         blocked = blocked or STAGES[2]
-    elif handle == 0:
+    elif delta is not None and delta > 0:
+        counted += 1
+        rows.append((STAGES[2], "PASS",
+                     f"`[handle] entered` вырос на {delta} (окно: {handle_before} → {handle})"))
+    elif delta is not None and delta == 0 and read_delta and read_delta > 0:
+        rows.append((STAGES[2], "НЕ ЗАСЧИТАНО",
+                     f"маркер в окне не вырос (0), но представление выросло на {read_delta} — "
+                     f"похоже на окно лога, а не на дефект доставки"))
+        not_counted += 1
+        blocked = STAGES[2]
+    elif handle == 0 and delta is None:
         rows.append((STAGES[2], "НАРУШЕНО",
                      "`[handle] entered` = 0: событие не дошло до обработчика"))
+        failed += 1
+        blocked = STAGES[2]
+    elif delta == 0:
+        rows.append((STAGES[2], "НАРУШЕНО",
+                     f"`[handle] entered` не вырос в окне ({handle_before} → {handle}): "
+                     f"событие не дошло до обработчика"))
         failed += 1
         blocked = STAGES[2]
     else:
@@ -96,7 +122,7 @@ def evaluate(subscribed, migrations, handle, read, measured_on):
     return rows, counted, not_counted, failed
 
 
-def output_lines(rows, counted, not_counted, failed, measured_on):
+def output_lines(rows, counted, not_counted, failed, measured_on, window=None):
     lines = []
     width = max(len(r[0]) for r in rows)
     for name, verdict, why in rows:
@@ -105,6 +131,7 @@ def output_lines(rows, counted, not_counted, failed, measured_on):
         f"квитанция: ступеней {len(rows)} | засчитано: {counted} | "
         f"не засчитано: {not_counted} | нарушено: {failed}"
         + (f" | measured-on: {measured_on}" if measured_on else " | measured-on: НЕ УКАЗАН")
+        + (f" | окно: {window}" if window else "")
     )
     return lines
 
@@ -115,6 +142,10 @@ def main(argv=None):
     ap.add_argument("--migrations", type=int,
                     help="миграции, которые видит EventStoreDbContext (строка [migrate] migrations=); провижининг BE-075, read-схема BE-072")
     ap.add_argument("--handle-entered", type=int)
+    ap.add_argument("--handle-before", type=int,
+                    help="`[handle] entered` ДО POST (для дельты в одном окне)")
+    ap.add_argument("--read-before", type=int,
+                    help="строк в представлении ДО POST (для дельты)")
     ap.add_argument("--partners-read", type=int)
     ap.add_argument("--measured-on")
     ap.add_argument("--selftest", action="store_true")
@@ -124,8 +155,11 @@ def main(argv=None):
         return selftest()
 
     rows, counted, not_counted, failed = evaluate(
-        yes_no(a.subscribed), a.migrations, a.handle_entered, a.partners_read, a.measured_on)
-    for line in output_lines(rows, counted, not_counted, failed, a.measured_on):
+        yes_no(a.subscribed), a.migrations, a.handle_entered, a.partners_read, a.measured_on,
+        a.handle_before, a.read_before)
+    window = (f"до {a.handle_before} → после {a.handle_entered}"
+              if a.handle_before is not None else "absolute")
+    for line in output_lines(rows, counted, not_counted, failed, a.measured_on, window):
         print(line)
     if failed:
         return 1
@@ -172,6 +206,31 @@ def selftest():
         ok += 1
     else:
         print("  [FAIL] текст: квитанция не сходится или содержит None")
+
+    # дельта-кейсы (@TL 20:17): маркер живёт в окне контейнера
+    total += 1
+    _rows, _c, _n, _f = evaluate("yes", 1, 125, 124, "dev", handle_before=124, read_before=123)
+    _txt = "\n".join(output_lines(_rows, _c, _n, _f, "dev", "до 124 → после 125"))
+    if not _f and "вырос на 1" in _txt and "окно: до 124 → после 125" in _txt:
+        ok += 1
+    else:
+        print(f"  [FAIL] дельта выросла: f={_f}, txt={_txt[-120:]}")
+
+    total += 1
+    _rows, _c, _n, _f = evaluate("yes", 1, 0, 124, "dev", handle_before=0, read_before=123)
+    _txt = "\n".join(output_lines(_rows, _c, _n, _f, "dev"))
+    if not _f and _n >= 1 and "похоже на окно лога" in _txt:
+        ok += 1
+    else:
+        print(f"  [FAIL] дельта 0 при росте read: f={_f}, n={_n}, txt={_txt[-120:]}")
+
+    total += 1
+    _rows, _c, _n, _f = evaluate("yes", 1, 0, 123, "dev", handle_before=0, read_before=123)
+    _txt = "\n".join(output_lines(_rows, _c, _n, _f, "dev"))
+    if _f == 1 and "не вырос в окне" in _txt:
+        ok += 1
+    else:
+        print(f"  [FAIL] дельта 0 без роста read: f={_f}, txt={_txt[-120:]}")
 
     print(f"accept_pipeline_stages --selftest: {ok}/{total} (каждая ступень краснеет по своей причине)")
     return 0 if ok == total else 1
