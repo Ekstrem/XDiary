@@ -320,8 +320,23 @@ def selftest() -> int:
         print(f"  [FAIL] текст: good={good!r} / bad={bad!r}")
 
     total += 1
-    print(f"check_read_paths --selftest: {ok}/{total} (красный контроль на каждом направлении)")
-    return 0 if ok == total else 1
+    # кейс на «пустой вход»: нет файла -> rc=2 («проверять нечего»), а не rc=1 (ложный красный).
+    # Класс @TL `chat/tl.md` `[2026-11-05 18:48]`: красное по неверной причине хуже зелёного.
+    total_extra = 1
+    import tempfile as _tf
+    _tmp = _tf.mkdtemp()
+    try:
+        rc_missing = run(_tmp)
+    finally:
+        import shutil as _sh
+        _sh.rmtree(_tmp, ignore_errors=True)
+    if rc_missing == 2:
+        ok += 1
+    else:
+        print(f"  [FAIL] пустой вход: rc={rc_missing}, ждали 2 («проверять нечего»)")
+
+    print(f"check_read_paths --selftest: {ok}/{total + total_extra} (красный контроль на каждом направлении)")
+    return 0 if ok == total + total_extra else 1
 
 
 def main() -> int:
