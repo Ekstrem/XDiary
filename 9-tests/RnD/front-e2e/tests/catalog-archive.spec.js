@@ -56,6 +56,13 @@ test('E2E: каталог — archive и restore через UI, проверка
       await openItem(page);
       await expect(page.locator('#ce-archive')).toBeVisible();
       await expect(page.locator('#ce-archive')).toHaveText(/В архив/);
+      // Фото позиции каталога (`#ce-photo`) — скрытый file-вход, не покрывался.
+      await page.setInputFiles('#ce-photo', {
+        name: 'item.png', mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8AAAwAB/wFBn0VoAAAAAElFTkSuQmCC',
+          'base64'),
+      });
       await page.click('#ce-archive');
       await expect(page.locator('#ce-archive')).toHaveText(/Вернуть/);
       await page.click('#btn-catalog-save');

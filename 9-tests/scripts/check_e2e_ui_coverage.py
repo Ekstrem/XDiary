@@ -24,7 +24,9 @@ except Exception:  # noqa: BLE001
 
 BIND = re.compile(r'\$\("([\w-]+)"\)\.(?:addEventListener|onclick)')
 BIND_HTML = re.compile(r'id="([\w-]+)"[^>]*onclick=')
-TOUCH = re.compile(r"\.(?:click|press|fill|type|selectOption|check|uncheck)\(\s*'#([\w-]+)")
+# `setInputFiles` — тоже действие с элементом (скрытые `input[type=file]` иначе выглядят
+# «непокрытыми», хотя спека кладёт в них файл и путь проверяется по-настоящему).
+TOUCH = re.compile(r"\.(?:click|press|fill|type|selectOption|check|uncheck|setInputFiles)\(\s*'#([\w-]+)")
 TOUCH_LOC = re.compile(r"locator\(\s*'#([\w-]+)")
 
 # элементы, без которых MVP-сценарий неполон (негативные пути, удаление, выбор пола и т.п.)

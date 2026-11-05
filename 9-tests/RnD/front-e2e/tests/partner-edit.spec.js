@@ -62,6 +62,14 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
     });
 
     await test.step('UI: изменить имя, notes и пол → Сохранить', async () => {
+      // Фото партнёра (`#pe-photo`) — скрытый file-вход; ни одна спека в него ничего не кладла.
+      // Кладём крошечный PNG и проверяем, что путь не падает и превью/состояние не ломается.
+      await page.setInputFiles('#pe-photo', {
+        name: 'avatar.png', mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8AAAwAB/wFBn0VoAAAAAElFTkSuQmCC',
+          'base64'),
+      });
       await page.fill('#pe-name', NEW);
       await page.fill('#pe-notes', NOTES);
       // Второй вариант пола (`#pe-gender-female`) не проверялся: нажимаем оба, сохраняем мужской.

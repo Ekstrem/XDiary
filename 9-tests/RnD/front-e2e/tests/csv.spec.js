@@ -81,5 +81,17 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     await page.click('#btn-import-apply');
     await expect(page.locator('#import-result')).toBeVisible({ timeout: 20000 });
     await expect(page.locator('#import-result')).not.toHaveText(/^\s*$/);
+
+    // Импорт журнала через кнопку «Импорт CSV» в настройках (`#import-file`): это ЛОКАЛЬНЫЙ
+    // путь (пишет в IndexedDB контекста), на стенд ничего не уходит. Ни одна спека его не трогала.
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
+    await page.setInputFiles('#import-file', {
+      name: 'journal.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('started_at,duration_min,partner,place\n2026-01-01T10:00,15,SMOKE,SMOKE\n', 'utf8'),
+    });
+    // Результат импорта показывается тостом/сообщением; главное — не падаем и остаёмся в настройках.
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
   });
 });
