@@ -1,17 +1,27 @@
 name: Stats (README = задачи)
 
+# DO-101 (@TL 2026-11-06 01:00): гейт наказывал за нормальную работу — статус меняет каждая
+# роль, а таблицу в README обновлял никто (Stats краснел 6 раз за вечер 00:36–01:00).
+# Норма «README = задачи» НЕ меняется, меняется способ её поддержания: пересчитать и
+# закоммитить ботом, а не «проверить и упасть». Проверка остаётся — но как отчёт в шаге,
+# который **чинит** расхождение, а не красит CI.
 on:
   push:
     branches: ["main"]
     paths:
       - "5-tech-backlog/**"
       - "!5-tech-backlog/chat/**"
-      - "README.md"
       - "tools/stats.py"
+      # DO-101: `README.md` намеренно НЕ в paths — иначе бот-коммит снова триггерит workflow
+      # и получается петля «бот правит README → бот правит README».
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: stats
+  cancel-in-progress: false
 
 jobs:
   stats:
@@ -24,5 +34,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Проверить, что таблица статусов актуальна
+      - name: Диагностика до правки (таблица актуальна?)
+        run: |
+          echo "--- до: ---"
+          python tools/stats.py --check || echo "::notice::таблица отставала — пересчитываю"
+
+      - name: Пересчитать таблицу статусов
+        run: python tools/stats.py --write
+
+      - name: Закоммитить README, если изменился
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- README.md; then
+            echo "README актуален — коммит не нужен"
+            exit 0
+          fi
+          git config user.name  "xdiary-bot"
+          git config user.email "xdiary-bot@users.noreply.github.com"
+          git add README.md
+          git commit -m "bot: README = задачи (автообновление)"
+          git push
+
+      - name: Контроль после правки (должно быть rc=0)
         run: python tools/stats.py --check
