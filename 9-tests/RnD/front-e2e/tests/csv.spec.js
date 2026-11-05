@@ -4,6 +4,9 @@
 // somatic_minute/sleep_daily/sleep_weekly/stress_weekly/resting_weekly), показывает
 // превью и применяет. Импорт пишет в локальный IndexedDB контекста — уборки на стенде не требует.
 // ВАЖНО: экспорт журнала и импорт — РАЗНЫЕ форматы (журнал обратно не импортируется) — отмечено в TE-021.
+//
+// MVP-истории: US-09
+//   US-09 локальное хранение + выгрузка/загрузка CSV
 const fs = require('fs');
 const { test, expect } = require('@playwright/test');
 const { loginWithPin, reportStep } = require('./api');

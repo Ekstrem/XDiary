@@ -6,6 +6,9 @@
 //   1) `window.Pin.hasPin()` = true до снятия;
 //   2) `window.Pin.hasPin()` = false после снятия через UI;
 //   3) замок (`#view-lock`) больше не показывается — журнал открывается без PIN.
+//
+// MVP-истории: US-11
+//   US-11 вход по PIN (снятие PIN)
 const { test, expect } = require('@playwright/test');
 const { waitAppReady, API_BASE, PIN, loginWithPin } = require('./api');
 

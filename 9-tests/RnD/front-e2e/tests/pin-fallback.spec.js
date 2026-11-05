@@ -24,6 +24,9 @@
 // 200 = на стенде PIN нет (сценарий тоже валиден — см. п.1), иное → падаем.
 // ВАЖНО (TE-055): на этапе 3 `FE-042` маршрут `/api/v1/privacy/token` удаляется вместе с
 // device-токеном — тогда эту пробу нужно заменить внешним признаком (`XDIARY_STAND_HAS_PIN=1`).
+//
+// MVP-истории: US-11
+//   US-11 вход по PIN (устройство с PIN, локального нет)
 const { test, expect } = require('@playwright/test');
 const { readToken, API_BASE, PIN, loginWithPin, reportStep, expectScreen, dumpViews } = require('./api');
 
