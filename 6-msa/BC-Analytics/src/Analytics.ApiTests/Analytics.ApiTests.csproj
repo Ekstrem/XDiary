@@ -16,6 +16,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="AnalyticsPrivacy.IntegrationTests/**/*.cs" />
+    
   </ItemGroup>
 </Project>
