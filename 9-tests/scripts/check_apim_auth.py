@@ -593,11 +593,20 @@ def selftest() -> int:
                     for i in range(28)])
         _v, _c, _u, _p = verdict(shape, five_xx_unknown=False, direct=True)
         _rc = identity_rc(final_rc(_v, _c, _u, _p, 76), _p, len(_v), len(_c), len(_u), 76)
+        # Вторая форма — дословный критерий @TL `02:40`: 40 `401` + 36 прочих (все `403`)
+        # -> protected=76, сумма 76/76, rc=0. Один кейс на обе формы реального замера.
+        shape_ok = ([({"method": "GET", "path": f"/p{i}", "operationId": f"P{i}", "bc": "Catalog"}, 403, "u")
+                     for i in range(36)])
+        allpot = list(shape[:0]) + [r for r in shape[:40]] + shape_ok
+        _v2, _c2, _u2, _p2 = verdict(allpot, five_xx_unknown=False, direct=True)
+        _rc2 = identity_rc(final_rc(_v2, _c2, _u2, _p2, 76), _p2, len(_v2), len(_c2), len(_u2), 76)
         if (_p == 40 and len(_v) == 8 and len(_c) == 0 and len(_u) == 28
-                and _p + len(_v) + len(_c) + len(_u) == 76 and _rc == 1):
+                and _p + len(_v) + len(_c) + len(_u) == 76 and _rc == 1
+                and _p2 == 76 and not _v2 and not _c2 and not _u2 and _rc2 == 0):
             ok += 1
         else:
-            print(f"  [FAIL] форма 40/8/0/28: protected={_p} v={len(_v)} c={len(_c)} u={len(_u)} rc={_rc}")
+            print(f"  [FAIL] формы 40/8/0/28 и 76/0/0/0: "
+                  f"({_p},{len(_v)},{len(_c)},{len(_u)},rc={_rc}) / ({_p2},{len(_v2)},{len(_c2)},{len(_u2)},rc={_rc2})")
 
         bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
         if not bad_irc:
