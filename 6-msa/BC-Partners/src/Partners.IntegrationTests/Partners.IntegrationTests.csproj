@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Partners.Domain\Partners.Domain.csproj" />
     <ProjectReference Include="..\Partners.Storage\Partners.Storage.csproj" />
     <ProjectReference Include="..\Partners.InternalContracts\Partners.InternalContracts.csproj" />
+    <ProjectReference Include="..\Partners.Api\Partners.Api.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>
