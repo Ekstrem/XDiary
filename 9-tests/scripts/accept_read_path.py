@@ -35,6 +35,7 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             write_path=None, repair_declared_in=None, repair_command=None, repair_date=None,
             source_kind="historical", event_count=None, rerun_event_count=None,
             partners_name_mismatches=None, journal_empty_partner_names=None,
+            journal_empty_partner_names_src=None,
             contraceptive_count_mismatches=None, projection_verified_by=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
@@ -75,13 +76,33 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
 
     # ── Содержимое: SQL-ремонт идёт мимо маппинга, поэтому сверяем данные (@AR 20:20) ────
     for label, bad in (("partners_read.Name ≠ partners.Name", partners_name_mismatches),
-                       ("journal_read.PartnersNames пустые ('[]')", journal_empty_partner_names),
                        ("journal_read.ContraceptiveCount ≠ records", contraceptive_count_mismatches)):
         if not given(bad):
             unmeasured.append(f"содержимое: {label} — не измерено")
             continue
         if bad > 0:
             issues.append(f"содержимое: {label} — {bad} строк(и); счётчик это пропускает")
+
+    # Имена партнёров: пусто в read — норма, ЕСЛИ пусто и в источнике (`both_empty`).
+    # Потеря — это read пуст, а источник непуст (`lost_names`). Различение @TL 10:11 / @DO 10:17:
+    # без него критерий даёт ложный красный на реальных данных (в источнике `PartnersJson='[]'`
+    # у всех 4 строк, то есть `PartnersNames='[]'` в read — верное отражение источника).
+    if not given(journal_empty_partner_names):
+        unmeasured.append("содержимое: journal_read.PartnersNames — не измерено")
+    elif not given(journal_empty_partner_names_src):
+        unmeasured.append("содержимое: journal_read.PartnersNames — не передано, сколько пусто "
+                          "в ИСТОЧНИКЕ (`--journal-empty-partner-names-src`): без пары "
+                          "`both_empty` не отличить от `lost_names`")
+    else:
+        read_empty = journal_empty_partner_names
+        src_empty = journal_empty_partner_names_src
+        if read_empty > src_empty:
+            issues.append(f"содержимое: lost_names — read пуст у {read_empty} строк(и), "
+                          f"а источник пуст только у {src_empty}: потеряны имена")
+        elif read_empty < src_empty:
+            issues.append(f"содержимое: read содержит имена там, где источник пуст "
+                          f"({read_empty} < {src_empty}) — расхождение с источником")
+        # read_empty == src_empty → both_empty: норма, ничего не добавляем
 
     # ── Проекция живёт: поведенческое доказательство ─────────────────────────────────────
     if not projection_verified_by:
@@ -133,7 +154,8 @@ def receipt(args, issues, unmeasured):
           f" | journal_read={num(args.journal_read)} из источника {num(args.journal_src)}")
     print(f"  http: /partners={num(args.partners_http)}, /internal/journal/records={num(args.journal_http)}")
     print(f"  содержимое: name≠{num(args.partners_name_mismatches)}, "
-          f"empty PartnersNames={num(args.journal_empty_partner_names)}, "
+          f"empty PartnersNames={num(args.journal_empty_partner_names)}"
+          f" (пусто в источнике: {num(args.journal_empty_partner_names_src)}), "
           f"contraceptive≠{num(args.contraceptive_count_mismatches)}")
     print(f"  проекция «создал → увидел»: {args.projection_verified_by or 'НЕ ПОДТВЕРЖДЕНО'}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
@@ -163,6 +185,7 @@ def selftest() -> int:
                 partners_http=200, journal_http=200, contract_passed=4, contract_failed=0,
                 rerun_partners_read=13, rerun_journal_read=4,
                 partners_name_mismatches=0, journal_empty_partner_names=0,
+                journal_empty_partner_names_src=0,
                 contraceptive_count_mismatches=0, event_count=4, rerun_event_count=4,
                 projection_verified_by="partners-read-parity")
     cases = [
@@ -176,8 +199,15 @@ def selftest() -> int:
         ("контракт 0/4", {**base, "contract_passed": 0, "contract_failed": 4}, 1),
         ("чистая БД: 0 при 0 — норма", {**base, "partners_read": 0, "partners_src": 0,
                                         "rerun_partners_read": 0}, 0),
-        ("содержимое: PartnersNames '[]' (SQL мимо маппинга)",
-         {**base, "journal_empty_partner_names": 4}, 1),
+        ("содержимое: both_empty (пусто в источнике и в read) — норма",
+         {**base, "journal_empty_partner_names": 4, "journal_empty_partner_names_src": 4}, 0),
+        ("содержимое: lost_names (read пуст, источник непуст)",
+         {**base, "journal_empty_partner_names": 4, "journal_empty_partner_names_src": 0}, 1),
+        ("содержимое: read полнее источника",
+         {**base, "journal_empty_partner_names": 0, "journal_empty_partner_names_src": 3}, 1),
+        ("содержимое: пусто в read без пары по источнику — не засчитано",
+         {k: v for k, v in base.items() if k != "journal_empty_partner_names_src"}
+         | {"journal_empty_partner_names": 4}, 2),
         ("содержимое: Name ≠ источника", {**base, "partners_name_mismatches": 2}, 1),
         ("live-источник без поведенческой проверки",
          {**base, "source_kind": "live", "projection_verified_by": None}, 2),
@@ -224,6 +254,8 @@ def main() -> int:
                     help="сколько строк partners_read.Name не совпадает с источником")
     ap.add_argument("--journal-empty-partner-names", type=int,
                     help="сколько строк journal_read.PartnersNames = '[]'")
+    ap.add_argument("--journal-empty-partner-names-src", type=int,
+                    help="сколько строк ИСТОЧНИКА имеют пустые имена (для различения both_empty/lost_names)")
     ap.add_argument("--contraceptive-count-mismatches", type=int,
                     help="сколько строк journal_read.ContraceptiveCount ≠ records")
     ap.add_argument("--projection-verified-by", help="чем подтверждено «создал → увидел»")
@@ -248,6 +280,7 @@ def main() -> int:
         rerun_event_count=args.rerun_event_count,
         partners_name_mismatches=args.partners_name_mismatches,
         journal_empty_partner_names=args.journal_empty_partner_names,
+        journal_empty_partner_names_src=args.journal_empty_partner_names_src,
         contraceptive_count_mismatches=args.contraceptive_count_mismatches,
         projection_verified_by=args.projection_verified_by,
     )
