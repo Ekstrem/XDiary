@@ -54,6 +54,14 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
 
   await test.step('импорт: Garmin-подобный CSV (somatic_minute) принимается', async () => {
     const csv = 'timestamp,hr\n2026-11-02T10:00,60\n2026-11-02T10:01,62\n2026-11-02T10:02,61\n';
+    // `#btn-import-pick` («Выбрать CSV-файл») не проверялась: обязана открыть выбор файла.
+    const [picker] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 15000 }),
+      page.click('#btn-import-pick'),
+    ]);
+    expect(picker, 'по клику на «Выбрать CSV-файл» открывается выбор файла').toBeTruthy();
+    await picker.setFiles([]);
+
     await page.setInputFiles('#import-any-file', {
       name: 'somatic.csv',
       mimeType: 'text/csv',

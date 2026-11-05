@@ -44,6 +44,43 @@ test('E2E: настройки — пол сохраняется после пе�
     await expect(page.locator('#my-gender-female')).toHaveClass(/active/);
   });
 
+  await test.step('опасные действия спрашивают подтверждение и ОТМЕНЯЮТСЯ', async () => {
+    // `#btn-wipe` и `#btn-ident-logout` до этого не нажимала ни одна спека. Проверяем не действие,
+    // а защиту: открывается подтверждение, отмена его закрывает, состояние остаётся прежним.
+    await page.click('#btn-wipe');
+    await expect(page.locator('#confirm-modal'), 'подтверждение стирания').toBeVisible();
+    await page.click('#confirm-no');
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('#view-settings')).toBeVisible();
+
+    await page.click('#btn-ident-logout');
+    await expect(page.locator('#confirm-modal'), 'подтверждение сброса устройства').toBeVisible();
+    await page.click('#confirm-no');
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 15000 });
+    // устройство не сброшено: после reload вход сохранён и журнал доступен
+    await page.reload();
+    await unlockIfLocked(page);
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible();
+  });
+
+  await test.step('миграция спрашивает подтверждение (нативный диалог) и отменяется', async () => {
+    // `migrateData` использует `window.confirm`, а не модалку: диалог обязан появиться,
+    // и отмена не должна ничего переносить.
+    // Ждём САМО событие диалога, а не паузу: `page.waitForTimeout` запрещён гейтом
+    // `check_e2e_no_sleeps` (он поймал эту же строку при первом заходе — правильно поймал).
+    let seen = false;
+    const dialogSeen = new Promise((resolve) => {
+      page.once('dialog', async (dlg) => { seen = true; await dlg.dismiss(); resolve(true); });
+    });
+    const guard = new Promise((resolve) => setTimeout(() => resolve(false), 10000));
+    await page.click('#btn-migrate');
+    const appeared = await Promise.race([dialogSeen, guard]);
+    expect(appeared, 'по клику миграции показан нативный подтверждающий диалог').toBe(true);
+    expect(seen).toBe(true);
+  });
+
   await test.step('вернуть «Мужской» (уборка)', async () => {
     await page.click('#my-gender-male');
     await expect(page.locator('#my-gender-male')).toHaveClass(/active/);
