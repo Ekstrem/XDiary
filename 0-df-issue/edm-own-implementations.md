@@ -34,4 +34,7 @@
    в change-трек (`GetValueObjects()`), если они должны порождать события.
 
 ## Статус
-Открыт. Ждёт подтверждения эталона от @AR и приоритизации (ре-рефакторинг по всем 11 BC).
+Открыт. Эталон читается из DF-доков (`edm-eventstore-api.md` §«Следствие для E1»:
+`IRepository.SaveAsync` → `IEventBusProducer.Publish(result.Event)` + consumer → `SaveEventAsync`;
+`GetById` → `IAnemicModelRepository`/`IEventStoreRepository`). Код микросервисов — зона @BE,
+подтверждение кода от @AR не требуется; приоритизация — по E1-раскатке.
