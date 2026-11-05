@@ -608,6 +608,18 @@ def selftest() -> int:
             print(f"  [FAIL] формы 40/8/0/28 и 76/0/0/0: "
                   f"({_p},{len(_v)},{len(_c)},{len(_u)},rc={_rc}) / ({_p2},{len(_v2)},{len(_c2)},{len(_u2)},rc={_rc2})")
 
+        total += 1
+        # @TL `02:41` п.2-3: «операция без ответа обязана закрываться в `unknown`», иначе сумма
+        # не сходится (`неизвестно=0` при `измерено 0/76`). 76 без ответа -> unknown=76, rc=2.
+        norsp = [({"method": "GET", "path": f"/n{i}", "operationId": f"N{i}", "bc": "Catalog"}, None, "u")
+                 for i in range(76)]
+        _v3, _c3, _u3, _p3 = verdict(norsp)
+        _rc3 = identity_rc(final_rc(_v3, _c3, _u3, _p3, 76), _p3, len(_v3), len(_c3), len(_u3), 76)
+        if (not _v3 and not _c3 and len(_u3) == 76 and _p3 + len(_u3) == 76 and _rc3 == 2):
+            ok += 1
+        else:
+            print(f"  [FAIL] 76 без ответа: unknown={len(_u3)} protected={_p3} сумма={_p3 + len(_v3) + len(_c3) + len(_u3)} rc={_rc3}")
+
         bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
         if not bad_irc:
             ok += 1
