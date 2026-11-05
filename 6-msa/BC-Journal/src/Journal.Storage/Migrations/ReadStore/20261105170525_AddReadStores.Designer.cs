@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Journal.Storage.Migrations.ReadStore
 {
     [DbContext(typeof(ReadDbContext))]
-    [Migration("20261105161910_AddReadStores")]
+    [Migration("20261105170525_AddReadStores")]
     partial class AddReadStores
     {
         /// <inheritdoc />
@@ -168,89 +168,6 @@ namespace Journal.Storage.Migrations.ReadStore
                     b.HasKey("PartnerId");
 
                     b.ToTable("partners_directory", (string)null);
-                });
-
-            modelBuilder.Entity("Journal.Storage.RecordEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ClientId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ContraceptiveCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ContraceptivesJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CostumesJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreatedAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Deleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("DurationMin")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("FantasiesJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Garmin")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("GarminId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("OrgasmsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PartnersJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Place")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("PositionsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("StartedAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TagsJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ToysJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UpdatedAt")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<long>("Version")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StartedAt");
-
-                    b.ToTable("records", (string)null);
                 });
 #pragma warning restore 612, 618
         }

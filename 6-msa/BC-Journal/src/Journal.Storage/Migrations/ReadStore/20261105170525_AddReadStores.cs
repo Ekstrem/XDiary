@@ -73,41 +73,6 @@ namespace Journal.Storage.Migrations.ReadStore
                 {
                     table.PrimaryKey("PK_partners_directory", x => x.PartnerId);
                 });
-
-            migrationBuilder.CreateTable(
-                name: "records",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    ClientId = table.Column<Guid>(type: "uuid", nullable: true),
-                    PartnersJson = table.Column<string>(type: "text", nullable: false),
-                    StartedAt = table.Column<string>(type: "text", nullable: false),
-                    DurationMin = table.Column<int>(type: "integer", nullable: false),
-                    Place = table.Column<string>(type: "text", nullable: false),
-                    PositionsJson = table.Column<string>(type: "text", nullable: false),
-                    TagsJson = table.Column<string>(type: "text", nullable: false),
-                    CostumesJson = table.Column<string>(type: "text", nullable: false),
-                    ToysJson = table.Column<string>(type: "text", nullable: false),
-                    FantasiesJson = table.Column<string>(type: "text", nullable: false),
-                    ContraceptivesJson = table.Column<string>(type: "text", nullable: false),
-                    ContraceptiveCount = table.Column<int>(type: "integer", nullable: false),
-                    OrgasmsJson = table.Column<string>(type: "text", nullable: false),
-                    Garmin = table.Column<bool>(type: "boolean", nullable: false),
-                    GarminId = table.Column<string>(type: "text", nullable: false),
-                    CreatedAt = table.Column<string>(type: "text", nullable: false),
-                    UpdatedAt = table.Column<string>(type: "text", nullable: false),
-                    Deleted = table.Column<bool>(type: "boolean", nullable: false),
-                    Version = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_records", x => x.Id);
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_records_StartedAt",
-                table: "records",
-                column: "StartedAt");
         }
 
         /// <inheritdoc />
@@ -121,9 +86,6 @@ namespace Journal.Storage.Migrations.ReadStore
 
             migrationBuilder.DropTable(
                 name: "partners_directory");
-
-            migrationBuilder.DropTable(
-                name: "records");
         }
     }
 }

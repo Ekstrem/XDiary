@@ -7,13 +7,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 public sealed class ReadDbContext : DbContext
 {
     public ReadDbContext(DbContextOptions<ReadDbContext> options) : base(options) { }
-    public DbSet<RecordEntity> Records => Set<RecordEntity>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
-        b.Entity<RecordEntity>(e => { e.ToTable("records"); e.HasKey(x => x.Id); e.HasIndex(x => x.StartedAt); });
-
-        // BE-068: read-модели должны быть в EF-модели (иначе Cannot create a DbSet).
+        // BE-072: read-контекст описывает только read-таблицы, без command-сущности RecordEntity.
         b.Entity<JournalReadModel>(e =>
         {
             e.ToTable("journal_read");
