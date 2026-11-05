@@ -45,6 +45,10 @@ test('E2E: тренды — открываются и рендерятся бе�
     await expect(page.locator('#trend-trends')).not.toHaveClass(/hidden/);
   });
 
+  // Диагностика для CI: сколько API-ответов и консольных ошибок собрали. Если тест упадёт
+  // ниже, в логе уже видно, был ли это молчащий 401 или рендер.
+  console.log('[trends] API-ответов: ' + apiLog.length + ', консольных ошибок: ' + errors.length);
+
   await test.step('ошибок в консоли нет', async () => {
     expect(errors, 'консольные ошибки: ' + JSON.stringify(errors) +
       ' ;; API: ' + apiLog.slice(-15).join(' | ')).toEqual([]);

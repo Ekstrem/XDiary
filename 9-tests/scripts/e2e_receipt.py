@@ -29,10 +29,16 @@ MARK = {"\u2713": "passed", "\u2717": "failed", "\u2718": "failed", "\u00d7": "f
 # строка list-репортёра: маркер, номер, [проект] › путь:строка › название (время)
 # проект может отсутствовать, а у ретраев в названии есть «(retry #N)»
 LINE = re.compile(r"^\s*([\u2713\u2717\u2718\u00d7\-\u203a\u00bb])\s+\d+\s+(?:\[[^\]]+\]\s*\u203a\s*)?"
-                  r"(tests/[\w./\-\[\]() ]+?\.spec\.js)")
+                  # путь в реальном выводе приходит БЕЗ префикса `tests/`
+                  # (`onboarding.spec.js:9:1`), поэтому префикс необязателен.
+                  r"((?:tests/)?[\w./\-\[\]() ]+?\.spec\.js)")
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
 def parse_list(text):
+    # В CI/терминале Playwright красит маркеры ANSI-кодами (`\x1b[32m\u2713\x1b[39m`),
+    # из-за чего `^\s*(\u2713…)` не совпадал и весь разбор уходил в «не измерено».
+    text = ANSI.sub("", text)
     per_spec = collections.OrderedDict()
     totals = collections.Counter()
     for line in text.splitlines():
@@ -175,6 +181,32 @@ def selftest():
     )
     case("list: всё зелено + skip", list_ok, 0,
          ["passed 2", "failed 0", "skipped 1", "спек 2", "REF=abc123"])
+
+    # Реалистичный вывод Playwright: ANSI-раскраска, CRLF, путь БЕЗ префикса `tests/`.
+    # Раньше такой файл давал rc=2 «не измерено» — первый же CI-прогон не был бы прочитан.
+    real_ansi = (
+        "Running 4 tests using 1 worker",
+        "\x1b[32m\u2713\x1b[39m  1 [chromium] \u203a onboarding.spec.js:9:1 \u203a E2E: onboarding (2.1s)",
+        "\x1b[32m\u2713\x1b[39m  2 [chromium] \u203a onboarding.spec.js:60:1 \u203a E2E: profile (1.4s)",
+        "\x1b[31m\u2717\x1b[39m  3 [chromium] \u203a partner-edit.spec.js:12:1 \u203a E2E: partner (30.0s)",
+        "\x1b[33m-\x1b[39m  4 [chromium] \u203a change-pin.spec.js:8:1 \u203a E2E: pin",
+    )
+    case("real list: ANSI + CRLF + path without tests/", "\r\n".join(real_ansi), 1,
+         ["passed 2", "failed 1", "skipped 1", "partner-edit.spec.js"])
+
+    real_flaky = (
+        "\u2718  1 [chromium] \u203a csv.spec.js:10:1 \u203a E2E: import (retry #1) (30.0s)",
+        "\u2713  1 [chromium] \u203a csv.spec.js:10:1 \u203a E2E: import (retry #1) (2.0s)",
+        "\u2713  2 [chromium] \u203a settings.spec.js:8:1 \u203a E2E: settings (1.1s)",
+    )
+    case("real list: retry -> flaky, not a failure", "\n".join(real_flaky), 0,
+         ["failed 0", "flaky 1", "csv.spec.js"])
+
+    real_skips = (
+        "-  1 [chromium] \u203a change-pin.spec.js:8:1 \u203a E2E: pin",
+        "-  2 [chromium] \u203a no-pin.spec.js:14:1 \u203a legacy",
+    )
+    case("real list: all skipped", "\n".join(real_skips), 0, ["skipped 2", "passed 0"])
 
     list_bad = list_ok + "  \u2718  4 tests/c.spec.js:7:1 › упал (5s)\n"
     case("list: одна упавшая", list_bad, 1, ["failed 1", "упавшие: tests/c.spec.js"])

@@ -82,7 +82,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
     await test.step('проверка через API: rename + profile', async () => {
       const p = await getPartner(page, id);
       const bodies = 'тело POST /profile: ' + JSON.stringify(profileBodies);
-      expect(p, 'GET /partners/{id} ;; ' + bodies).toBeTruthy();
+      expect(p, 'GET /partners/{id} вернул партнёра с тем же id ;; ' + bodies).toMatchObject({ id });
       expect(p.name, 'name после rename (API)').toBe(NEW);
       expect(p.notes, 'notes после profile (API) ;; ' + bodies).toBe(NOTES);
       expect(p.gender, 'gender после profile (API)').toBe('male');

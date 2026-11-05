@@ -88,7 +88,8 @@ test('E2E: новое устройство → онбординг (без PIN-э
     // Токен проверяем через API: 200 и `id` в ответе — иначе «журнал открылся» мог быть
     // отрисован на пустом/протухшем состоянии.
     const token = await readToken(page);
-    expect(token, 'client-JWT сохранён на устройстве после входа').toBeTruthy();
+    // Строже, чем «truthy»: ловит 'undefined', 'null' и подделку-строку без структуры JWT.
+  expect(token, 'client-JWT на устройстве имеет вид header.payload.signature').toMatch(/^[\w-]+\.[\w-]+\.[\w-]+$/);
     const me = await page.evaluate(async (base) => {
       const t = localStorage.getItem('xdiary.accessToken');
       const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });

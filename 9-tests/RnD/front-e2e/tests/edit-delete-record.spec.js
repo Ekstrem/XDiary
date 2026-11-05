@@ -151,7 +151,8 @@ test('E2E: запись журнала — редактирование и уд�
     // должна исчезнуть из СПИСКА и из UI-журнала.
     const list = await apiList(page);
     const tail = apiLog.slice(-12).join(' | ');
-    expect(list, 'GET /api/v1/journal/records отвечает ;; API: ' + tail).toBeTruthy();
+    expect(Array.isArray(list), 'GET /api/v1/journal/records отдаёт МАССИВ (не null/объект) ;; API: ' + tail)
+      .toBe(true);
     const still = (list || []).find((x) => x.id === id);
     expect(!still, 'после удаления запись не должна быть в списке журнала (id ' + id + ') ;; API: ' + tail).toBe(true);
     // UI-список не перерисовывается сам после delete — перезагружаем и проверяем DOM
