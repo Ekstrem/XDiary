@@ -109,6 +109,12 @@ test('E2E: каталог — archive и restore через UI, проверка
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 30000 });
       const gone = await getItem(page, id);
       expect(gone, 'после удаления GET /catalog/{id} не отдаёт позицию').toBeFalsy();
+      // И в самом списке каталога позиции больше нет (требование @TL 01:06).
+      await page.click('#catalog-tabs button[data-kind="toy"]');
+      await expect(
+        page.locator('#catalog-list .partner-row').filter({ hasText: NAME }),
+        'после удаления позиции нет в списке каталога'
+      ).toHaveCount(0);
       id = null;
     });
   } finally {

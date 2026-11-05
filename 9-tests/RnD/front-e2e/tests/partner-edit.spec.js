@@ -126,6 +126,18 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
         page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
         'после удаления партнёра нет в списке'
       ).toHaveCount(0);
+
+      // Контракт @TL 01:06 (BE-080/BE-085): после удаления `GET /partners/{id}` обязан отдавать 404/403,
+      // а не 200 с «мягко удалённой» записью — иначе клиент продолжит показывать партнёра.
+      const after = await page.evaluate(async ({ base, id }) => {
+        const t = localStorage.getItem('xdiary.accessToken');
+        const r = await fetch(base + '/api/v1/partners/' + id, { headers: { Authorization: 'Bearer ' + t } });
+        return { status: r.status };
+      }, { base: API_BASE, id });
+      expect(
+        [404, 403].includes(after.status),
+        'GET /partners/{id} после удаления: ' + after.status + ' (ожидали 404/403)'
+      ).toBe(true);
       id = null;
     });
   } finally {
