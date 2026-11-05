@@ -170,11 +170,35 @@ def selftest():
         else:
             print("  [FAIL] %s -> нарушений %d, ждали %d" % (sorted(files), got, expect))
     shutil.rmtree(base, ignore_errors=True)
+    # @TL 2026-11-05 13:34: раскладка групповой папки (6-msa/ApiGateway.Tests/)
+    group_cases = [
+        # дефект: csproj в корне группы (ровно наш случай) -> 1
+        ({"6-msa/ApiGateway.Tests/ApiGateway.Tests.csproj": "<Project />"}, 1),
+        # норма: проект в своей подпапке с совпадающим именем -> 0
+        ({"6-msa/ApiGateway.Tests/Routes/Routes.csproj": "<Project />"}, 0),
+        # неверно: имя проекта не совпадает с подпапкой -> 1
+        ({"6-msa/ApiGateway.Tests/Routes/Other.csproj": "<Project />"}, 1),
+    ]
+    for files, expect in group_cases:
+        shutil.rmtree(os.path.join(base, "grp"), ignore_errors=True)
+        grp = os.path.join(base, "grp")
+        for rel, content in files.items():
+            full = os.path.join(grp, rel.replace("/", os.sep))
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            open(full, "w", encoding="utf-8").write(content)
+        got = len(scan_group_layout(grp))
+        if got == expect:
+            ok += 1
+        else:
+            print("  [FAIL] групповая раскладка %s -> нарушений %d, ждали %d"
+                  % (sorted(files), got, expect))
+    total_grp = len(group_cases)
+
     # @TL 2026-11-05 13:30: «нечего проверять» ≠ «проверил, чисто».
     # Кейс «нет csproj» обязан давать rc=2, иначе неверный --root снова станет зелёным.
     empty = os.path.join(base, "empty")
     os.makedirs(empty, exist_ok=True)
-    total = len(cases) + 1
+    total = len(cases) + 1 + total_grp
     if not csproj_files(empty):
         ok += 1
     else:
@@ -256,6 +280,42 @@ def scan_nested_projects(root):
     return out
 
 
+GROUP_TEST_DIRS = ("ApiGateway.Tests",)
+
+
+def scan_group_layout(root):
+    """Групповая папка тестов (`6-msa/ApiGateway.Tests/`) — раскладка по @TL 2026-11-05 13:34.
+
+    Правило: в корне группы `csproj` быть НЕ ДОЛЖНО, каждый проект живёт в своей подпапке
+    и называется по ней: `ApiGateway.Tests/<Имя>/<Имя>.csproj`. Причина: несколько проектов
+    в корне одной папки смешивают файлы и ломают `dotnet test` по папке — тест «пары»
+    оказывается рядом с тестом сервиса, и `bc_of()` перестаёт различать, кто чей.
+    """
+    out = []
+    for group in GROUP_TEST_DIRS:
+        base = os.path.join(root, "6-msa", group)
+        if not os.path.isdir(base):
+            continue
+        for fn in sorted(os.listdir(base)):
+            full = os.path.join(base, fn)
+            if not os.path.isfile(full) or not fn.endswith(".csproj"):
+                continue
+            out.append(("12", "6-msa/%s/%s" % (group, fn),
+                        "csproj в корне групповой папки — перенеси в подпапку "
+                        "`%s/<Имя>/<Имя>.csproj`" % group))
+        for sub in sorted(os.listdir(base)):
+            subfull = os.path.join(base, sub)
+            if not os.path.isdir(subfull):
+                continue
+            for fn in sorted(os.listdir(subfull)):
+                if not fn.endswith(".csproj"):
+                    continue
+                if os.path.splitext(fn)[0] != sub:
+                    out.append(("12", "6-msa/%s/%s/%s" % (group, sub, fn),
+                                "имя проекта не совпадает с подпапкой — ожидали `%s.csproj`" % sub))
+    return out
+
+
 def scan_broken_refs(root):
     """(ж) ProjectReference в тестовом проекте указывает на существующий файл.
 
@@ -302,6 +362,8 @@ def main():
         v.append((kind, rel_proj, why))
     for parent, nested in scan_nested_projects(root):
         v.append(("11", parent, "вложенный csproj внутри тестового проекта: %s" % nested))
+    for kind, rel, why in scan_group_layout(root):
+        v.append((kind, rel, why))
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
     # Форма отчёта — требование @TL 2026-11-14 34:11: ДВА числа и дедуп по пути.
@@ -325,7 +387,8 @@ def main():
         titles = {"б": "ProjectReference на чужой BC", "в": "ссылка сервиса на E2E",
                   "д": "запрещённая общая папка", "е": "тест вне папки сервиса",
                   "ж": "include в никуда", "з": "Compile Include чужого BC",
-                  "11": "вложенный проект внутри тестового"}
+                  "11": "вложенный проект внутри тестового",
+                  "12": "раскладка групповой папки тестов"}
         parts = []
         for kind, count in sorted(kinds.items()):
             in_proj = len({rel for k, rel, _ in v if k == kind})
