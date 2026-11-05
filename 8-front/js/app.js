@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.93"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.94"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -545,6 +545,42 @@
     };
   }
 
+  // FE-044: признак «данные могли устареть» — только когда данные пришли из кэша и он старше порога.
+  // Живёт ВНУТРИ вьюхи (id/класс наблюдаемы спекой), свежие данные признака не дают.
+  var STALE_AFTER_HOURS_UI = 24;
+  function staleText(ageMs) {
+    if (ageMs === null || ageMs === undefined) return "данные могли устареть";
+    var h = Math.floor(ageMs / 3600000);
+    if (h < 1) return "данные могли устареть — меньше часа с синхронизации";
+    return "данные могли устареть — синхронизированы " + h + " ч назад";
+  }
+  function showStaleNote(viewId, kinds) {
+    var host = document.getElementById(viewId);
+    if (!host) return;
+    var worst = null;
+    (kinds || []).forEach(function (k) {
+      var st = (typeof DB.readFreshness === "function") ? DB.readFreshness(k) : null;
+      if (!st || !st.fromCache) return;
+      var age = st.ageMs;
+      var stale = (age === null || age === undefined) || age > STALE_AFTER_HOURS_UI * 3600000;
+      if (!stale) return;
+      if (!worst || (age !== null && age !== undefined && (worst.ageMs === null || age > worst.ageMs))) worst = st;
+    });
+    var old = host.querySelector(".stale-note");
+    if (!worst) { if (old && old.parentNode) old.parentNode.removeChild(old); return; }
+    var el = old;
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "stale-note";
+      el.className = "stale-note";
+      el.setAttribute("role", "status");
+      el.style.cssText = "margin:8px 0;padding:8px 10px;border-radius:10px;background:#4a3a12;color:#fff;" +
+        "font:13px/1.3 system-ui,sans-serif;";
+      host.appendChild(el);
+    }
+    el.textContent = staleText(worst.ageMs);
+  }
+
   // FE-043 / read-paths.md §3 п.1: молчаливый catch запрещён — сбой чтения обязан быть виден.
   var readErrorEl = null;
   function showReadError(text) {
@@ -597,7 +633,7 @@
     });
   }
   function reopenWizard() {
-    loadWizardData().then(function (data) { showView("wizard"); renderWizard(data); reportReadFailure(data); })
+    loadWizardData().then(function (data) { showView("wizard"); renderWizard(data); reportReadFailure(data); showStaleNote("view-wizard", ["partners", "catalog"]); })
       .catch(function (e) { openWizardDegraded(e); });
   }
   // FE-043: видимая ошибка вместо молчаливой пустоты; данные не подставляются
@@ -613,6 +649,7 @@
     draft = newDraft();
     showView("wizard");
     renderWizard({ partners: [], recent: {}, places: [], catalog: [], readError: ["данные"] });
+    showStaleNote("view-wizard", ["partners", "catalog"]);
     showReadError("Не удалось загрузить данные визарда: " + (e && e.message ? e.message : "ошибка") + ". Данные могут быть неполными.");
   }
 
@@ -645,6 +682,7 @@
       showView("wizard");
       renderWizard(data);
       reportReadFailure(data);
+      showStaleNote("view-wizard", ["partners", "catalog"]);
     }).catch(function (e) { openWizardDegraded(e); });
   }
 
@@ -1183,6 +1221,7 @@
   // ---- партнёры ----
   function renderPartners() {
     DB.getAllPartners().then(function (partners) {
+      showStaleNote("view-partners", ["partners"]);
       var list = $("partners-list");
       list.innerHTML = "";
       $("partners-empty").classList.toggle("hidden", partners.length > 0);
@@ -1319,6 +1358,7 @@
   // ---- каталог (костюмы / игрушки / фантазии) ----
   function renderCatalog() {
     DB.getAllCatalog().then(function (items) {
+      showStaleNote("view-catalog", ["catalog"]);
       var filtered = items.filter(function (it) { return it.kind === catalogKind; });
       filtered.sort(function (a, b) { return (a.archived ? 1 : 0) - (b.archived ? 1 : 0); });
       var recPromise = catalogKind === "fantasy" ? Api.journal.fantasies().catch(function (e) { showReadError("Не удалось загрузить фантазии: " + e.message); return []; }) : Promise.resolve([]);

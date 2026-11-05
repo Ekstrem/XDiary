@@ -141,7 +141,36 @@
   };
 
   // ---- Партнёры ----
-  DB.getAllPartners = function () { return Api.partners.list().then(function (l) { return (l || []).map(mapPartner); }); };
+  // FE-044 / read-paths §1 п.2: смешанная свежесть обязана быть названа.
+  // Порог «данные могли устареть» — STALE_AFTER_HOURS (24 ч). Признак показывается КОГДА ДАННЫЕ
+  // ПРИШЛИ ИЗ КЭША: живое чтение упало, а в IndexedDB копия есть. Свежие live-данные признака не дают.
+  var STALE_AFTER_HOURS = 24;
+  var fresh = { partners: null, catalog: null };
+  function syncKey(kind) { return "syncAt." + kind; }
+  function markSync(kind) { try { DB.setMeta(syncKey(kind), Date.now()); } catch (e) {} }
+  function withCache(kind, live, cached) {
+    return live().then(function (v) {
+      markSync(kind);
+      fresh[kind] = null;
+      return v;
+    }).catch(function (err) {
+      return cached().then(function (rows) {
+        if (!rows || !rows.length) { fresh[kind] = null; throw err; }
+        return DB.getMeta(syncKey(kind)).then(function (m) {
+          var at = (m && m.value) || 0;
+          fresh[kind] = { fromCache: true, ageMs: at ? (Date.now() - at) : null };
+          return rows;
+        });
+      });
+    });
+  }
+  DB.readFreshness = function (kind) { return fresh[kind] || null; };
+
+  DB.getAllPartners = function () {
+    return withCache("partners",
+      function () { return Api.partners.list().then(function (l) { return (l || []).map(mapPartner); }); },
+      function () { return DB.rawPartners().then(function (l) { return (l || []).map(mapPartner); }); });
+  };
   DB.getPartner = function (id) { return Api.partners.get(id).then(function (rm) { return rm ? mapPartner(rm) : null; }); };
   DB.deletePartner = function (id) { return Api.partners.remove(id); };
   DB.putPartner = function (p) {
@@ -158,7 +187,11 @@
   };
 
   // ---- Каталог ----
-  DB.getAllCatalog = function () { return Api.catalog.list().then(function (l) { return (l || []).map(mapCatalogItem); }); };
+  DB.getAllCatalog = function () {
+    return withCache("catalog",
+      function () { return Api.catalog.list().then(function (l) { return (l || []).map(mapCatalogItem); }); },
+      function () { return DB.rawCatalog().then(function (l) { return (l || []).map(mapCatalogItem); }); });
+  };
   DB.getCatalogItem = function (id) { return Api.catalog.get(id).then(function (rm) { return rm ? mapCatalogItem(rm) : null; }); };
   DB.deleteCatalogItem = function (id) { return Api.catalog.remove(id); };
   DB.putCatalogItem = function (it) {
