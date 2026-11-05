@@ -1,4 +1,4 @@
-name: APIM auth coverage (ADR-026, DO-076)
+name: APIM auth coverage (ADR-031 Предложено — перенос канона из ADR-026; DO-076)
 
 # Гейт @TE `9-tests/scripts/check_apim_auth.py`: для каждой операции с `auth != anonymous`
 # запрос БЕЗ токена должен давать 401. Это машинный критерий переключения трафика на APIM.
@@ -56,7 +56,7 @@ jobs:
           set +e
           base="${BASE}"
           # @TE требует provenance: без --where гейт отдаёт rc=2 UNKNOWN (и это правильно —
-          # квитанция без «чем измерено» не прикладывается к релизу, ADR-026).
+          # квитанция без «чем измерено» не прикладывается к релизу, ADR-031 (Предложено; перенос канона из ADR-026)).
           python 9-tests/scripts/check_apim_auth.py --base "$base" \
             --where "GitHub Actions runner (ubuntu-latest), публичный вход через Tailscale" \
             > /tmp/ga.log 2>&1

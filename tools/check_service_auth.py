@@ -44,7 +44,7 @@ def load_ops(root):
 
 
 def classify(code):
-    """Классы по канону `ADR-026` §«Квитанция (ii-b)» (решение @AR/@TL 2026-11-04/05).
+    """Классы по канону `ADR-031 (Предложено; перенос канона из ADR-026)` §«Квитанция (ii-b)» (решение @AR/@TL 2026-11-04/05).
 
     * `401`/`403` — **protected** (единственный признак защиты);
     * `404`/`405` на операции, которая **есть в индексе**, — **contract**: индекс говорит
@@ -146,7 +146,7 @@ def measure(remote, key, only=None, service_map=None):
         return None, 'индекс не найден на хосте (нужен api-index.yaml в /tmp или /opt/xdiary)'
     import yaml
     data = yaml.safe_load(out_index)
-    # Знаменатель (ii-b) — ТОЛЬКО `auth = jwt` (ADR-026, решение @AR 2026-11-05 03:12):
+    # Знаменатель (ii-b) — ТОЛЬКО `auth = jwt` (ADR-031 (Предложено; перенос канона из ADR-026), решение @AR 2026-11-05 03:12):
     # `anonymous-inside` (/internal/**) исключён — там периметр сеть, а не токен.
     # Исторические «76» считали его токенным и устарели; актуально 74.
     ops_all = [o for o in data['operations'] if o.get('auth') == 'jwt']
@@ -195,9 +195,9 @@ def exit_code(tot):
 
 
 def report(results):
-    print('  знаменатель: только auth=jwt (anonymous-inside исключён, ADR-026 03:12)')
+    print('  знаменатель: только auth=jwt (anonymous-inside исключён, ADR-031 (Предложено; перенос канона из ADR-026) 03:12)')
     print('  инструмент: tools/check_service_auth.py — ПЕРЕКРЁСТНЫЙ КОНТРОЛЬ; '
-          'канон замера (ii-b) — 9-tests/scripts/check_apim_auth.py (ADR-026 §«Квитанция (ii-b)»)')
+          'канон замера (ii-b) — 9-tests/scripts/check_apim_auth.py (ADR-031 (Предложено; перенос канона из ADR-026) §«Квитанция (ii-b)»)')
     print('  %-20s %9s %10s %9s %8s %9s'
           % ('BC', 'операций', 'protected', 'violator', 'contract', 'unknown'))
     tot = {'protected': 0, 'violator': 0, 'contract': 0, 'unknown': 0, 'ops': 0}
@@ -271,7 +271,7 @@ def identity_ok(tot):
 
 
 def receipt(ref, where, tot, rc, images):
-    """Строка квитанции в формате `ADR-026` §«Квитанция (ii-b)» (@TL 2026-11-05 01:56).
+    """Строка квитанции в формате `ADR-031 (Предложено; перенос канона из ADR-026)` §«Квитанция (ii-b)» (@TL 2026-11-05 01:56).
 
     `REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN | защищено=N/76 | нарушителей=V | contract=C |
      неизвестно=U | rc=… | where=… | images=…`
