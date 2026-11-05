@@ -29,12 +29,13 @@
 ## Дефект: `AddEventStorePostgres` перекрывает `MigrationsAssembly` (2026-11-05)
 
 `AddEventStorePostgres<T,M>` (CommandRepository.Postgres 0.1.0) регистрирует `EventStoreDbContext`/`DbContextOptions`
-через `TryAdd` **первым** и **без** `MigrationsAssembly`. Поэтому `AddDbContext<EventStoreDbContext>(..., x.MigrationsAssembly(...))`,
-вызванный ПОСЛЕ, не перекрывает регистрацию (`TryAdd` добавляет только отсутствующее) → `Migrate()` применяет пустой набор
+**без** `MigrationsAssembly` и делает это через `AddDbContext` (проверено по DLL: `AddDbContext` = 1, `TryAdd` = 0).
+Механизм — **порядок регистрации**: первый `AddDbContext` кладёт `DbContextOptions`, второй его не перекрывает.
+Поэтому `AddDbContext<EventStoreDbContext>(..., x.MigrationsAssembly(...))`, вызванный ПОСЛЕ пакета, проигрывает → `Migrate()` применяет пустой набор
 (`GetMigrations()` = пусто; `[migrate] migrations=` пусто).
 
 **Обход (рабочий):** регистрировать `AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(conn, x => x.MigrationsAssembly("<Storage>")))`
-**ДО** `AddEventStorePostgres` — тогда наш `TryAdd` срабатывает первым и `MigrationsAssembly` сохраняется.
+**ДО** `AddEventStorePostgres` — тогда наш `AddDbContext` первый и `MigrationsAssembly` сохраняется.
 Проверка: `[migrate] migrations=AddEventStore` (не пусто) + `to_regclass('"Commands"."DomainEvents"')` не NULL.
 
 **Коммит (фикс):** `de5507f0` (Partners + Journal, swap порядка регистрации). Сборки зелёные.
