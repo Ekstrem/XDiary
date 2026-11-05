@@ -826,8 +826,24 @@ def main() -> int:
                            resolve_images(args.images, []) if not args.direct else "", args.network))
         worst = max(rc_a, rc_c)
         names = {0: "PASS", 1: "FAIL", 2: "UNKNOWN"}
+        # Тождество протокола (ADR-026, @AR `04:15`): знаменатели `(ii-a)` и `(ii-c)` вместе
+        # покрывают ВСЕ операции индекса, кроме `anonymous` (74 + 2 = 76 из 80). Если сумма
+        # разойдётся — значит класс операций выпал из обоих условий, и протокол недействителен.
+        all_ops = load_ops(args.index)
+        # `anonymous` считаем ЯВНО, а не как остаток: остаток делает проверку тавтологией
+        # (сумма всегда сходится по построению) — ровно класс, который мы ловим четвёртый раз.
+        anon_cnt = len([o for o in all_ops
+                        if str(o.get("auth", "")).strip().lower() == "anonymous"])
+        protocol_sum = len(ops_all) + len(iops)
+        expected = len(all_ops) - anon_cnt
+        if protocol_sum != expected:
+            print(f"::error::check_apim_auth: знаменатели не покрывают индекс: "
+                  f"{len(ops_all)} + {len(iops)} = {protocol_sum}, ожидалось {expected} "
+                  f"(в индексе {len(all_ops)}, anonymous {anon_cnt}) — протокол недействителен (rc=2)")
+            worst = 2
         print(f"ИТОГ: (ii-a) {names[rc_a]} {p_a}/{len(ops_all)} · (ii-c) {names[rc_c]} "
-              f"{len(ok_c)}/{len(iops)} · rc={worst}")
+              f"{len(ok_c)}/{len(iops)} · знаменатели {len(ops_all)}+{len(iops)}={protocol_sum} "
+              f"из {len(all_ops)} (anonymous {anon_cnt}) · rc={worst}")
         return worst
 
     if args.ii_c:
