@@ -34,7 +34,8 @@ except Exception:                             # noqa: BLE001
 
 def verdict(partners_read, partners_src, journal_read, journal_src,
             partners_http, journal_http, contract_passed, contract_failed,
-            rerun_partners_read=None, rerun_journal_read=None):
+            rerun_partners_read=None, rerun_journal_read=None,
+            write_path=None, repair_declared_in=None):
     """Возвращает (issues, unmeasured) — списки строк. Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
 
@@ -85,6 +86,14 @@ def verdict(partners_read, partners_src, journal_read, journal_src,
         if again != first:
             issues.append(f"{label}: повтор изменил число {first} → {again} — бэкфилл неидемпотентен")
 
+    # Путь записи в read-модель (@TL 09:51): проекция — канонный путь; прямой INSERT…SELECT —
+    # второй путь, и он обязан быть ОБЪЯВЛЕН (карточка/ADR), иначе через месяц никто не вспомнит,
+    # почему read-строки не совпадают с событиями.
+    if write_path == "sql" and not repair_declared_in:
+        unmeasured.append("путь записи = sql (ремонт), но не объявлено где — укажи --repair-declared-in")
+    if write_path not in (None, "projection", "sql"):
+        issues.append(f"путь записи '{write_path}' неизвестен: ожидали projection|sql")
+
     return issues, unmeasured
 
 
@@ -97,6 +106,8 @@ def receipt(args, issues, unmeasured):
           f" | journal_read={num(args.journal_read)} из источника {num(args.journal_src)}")
     print(f"  http: /partners={num(args.partners_http)}, /internal/journal/records={num(args.journal_http)}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
+    print(f"  путь записи в read-модель: {args.write_path or 'НЕ ИЗМЕРЕНО'}"
+          + (f" (объявлен в {args.repair_declared_in})" if args.repair_declared_in else ""))
     print(f"  повтор: partners_read={num(args.rerun_partners_read)}, "
           f"journal_read={num(args.rerun_journal_read)}")
     for u in unmeasured:
@@ -128,6 +139,10 @@ def selftest() -> int:
         ("контракт 0/4", {**base, "contract_passed": 0, "contract_failed": 4}, 1),
         ("чистая БД: 0 при 0 — норма", {**base, "partners_read": 0, "partners_src": 0,
                                         "rerun_partners_read": 0}, 0),
+        ("ремонт SQL без объявления — не засчитано", {**base, "write_path": "sql"}, 2),
+        ("ремонт SQL с объявлением — проходит", {**base, "write_path": "sql",
+                                                  "repair_declared_in": "BE-071"}, 0),
+        ("неизвестный путь записи — нарушение", {**base, "write_path": "direct"}, 1),
     ]
     ok = 0
     for name, kw, want in cases:
@@ -153,6 +168,9 @@ def main() -> int:
     ap.add_argument("--contract-failed", type=int)
     ap.add_argument("--rerun-partners-read", type=int)
     ap.add_argument("--rerun-journal-read", type=int)
+    ap.add_argument("--write-path", choices=["projection", "sql"],
+                    help="как read-строки попали в таблицу: канонная проекция или одноразовый SQL-ремонт")
+    ap.add_argument("--repair-declared-in", help="карточка/ADR, где объявлен одноразовый ремонт")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
@@ -161,6 +179,7 @@ def main() -> int:
         args.partners_read, args.partners_src, args.journal_read, args.journal_src,
         args.partners_http, args.journal_http, args.contract_passed, args.contract_failed,
         args.rerun_partners_read, args.rerun_journal_read,
+        args.write_path, args.repair_declared_in,
     )
     return receipt(args, issues, unmeasured)
 
