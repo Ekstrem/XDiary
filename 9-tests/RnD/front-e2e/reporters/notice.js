@@ -4,8 +4,13 @@
 class NoticeReporter {
   onTestEnd(test, result) {
     if (result.status === test.expectedStatus) return;
+    // Длительность каждого шага: после прогона `18 failed ... timedOut` (@DO 2026-11-06 02:34)
+    // нужно было видеть, ГДЕ ушло время (`Before Hooks`/вход или сама проверка). Без чисел
+    // в логе остаётся только «timedOut», и разбор начинается с догадок.
+    const dur = (s) => (typeof s.duration === 'number' && s.duration > 0
+      ? ' (' + (Math.round(s.duration / 100) / 10).toFixed(1) + 's)' : '');
     const steps = (result.steps || [])
-      .map((s) => s.title + (s.error ? ' [FAIL]' : ''))
+      .map((s) => s.title + dur(s) + (s.error ? ' [FAIL]' : ''))
       .join(' > ');
     const err = (result.errors || [])
       .map((e) => String((e && (e.message || e.value)) || ''))
