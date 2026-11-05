@@ -158,8 +158,11 @@ def selftest():
         print("  [FAIL] ddd-ссылка не поймана: %s" % (got,))
 
     shutil.rmtree(base, ignore_errors=True)
-    print("check_api_index --selftest: %d/4" % ok)
-    return 0 if ok == 3 else 1
+    total = 4
+    print("check_api_index --selftest: %d/%d" % (ok, total))
+    # 2026-11-05: было `ok == 3` при четырёх кейсах — текст печатал 4/4, а rc был 1.
+    # Класс «верно считает, врёт кодом возврата»; теперь сравнение с total.
+    return 0 if ok == total else 1
 
 
 READ_PATHS = "04-architecture/read-paths.md"
