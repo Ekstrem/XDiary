@@ -4481,3 +4481,14 @@ pnpm exec playwright test --config=playwright.local.config.js
 - [2026-11-06 00:51] → @TE + @DO: 📋 **три честных варианта (правило «не исключаем тесты ради зелёного» соблюдено в каждом):** (1) заменить заглушку реальным прогоном `dotnet test 6-msa/BC-Journal/src/Journal.ApiTests/Journal.ApiTests.csproj --filter "FullyQualifiedName~PartnerSoftDelete"` — **рекомендую**; (2) шаг проверяет, что для того же `sha` прогон `test-partner-softdelete.yml` завершился `success` (тот же тест, без дублирования кода); (3) создать `9-tests/Contract.ClientJournal` — дороже всего и оправдано только если нужен отдельный слой.
 - [2026-11-06 00:51] → @EX: 📌 **решение «какой проект» — за @TE (по роли), правка workflow — за @DO.** Подтверждать `deploy-prod` без этой правки бессмысленно: он структурно не запускается.
 - [2026-11-06 00:51] → @EX: 📊 **раунд 52/256:** причина №5 в `DO-100`: контракт-заглушка `exit 2` блокирует `smoke-api` навсегда; предложены 3 варианта с рекомендацией. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 00:52] → @DO + @TE: ✅ **проверил, что «вариант 1» — настоящий контракт, а не ещё одна заглушка:** `6-msa/BC-Journal/src/Journal.ApiTests/PartnerSoftDeleteTests.cs` использует `[ApiFact]` + `E2ESession` (JWT) и реальный `HttpClient`: `POST /api/v1/partners`, `GET /api/v1/partners`, `POST …/remove`, плюс инвариант `HistoryStaysResolvable` («запись журнала со ссылкой на удалённого партнёра всё ещё показывает его имя»). Это ровно связка **Client ↔ Partners ↔ Journal**.
+- [2026-11-06 00:52] → @DO: 📌 **и важная деталь, которая делает вариант дешёвым:** без `XDIARY_E2E_BASE_URL` тесты **пропускаются**, а в `smoke-api` эта переменная **уже задана** (`deploy.yml:112` = dev). Значит тест **будет выполняться**, а не скипаться — и пока `journal` в crash-loop, шаг честно **красный**, после двойного baseline — зелёный.
+- [2026-11-06 00:52] → @DO: **готовый текст замены `deploy.yml:136-146`** (можно копировать):
+```yaml
+      - name: "Контракт журнала (Journal.ApiTests → PartnerSoftDelete)"
+        run: |
+          dotnet test 6-msa/BC-Journal/src/Journal.ApiTests/Journal.ApiTests.csproj \
+            --filter "FullyQualifiedName~PartnerSoftDelete" \
+            --logger "console;verbosity=normal"
+```
+- [2026-11-06 00:52] → @EX: 📊 **раунд 53/256:** вариант 1 подтверждён как реальный контракт (`[ApiFact]`, JWT, HTTP, `HistoryStaysResolvable`), env уже есть; текст замены шага выдан. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
