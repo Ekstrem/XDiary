@@ -171,10 +171,50 @@ async function snapshotStorage(page, where) {
 // спеки `add-partner` / `partner-edit` / `wizard-record`, а не фикстура.
 let SEED_PARTNER = null;
 
+// TE-059: сессию (clientId + токены) кэшируем на процесс. Раньше каждый тест проходил полный
+// онбординг (`POST /clients` → `verify` → `profile` → `partners` → `goto/`), это 2 загрузки
+// страницы и 5 запросов НА КАЖДЫЙ из 29 тестов. Именно время входа тратило лимит теста на
+// прогоне `18 failed` (REF 73f59ba7). Кэш переиспользуется, пока стенд принимает токен; при
+// `401/404` он сбрасывается и сессия засевается заново — «удалили клиента» по-прежнему лечится.
+let SEED_SESSION = null;
+
 async function seedSessionOnce(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
   await installBase(page);
+  // TE-059: сессия уже засеяна в этом процессе — не проходить онбординг заново.
+  if (SEED_SESSION) {
+    const cached = SEED_SESSION;
+    await page.addInitScript((s) => {
+      try {
+        localStorage.setItem('xdiary.clientId', s.clientId);
+        localStorage.setItem('xdiary.accessToken', s.token);
+        if (s.refreshToken) localStorage.setItem('xdiary.refreshToken', s.refreshToken);
+        localStorage.setItem('xdiary.apiBase', s.apiBase);
+      } catch (e) {}
+    }, cached);
+    await page.goto('/');
+    const alive = await page.evaluate(async (base) => {
+      const t = localStorage.getItem('xdiary.accessToken') || '';
+      if (!t) return false;
+      const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });
+      return r.status === 200;
+    }, cached.apiBase).catch(() => false);
+    if (alive) {
+      console.log('::notice::' + JSON.stringify({ title: 'seedSession', cached: true }));
+      return {
+      token,
+      refreshToken,
+        ok: true, cached: true, clientId: cached.clientId,
+        profileMode: cached.profileMode || 'profile', shimUsed: false,
+        partnerId: SEED_PARTNER && SEED_PARTNER.id, partnerCreated: false,
+        hasRefresh: !!cached.refreshToken, partnersStatus: 200, anonStatus: 401,
+        partnersCount: null, partnersOwn: null,
+      };
+    }
+    console.log('::warning::' + JSON.stringify({ title: 'seedSession: кэш не принят, полный онбординг' }));
+    SEED_SESSION = null;
+  }
   await page.goto('/');
 
   const phone = '+7999' + String(Date.now()).slice(-7);
@@ -335,6 +375,13 @@ async function seedSessionOnce(page) {
   }
   await page.goto('/');
   await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
+  SEED_SESSION = {
+    clientId: seeded.clientId,
+    token: seeded.token,
+    refreshToken: seeded.refreshToken,
+    apiBase: API_BASE,
+    profileMode: seeded.profileMode,
+  };
   await snapshotStorage(page, 'после seedSession');
   await dumpViews(page, 'после seedSession');
   return seeded;
