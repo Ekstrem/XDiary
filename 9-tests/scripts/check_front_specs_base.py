@@ -60,7 +60,46 @@ def resolve_default_ref() -> str:
     return "origin/main"
 
 
+def offenders_of(specs: dict) -> tuple:
+    """По содержанию спек: (число с навигацией, [нарушители]).
+
+    Вынесено из `main`, чтобы `--selftest` проверял **логику** без репозитория
+    (норма @TL `14:30`: кейс не должен зависеть от состояния дерева).
+    """
+    navigated, bad = 0, []
+    for name, body in sorted(specs.items()):
+        if not re.search(r"page\.goto\(", body):
+            continue
+        navigated += 1
+        if not any(m in body for m in FIXTURE_MARKERS):
+            bad.append(name)
+    return navigated, bad
+
+
+def selftest() -> int:
+    cases = [
+        # (спеки, ожидаемое число с goto, ожидаемые нарушители, метка)
+        ({"a.spec.js": "page.goto('/')"}, 1, ["a.spec.js"], "навигация без фикстуры — дефект"),
+        ({"a.spec.js": "installBase(); page.goto('/')"}, 1, [], "фикстура перед goto — норма"),
+        ({"a.spec.js": "seedSession(); page.goto('/')"}, 1, [], "seedSession — тоже фикстура"),
+        ({"a.spec.js": "test('x', () => {})"}, 0, [], "без навигации — не считается"),
+        ({"a.spec.js": "page.goto('/')", "b.spec.js": "loginWithPin(); page.goto('/')"}, 2, ["a.spec.js"],
+         "смешанный набор: нарушитель ровно один"),
+    ]
+    ok = 0
+    for specs, want_nav, want_bad, label in cases:
+        nav, bad = offenders_of(specs)
+        if (nav, bad) == (want_nav, want_bad):
+            ok += 1
+        else:
+            print(f"  [FAIL] {label}: got=({nav}, {bad}), want=({want_nav}, {want_bad})")
+    print(f"check_front_specs_base --selftest: {ok}/{len(cases)} (красный контроль на каждом кейсе)")
+    return 0 if ok == len(cases) else 1
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+        return selftest()
     explicit = (os.environ.get("REF") or "").strip()
     ref = explicit or resolve_default_ref()
     worktree_mode = ref.upper() in ("WORKTREE", ".")
@@ -81,15 +120,7 @@ def main() -> int:
         return 1
 
     # Часть 1: спека с навигацией обязана проходить через фикстуру.
-    offenders: list[str] = []
-    navigated = 0
-    for spec in sorted(specs):
-        body = read_file(ref, spec, worktree_mode)
-        if not re.search(r"page\.goto\(", body):
-            continue
-        navigated += 1
-        if not any(m in body for m in FIXTURE_MARKERS):
-            offenders.append(spec)
+    navigated, offenders = offenders_of({sp: read_file(ref, sp, worktree_mode) for sp in sorted(specs)})
 
     print(f"REF={ref} | спек всего: {len(specs)}, из них с page.goto: {navigated}")
     if offenders:

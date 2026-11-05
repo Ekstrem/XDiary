@@ -98,7 +98,8 @@ def selftest_ref() -> int:
 
 
 def main() -> int:
-    if len(sys.argv) > 1 and sys.argv[1] == "--selftest-ref":
+    # единое имя у всех гейтов @TE: `--selftest`; `--selftest-ref` оставлен как алиас
+    if len(sys.argv) > 1 and sys.argv[1] in ("--selftest", "--selftest-ref"):
         return selftest_ref()
     explicit = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REF") or "").strip()
     ref = explicit or newest_ref()
