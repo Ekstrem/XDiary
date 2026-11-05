@@ -11,7 +11,7 @@
 
 | Что | Числа | Чем измерено |
 |---|---|---|
-| Проверки набора | **20 гейтов, все зелёные**, `rc=0` | `python 9-tests/scripts/check_e2e_all.py` |
+| Проверки набора | **22 гейта, все зелёные**, `rc=0` | `python 9-tests/scripts/check_e2e_all.py` |
 | Карта покрытия UI | **элементов 64 / трогают спеки 64 / не покрыто 0 / критичных 0** | `check_e2e_ui_coverage.py --strict` |
 | Экраны | **18 / 18**, исключение одно (`view-splash`) | `check_e2e_coverage.py` |
 | Негативные пути | элементы ошибок **5 / 5** | `check_e2e_error_paths.py --strict` |
@@ -21,10 +21,14 @@
 | Бюджет прогона | худший случай **39 мин** при таймауте джобы **45 мин** (запас 13.3%) | `check_e2e_time_budget.py --strict` |
 
 **Чего эти числа НЕ доказывают:** ни одно из них не получено прогоном в браузере на живом стенде
-(в песочнице @TE браузер не запускается: `spawn EPERM`). Числа `passed/failed` появятся только
-из CI-прогона; для этого джобе `front-e2e` нужны три строки, которые ставит @DO: `upload-artifact`
-для `test-results/`, четыре флага `XDIARY_*` в `env:` и шаг `python 9-tests/scripts/check_e2e_all.py`
-(`timeout-minutes: 45` уже стоит).
+(в песочнице @TE браузер не запускается: `spawn EPERM`). Числа `passed/failed` даёт только CI, и с
+`2026-11-06` джоба `front-e2e` **подключена полностью**: `timeout-minutes: 60`, четыре флага
+(`XDIARY_BUSY`, `XDIARY_STALENOTE`, `XDIARY_READPATH_OFFLINE`, `XDIARY_READPARITY`; `XDIARY_CHANGE_PIN`
+намеренно не ставится — сценарий деструктивный), шаг `python 9-tests/scripts/check_e2e_all.py`
+(22 гейта до запуска браузера) и `upload-artifact` для `test-results/` с `if: always()`.
+Осталось **одно**: получить файл вывода прогона и снять квитанцию
+`python 9-tests/scripts/e2e_receipt.py --input <файл> --ref <sha>` — она читает реальный вывод
+Playwright (ANSI, CRLF, путь без `tests/`, ретраи) и печатает `passed/failed`, упавшие спеки и `flaky`.
 
 ## Экраны и что покрыто
 

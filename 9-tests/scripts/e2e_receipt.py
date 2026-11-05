@@ -115,11 +115,47 @@ def receipt(per_spec, totals, ref):
     return "квитанция front-e2e: " + " | ".join(parts), failed_specs, total
 
 
+def table_report(per_spec, totals, ref, repeat=None, workers=None):
+    """Markdown-таблица «спек | passed | failed | skipped | итого» для шага CI.
+
+    Нужна вместо встроенного парсера в `front-e2e-repeat.yml`: тот требовал префикс `tests/`
+    и не снимал ANSI, поэтому на реальном выводе не разбирал НИ ОДНОЙ строки и валил шаг
+    `Итог по спекам` в `::error::` (измерение флейкости не могло дать чисел).
+    """
+    lines = ["| спек | passed | failed | skipped | flaky | итого |", "|---|---|---|---|---|---|"]
+    tp = tf = tsk = tfl = 0
+    for spec, c in per_spec.items():
+        passed, failed, skipped = c.get("passed", 0), c.get("failed", 0), c.get("skipped", 0)
+        flaky = c.get("flaky", 0)
+        tp += passed
+        tf += failed
+        tsk += skipped
+        tfl += flaky
+        lines.append(f"| `{spec}` | {passed} | {failed} | {skipped} | {flaky} | {passed + failed + skipped} |")
+    lines.append(f"| **итого** | **{tp}** | **{tf}** | **{tsk}** | **{tfl}** | **{tp + tf + tsk}** |")
+    tail = []
+    if repeat:
+        tail.append(f"repeat-each={repeat}")
+    if workers:
+        tail.append(f"workers={workers}")
+    if ref:
+        tail.append(f"REF={ref}")
+    if tail:
+        lines.append("")
+        lines.append(" · ".join(tail))
+    return "\n".join(lines), tp, tf, tsk
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", help="файл с выводом Playwright (list или json)")
     ap.add_argument("--text", help="вывод Playwright строкой (для проверки)")
     ap.add_argument("--ref", help="REF, на котором шёл прогон")
+    ap.add_argument("--table", action="store_true",
+                    help="markdown-таблица по спекам (для шага CI вместо встроенного парсера)")
+    ap.add_argument("--repeat", help="значение --repeat-each (попадёт в таблицу)")
+    ap.add_argument("--workers", help="значение --workers (попадёт в таблицу)")
+    ap.add_argument("--summary-file", help="дописать таблицу в этот файл (GITHUB_STEP_SUMMARY)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -145,12 +181,40 @@ def main(argv=None):
               "не измерено, а не «зелено» (rc=2)")
         return 2
 
+    if a.table:
+        table, tp, tf, tsk = table_report(per_spec, totals, a.ref, a.repeat, a.workers)
+        print(table)
+        if a.summary_file:
+            try:
+                with open(a.summary_file, "a", encoding="utf-8") as fh:
+                    fh.write("### front-e2e: частоты падений\n\n" + table + "\n\n")
+            except OSError as e:  # noqa: BLE001
+                print(f"::warning::e2e_receipt: не удалось дописать {a.summary_file}: {e}")
+        if tf:
+            print(f"::error::e2e_receipt: падений {tf} из {tp + tf}")
+            return 1
+        if tp + tf == 0:
+            print(f"::error::e2e_receipt: ни один тест не исполнялся "
+                  f"(passed 0, failed 0, skipped {tsk}) — не измерено (rc=2)")
+            return 2
+        print(f"::notice::e2e_receipt: падений нет — passed {tp} из {tp + tsk}")
+        return 0
+
     line, failed, total = receipt(per_spec, totals, a.ref)
     print(line)
     for s in failed:
         print(f"::error::e2e_receipt: упавшая спека: {s}")
     if failed:
         return 1
+
+    # Класс «прогон без шагов — не прогон» (AGENTS §5): если ВСЕ тесты пропущены условиями
+    # стенда, набор «зелёный», но ничего не проверил. Это НЕ измерено (rc=2), а не успех.
+    executed = totals.get('passed', 0) + totals.get('failed', 0)
+    if executed == 0:
+        print(f"::error::e2e_receipt: ни один тест не исполнялся "
+              f"(passed 0, failed 0, skipped {totals.get('skipped', 0)}) \u2014 "
+              f"\u00abпрогон без шагов \u2014 не прогон\u00bb: не измерено (rc=2)")
+        return 2
     return 0 if total > 0 else 2
 
 
@@ -167,7 +231,8 @@ def selftest():
             rc, line = 2, "не разобран"
         else:
             line, failed, n = receipt(per_spec, totals, "abc123")
-            rc = 1 if failed else (0 if n else 2)
+            executed = totals.get("passed", 0) + totals.get("failed", 0)
+            rc = 1 if failed else (2 if (not n or executed == 0) else 0)
         miss = [m for m in must if m not in line]
         if rc == want_rc and not miss:
             ok += 1
@@ -206,7 +271,8 @@ def selftest():
         "-  1 [chromium] \u203a change-pin.spec.js:8:1 \u203a E2E: pin",
         "-  2 [chromium] \u203a no-pin.spec.js:14:1 \u203a legacy",
     )
-    case("real list: all skipped", "\n".join(real_skips), 0, ["skipped 2", "passed 0"])
+    # «Всё пропущено» — НЕ зелёный прогон: набор ничего не проверил, значит «не измерено».
+    case("real list: all skipped", "\n".join(real_skips), 2, ["skipped 2", "passed 0"])
 
     list_bad = list_ok + "  \u2718  4 tests/c.spec.js:7:1 › упал (5s)\n"
     case("list: одна упавшая", list_bad, 1, ["failed 1", "упавшие: tests/c.spec.js"])
@@ -231,6 +297,20 @@ def selftest():
          ["flaky 1", "нестабильные: tests/b.spec.js", "ретраев 1", "failed 0"])
 
     case("пустой вывод", "", 2, ["не разобран"])
+
+    # Таблица для шага CI: суммы и наличие спеков
+    total += 1
+    import collections as _c
+    per_spec = _c.OrderedDict([
+        ("tests/a.spec.js", _c.Counter({"passed": 2})),
+        ("tests/b.spec.js", _c.Counter({"failed": 1, "skipped": 1})),
+    ])
+    table, tp, tf, tsk = table_report(per_spec, _c.Counter(), "abc1234", "5", "1")
+    if tp == 2 and tf == 1 and tsk == 1 and "| **итого** | **2** | **1** | **1** |" in table \
+            and "repeat-each=5" in table and "REF=abc1234" in table:
+        ok += 1
+    else:
+        print(f"  [FAIL] таблица: tp={tp} tf={tf} tsk={tsk}, table={table[:160]}")
 
     print(f"e2e_receipt --selftest: {ok}/{total} (упавшая спека = rc=1, неразобранный вывод = rc=2)")
     return 0 if ok == total else 1

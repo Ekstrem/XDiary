@@ -14,9 +14,11 @@
 """
 
 import argparse
+import os
 import pathlib
 import shutil
 import subprocess
+import tempfile
 import sys
 
 try:
@@ -43,6 +45,7 @@ GATES = (
     ("check_e2e_ui_coverage.py", "карта: какие элементы фронта не трогает ни одна спека"),
     ("check_e2e_error_paths.py", "негативные пути: элементы ошибок утверждаются спеками"),
     ("check_e2e_api_contract.py", "эндпоинты спек есть в api-index.yaml"),
+    ("check_e2e_prod_guard.py", "предохранитель DO-017: E2E только против dev"),
     ("check_e2e_diagnostics.py", "каждая спека оставляет след для разбора упавшего прогона"),
     ("check_e2e_assertion_strength.py", "утверждения проверяют поведение, а не «что-то истинное»"),
     ("check_e2e_ci_filter.py", "в npm test нет фильтров, которые тихо убирают спеки"),
@@ -133,6 +136,120 @@ def main(argv=None):
     return rc
 
 
+# Гейты, у которых проверяем СВЯЗЬ С ФАЙЛАМИ: минимальный корень с дефектной спекой обязан дать rc=1,
+# а с корректной — rc=0. Внутренний `--selftest` гейта проверяет логику на словарях; здесь — что гейт
+# действительно читает файлы по `--root` (класс «гейт написан, но к данным не подключён»).
+WIRED = ("check_e2e_no_sleeps.py", "check_e2e_diagnostics.py")
+
+BAD_SPEC = "test('x', async ({ page }) => { await page.waitForTimeout(100); });\n"
+GOOD_SPEC = ("// норма: паузы нет, диагностика есть\n"
+             "console.log('[wired] ok');\n"
+             "test('x', async () => { expect(1).toBe(1); });\n")
+
+
+def wired_selftest():
+    """Проверка связи гейтов с файлами через `--root`. Возвращает (ok, total)."""
+    ok = total = 0
+    builtin = pathlib.Path(__file__).resolve().parent
+    # `tempfile.mkdtemp` под песочницей создаёт каталог, в котором нельзя создать вложенные
+    # (WinError 5); обычный `mkdir` — можно. Поэтому имя строим сами.
+    tmp = pathlib.Path(tempfile.gettempdir()) / f"e2e-wired-{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    try:
+        tests = tmp / "9-tests" / "RnD" / "front-e2e" / "tests"
+        tests.mkdir(parents=True)
+        for name in WIRED:
+            gate = builtin / name
+            total += 1
+            if not gate.exists():
+                print(f"  [FAIL] wired {name}: файла гейта нет")
+                continue
+            (tests / "wired.spec.js").write_text(BAD_SPEC, encoding="utf-8")
+            bad = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            (tests / "wired.spec.js").write_text(GOOD_SPEC, encoding="utf-8")
+            good = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if bad.returncode == 1 and good.returncode == 0:
+                ok += 1
+            else:
+                print(f"  [FAIL] wired {name}: на дефекте rc={bad.returncode} (ждали 1), "
+                      f"на норме rc={good.returncode} (ждали 0)")
+        return ok, total
+    except OSError as e:  # noqa: BLE001
+        print(f"  [FAIL] wired: не удалось создать временный корень: {e}")
+        return 0, len(WIRED)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+
+# Мутационная проверка: гейты обязаны КРАСНЕТЬ на реальных дефектах в спеках.
+# `--selftest` гейта проверяет логику на словарях, `wired_selftest` — что гейт читает файлы.
+# Здесь третий уровень: подкладываем дефект в спеку и требуем красный ИМЕННО от нужного гейта,
+# потом возвращаем норму и требуем зелёный. Иначе «22 зелёных гейта» может значить
+# «22 гейта ничего не смотрят».
+MUTATIONS = (
+    ("check_e2e_selectors.py", "селектор-призрак",
+     "test('x', async ({ page }) => { await page.click('#btn-ghost-zzz'); expect(1).toBe(1); });\n",
+     "test('x', async ({ page }) => { await page.click('#btn-new'); expect(1).toBe(1); });\n"),
+    ("check_e2e_assertions.py", "спека без поведенческого утверждения",
+     "test('x', async ({ page }) => { await page.click('#btn-new'); });\n",
+     "test('x', async ({ page }) => { await page.click('#btn-new'); expect(1).toBe(1); });\n"),
+    ("check_e2e_no_sleeps.py", "фиксированная пауза",
+     "test('x', async ({ page }) => { await page.waitForTimeout(50); expect(1).toBe(1); });\n",
+     "test('x', async ({ page }) => { expect(1).toBe(1); });\n"),
+    ("check_e2e_diagnostics.py", "спека без диагностики",
+     "test('x', async ({ page }) => { expect(1).toBe(1); });\n",
+     "console.log('[mutation] ok');\ntest('x', async ({ page }) => { expect(1).toBe(1); });\n"),
+)
+
+
+def wired_mutation():
+    """(ok, total). Дефект -> rc=1 от своего гейта, норма -> rc=0."""
+    ok = total = 0
+    builtin = pathlib.Path(__file__).resolve().parent
+    tmp = pathlib.Path(tempfile.gettempdir()) / f"e2e-mut-{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    try:
+        tests = tmp / "9-tests" / "RnD" / "front-e2e" / "tests"
+        tests.mkdir(parents=True)
+        front = tmp / "8-front"
+        front.mkdir()
+        src_index = ROOT / "8-front" / "index.html"
+        (front / "index.html").write_text(
+            src_index.read_text(encoding="utf-8", errors="replace")
+            if src_index.exists() else '<button id="btn-new"></button>',
+            encoding="utf-8",
+        )
+        for gate_name, about, bad, good in MUTATIONS:
+            gate = builtin / gate_name
+            total += 1
+            if not gate.exists():
+                print(f"  [FAIL] мутация {about}: файла гейта {gate_name} нет")
+                continue
+            spec = tests / "mutation.spec.js"
+            spec.write_text(bad, encoding="utf-8")
+            red = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            spec.write_text(good, encoding="utf-8")
+            green = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if red.returncode == 1 and green.returncode == 0:
+                ok += 1
+            else:
+                print(f"  [FAIL] мутация {about}: на дефекте rc={red.returncode} (ждали 1), "
+                      f"на норме rc={green.returncode} (ждали 0) — гейт {gate_name} дефект не ловит")
+        return ok, total
+    except OSError as e:  # noqa: BLE001
+        print(f"  [FAIL] мутации: не удалось подготовить корень: {e}")
+        return 0, len(MUTATIONS)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def selftest():
     ok = total = 0
 
@@ -174,7 +291,14 @@ def selftest():
     else:
         print(f"  [FAIL] текст сводки: {line}")
 
-    print(f"check_e2e_all --selftest: {ok}/{total} (красный = rc=1, только «не измерено» = rc=2)")
+    w_ok, w_total = wired_selftest()
+    m_ok, m_total = wired_mutation()
+    ok, total = ok + w_ok + m_ok, total + w_total + m_total
+
+    print(f"check_e2e_all --selftest: {ok}/{total} "
+          f"(сводка: красный = rc=1, только \u00abне измерено\u00bb = rc=2; "
+          f"связь с файлами: {w_ok}/{w_total}; мутации: {m_ok}/{m_total} — "
+          f"дефект краснеет, норма зеленеет)")
     return 0 if ok == total else 1
 
 

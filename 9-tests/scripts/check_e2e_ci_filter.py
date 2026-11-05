@@ -32,7 +32,7 @@ FORBIDDEN = ("--grep-invert", "--grep", "--shard", "--project")
 FLAG = re.compile(r"XDIARY_[A-Z0-9_]+")
 
 
-def evaluate(scripts, specs, marker_text):
+def evaluate(scripts, specs, marker_text, config_text=""):
     """(issues, stats)."""
     issues = []
     test_cmd = scripts.get("test", "")
@@ -50,15 +50,22 @@ def evaluate(scripts, specs, marker_text):
     for f in undocumented:
         issues.append(f"флаг `{f}` управляет пропуском спек, но не описан в `front-e2e.md` "
                       f"(таблица «флаг → что включает»)")
-    stats = {"scripts": len(scripts), "specs": len(specs), "flags": len(flags),
-             "grep": len(hits), "undocumented": len(undocumented)}
+    # Если ВСЕ тесты уходят в skip, Playwright завершится кодом 0 («0 passed, N skipped»).
+    # Набор в этом случае не проверил НИЧЕГО, значит прогон не зелёный — за это отвечает
+    # репортёр-страж `reporters/executed-guard.js`, и он обязан быть подключён в конфиге.
+    guard_ok = "executed-guard" in config_text
+    if config_text and not guard_ok:
+        issues.append("в `playwright.config.js` не подключён страж `reporters/executed-guard.js`   "
+                      "прогон, где все тесты пропущены, выглядел бы зелёным")
+    stats = {"scripts": len(scripts), "specs": len(specs), "flags": len(flags), "grep": len(hits), "undocumented": len(undocumented), "guard": 1 if guard_ok else 0}
     return issues, stats
 
 
 def receipt_line(stats, issues):
     return (f"квитанция: скриптов npm {stats['scripts']} | спек {stats['specs']} | "
             f"флагов пропуска {stats['flags']} | фильтров в test: {stats['grep']} | "
-            f"не описано в маркере: {stats['undocumented']} | нарушено: {len(issues)}")
+            f"не описано в маркере: {stats['undocumented']} | страж исполнения: "
+            f"{'есть' if stats.get('guard') else 'НЕТ'} | нарушено: {len(issues)}")
 
 
 def main(argv=None):
@@ -83,7 +90,9 @@ def main(argv=None):
     except (OSError, ValueError) as e:
         print(f"::error::check_e2e_ci_filter: не читается вход: {e} — не измерено (rc=2)")
         return 2
-    issues, stats = evaluate(scripts, specs, marker_text)
+    cfg_path = base / "playwright.config.js"
+    cfg_text = cfg_path.read_text(encoding="utf-8", errors="replace") if cfg_path.exists() else ""
+    issues, stats = evaluate(scripts, specs, marker_text, cfg_text)
     for m in issues:
         print(f"::error::check_e2e_ci_filter: {m}")
     print(receipt_line(stats, issues))
@@ -121,11 +130,29 @@ def selftest():
          "маркер без флага", 1, ["XDIARY_NEWFLAG", "не описан"])
 
     total += 1
-    line = receipt_line({"scripts": 2, "specs": 3, "flags": 1, "grep": 0, "undocumented": 0}, [])
+    line = receipt_line({"scripts": 2, "specs": 3, "flags": 1, "grep": 0, "undocumented": 0,
+                              "guard": 1}, [])
     if "спек 3" in line and "нарушено: 0" in line and "None" not in line:
         ok += 1
     else:
         print(f"  [FAIL] текст квитанции: {line}")
+
+
+    # Страж «ноль исполненных = не зелёный»: подключён -> 0, не подключён -> 1.
+    for cfg_text, want in (
+        ("reporter: [['list'], ['./reporters/executed-guard.js']]", 0),
+        ("reporter: [['list']]", 1),
+    ):
+        total += 1
+        issues2, stats2 = evaluate({"test": "playwright test"},
+                                   {"a.spec.js": "test('x')"},
+                                   "marker", cfg_text)
+        rc2 = 1 if issues2 else 0
+        guard_expected = 1 if want == 0 else 0
+        if rc2 == want and stats2["guard"] == guard_expected:
+            ok += 1
+        else:
+            print(f"  [FAIL] страж исполнения: rc={rc2} (ждали {want}), guard={stats2['guard']}")
 
     print(f"check_e2e_ci_filter --selftest: {ok}/{total} (grep в test / неописанный флаг = rc=1)")
     return 0 if ok == total else 1
