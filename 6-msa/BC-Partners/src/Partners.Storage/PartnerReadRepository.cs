@@ -3,6 +3,8 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Partners.Domain;
 using Partners.InternalContracts;
 
+public sealed record Paging(int Page, int PageSize) : IPaging;
+
 public sealed class PartnerReadRepository : IPartnersQueryRepository
 {
     private readonly IReadRepository<IPartners, PartnersReadModel> _read;
@@ -13,7 +15,7 @@ public sealed class PartnerReadRepository : IPartnersQueryRepository
 
     public async Task<IReadOnlyList<PartnersReadModel>> ListAsync(Guid clientId, CancellationToken ct = default)
     {
-        var all = await _read.GetAllAsync(null!, ct);
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         return all.Where(x => x.ClientId == clientId).ToList();
     }
 
