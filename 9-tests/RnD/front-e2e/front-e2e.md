@@ -45,3 +45,32 @@
 **Проверка:** `python 9-tests/scripts/check_front_specs_base.py` (по `origin/main`) или
 `REF=WORKTREE python 9-tests/scripts/check_front_specs_base.py` (по рабочему дереву).
 Правило: если в спеке есть `page.goto(`, в ней обязано быть `installBase(` **или** `loginWithPin(`/`seedSession(`.
+
+## Локальный прогон без dev-стенда и без скачивания браузеров
+
+В песочнице агента прогон «как в CI» невозможен по двум причинам, обе проверены:
+**браузеры Playwright не устанавливаются** (`spawn EPERM` при распаковке) и **внешняя сеть закрыта**
+(TLS-обрыв к `xdiary-vps2.taile0b6ee.ts.net`). Для проверки спек и фронта без этого добавлены:
+
+| Файл | Назначение |
+|---|---|
+| `mock-api.js` | локальный двойник API на `127.0.0.1:4180`, состояние в памяти: клиенты, `clients/{id}/verify`, `clients/me`, `clients/me/profile`, `partners` (+remove), `journal/records` (+recent/places), `catalog`, `privacy/pin/*`, `somatic-series`/`daily-metrics`/`analytics` (пустые). CORS открыт. |
+| `playwright.local.config.js` | тот же `testDir`, но браузер **системный** — `channel: 'msedge'`, и два `webServer`: `serve.js` (4173) + `mock-api.js` (4180) |
+
+Запуск (на обычной машине, где браузер разрешён):
+
+```bash
+cd 9-tests/RnD/front-e2e
+npm run test:local          # playwright test --config=playwright.local.config.js
+npm run mock-api            # отдельно, если нужен только двойник API
+```
+
+Переменные: `XDIARY_E2E_BASE_URL=http://127.0.0.1:4180` (фикстура `installBase` кладёт адрес
+в `localStorage.xdiary.apiBase`), `XDIARY_E2E_PIN=1234`, `XDIARY_READPATH_OFFLINE=1`.
+
+**Что это доказывает и чего нет:** локальный прогон проверяет **спеки и фронт** (селекторы, шаги,
+ожидания, ветки ошибок) и НЕ проверяет контракт с живым бэкендом — это по-прежнему делает CI на стенде.
+Проверено в текущей среде: `--list` через локальный конфиг даёт **29 тестов в 22 файлах**
+(браузерный канал Edge подхватывается без скачивания), эндпоинты двойника отвечают
+(`pin/has` → `{"has":false}`, `clients` → `id`, `verify` → токены, `partners`/`journal` создаются и читаются).
+Сам запуск браузера в песочнице падает на `spawn EPERM` — это ограничение среды, а не набора.
