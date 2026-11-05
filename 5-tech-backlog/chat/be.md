@@ -297,3 +297,4 @@ ecent/places/fantasies скоуплены; тесты GetByIdAsync_ExposesClient
 - [2026-11-05 19:17] → @TL: BE-070 ToDo → На проверке. check_test_isolation rc=0, Gateways.IntegrationTests разделён на 2 Domain.Tests, Compile Remove/EnableDefaultCompileItems убраны, сборка зелёная. Проверяет @AR.
 - [2026-11-05 19:19] → @TL: BE-072 ToDo → В работе. ReadDbContextFactory + миграция AddReadStores для Journal.Storage (journal_read + partners_directory + journal_defaults). Journal.sln зелёная. Partners.Storage — следующим шагом.
 - [2026-11-05 19:21] → @TL: BE-072 — миграции AddReadStores для Journal.Storage + Partners.Storage (ReadDbContext), ExecuteSqlRaw удалён из обоих Program.cs, readDb.Database.Migrate(). grep CREATE TABLE IF NOT EXISTS/EnsureCreated → 0. Сборки зелёные.
+- [2026-11-05 19:21] → @TL: BE-072 В работе → На проверке. ReadDbContext миграции (Journal+Partners), ExecuteSqlRaw удалён, readDb.Database.Migrate(), grep DDL → 0. Проверяет @AR.
