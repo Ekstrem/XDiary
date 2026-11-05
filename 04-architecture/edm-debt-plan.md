@@ -716,3 +716,47 @@ PowerShell трактует бэктик как escape, и `\`` + `n` → пер
 **Про `MigrationsAssembly` — формулирую как проверку, а не как факт:** `dotnet ef migrations list` видит миграцию **и** на
 чистой БД появляется таблица. Если механизм другой (например, пакет создаёт схему сам) — проверка это покажет одинаково хорошо,
 а запись «мы знаем, как это работает» — нет.
+
+### Сверка с исходниками библиотеки: два моих утверждения оказались неверными (2026-11-05 09:45)
+
+Источник проверен **клоном публичного репозитория** `Ekstrem/DigiTFactory.Libraries` (HEAD `43b6689`), не по пересказу.
+
+**`ReadRepository.Postgres/Extensions/ServiceCollectionExtensions.cs`:**
+
+```csharp
+AddReadStorePostgres<TBoundedContext, TReadModel, TDbContext>(
+        IServiceCollection services, string connectionString,
+        Action<PostgresReadStoreOptions> configureOptions = null)   // ← второй параметр = НАСТРОЙКИ, не маппинги
+...
+services.AddDbContext<TDbContext>(dbOptions =>
+    dbOptions.UseNpgsql(connectionString, npgsql =>
+        npgsql.MigrationsAssembly(typeof(TDbContext).Assembly.GetName().Name)));   // ← :41-42
+```
+
+**`Configuration/PostgresReadStoreOptions.cs`:** только `ConnectionString` и `SchemaName` (default `"ReadModel"`).
+
+#### Исправление 1: `null` во втором аргументе **не** означает «маппинги выключены»
+Это `Action<PostgresReadStoreOptions>` — **настройки** (строка подключения, имя схемы). К маппингам отношения не имеет.
+Моё прежнее утверждение («`null`-конфигуратор = выключенная функциональность, библиотека читает маппинги») **неверно**:
+маппингов не было потому, что **наш** `ReadDbContext` не объявлял `OnModelCreating` (`BE-068`), а не из-за `null`.
+
+**Следствие:** критерий гейта, который я предлагал («`null` допустим только при `Entity<TModel>`»), опирался на неверную
+посылку. Само требование «модель должна быть замаплена» остаётся верным, но проверять надо **маппинг**, а не аргумент —
+что и делает `check_readstore_mapping`.
+
+#### Исправление 2: `SchemaName` в read-store — **мёртвая настройка**
+`SchemaName` объявлен в `PostgresReadStoreOptions`, но в `ReadRepository.Postgres` **не используется** (`HasDefaultSchema` есть
+только в `EventStoreDbContext` — командная сторона — и в event bus). Значит «настроить схему через опции» **нельзя**:
+таблицы уйдут в `public`, если сам контекст не вызовет `HasDefaultSchema`.
+
+#### Отсюда — ловушка для `BE-072`, которой не было в моём списке
+`MigrationsAssembly` задаётся **библиотекой** при её `AddDbContext<TDbContext>`. Если приложение добавит **свой**
+`AddDbContext<ReadDbContext>` ниже по коду, оно **перекроет** библиотечную регистрацию — и `MigrationsAssembly` **потеряется**,
+то есть `Migrate()` не увидит миграции, даже если они лежат в правильной сборке.
+
+Проверено в `origin`: ручной `AddDbContext<ReadDbContext>` в `Program.cs` **удалён** (остался в `*.IntegrationTests/*HostSmokeTest.cs`
+— это тестовые хосты, не прод). То есть сейчас условие выполнено, но **это надо удержать**: гейт `check_eventstore_registration`
+проверяет типизированную регистрацию только для `EventStoreDbContext`; для `ReadDbContext` такой проверки **нет**.
+
+**Дополнительный критерий `BE-072`:** ручной `AddDbContext<ReadDbContext>` в `*.Api/Program.cs` → **0** (иначе
+`MigrationsAssembly` теряется молча, а `Migrate()` «ничего не делает» без ошибки).
