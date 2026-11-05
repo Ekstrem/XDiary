@@ -12,7 +12,11 @@ tailnet-путём (резолв в `100.x` → Caddy `:443`) и не показ
 Проверки:
   1. `/health` → 200 (идёт мимо APIM — контроль, что жив YARP);
   2. `/api/v1/catalog` → **401** и есть `x-gravitee-*` (APIM в пути и жив);
-  3. несуществующий путь → **404** (маршрутизация APIM работает; YARP дал бы 401).
+  3. несуществующий путь → **404** на проде (маршрутизация APIM работает; YARP дал бы 401).
+   **Объявленное расхождение контуров (DO-090):** на dev вход идёт через YARP, поэтому
+   несуществующий путь отдаёт **401**, а не 404. Ожидание — флаг `--unknown-expect {404,401}`
+   (по умолчанию 404 = прод); для dev запускать с `401`, чтобы это было утверждением,
+   а не случайностью.
 
     python tools/check_public_entry.py --base https://xdiary-vps1.taile0b6ee.ts.net
     python tools/check_public_entry.py --selftest
@@ -61,23 +65,25 @@ def classify(health, catalog, catalog_hdr):
     return (not fails and not unknown), fails, unknown
 
 
-def classify_full(health, catalog, catalog_hdr, unknown):
+def classify_full(health, catalog, catalog_hdr, unknown, unknown_expect=404):
     ok, fails, unknowns = classify(health, catalog, catalog_hdr)
     if unknown is None:
         unknowns.append('несуществующий путь не ответил (стенд/сеть)')
-    elif unknown != 404:
-        fails.append('несуществующий путь: %s (ожидали 404 — так отвечает APIM; '
-                     '401 значит вход идёт в YARP)' % unknown)
+    elif unknown != unknown_expect:
+        fails.append('несуществующий путь: %s (ожидали %s — %s)'
+                     % (unknown, unknown_expect,
+                        'прод: APIM' if unknown_expect == 404
+                        else 'dev: YARP, объявленное расхождение контуров'))
     return (not fails and not unknowns), fails, unknowns
 
 
 def selftest():
     ok = total = 0
 
-    def case(args, want, label):
+    def case(args, want, label, unknown_expect=404):
         nonlocal ok, total
         total += 1
-        good, _f, _u = classify_full(*args)
+        good, _f, _u = classify_full(*args, unknown_expect=unknown_expect)
         if good == want:
             ok += 1
         else:
@@ -86,7 +92,10 @@ def selftest():
     G = {'x-gravitee-transaction-id': 'x'}
     case((200, 401, G, 404), True, 'норма: health 200, catalog 401+gravitee, unknown 404')
     case((200, 401, {}, 404), False, 'нет x-gravitee (трафик мимо APIM)')
-    case((200, 401, G, 401), False, 'unknown 401 (вход в YARP, не в APIM)')
+    case((200, 401, G, 401), False, 'unknown 401 при ожидании 404 (вход в YARP, не в APIM)')
+    # DO-090 (@TL 2026-11-05 14:14): dev отвечает 401 — объявленное расхождение, не дефект
+    case((200, 401, G, 401), True, 'dev: unknown 401 при --unknown-expect 401', 401)
+    case((200, 401, G, 404), False, 'dev с ожиданием 401, а пришёл 404', 401)
     case((200, 502, G, 404), False, 'catalog 502 (APIM мёртв)')
     case((200, 404, G, 404), False, 'catalog 404 (нет маршрута в APIM)')
     case((500, 401, G, 404), False, '/health не 200')
@@ -102,6 +111,8 @@ def main():
     ap = argparse.ArgumentParser(description='Внешняя проба публичного входа')
     ap.add_argument('--base', default='https://xdiary-vps1.taile0b6ee.ts.net')
     ap.add_argument('--selftest', action='store_true')
+    ap.add_argument('--unknown-expect', type=int, choices=(401, 404), default=404,
+                    help='ожидаемый код на несуществующий путь: 404 прод (APIM), 401 dev (YARP)')
     a = ap.parse_args()
     if a.selftest:
         return selftest()
