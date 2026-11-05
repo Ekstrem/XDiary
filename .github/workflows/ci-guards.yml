@@ -57,7 +57,9 @@ jobs:
         # Решение считается выданным только после подтверждения адресатом (строка «принято»
         # в его outbox или коммит/артефакт). Строки со ✅ в колонке «Статус» не проверяются.
         if: always()
-        run: python tools/check_awaits.py --strict
+        run: |
+          python tools/check_awaits.py --selftest
+          python tools/check_awaits.py --strict
 
       # @AR 2026-11-14 37:30: этот шаг БЕЗ `if: always()` — он блокирующий: код в
       # `6-msa/**`/`8-front/**` ушёл вперёд lock → «забыли сделать релиз» видно в CI.
@@ -111,7 +113,9 @@ jobs:
         # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
         # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).
         if: always()
-        run: python tools/check_api_index.py
+        run: |
+          python tools/check_api_index.py --selftest
+          python tools/check_api_index.py
 
 
       # DO-079/BE-069: тот же класс, что BE-067 — `IPaging` передаётся null (`null!`
@@ -158,14 +162,18 @@ jobs:
         # чужого сервиса; (в) сервис не подключает E2E; (д) нет общих тестовых папок;
         # (е) каждый *Tests.csproj лежит в папке своего сервиса.
         if: always()
-        run: python tools/check_test_isolation.py
+        run: |
+          python tools/check_test_isolation.py --selftest
+          python tools/check_test_isolation.py
 
       - name: В 9-tests только браузерные E2E (ADR-028)
         # Две стороны по §5.4: норма — маркер `front-e2e.md` + Playwright у проекта;
         # дефект — подложенный C#-проект без маркера (rc=1). Плюс обратная проверка:
         # постороннее в `9-tests` (нагрузочные скрипты и т.п.) — ошибка, а не «мелочь».
         if: always()
-        run: python tools/check_front_e2e.py
+        run: |
+          python tools/check_front_e2e.py --selftest
+          python tools/check_front_e2e.py
 
       # @TE 11:03: гейт фронтового read-path (артефакты + role=alert + busyRun + версия)
       # и FE-044 (ранний выход по `fromCache`, иначе бейдж «могли устареть» висит на свежих
@@ -191,16 +199,22 @@ jobs:
         # Доказано @TE на дефекте и норме (REF=d7a40d36): норма 19 спек/3 с навигацией PASS,
         # подмена флага во фронте → FAIL. Прогон ~0.3 с, без сети и браузера.
         if: always()
-        run: python 9-tests/scripts/check_front_specs_base.py
+        run: |
+          python 9-tests/scripts/check_front_specs_base.py --selftest
+          python 9-tests/scripts/check_front_specs_base.py
       - name: Внешняя поверхность = только шлюз (ADR-026)
         # Любой сервис кроме `api-gateway` с `ports:` в compose публикует порт на хост —
         # это реальная экспозиция, а не «риск». Внутренняя достижимость закрывается auth.
         if: always()
-        run: python tools/check_ports.py
+        run: |
+          python tools/check_ports.py --selftest
+          python tools/check_ports.py
 
       - name: Проверить NUL-байты и прочие C0-символы в md
         if: always()
-        run: python tools/check_nul.py
+        run: |
+          python tools/check_nul.py --selftest
+          python tools/check_nul.py
       - name: Тесты самого сканера секретов (PDR-20)
         # Гейт должен проверяться гейтом: фейковый ключ -> красный,
         # описание маскирования -> зелёный. Иначе правка сканера не проверяется.
