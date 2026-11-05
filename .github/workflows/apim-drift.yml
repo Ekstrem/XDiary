@@ -49,7 +49,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          source: "tools/check_apim_drift.py,04-architecture/api-index.yaml"
+          source: "tools/check_apim_drift.py,04-architecture/api-index.yaml,openapi"
           target: "/home/deploy/apim-drift"
 
       - name: Сверка с APIM (токен не печатается)

@@ -242,6 +242,13 @@ def main():
     receipt_header(None if getattr(a, "specs_only", False) else a.container)
     print("check_apim_drift: индекс %d operationId, спеки %d (openapi/*.json)"
           % (len(want), len(specs)))
+    # @TL 2026-11-05 18:48: спеки не скопированы => это НЕ ИЗМЕРЕНО, а не «80 расхождений».
+    # Раньше отсутствие openapi/*.json давало rc=1 с 80 строками «есть в реестре, нет в спеке»,
+    # и такое красное читалось как дрейф. Красное по неверной причине хуже зелёного.
+    if a.specs_only and not specs and want:
+        print("::error::check_apim_drift: НЕ ИЗМЕРЕНО — в индексе %d операций, а спек 0 "
+              "(каталог openapi/*.json не найден или не скопирован)" % len(want))
+        return 2
     if a.specs_only:
         # DO-056: раньше режим ТОЛЬКО печатал числа и всегда возвращал 0 — то есть
         # «81 в индексе против 80 в спеках» проходило зелёным (проверено 2026-11-05:
