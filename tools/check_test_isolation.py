@@ -170,8 +170,18 @@ def selftest():
         else:
             print("  [FAIL] %s -> нарушений %d, ждали %d" % (sorted(files), got, expect))
     shutil.rmtree(base, ignore_errors=True)
-    print("check_test_isolation --selftest: %d/%d" % (ok, len(cases)))
-    return 0 if ok == len(cases) else 1
+    # @TL 2026-11-05 13:30: «нечего проверять» ≠ «проверил, чисто».
+    # Кейс «нет csproj» обязан давать rc=2, иначе неверный --root снова станет зелёным.
+    empty = os.path.join(base, "empty")
+    os.makedirs(empty, exist_ok=True)
+    total = len(cases) + 1
+    if not csproj_files(empty):
+        ok += 1
+    else:
+        print("  [FAIL] пустой root должен давать 0 проектов (нечего проверять)")
+
+    print("check_test_isolation --selftest: %d/%d" % (ok, total))
+    return 0 if ok == total else 1
 
 
 def scan_compile_includes(root):
@@ -298,6 +308,17 @@ def main():
     # «8 нарушений» читается как «8 проблемных проектов», хотя их 3, и следующий читатель
     # делает неверный вывод об объёме работы. Канон: `нарушений 8 (3 проекта): (б) …`.
     projects = sorted({rel for _, rel, _ in v})
+    # @TL 2026-11-05 13:30, требование (1): «нечего проверять» ≠ «проверил, чисто».
+    # Раньше при неверном `--root` (например `--root 6-msa`, где поиск идёт в `6-msa/6-msa`)
+    # находилось 0 csproj, печаталось «в норме» и возвращался rc=0 — зелёный на пустоте.
+    checked = csproj_files(root)
+    if not checked:
+        print("check_test_isolation: НЕ ИЗМЕРЕНО: найдено 0 проектов (root=%s) — "
+              "это не «чисто», а «нечего проверять»" % root)
+        print("::error::check_test_isolation: НЕ ИЗМЕРЕНО — найдено 0 csproj, "
+              "проверка не состоялась (проверь --root)")
+        return 2
+
     if v:
         import collections
         kinds = collections.Counter(k for k, _, _ in v)
@@ -310,12 +331,15 @@ def main():
             in_proj = len({rel for k, rel, _ in v if k == kind})
             parts.append("(%s) %s — %d в %d проект(ах)" % (kind, titles.get(kind, kind),
                                                            count, in_proj))
-        print("check_test_isolation: нарушений %d (%d %s): %s"
-              % (len(v), len(projects),
+        # @TL 2026-11-05 13:30, требование (2): ДВА числа — сколько проверено и сколько нарушений.
+        # «0 проектов» читалось как «нет проектов», хотя означало «нет проектов С нарушениями».
+        print("check_test_isolation: проверено проектов: %d | нарушений: %d (%d %s): %s"
+              % (len(checked), len(v), len(projects),
                  "проект" if len(projects) == 1 else "проекта" if len(projects) < 5 else "проектов",
                  "; ".join(parts)))
     else:
-        print("check_test_isolation: нарушений 0 (0 проектов): изоляция и раскладка по ADR-028 в норме")
+        print("check_test_isolation: проверено проектов: %d | нарушений: 0: "
+              "изоляция и раскладка по ADR-028 в норме" % len(checked))
     return 1 if v else 0
 
 
