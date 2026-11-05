@@ -229,12 +229,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--range', default='HEAD~1..HEAD')
     ap.add_argument('--commit', default=None)
-    ap.add_argument('--root', default='.')
+    ap.add_argument('--root', default='.',
+                    help='repo root (как --repo-root в accept_read_path)')
+    ap.add_argument('--repo-root', dest='root', default=None,
+                    help='алиас --root: то же имя, что в accept_read_path (@TL 2026-11-05 14:49)')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
     if a.selftest:
         return selftest()
-    root = os.path.abspath(a.root)
+    root = os.path.abspath(a.root or '.')
     os.chdir(root)
     rng = ('%s~1..%s' % (a.commit, a.commit)) if a.commit else a.range
     tip = a.commit or (rng.split('..')[-1] if '..' in rng else 'HEAD')
