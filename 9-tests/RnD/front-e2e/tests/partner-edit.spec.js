@@ -78,6 +78,41 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       expect(p.gender, 'gender после profile (API)').toBe('male');
       await expect(page.locator('#partners-list .partner-row').filter({ hasText: NEW })).toHaveCount(1);
     });
+
+    await test.step('удалить партнёра через UI (#btn-partner-delete)', async () => {
+      // До этого спека не трогала `#btn-partner-delete` вовсе: удаление партнёра не проверялось
+      // (карта `check_e2e_ui_coverage`). Негативный контроль — «Нет» оставляет партнёра.
+      const open = async () => {
+        await page.click('#tab-partners');
+        await expect(page.locator('#view-partners')).toBeVisible();
+        const card = page.locator('#partners-list .partner-row').filter({ hasText: NEW });
+        await expect(card, 'карточка ' + NEW).toHaveCount(1);
+        await card.click();
+        await expect(page.locator('#view-partner-edit')).toBeVisible();
+        await expect(page.locator('#pe-name')).toHaveValue(NEW);
+      };
+
+      await open();
+      await page.click('#btn-partner-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-no');
+      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+      await expect(
+        page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
+        'после отмены партнёр остался в списке'
+      ).toHaveCount(1);
+
+      await open();
+      await page.click('#btn-partner-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-yes');
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
+      await expect(
+        page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
+        'после удаления партнёра нет в списке'
+      ).toHaveCount(0);
+      id = null;
+    });
   } finally {
     const r = await removeByName(page, 'partner', NEW);
     const r2 = await removeByName(page, 'partner', OLD);

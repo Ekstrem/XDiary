@@ -9,6 +9,21 @@ const { test, expect } = require('@playwright/test');
 const { loginWithPin } = require('./api');
 
 test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', async ({ page }) => {
+  await test.step('кнопка «Импорт CSV» в настройках открывает выбор файла (#btn-import)', async () => {
+    // `#btn-import` до этого не трогала ни одна спека (карта `check_e2e_ui_coverage`), хотя это
+    // видимая кнопка в настройках: её обработчик программно нажимает скрытый `#import-file`.
+    // Проверяем саму связку — по клику обязан открыться выбор файла.
+    await loginWithPin(page);
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 15000 }),
+      page.click('#btn-import'),
+    ]);
+    expect(chooser, 'по клику #btn-import открывается выбор файла').toBeTruthy();
+    await chooser.setFiles([]); // диалог закрываем, файл не нужен — проверяли связку
+  });
+
   await test.step('login по PIN', async () => {
     await loginWithPin(page);
   });
