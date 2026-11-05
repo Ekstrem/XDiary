@@ -284,8 +284,10 @@ def receipt(args, issues, unmeasured):
         proj += f" [замер на {args.measured_on}]"
     print(f"  проекция «создал → увидел»: {proj}")
     print(f"  провенанс представления: {args.projection_provenance or 'НЕ УКАЗАН'}")
-    if computed[0]:
-        print(f"  провенанс по данным: {computed[0]} ({computed[1]})")
+    _computed = compute_provenance(getattr(args, "read_max_updated_at", None),
+                                   getattr(args, "repaired_at", None))
+    if _computed[0]:
+        print(f"  провенанс по данным: {_computed[0]} ({_computed[1]})")
     _warn = time_provenance_warning(args.projection_provenance, args.partners_read)
     if _warn:
         print(_warn)
@@ -432,8 +434,27 @@ def selftest() -> int:
     else:
         print("  [FAIL] текст: предупреждение о `time` для partners_read не сформировано")
 
-    print(f"accept_read_path --selftest: {ok}/{len(cases) + 5} (каждый критерий проверен на дефекте)")
-    return 0 if ok == len(cases) + 5 else 1
+    # кейс: receipt() вызывается на реальных args (ловит NameError-регрессии в печати)
+    import argparse as _ap
+    _ns = _ap.Namespace(
+        partners_read=13, partners_src=13, journal_read=4, journal_src=4,
+        partners_http=200, journal_http=200, contract_passed=4, contract_failed=0,
+        rerun_partners_read=13, rerun_journal_read=4, partners_name_mismatches=0,
+        journal_empty_partner_names=0, journal_empty_partner_names_src=0,
+        contraceptive_count_mismatches=0, event_count=4, rerun_event_count=4,
+        projection_verified_by="parity", projection_provenance="rebuild",
+        read_max_updated_at=None, repaired_at=None, measured_on="dev",
+        delivery_reached="yes", schema_present="yes", post_partners_status=200,
+        write_path=None, repair_declared_in=None, repair_command=None, repair_date=None,
+        source_kind="live", projection_result=None, projection_waited_ms=None)
+    try:
+        receipt(_ns, [], [])
+        ok += 1
+    except Exception as _e:  # noqa: BLE001 — именно падение и проверяем
+        print(f"  [FAIL] receipt() падает на реальных args: {type(_e).__name__}: {_e}")
+
+    print(f"accept_read_path --selftest: {ok}/{len(cases) + 6} (каждый критерий проверен на дефекте)")
+    return 0 if ok == len(cases) + 6 else 1
 
 
 def main() -> int:
