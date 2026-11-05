@@ -338,7 +338,7 @@ async function seedSession(page) {
       }
       if (attempt === SEED_ATTEMPTS) break;
       console.log('::notice::seedSession: retry ' + attempt + ' на шаге старт (сеть): ' + msg.slice(0, 120));
-      await page.waitForTimeout(500 * attempt);
+      await page.waitForTimeout(500 * attempt); // backoff: сетевой ретрай seedSession, не догадка о времени
     }
   }
   throw lastErr;
@@ -374,6 +374,27 @@ async function loginWithPin(page, pin) {
 
 // После reload локальный PIN уже стоит → приложение показывает экран блокировки.
 // Разблокируем, чтобы попасть в журнал.
+// Ждать, пока приложение отрисует ЛЮБОЙ известный экран.
+// Зачем: после `page.reload()` спеки спали фиксированные 1.5 с — это догадка
+// о времени загрузки (и лишние 1.5 с, и флейк на медленном стенде). Здесь ждём настоящий признак:
+// один из экранов реально виден. В `8-front/js/app.js` нет объекта готовности (`window.__ready`),
+// поэтому признак — сам экран, а не переменная.
+async function waitAppReady(page, timeout = 20000) {
+  await page.waitForFunction(
+    () => {
+      const ids = ['view-lock', 'view-journal', 'view-onboarding', 'view-splash'];
+      return ids.some((id) => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        const st = window.getComputedStyle(el);
+        return st.display !== 'none' && st.visibility !== 'hidden' && el.offsetHeight > 0;
+      });
+    },
+    null,
+    { timeout }
+  );
+}
+
 async function unlockIfLocked(page, pin) {
   const p = pin || PIN;
   const lock = page.locator('#view-lock');
@@ -527,4 +548,4 @@ function watchLinkPartner(page) {
   };
 }
 
-module.exports = { API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+module.exports = { waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };

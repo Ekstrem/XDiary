@@ -49,8 +49,12 @@ test('E2E: busyRun — появляется на 1000 мс, не появляе�
   // ── Критерий «порог»: быстрый ответ 100 мс → баннера быть не должно ────────────────────────
   await delaySeries(page, 100);
   try {
+    // Детерминированно: ждём сам ответ трендов, а не 250 мс «на глаз». Ответ 100 мс
+    // укладывается в порог 300 мс, поэтому баннер обязан быть снят до его прихода.
+    const series = page.waitForResponse((r) => /\/api\/v1\/daily-metrics\/series/.test(r.url()),
+      { timeout: 15000 });
     await openTrends(page);
-    await page.waitForTimeout(250);
+    await series;
     await expect(
       page.locator(BANNER + ':visible'),
       'индикатор показан на быстром ответе (100 мс) — порог 300 мс нарушен, он будет мелькать'

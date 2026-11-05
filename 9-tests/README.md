@@ -203,6 +203,17 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 «тест без критерия приёмки — не тест»). Проверяет первые 12 строк: `TE-NNN` **или** метка `LEGACY`
 с причиной. Сейчас: **спек 22 | с TE-ссылкой 21 | LEGACY 1 | без ссылки 0**, `rc=0`; `--selftest` **4/4**.
 
+**`check_e2e_no_sleeps.py` — в спеках нет фиксированных пауз.** `waitForTimeout` — догадка о времени:
+на медленном стенде даёт ложный красный, на быстром — ложный зелёный, и оба неотличимы от дефекта
+продукта. Замена — ожидание **признака** (`waitForResponse`, `waitForLoadState('networkidle')`,
+`expect`, `waitAppReady`). Сейчас: **файлов 24, фиксированных пауз 0, разрешённых `backoff` 1**
+(сетевой ретрай `seedSession`, помечен `// backoff:`), `rc=0`; `--selftest` **4/4**.
+
+**`e2e_receipt.py` — квитанция прогона `front-e2e` из вывода Playwright** (`list` или `json`):
+`итого N: passed P, failed F, skipped S | спек M | упавшие: … | REF=…`. `rc=1` — есть упавшие
+(каждая печатается `::error::`), `rc=2` — вывод не разобран (не «зелено»). Одна форма квитанции
+вместо разбора глазами; `--selftest` **5/5**.
+
 **`check_e2e_selectors.py` — статическая сверка селекторов `front-e2e` с фронтом.** Берёт все `#id`
 из `9-tests/RnD/front-e2e/tests/*.spec.js` и ищет их в `8-front`: `index.html`, **JS-шаблонах**
 (`'<input id="w-place">'`) и вызовах `getElementById`/`querySelector`. `rc=1` — спека ищет id, которого

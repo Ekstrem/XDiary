@@ -226,8 +226,9 @@ test('E2E: открытие визарда не грузит полный жур
   const before = calls.length;
   await page.click('#btn-new');
   await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
-  // Дать сети шанс отдать «догоняющие» ленивые запросы, если они есть.
-  await page.waitForTimeout(1500);
+  // Ждём, пока сеть успокоится (детерминированно): спека проверяет ОТСУТСТВИЕ
+  // полного `/journal/records`, поэтому «догоняющие» ленивые запросы должны успеть уйти.
+  await page.waitForLoadState('networkidle');
 
   const mine = calls.slice(before);
   const fullJournal = mine.filter((l) => /GET \/api\/v1\/journal\/records$/.test(l));

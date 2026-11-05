@@ -7,7 +7,7 @@
 //   2) `window.Pin.hasPin()` = false после снятия через UI;
 //   3) замок (`#view-lock`) больше не показывается — журнал открывается без PIN.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, loginWithPin } = require('./api');
+const { waitAppReady, API_BASE, PIN, loginWithPin } = require('./api');
 
 async function hasPinLocal(page) {
   return page.evaluate(() => window.Pin.hasPin());
@@ -88,7 +88,7 @@ test('E2E: снятие локального PIN через UI → журнал 
     await test.step('проверка: локального PIN нет, замок не показывается', async () => {
       expect(await hasPinLocal(page), 'window.Pin.hasPin() = false после снятия').toBe(false);
       await page.reload();
-      await page.waitForTimeout(1500);
+      await waitAppReady(page);
       await expect(page.locator('#view-lock')).toBeHidden({ timeout: 10000 });
     });
   } finally {
