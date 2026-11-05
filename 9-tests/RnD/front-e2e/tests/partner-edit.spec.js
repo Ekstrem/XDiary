@@ -62,8 +62,18 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
     });
 
     await test.step('UI: изменить имя, notes и пол → Сохранить', async () => {
+      // Фото партнёра (`#pe-photo`) — скрытый file-вход; ни одна спека в него ничего не кладла.
+      // Кладём крошечный PNG и проверяем, что путь не падает и превью/состояние не ломается.
+      await page.setInputFiles('#pe-photo', {
+        name: 'avatar.png', mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8AAAwAB/wFBn0VoAAAAAElFTkSuQmCC',
+          'base64'),
+      });
       await page.fill('#pe-name', NEW);
       await page.fill('#pe-notes', NOTES);
+      // Второй вариант пола (`#pe-gender-female`) не проверялся: нажимаем оба, сохраняем мужской.
+      await page.click('#pe-gender-female');
       await page.click('#pe-gender-male');
       await page.click('#btn-partner-save');
       await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
@@ -77,6 +87,46 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       expect(p.notes, 'notes после profile (API) ;; ' + bodies).toBe(NOTES);
       expect(p.gender, 'gender после profile (API)').toBe('male');
       await expect(page.locator('#partners-list .partner-row').filter({ hasText: NEW })).toHaveCount(1);
+    });
+
+    await test.step('удалить партнёра через UI (#btn-partner-delete)', async () => {
+      // До этого спека не трогала `#btn-partner-delete` вовсе: удаление партнёра не проверялось
+      // (карта `check_e2e_ui_coverage`). Негативный контроль — «Нет» оставляет партнёра.
+      const open = async () => {
+        await page.click('#tab-partners');
+        await expect(page.locator('#view-partners')).toBeVisible();
+        const card = page.locator('#partners-list .partner-row').filter({ hasText: NEW });
+        await expect(card, 'карточка ' + NEW).toHaveCount(1);
+        await card.click();
+        await expect(page.locator('#view-partner-edit')).toBeVisible();
+        await expect(page.locator('#pe-name')).toHaveValue(NEW);
+      };
+
+      // Навигация назад (`#btn-partner-edit-back`) — не была покрыта ни одной спекой.
+      await open();
+      await page.click('#btn-partner-edit-back');
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 20000 });
+
+      await open();
+      await page.click('#btn-partner-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-no');
+      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+      await expect(
+        page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
+        'после отмены партнёр остался в списке'
+      ).toHaveCount(1);
+
+      await open();
+      await page.click('#btn-partner-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-yes');
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
+      await expect(
+        page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
+        'после удаления партнёра нет в списке'
+      ).toHaveCount(0);
+      id = null;
     });
   } finally {
     const r = await removeByName(page, 'partner', NEW);

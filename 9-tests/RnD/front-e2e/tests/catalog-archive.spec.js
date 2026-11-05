@@ -56,6 +56,13 @@ test('E2E: каталог — archive и restore через UI, проверка
       await openItem(page);
       await expect(page.locator('#ce-archive')).toBeVisible();
       await expect(page.locator('#ce-archive')).toHaveText(/В архив/);
+      // Фото позиции каталога (`#ce-photo`) — скрытый file-вход, не покрывался.
+      await page.setInputFiles('#ce-photo', {
+        name: 'item.png', mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8AAAwAB/wFBn0VoAAAAAElFTkSuQmCC',
+          'base64'),
+      });
       await page.click('#ce-archive');
       await expect(page.locator('#ce-archive')).toHaveText(/Вернуть/);
       await page.click('#btn-catalog-save');
@@ -76,6 +83,33 @@ test('E2E: каталог — archive и restore через UI, проверка
 
       const restored = await getItem(page, id);
       expect(restored.archived, 'archived = false после restore (API)').toBe(false);
+    });
+
+    await test.step('удалить позицию каталога через UI (#btn-catalog-delete)', async () => {
+      // До этого спека не трогала `#btn-catalog-delete` вовсе: удаление позиции каталога
+      // не проверялось никак (карта `check_e2e_ui_coverage`).
+      // Навигация назад из правки позиции (`#btn-catalog-edit-back`) — тоже не была покрыта.
+      await openItem(page);
+      await page.click('#btn-catalog-edit-back');
+      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
+
+      await openItem(page);
+      await page.click('#btn-catalog-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      // негативный контроль: «Нет» обязано оставить позицию на месте
+      await page.click('#confirm-no');
+      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+      const kept = await getItem(page, id);
+      expect(kept, 'после отмены позиция каталога на месте (API)').toBeTruthy();
+
+      await openItem(page);
+      await page.click('#btn-catalog-delete');
+      await expect(page.locator('#confirm-modal')).toBeVisible();
+      await page.click('#confirm-yes');
+      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 30000 });
+      const gone = await getItem(page, id);
+      expect(gone, 'после удаления GET /catalog/{id} не отдаёт позицию').toBeFalsy();
+      id = null;
     });
   } finally {
     const r = await removeByName(page, 'catalog', NAME);

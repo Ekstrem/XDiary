@@ -93,6 +93,15 @@ test('E2E: запись журнала — редактирование и уд�
     await card.click();
     await expect(page.locator('#view-detail')).toBeVisible();
 
+    // Навигация назад — не проверялась ни одной спекой (`#btn-detail-back` в карте непокрытых):
+    // из карточки записи кнопка «назад» обязана вернуть в журнал, не меняя запись.
+    await page.click('#btn-detail-back');
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    const untouched = await apiRecord(page, id);
+    expect(untouched.ok, 'после возврата из карточки запись на месте').toBe(true);
+    await card.click();
+    await expect(page.locator('#view-detail')).toBeVisible();
+
     // редактирование: длительность 15 -> 45
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
@@ -118,6 +127,19 @@ test('E2E: запись журнала — редактирование и уд�
     await expect(page.locator('#view-detail')).toBeVisible();
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+    await page.locator('#wizard-progress button[title="Итог"]').click();
+    await page.click('#btn-wizard-delete');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+
+    // НЕГАТИВНЫЙ КОНТРОЛЬ перед удалением: «Нет» в подтверждении обязано НЕ удалять.
+    // Без этой проверки отмена подтверждения не покрыта ничем, а `#confirm-no` — единственный
+    // способ передумать (до 2026-11-05 спеки его не трогали вовсе).
+    await page.click('#confirm-no');
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+    const afterCancel = await apiRecord(page, id);
+    expect(afterCancel.ok, 'запись остаётся после отмены подтверждения').toBe(true);
+
+    // теперь удаляем по-настоящему
     await page.locator('#wizard-progress button[title="Итог"]').click();
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();

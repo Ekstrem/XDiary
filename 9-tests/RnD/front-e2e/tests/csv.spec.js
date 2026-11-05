@@ -9,6 +9,21 @@ const { test, expect } = require('@playwright/test');
 const { loginWithPin } = require('./api');
 
 test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', async ({ page }) => {
+  await test.step('кнопка «Импорт CSV» в настройках открывает выбор файла (#btn-import)', async () => {
+    // `#btn-import` до этого не трогала ни одна спека (карта `check_e2e_ui_coverage`), хотя это
+    // видимая кнопка в настройках: её обработчик программно нажимает скрытый `#import-file`.
+    // Проверяем саму связку — по клику обязан открыться выбор файла.
+    await loginWithPin(page);
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 15000 }),
+      page.click('#btn-import'),
+    ]);
+    expect(chooser, 'по клику #btn-import открывается выбор файла').toBeTruthy();
+    await chooser.setFiles([]); // диалог закрываем, файл не нужен — проверяли связку
+  });
+
   await test.step('login по PIN', async () => {
     await loginWithPin(page);
   });
@@ -39,6 +54,24 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
 
   await test.step('импорт: Garmin-подобный CSV (somatic_minute) принимается', async () => {
     const csv = 'timestamp,hr\n2026-11-02T10:00,60\n2026-11-02T10:01,62\n2026-11-02T10:02,61\n';
+    // `#btn-import-pick` («Выбрать CSV-файл») не проверялась: обязана открыть выбор файла.
+    const [picker] = await Promise.all([
+      page.waitForEvent('filechooser', { timeout: 15000 }),
+      page.click('#btn-import-pick'),
+    ]);
+    expect(picker, 'по клику на «Выбрать CSV-файл» открывается выбор файла').toBeTruthy();
+    await picker.setFiles([]);
+
+    await page.setInputFiles('#import-any-file', {
+      name: 'somatic.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf8'),
+    });
+    // Назад с экрана импорта (`#btn-import-back`) — не была покрыта: обязана вернуть в настройки.
+    await page.click('#btn-import-back');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
+
+    await page.click('#btn-import-open');
     await page.setInputFiles('#import-any-file', {
       name: 'somatic.csv',
       mimeType: 'text/csv',
@@ -48,5 +81,17 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     await page.click('#btn-import-apply');
     await expect(page.locator('#import-result')).toBeVisible({ timeout: 20000 });
     await expect(page.locator('#import-result')).not.toHaveText(/^\s*$/);
+
+    // Импорт журнала через кнопку «Импорт CSV» в настройках (`#import-file`): это ЛОКАЛЬНЫЙ
+    // путь (пишет в IndexedDB контекста), на стенд ничего не уходит. Ни одна спека его не трогала.
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
+    await page.setInputFiles('#import-file', {
+      name: 'journal.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('started_at,duration_min,partner,place\n2026-01-01T10:00,15,SMOKE,SMOKE\n', 'utf8'),
+    });
+    // Результат импорта показывается тостом/сообщением; главное — не падаем и остаёмся в настройках.
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
   });
 });

@@ -38,6 +38,13 @@ test('E2E: смена локального PIN — новый пускает, с
       await expect(page.locator('#view-settings')).toBeVisible();
       await page.click('#btn-pin-open');
       await expect(page.locator('#pin-modal')).toBeVisible();
+
+      // Отмена модалки (`#pin-cancel`) не проверялась вовсе: обязана закрыть её, не меняя PIN.
+      await page.click('#pin-cancel');
+      await expect(page.locator('#pin-modal')).toBeHidden({ timeout: 15000 });
+
+      await page.click('#btn-pin-open');
+      await expect(page.locator('#pin-modal')).toBeVisible();
       await page.fill('#pin-current', PIN);
       await page.fill('#pin-new', NEW_PIN);
       await page.fill('#pin-confirm', NEW_PIN);

@@ -40,6 +40,7 @@ GATES = (
     ("check_e2e_data_hygiene.py", "спеки убирают за собой и создают уникальные данные"),
     ("check_e2e_skips.py", "каждый skip объяснён, флаги видны"),
     ("check_e2e_assertions.py", "у каждой спеки есть поведенческое утверждение"),
+    ("check_e2e_ui_coverage.py", "карта: какие элементы фронта не трогает ни одна спека"),
     ("check_e2e_ci_filter.py", "в npm test нет фильтров, которые тихо убирают спеки"),
     ("check_e2e_time_budget.py", "худший случай прогона помещается в timeout-minutes джобы"),
 )

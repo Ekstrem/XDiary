@@ -43,6 +43,10 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
     await page.fill('#onb-phone-input', PHONE);
     await page.click('#btn-onb-phone');
     await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
+    // «Запросить код заново» (`#btn-onb-resend`) не проверялась: она повторно отправляет тот же
+    // телефон. После клика экран OTP обязан остаться рабочим.
+    await page.click('#btn-onb-resend');
+    await expect(page.locator('#onb-otp'), 'после повторного запроса поле кода на месте').toBeVisible({ timeout: 20000 });
   });
 
   await test.step('шаг 2: OTP → «Кто вы?» (имя + пол), без шага привязки', async () => {
@@ -64,6 +68,9 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
     await reportStep(page, 'шаг 3: форма «Кто вы?» → Продолжить');
     const displayName = 'e2e-e7-' + Date.now();
     await page.fill('#onb-name', displayName);
+    // Оба варианта пола обязаны быть кликабельны: `#onb-gender-female` не трогала ни одна спека,
+    // то есть вторая ветка выбора пола не была проверена вообще (гейт check_e2e_ui_coverage).
+    await page.click('#onb-gender-female');
     await page.click('#onb-gender-male');
     await expect(page.locator('#onb-profile-error')).toBeHidden({ timeout: 5000 });
     await page.click('#btn-onb-profile');

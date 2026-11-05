@@ -20,6 +20,13 @@ for (const kind of KINDS) {
       await page.click('#btn-catalog-add');
       await expect(page.locator('#view-catalog-edit')).toBeVisible();
       await page.fill('#ce-name', name);
+      // Поля «Бренд» и «Партнёр» позиции каталога не заполняла ни одна спека.
+      await page.fill('#ce-brand', 'TE-BRAND');
+      await expect(page.locator('#ce-brand')).toHaveValue('TE-BRAND');
+      const partnerOptions = await page.locator('#ce-partner option').count();
+      if (partnerOptions > 0) {
+        await page.locator('#ce-partner').selectOption({ index: 0 });
+      }
       await page.click('#btn-catalog-save');
 
       // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
