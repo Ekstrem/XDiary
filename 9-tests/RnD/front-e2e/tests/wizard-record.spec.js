@@ -82,7 +82,12 @@ test('E2E: запись через визард — создаётся и вид
     });
 
     await page.fill('#w-startedAt', WHEN);
-    await page.click('#btn-wizard-next');  // 0 -> 1
+    // `#btn-wizard-prev` не трогала ни одна спека: возврат на шаг назад не был проверен.
+  // Проверяем на первом переходе: назад с шага 1 обязан вернуть на шаг 0 (дата).
+  await page.click('#btn-wizard-prev');
+  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+  await page.click('#btn-wizard-next');  // вернулись и снова 0 -> 1
+  await page.click('#btn-wizard-next');  // 0 -> 1
     await page.click('#btn-wizard-next');  // 1 -> 2
     await page.click('#btn-wizard-next');  // 2 -> 3
     await page.click('#btn-wizard-next');  // 3 -> 4

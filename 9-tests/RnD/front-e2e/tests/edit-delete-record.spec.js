@@ -121,6 +121,19 @@ test('E2E: запись журнала — редактирование и уд�
     await page.locator('#wizard-progress button[title="Итог"]').click();
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();
+
+    // НЕГАТИВНЫЙ КОНТРОЛЬ перед удалением: «Нет» в подтверждении обязано НЕ удалять.
+    // Без этой проверки отмена подтверждения не покрыта ничем, а `#confirm-no` — единственный
+    // способ передумать (до 2026-11-05 спеки его не трогали вовсе).
+    await page.click('#confirm-no');
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+    const afterCancel = await apiRecord(page, id);
+    expect(afterCancel.ok, 'запись остаётся после отмены подтверждения').toBe(true);
+
+    // теперь удаляем по-настоящему
+    await page.locator('#wizard-progress button[title="Итог"]').click();
+    await page.click('#btn-wizard-delete');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-yes');
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
 
