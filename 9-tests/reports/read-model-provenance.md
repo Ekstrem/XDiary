@@ -45,6 +45,29 @@
 Следствие: `partners`/`partners_read` = 0/0 и `Commands.DomainEvents` = false — **следствие**
 (её никто не создаёт), а не причина пустой read-модели.
 
+## 2.2. Оба консьюмера, оба без `[handle]` (@TL `chat/tl.md` `[2026-11-05 15:59]`)
+
+Три строки лога, снятые после выкатки:
+
+| Строка | Partners | Journal |
+|---|---|---|
+`[migrate] … migrations=` | **пусто** (EF видит 0 миграций ⇒ `Migrate()` — no-op) | — |
+`[consumer] subscribed` | **1** | **0** |
+`[handle] entered` | **0** | **0** |
+
+Два независимых факта:
+
+1. **Шина не диспетчеризует** — при зарегистрированном обработчике и непустом событии `Handle`
+   не вызывается **в обоих сервисах** ⇒ это **не** partners-specific и не наш код,
+   а `DigiTFactory.Libraries.EventBus.InMemory 0.1.0` (матчинг по типу).
+2. **Journal вообще не подписан** (`subscribed` = 0), хотя регистрация есть:
+   `Journal.Api/Program.cs:44-45` — `AddHostedService<JournalEventConsumer>` +
+   `AddSingleton<JournalEventHandler>`. То есть у журнала **две** причины не иметь проекции,
+   и вторая — до шины: консьюмер не создан/не подписался.
+
+**Следствие для приёмки:** «нет `[handle]`» не различает эти причины; различают их
+**`subscribed`** и `migrations`. Порядок проверок: `subscribed` → `migrations` → `[handle]`.
+
 ## 3. Следствие для приёмки (моя часть)
 
 **Уточнение (после маркера `[handle] entered`=0):** критерий A («без схемы ⇒ `5xx`») при

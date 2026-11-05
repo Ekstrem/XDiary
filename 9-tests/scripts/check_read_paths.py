@@ -178,17 +178,30 @@ def run(root: str) -> int:
     outside = [op_id for op_id in readings if op_id not in registered]
     coverage = f"проверено {len(registered)} из {len(readings)} чтений фронта"
 
-    for p in problems:
-        print(f"::error::check_read_paths: {p}")
+    for line in summary_lines(problems, coverage, len(operations), len(outside), outside):
+        print(line)
+    return 1 if problems else 0
+
+
+def summary_lines(problems: list, coverage: str, ops: int, n_outside: int,
+                  outside: list) -> list:
+    """Текст сводки отдельной функцией — чтобы `--selftest` проверял **текст**, а не только `rc`.
+
+    Норма @TL `chat/tl.md` `[2026-11-05 15:38]`: гейт, печатающий числа, обязан иметь кейс на текст
+    (нужное значение присутствует, ложное — отсутствует). Здесь проверяются три вещи:
+    покрытие «N из M», отдельные числа и отсутствие `None` в выводе.
+    """
+    lines = [f"::error::check_read_paths: {p}" for p in problems]
     if problems:
-        print(f"FAIL: {len(problems)} расхождений §2 ↔ api-index ({coverage}; операций в индексе: {len(operations)})")
-        return 1
-    print(f"PASS: §2 и api-index согласованы ({coverage}; источников реестра: {len(SOURCES)}, "
-          f"MV читаются фронтом: {len(MV_READ_BY_FRONT)}; операций в индексе: {len(operations)})")
+        lines.append(f"FAIL: {len(problems)} расхождений §2 ↔ api-index "
+                     f"({coverage}; операций в индексе: {ops})")
+        return lines
+    lines.append(f"PASS: §2 и api-index согласованы ({coverage}; источников реестра: {len(SOURCES)}, "
+                 f"MV читаются фронтом: {len(MV_READ_BY_FRONT)}; операций в индексе: {ops})")
     if outside:
-        print(f"INFO: вне реестра §2 {len(outside)} чтений — известный пробел §2.1, не ошибка "
-              f"(не считаем красным, иначе гейт будут отключать): {', '.join(outside)}")
-    return 0
+        lines.append(f"INFO: вне реестра §2 {n_outside} чтений — известный пробел §2.1, не ошибка "
+                     f"(не считаем красным, иначе гейт будут отключать): {', '.join(outside)}")
+    return lines
 
 
 # ───────────────────────────── selftest ─────────────────────────────
@@ -292,6 +305,21 @@ def selftest() -> int:
         print(f"  [FAIL] front_reads без 8-front/js: получили {got_none}, ждали []")
 
     total = len(cases) + 1 + 3   # кейсы + структурный + три контроля полноты
+    # кейс на ТЕКСТ (норма @TL `15:38`): покрытие, числа, отсутствие None
+    cov = "проверено 6 из 18 чтений фронта"
+    good = "\n".join(summary_lines([], cov, 80, 12, ["Journal.List", "Client.Me"]))
+    bad = "\n".join(summary_lines(["A: расхождение"], cov, 80, 0, []))
+    must = ["проверено 6 из 18", "источников реестра", "операций в индексе: 80",
+            "вне реестра §2 12 чтений"]
+    must_not = ["None", "FAIL:"]
+    must_bad = ["FAIL:", "расхождений", "None"]
+    if (all(m in good for m in must) and not any(m in good for m in must_not)
+            and all(m in bad for m in must_bad[:2]) and "None" not in bad):
+        ok += 1
+    else:
+        print(f"  [FAIL] текст: good={good!r} / bad={bad!r}")
+
+    total += 1
     print(f"check_read_paths --selftest: {ok}/{total} (красный контроль на каждом направлении)")
     return 0 if ok == total else 1
 
