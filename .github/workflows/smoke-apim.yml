@@ -1,0 +1,34 @@
+name: smoke-apim
+
+# Health-гейт Gravitee APIM на проде (DO-076). Запускается вручную и может быть
+# вызван как «первый шаг» любой работы, меняющей маршрут/шлюз.
+on:
+  workflow_dispatch:
+    inputs:
+      where:
+        description: 'Где проверяем (для протокола)'
+        required: false
+        default: 'прод, VPS-1'
+
+jobs:
+  apim-health:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ключ для прод
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.PROD_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: selftest гейта (обе стороны)
+        run: python3 tools/check_apim_health.py --selftest
+
+      - name: APIM жив и стоит в пути
+        run: |
+          python3 tools/check_apim_health.py \
+            --remote "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" \
+            --key ~/.ssh/id_deploy

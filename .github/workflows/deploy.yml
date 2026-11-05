@@ -196,6 +196,26 @@ jobs:
             # иначе на прод уедет образ без переходного поведения.
             # DO-050: передаём время коммита, чтобы update.sh мог проверить
             # «образ не старше кода» — иначе success означает «не тот код».
+            # DO-076 (вопрос владельца 2026-11-05): APIM стоит В ПУТИ трафика
+            # (Funnel -> Caddy:8081 -> APIM:18082), но `/health` идёт МИМО APIM —
+            # поэтому прежний smoke `curl /health` оставался зелёным даже при мёртвом
+            # APIM, а публичный API вернул бы 404/502. Pre-flight: не выкатываем в
+            # сломанный вход.
+            for c in xdiary-apim-gateway xdiary-apim-management xdiary-apim-ui xdiary-apim-mongo; do
+              s="$(podman inspect "$c" --format '{{.State.Status}}' 2>/dev/null || echo missing)"
+              [ "$s" = "running" ] || { echo "::error::APIM: $c = $s (ожидали running) — деплой остановлен"; exit 1; }
+            done
+            g="$(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/api/v1/catalog)"
+            [ "$g" = "401" ] || { echo "::error::APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"; exit 1; }
+            echo APIM_PREFLIGHT_OK
             bash /home/deploy/update.sh
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo PROD_OK
+
+            # DO-076: `/health` идёт мимо APIM, поэтому он НЕ доказывает, что публичный
+            # вход жив. Проверяем сам публичный путь: 401 (а не 404/502) + x-gravitee.
+            ph="$(curl -sS -D /tmp/pub_hdr.txt -o /dev/null -w '%{http_code}' -m 8 \
+                  -H 'Host: xdiary-vps1.taile0b6ee.ts.net' http://127.0.0.1:8081/api/v1/catalog)"
+            [ "$ph" = "401" ] || { echo "::error::публичный вход: /api/v1/catalog = $ph (ожидали 401; 404 = APIM без маршрута, 502 = APIM мёртв)"; exit 1; }
+            grep -qi 'x-gravitee' /tmp/pub_hdr.txt || { echo "::error::публичный вход без x-gravitee — трафик идёт МИМО APIM"; exit 1; }
+            echo APIM_IN_PATH_OK
