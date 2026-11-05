@@ -55,7 +55,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 INDEX = "04-architecture/api-index.yaml"
-ANON = {"anonymous"}
+ANON = {"anonymous", "anonymous-inside"}
 
 # BC в `api-index.yaml` → имя сервиса в compose (`7-deploy/podman-compose.yml`).
 # Нужен для `--direct`: условие @AR сформулировано про ПРЯМОЙ запрос в сервис, а не про YARP.
@@ -378,6 +378,37 @@ def breakdown_line(table: dict) -> str:
     return " | ".join(parts) if parts else "нарушителей/contract/unknown нет"
 
 
+def internal_ops(ops) -> list:
+    """Операции внутреннего контура (`/internal/**` или `auth=anonymous-inside`) — условие (ii-c).
+
+    Компенсация за исключение `anonymous-inside` из знаменателя `(ii-b)` (@AR `03:14`): такие
+    ручки **не обязаны** отвечать `401`, но **обязаны быть недостижимы снаружи**. Критерий:
+    через публичный вход (`Funnel`/YARP/APIM) допустимы только `401`/`403`/`404`;
+    любой `2xx` = публикация внутреннего API (серьёзнее открытой ручки) → `rc=1`.
+    """
+    out = []
+    for op in ops:
+        if str(op.get("auth", "")).strip().lower() == "anonymous-inside" \
+                or str(op.get("path", "")).startswith("/internal"):
+            out.append(op)
+    return out
+
+
+def verdict_internal(results):
+    """Классификация (ii-c): ok = `401/403/404`; `2xx` и прочие полученные ответы = нарушение."""
+    ok, bad, unknown = [], [], []
+    for op, code, url in results:
+        name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}]"
+        if code is None:
+            unknown.append(f"{name} — нет ответа: {url}")
+        elif code in (401, 403, 404):
+            ok.append(f"{name} — {code} (недостижим снаружи)")
+        else:
+            bad.append(f"{name} — {code}: внутренняя операция ДОСТИЖИМА снаружи "
+                       f"(допустимы только 401/403/404), {url}")
+    return ok, bad, unknown
+
+
 def selftest() -> int:
     """Доказательство, что проверка краснеет на открытой операции и зеленеет на 401.
 
@@ -493,11 +524,13 @@ def selftest() -> int:
             print(f"  [FAIL] классификация кодов: {wrong}")
 
         total += 1
-        # фильтр: `anonymous` исключён, `anonymous-inside` включён (снаружи обязан 401)
-        if len(targets) == 6:
+        # Знаменатель (ii-b) по @AR `03:14`: `anonymous` И `anonymous-inside` вне счёта —
+        # внутренние ручки не обязаны давать 401, они проверяются условием (ii-c).
+        # В наборе 7 операций: минус 1 `anonymous` и минус 1 `anonymous-inside` = 5.
+        if len(targets) == 5:
             ok += 1
         else:
-            print(f"  [FAIL] фильтр анонимных: ждали 6 (7 операций минус `anonymous`), получили {len(targets)}")
+            print(f"  [FAIL] знаменатель: ждали 5 (7 - anonymous - anonymous-inside), получили {len(targets)}")
 
         total += 1
         # 3) `--direct`: адресация сервисов, три формы значения (@TL `00:16` п.4)
@@ -658,6 +691,32 @@ def selftest() -> int:
         else:
             print(f"  [FAIL] карта/несуществующий хост: bad_map={bad_map}, good_map={good_map}, unknown={len(_u4)}")
 
+        total += 1
+        # (ii-c), TE-056 (@TL `03:14`): `/internal/**` снаружи обязан давать 401/403/404.
+        # Проверяем обе стороны: 2xx = нарушение, 401/404 = норма, нет ответа = unknown.
+        iops = internal_ops(load_ops())
+        if len(iops) != 2 or not all(str(o.get("path", "")).startswith("/internal") for o in iops):
+            print(f"  [FAIL] (ii-c): внутренних операций {len(iops)}, ждали 2 /internal/**")
+        else:
+            rv = [({"method": "GET", "path": "/internal/journal/records",
+                    "operationId": "Journal.ListAll", "bc": "Journal"}, 200, "u")]
+            ro = [({"method": "GET", "path": "/internal/journal/records",
+                    "operationId": "Journal.ListAll", "bc": "Journal"}, 404, "u"),
+                  ({"method": "POST", "path": "/internal/partners/events",
+                    "operationId": "Journal.IngestPartnerEvent", "bc": "Journal"}, 401, "u")]
+            rn = [({"method": "GET", "path": "/internal/journal/records",
+                    "operationId": "Journal.ListAll", "bc": "Journal"}, None, "u")]
+            okv, badv, unkv = verdict_internal(rv)
+            oko, bado, unko = verdict_internal(ro)
+            okn, badn, unkn = verdict_internal(rn)
+            if (len(badv) == 1 and not okv and not unkv
+                    and len(oko) == 2 and not bado and not unko
+                    and len(unkn) == 1 and not okn and not badn):
+                ok += 1
+            else:
+                print(f"  [FAIL] (ii-c) классификация: 200->{len(badv)} bad, "
+                      f"401/404->{len(oko)} ok, none->{len(unkn)} unknown")
+
         bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
         if not bad_irc:
             ok += 1
@@ -716,6 +775,8 @@ def main() -> int:
     ap.add_argument("--index", default=INDEX)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--ii-c", action="store_true", dest="ii_c",
+                    help="условие (ii-c): /internal/** снаружи обязан давать 401/403/404, 2xx = публикация внутреннего API (rc=1)")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--direct", action="store_true",
                     help="бить в СЕРВИСЫ напрямую (не через YARP): http://xdiary-<service>:8080")
@@ -736,6 +797,32 @@ def main() -> int:
 
     if args.selftest:
         return selftest()
+
+    if args.ii_c:
+        ops = internal_ops(load_ops(args.index))
+        if not ops:
+            print("::error::check_apim_auth: в индексе нет операций /internal/** — проверять нечего (rc=2)")
+            return 2
+        if not args.base:
+            print("::error::check_apim_auth: для (ii-c) нужен --base <публичный вход> (Funnel/YARP)")
+            return 2
+        results = [(op, *check_one(args.base, op)) for op in ops]
+        ok, bad, unk = verdict_internal(results)
+        rc_c = 0
+        if bad:
+            rc_c = 1
+        elif unk or not ok:
+            rc_c = 2
+        for b in bad:
+            print(f"::error::apim-auth(ii-c)[violator]: {b}")
+        for u in unk:
+            print(f"::warning::apim-auth(ii-c)[unknown]: {u}")
+        for o in ok:
+            print(f"   ok: {o}")
+        images_c = resolve_images(args.images, []) if not args.direct else ""
+        print(receipt_line("ii-c", current_ref(), len(ok), len(ops), rc_c,
+                           args.where or args.base, len(bad), 0, len(unk), images_c, args.network))
+        return rc_c
 
     ops = load_ops(args.index)
     targets = [op for op in ops if requires_auth(op)]
@@ -863,7 +950,9 @@ def main() -> int:
     if args.dry_run:
         for op in targets:
             print(f"   {op.get('method'):6} {op.get('path'):52} {op.get('bc')}  auth={op.get('auth')}")
-        print(f"DRY-RUN: проверять нечего без стенда; целей {len(targets)} (ожидание @TL: 76)")
+        total_idx = [o for o in load_ops(args.index)]
+        print(f"DRY-RUN: проверять нечего без стенда; целей {len(targets)} "
+              f"(в индексе {len(total_idx)}, без токена: 4 anonymous + 2 anonymous-inside)")
         return 0 if len(targets) == 76 else 1
 
     if not args.base:
