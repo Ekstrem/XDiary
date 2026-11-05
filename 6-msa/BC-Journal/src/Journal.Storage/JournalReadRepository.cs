@@ -3,6 +3,9 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Journal.Domain;
 using Journal.InternalContracts;
 using Microsoft.EntityFrameworkCore;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
+
+public sealed record Paging(int Page, int PageSize) : IPaging;
 
 public sealed class JournalReadRepository : IJournalQueryRepository
 {
@@ -27,7 +30,7 @@ public sealed class JournalReadRepository : IJournalQueryRepository
     {
         var list = models.ToList();
         if (list.Count == 0) return;
-        var dir = await _dir.GetAllAsync(null!, ct);
+        var dir = await _dir.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var byId = dir.Where(x => x.DeletedAt is null)
             .ToDictionary(x => x.PartnerId, x => x.Name);
         foreach (var m in list)
@@ -47,7 +50,7 @@ public sealed class JournalReadRepository : IJournalQueryRepository
 
     public async Task<IReadOnlyList<JournalReadModel>> ListAsync(Guid clientId, int? limit, int? offset, CancellationToken ct = default)
     {
-        var all = await _read.GetAllAsync(null!, ct);
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         IEnumerable<JournalReadModel> q = all.Where(x => x.ClientId == clientId);
         if (offset is > 0) q = q.Skip(offset.Value);
         if (limit is > 0) q = q.Take(limit.Value);
@@ -58,7 +61,7 @@ public sealed class JournalReadRepository : IJournalQueryRepository
 
     public async Task<IReadOnlyList<JournalReadModel>> ListAllAsync(int? limit, int? offset, CancellationToken ct = default)
     {
-        var all = await _read.GetAllAsync(null!, ct);
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         IEnumerable<JournalReadModel> q = all;
         if (offset is > 0) q = q.Skip(offset.Value);
         if (limit is > 0) q = q.Take(limit.Value);
@@ -72,7 +75,7 @@ public sealed class JournalReadRepository : IJournalQueryRepository
 
     public async Task<RecentDefaultsView?> GetRecentAsync(Guid clientId, CancellationToken ct = default)
     {
-        var all = await _read.GetAllAsync(null!, ct);
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var last = all.Where(x => x.ClientId == clientId)
             .OrderByDescending(x => x.StartedAt)
             .FirstOrDefault();
