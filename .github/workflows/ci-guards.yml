@@ -110,6 +110,16 @@ jobs:
         if: always()
         run: python tools/check_api_index.py
 
+      - name: Канон регистрации EventStoreDbContext (@AR 22:40/23:25)
+        # Правило: в каждом Program.cs с `AddEventStorePostgres` — РОВНО ОДНА типизированная
+        # `AddDbContext<…EventStoreDbContext>` и она ПОСЛЕ DF-вызова (последняя побеждает).
+        # История: `journal` и `partners` падали до `Bind`, потому что контекст получал
+        # необобщённые `DbContextOptions`; `grep → 0` как критерий отменён (@AR) — удаление
+        # типизированной регистрации делает хуже. Проверяем число и порядок строк.
+        run: |
+          python tools/check_eventstore_registration.py --selftest
+          python tools/check_eventstore_registration.py
+
       - name: Изоляция тестов — ADR-028 (б, в, д, е)
         # (б) тест не ссылается ProjectReference на чужой BC — иначе он не собирается без
         # чужого сервиса; (в) сервис не подключает E2E; (д) нет общих тестовых папок;
