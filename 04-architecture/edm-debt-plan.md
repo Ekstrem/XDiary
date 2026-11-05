@@ -719,7 +719,7 @@ PowerShell трактует бэктик как escape, и `\`` + `n` → пер
 
 ### Сверка с исходниками библиотеки: два моих утверждения оказались неверными (2026-11-05 09:45)
 
-Источник проверен **клоном публичного репозитория** `Ekstrem/DigiTFactory.Libraries` (HEAD `43b6689`), не по пересказу.
+**Источник проверен дважды, и вторая проверка воспроизводима без клона:** (1) клоном репозитория `Ekstrem/DigiTFactory.Libraries` (HEAD `43b6689`) — `git grep` по `.cs`; (2) **по DLL пакета** `DigiTFactory.Libraries.CommandRepository.Postgres 0.1.0` из nuget-кэша — ASCII-строки содержат `MigrationsAssembly` и `EventStoreDbContext`, но **`EnsureCreated`/`Migrate`/`EnsureSchema` — 0 вхождений**. Вторая проверка предпочтительна: клон сейчас недоступен, а DLL лежит на машине у любого, кто собирал проект.
 
 **`ReadRepository.Postgres/Extensions/ServiceCollectionExtensions.cs`:**
 
@@ -792,7 +792,7 @@ services.AddDbContext<TDbContext>(dbOptions =>
 ### Факт: **пакеты EDM схему не создают** — проверено по исходникам (2026-11-05 10:10)
 
 @TL высказал условие («если `AddEventStorePostgres` не создаёт таблицы — значит „схему создают пакеты“ неверно»). Проверил клоном
-`Ekstrem/DigiTFactory.Libraries` (HEAD `43b6689`): `git grep` по **всем** `.cs` на `EnsureCreated|.Migrate()` → **пусто**.
+**Проверка, воспроизводимая без клона** (предпочтительна): DLL пакета `digitfactory.libraries.commandrepository.postgres/0.1.0/lib/net8.0/*.dll` → читать байты, оставить ASCII, посчитать вхождения: `EnsureCreated` **0**, `Migrate` **0**, `EnsureSchema` **0**, при `MigrationsAssembly` **1** и `EventStoreDbContext` **1**. Ранее то же подтверждено клоном `Ekstrem/DigiTFactory.Libraries` (HEAD `43b6689`) через `git grep` по `.cs` → **пусто**.
 
 **Что пакеты делают:** регистрируют `DbContext` **с** `MigrationsAssembly(typeof(Context).Assembly…)` и сервисы
 (`IEventStoreRepository`, `IReadRepository`, `IReadModelStore`). **Чего не делают:** не создают схему, не применяют миграции,
