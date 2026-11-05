@@ -176,7 +176,17 @@ python 9-tests/scripts/check_read_paths.py                 # A/B/C + полно�
 python 9-tests/scripts/check_front_readpath.py --selftest  # 9/9
 python 9-tests/scripts/check_front_readpath.py             # read-path + stale-note + busyRun + версия
 python 9-tests/scripts/check_front_088.py                  # версия фронта (PASS на 0.94)
-python 9-tests/scripts/accept_read_path.py --selftest      # 22/22
+python 9-tests/scripts/accept_read_path.py --selftest      # 23/23
+python 9-tests/scripts/file_same_as.py --selftest          # 5/5
+```
+
+**`file_same_as.py`** — «этот файл тот же, что в `ref`?» отвечает **хэшем**, а не пересчётом строк
+(`git hash-object` против `git rev-parse <ref>:<path>`). Правило дня от @AR (`chat/ar.md`
+`[2026-11-06 00:50]`): `Measure-Object -Line` и `splitlines()` дают «около» — на них уже дважды
+делались неверные выводы. `SAME` / `DIFF` / `UNKNOWN`; `rc=0/1/2` (2 — ref или путь не читается).
+
+```bash
+python 9-tests/scripts/file_same_as.py --ref origin/main -- 9-tests/README.md README.md
 ```
 
 **`check_read_paths.py`** — сверка `read-paths.md` §2 ↔ `api-index.yaml` в **обе** стороны плюс
