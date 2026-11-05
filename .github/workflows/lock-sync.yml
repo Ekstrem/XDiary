@@ -1,0 +1,68 @@
+name: lock-sync
+
+# Причина (@TL 09:32, повторено 18:0x): `images.lock` выводится ИЗ GIT, поэтому любой
+# коммит в `6-msa/BC-*` или `8-front` его обесценивает — и следующий пуш получает
+# красный CI, к его задаче не относящийся. За сутки это случилось трижды
+# (`journal`/`partners`/`front`), и каждый раз лечилось командой `--write`.
+#
+# Здесь та же команда выполняется автоматически на пуш, который меняет эти папки:
+# гейт перестаёт зависеть от памяти ролей. Ручной `--write` остаётся допустимым.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '6-msa/**'
+      - '8-front/**'
+      - 'tools/gen_images_lock.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lock-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Перегенерировать lock
+        run: python tools/gen_images_lock.py --write
+
+      - name: Проверить, что после записи гейт зелёный
+        run: python tools/gen_images_lock.py --check
+
+      - name: Закоммитить, если изменилось
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 7-deploy/images.lock; then
+            echo "lock уже актуален — коммит не нужен"
+            exit 0
+          fi
+          git config user.name "loopmaker-bot"
+          git config user.email "loopmaker-bot@users.noreply.github.com"
+          git add 7-deploy/images.lock
+          git commit -m "bot: images.lock синхронизирован с git (lock-sync)"
+          # чужой пуш мог опередить — интегрируем и повторяем, до трёх раз
+          for i in 1 2 3; do
+            if git push; then exit 0; fi
+            git fetch origin main
+            git merge --no-edit origin/main || { echo "::error::конфликт в lock-sync"; exit 1; }
+            python tools/gen_images_lock.py --write
+            git add 7-deploy/images.lock
+            git commit -m "bot: images.lock синхронизирован с git (lock-sync, повтор $i)" || true
+          done
+          echo "::error::lock-sync не смог закоммитить за 3 попытки"
+          exit 1
