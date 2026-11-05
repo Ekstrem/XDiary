@@ -66,7 +66,7 @@
    | Файл | Строк | `[consumer] subscribed` | `Subscribe(` | `[handle] entered` |
    |---|---|---|---|---|
    | `Partners.Api/Events/PartnerEventConsumer.cs` | 91 | **1** | 1 | 1 |
-   | `Journal.Api/Events/JournalEventConsumer.cs` | 127 | **0** | 1 | 1 |
+   | `Journal.Api/Events/JournalEventConsumer.cs` | **128** | **1** (маркер добавлен `aa7715b0`) | 1 | 1 |
 
    Ноль в логе журнала означает **отсутствие маркера**, а не отсутствие подписки: подписка в коде есть
    (`Subscribe(`), а строки логирования не добавлено. Значит корректная формулировка:
