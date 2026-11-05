@@ -36,11 +36,13 @@ public sealed class ClientsController : ControllerBase
     }
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public IActionResult Refresh([FromBody] RefreshClientTokenCommand c)
+    public async Task<IActionResult> Refresh([FromBody] RefreshClientTokenCommand c, CancellationToken ct)
     {
-        if (!_tokens.TryValidateRefresh(c.RefreshToken, out var clientId, out var phone))
+        if (!_tokens.TryValidateRefresh(c.RefreshToken, out var clientId))
             return Unauthorized();
-        var pair = _tokens.Issue(clientId, phone ?? string.Empty);
+        var r = await _mediator.Send(new GetClientByIdQuery(clientId), ct);
+        if (r is null) return Unauthorized();
+        var pair = _tokens.Issue(clientId, r.Phone);
         return Ok(new { accessToken = pair.AccessToken, refreshToken = pair.RefreshToken, expiresAt = pair.ExpiresAt });
     }
     [HttpPost("{id:guid}/link-partner")]

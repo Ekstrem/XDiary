@@ -20,13 +20,14 @@ public sealed class ClientTokenService
         var now = DateTime.UtcNow;
         return new ClientTokenResponse(
             CreateToken(clientId.ToString(), "access", now.AddMinutes(AccessMinutes), phone),
-            CreateToken(clientId.ToString(), "refresh", now.AddDays(RefreshDays), phone),
+            // AR-018: refresh без PII (только sub + kind); phone берётся из БД при обновлении.
+            CreateToken(clientId.ToString(), "refresh", now.AddDays(RefreshDays), null),
             now.AddMinutes(AccessMinutes));
     }
 
-    public bool TryValidateRefresh(string token, out Guid clientId, out string? phone)
+    public bool TryValidateRefresh(string token, out Guid clientId)
     {
-        clientId = Guid.Empty; phone = null;
+        clientId = Guid.Empty;
         if (string.IsNullOrWhiteSpace(token)) return false;
         try
         {
@@ -41,7 +42,7 @@ public sealed class ClientTokenService
             }, out _);
             var sub = principal.FindFirst("sub")?.Value;
             var kind = principal.FindFirst("kind")?.Value;
-            phone = principal.FindFirst("phone")?.Value;
+            // AR-018: phone не читаем из токена — refresh его не несёт; берётся из БД вызывающим.
             return kind == "refresh" && sub is not null && Guid.TryParse(sub, out clientId);
         }
         catch { return false; }

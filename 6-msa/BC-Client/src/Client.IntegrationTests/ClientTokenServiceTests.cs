@@ -32,9 +32,21 @@ public class ClientTokenServiceTests
         var s = Create();
         var clientId = Guid.NewGuid();
         var pair = s.Issue(clientId, "+71234567890");
-        Assert.True(s.TryValidateRefresh(pair.RefreshToken, out var id, out var phone));
+        Assert.True(s.TryValidateRefresh(pair.RefreshToken, out var id));
         Assert.Equal(clientId, id);
-        Assert.Equal("+71234567890", phone);
+    }
+
+    [Fact]
+    public void RefreshToken_HasNoPhone()
+    {
+        // AR-018: refresh несёт только sub + kind, PII (phone) отсутствует.
+        var s = Create();
+        var pair = s.Issue(Guid.NewGuid(), "+71234567890");
+        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var jwt = handler.ReadJwtToken(pair.RefreshToken);
+        Assert.NotNull(jwt.Claims.FirstOrDefault(c => c.Type == "sub"));
+        Assert.Equal("refresh", jwt.Claims.FirstOrDefault(c => c.Type == "kind")?.Value);
+        Assert.Null(jwt.Claims.FirstOrDefault(c => c.Type == "phone"));
     }
 
     [Fact]
@@ -42,15 +54,15 @@ public class ClientTokenServiceTests
     {
         var s = Create();
         var pair = s.Issue(Guid.NewGuid(), "+71234567890");
-        Assert.False(s.TryValidateRefresh(pair.AccessToken, out _, out _));
+        Assert.False(s.TryValidateRefresh(pair.AccessToken, out _));
     }
 
     [Fact]
     public void TryValidateRefresh_Broken_ReturnsFalse()
     {
         var s = Create();
-        Assert.False(s.TryValidateRefresh("not.a.jwt", out _, out _));
-        Assert.False(s.TryValidateRefresh(string.Empty, out _, out _));
+        Assert.False(s.TryValidateRefresh("not.a.jwt", out _));
+        Assert.False(s.TryValidateRefresh(string.Empty, out _));
     }
 
     [Fact]
@@ -63,6 +75,6 @@ public class ClientTokenServiceTests
             ["Jwt:Issuer"] = "xdiary"
         }).Build());
         var pair = other.Issue(Guid.NewGuid(), "+71234567890");
-        Assert.False(s.TryValidateRefresh(pair.RefreshToken, out _, out _));
+        Assert.False(s.TryValidateRefresh(pair.RefreshToken, out _));
     }
 }
