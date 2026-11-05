@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Privacy.InternalContracts;
 using XDiary.Contracts;
 public sealed class PinCredentialReadModel : IReadModel<Privacy.Domain.IPrivacy>

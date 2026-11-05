@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Journal.InternalContracts;
 using XDiary.Contracts;
 public sealed class PartnerRef

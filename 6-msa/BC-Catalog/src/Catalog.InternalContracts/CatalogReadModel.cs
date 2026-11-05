@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Catalog.InternalContracts;
 using XDiary.Contracts;
 public sealed class CatalogReadModel : IReadModel<Catalog.Domain.ICatalog>

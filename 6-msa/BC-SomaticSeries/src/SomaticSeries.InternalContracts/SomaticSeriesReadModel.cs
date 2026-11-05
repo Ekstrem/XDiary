@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace SomaticSeries.InternalContracts;
 using XDiary.Contracts;
 public sealed class SomaticSeriesReadModel : IReadModel<SomaticSeries.Domain.ISomaticSeries>

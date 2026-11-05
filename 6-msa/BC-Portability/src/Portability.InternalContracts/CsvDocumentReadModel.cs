@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 namespace Portability.InternalContracts;
 using XDiary.Contracts;
 public sealed class CsvDocumentReadModel : IReadModel<Portability.Domain.IPortability>
