@@ -22,6 +22,10 @@ DB_HOST="${DB_HOST:-10.89.9.10}"
 DB_PORT="${DB_PORT:-5432}"
 NET=xdiary
 WAIT="${WAIT:-20}"
+# EXTRA_ENV — дополнительные переменные контейнера в формате "K=V K2=V2" (через пробел).
+# Нужно для одноразовых операций (например `DataMigration__Enabled=true` для бэкфилла
+# read-модели), чтобы они делались штатным скриптом, а не «руками на сервере».
+EXTRA_ENV="${EXTRA_ENV:-}"
 
 cd "$DEPLOY_DIR"
 [ -f "$ENV_FILE" ] || { echo "нет $DEPLOY_DIR/$ENV_FILE" >&2; exit 3; }
@@ -78,7 +82,8 @@ for svc in "$@"; do
   podman run -d --name "xdiary-$svc" --network "$NET" --ip "$ip" --hostname "$svc" \
     --label io.containers.autoupdate=registry --env-file "$ENV_FILE" \
     -e "ConnectionStrings__CommandDb=$cs" -e "ConnectionStrings__ReadDb=$cs" \
-    -e ASPNETCORE_ENVIRONMENT=Single --memory 256m --pids-limit 512 \
+    -e ASPNETCORE_ENVIRONMENT=Single $(for kv in $EXTRA_ENV; do printf ' -e %s' "$kv"; done) \
+  --memory 256m --pids-limit 512 \
     --read-only --tmpfs /tmp --restart unless-stopped \
     "ghcr.io/ekstrem/xdiary-$svc:single" >/dev/null \
     && echo "  создан" || echo "  ! запуск не удался"
