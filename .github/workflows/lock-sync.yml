@@ -54,7 +54,9 @@ jobs:
           git config user.name "loopmaker-bot"
           git config user.email "loopmaker-bot@users.noreply.github.com"
           git add 7-deploy/images.lock
-          git commit -m "bot: images.lock синхронизирован с git (lock-sync)"
+          # `[skip ci]` — второй предохранитель: бот не должен каскадом будить другие
+          # workflow, даже если фильтры путей когда-нибудь изменятся (@TL 09:41).
+          git commit -m "bot: images.lock синхронизирован с git (lock-sync) [skip ci]"
           # чужой пуш мог опередить — интегрируем и повторяем, до трёх раз
           for i in 1 2 3; do
             if git push; then exit 0; fi
@@ -62,7 +64,7 @@ jobs:
             git merge --no-edit origin/main || { echo "::error::конфликт в lock-sync"; exit 1; }
             python tools/gen_images_lock.py --write
             git add 7-deploy/images.lock
-            git commit -m "bot: images.lock синхронизирован с git (lock-sync, повтор $i)" || true
+            git commit -m "bot: images.lock синхронизирован с git (lock-sync, повтор $i) [skip ci]" || true
           done
           echo "::error::lock-sync не смог закоммитить за 3 попытки"
           exit 1
