@@ -414,18 +414,8 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] {name}: rc={rc}, ждали {want}; issues={issues}, unmeasured={unmeasured}")
-    # кейс на ТЕКСТ (@DO 16:54): `time` принимается только там, где есть `UpdatedAt`
-    total_extra = 1
-    _w1 = time_provenance_warning("time", 13)
-    _w2 = time_provenance_warning("time", None)
-    _w3 = time_provenance_warning("rebuild", 13)
-    if (_w1 and "НЕТ `UpdatedAt`" in _w1 and "пересборк" in _w1) and _w2 is None and _w3 is None:
-        ok += 1
-    else:
-        print("  [FAIL] текст: предупреждение о `time` для partners_read не сформировано")
 
-    # кейсы на ВЫЧИСЛЕНИЕ провенанса по данным (@DO 16:58)
-    total_extra = 5
+    # кейсы на ВЫЧИСЛЕНИЕ провенанса по данным (@DO 16:58) + текст предупреждения
     _c = [
         (compute_provenance("2026-11-06T10:00:00", "2026-11-05")[0], "time"),
         (compute_provenance("2026-11-03T17:03:18", "2026-11-05")[0], "repair"),
@@ -442,8 +432,8 @@ def selftest() -> int:
     else:
         print("  [FAIL] текст: предупреждение о `time` для partners_read не сформировано")
 
-    print(f"accept_read_path --selftest: {ok}/{len(cases) + total_extra} (каждый критерий проверен на дефекте)")
-    return 0 if ok == len(cases) + total_extra else 1
+    print(f"accept_read_path --selftest: {ok}/{len(cases) + 5} (каждый критерий проверен на дефекте)")
+    return 0 if ok == len(cases) + 5 else 1
 
 
 def main() -> int:
