@@ -46,7 +46,9 @@ jobs:
         if: always()
         run: |
           if git rev-parse -q --verify HEAD~1 >/dev/null; then
-            python tools/check_status_chat.py --commit HEAD
+            # @TE 11:13: контроль должен доказывать, что умеет краснеть, ДО проверки кода.
+          python tools/check_status_chat.py --selftest
+          python tools/check_status_chat.py --commit HEAD
           else
             echo "одиночный коммит — сравнивать не с чем"
           fi
@@ -67,6 +69,7 @@ jobs:
         # откат — revert lock-коммита, а не `podman tag` на сервере.
         if: always()
         run: |
+          python tools/check_lock.py --selftest
           python tools/check_lock.py
           python tools/gen_images_lock.py --check
 
@@ -232,7 +235,8 @@ jobs:
           elif [ -n "${BEFORE:-}" ] \
                && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
                && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            range="${BEFORE}..${head}"             # push: всё пушимое
+            python tools/check_secrets.py --selftest
+          range="${BEFORE}..${head}"             # push: всё пушимое
           else
             range="${head}~1..${head}"             # первый прогон/ручной запуск
           fi
