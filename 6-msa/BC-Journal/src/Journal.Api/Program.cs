@@ -36,7 +36,7 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Jo
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
 builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
-builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Journal.Storage")));
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
@@ -57,6 +57,7 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
     scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
     readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS journal_read (\"Id\" uuid PRIMARY KEY, \"ClientId\" uuid NULL, \"Partners\" text NOT NULL, \"PartnersNames\" text NOT NULL, \"StartedAt\" text NOT NULL, \"DurationMin\" integer NOT NULL, \"Place\" text NOT NULL, \"Positions\" text NOT NULL, \"Tags\" text NOT NULL, \"Costumes\" text NOT NULL, \"Toys\" text NOT NULL, \"Fantasies\" text NOT NULL, \"Contraceptives\" text NOT NULL, \"ContraceptiveCount\" integer NOT NULL, \"Orgasms\" text NOT NULL, \"Garmin\" boolean NOT NULL, \"GarminId\" text NOT NULL, \"CreatedAt\" text NOT NULL, \"UpdatedAt\" text NOT NULL, \"Deleted\" boolean NOT NULL);");
