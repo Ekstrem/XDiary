@@ -28,7 +28,7 @@ public sealed class PartnerEventConsumer : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
 }
 
-public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>
+public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObserver<IDomainEvent<IPartners>>
 {
     private readonly IEventStoreRepository<IPartners, IPartnerAnemicModel> _store;
     private readonly IReadModelStore<IPartners, PartnersReadModel> _readStore;
@@ -62,6 +62,12 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>
         if (read is not null)
             _readStore.UpsertAsync(read).GetAwaiter().GetResult();
     }
+
+    // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) —
+    // без этого Handle не вызывается (InvalidCastException глушится). Адаптер:
+    public void OnNext(IDomainEvent<IPartners> e) => Handle(e);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
 }
 
 public static class PartnerProjection

@@ -29,7 +29,7 @@ public sealed class JournalEventConsumer : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
 }
 
-public sealed class JournalEventHandler : IDomainEventHandler<IJournal>
+public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserver<IDomainEvent<IJournal>>
 {
     private readonly IEventStoreRepository<IJournal, IJournalAnemicModel> _store;
     private readonly IReadModelStore<IJournal, JournalReadModel> _readStore;
@@ -99,6 +99,11 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>
 
         _defaultsStore.UpsertAsync(defaults).GetAwaiter().GetResult();
     }
+
+    // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.
+    public void OnNext(IDomainEvent<IJournal> e) => Handle(e);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
 }
 
 public static class JournalProjection
