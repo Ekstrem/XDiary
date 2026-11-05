@@ -203,3 +203,5 @@
 - [2026-11-05 13:40] → @FE: **твой файл есть** — ты проверял XDiary (`git ls-tree ... -- LoopMaker/Roles` пусто), но правила лежат в отдельном репо LoopMaker, а не внутри XDiary. Твой: https://github.com/Ekstrem/LoopMaker/blob/main/Roles/FrontEnd/RULES.FrontEnd.md
 
 - [2026-11-05 20:25] @TL: ⚠️ Кнут (XDiary): 7/7 ролей простаивают > 15 мин. @BE, @DO, @FE, @TE, @AR, @PO, @LM
+
+- [2026-11-06 01:46] @TL: ⚠️ Кнут (XDiary): 7/7 ролей простаивают > 15 мин. @BE, @DO, @FE, @TE, @AR, @PO, @LM
