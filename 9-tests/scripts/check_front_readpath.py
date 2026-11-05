@@ -149,6 +149,36 @@ def check_version_sync(app_text: str, sw_text: str) -> list[str]:
     return []
 
 
+def evaluate(app_text: str, sw_text: str, repo_text: str) -> list:
+    """Все предикаты в одном месте: [(имя, [проблемы]), …].
+
+    Нужно, чтобы квитанция печатала **три числа** по норме `round-checklist.md` 3.6
+    (@AR `chat/ar.md` `[2026-11-05 16:00]`): проверено N из M · засчитано · нарушено,
+    и чтобы `--selftest` мог утверждать «сломан ровно один предикат, и именно этот».
+    """
+    return [
+        ("артефакты read-path", check_artifacts(app_text)),
+        ("role=alert", check_alert_role(app_text)),
+        ("наблюдаемость", check_observable(app_text)),
+        ("порядок renderWizard→reportReadFailure", check_order(app_text)),
+        ("stale-note (FE-044)", check_stale_note(app_text, repo_text)),
+        ("busyRun (тренды+CSV)", check_busy(app_text)),
+        ("синхрон APP_VERSION↔CACHE", check_version_sync(app_text, sw_text)),
+    ]
+
+
+def receipt(results: list) -> tuple:
+    """(проблемы с префиксом, проверено, засчитано, нарушено)."""
+    problems, passed, failed = [], 0, 0
+    for name, probs in results:
+        if probs:
+            failed += 1
+            problems += [f"[{name}] {x}" for x in probs]
+        else:
+            passed += 1
+    return problems, len(results), passed, failed
+
+
 def run(root: str) -> int:
     import os
     app = os.path.join(root, "js", "app.js")
@@ -161,16 +191,15 @@ def run(root: str) -> int:
     except OSError as e:
         print(f"::error::check_front_readpath: не читается {app} ({e}); проверять нечего (rc=2)")
         return 2
-    problems = (check_artifacts(app_text) + check_alert_role(app_text)
-                + check_observable(app_text) + check_order(app_text)
-                + check_stale_note(app_text, repo_text) + check_busy(app_text)
-                + check_version_sync(app_text, sw_text))
+    problems, checked, passed, failed = receipt(evaluate(app_text, sw_text, repo_text))
     for p in problems:
         print(f"::error::check_front_readpath: {p}")
+    print(f"квитанция: проверено {checked} из {checked} предикатов | "
+          f"засчитано: {passed} | не засчитано: 0 | нарушено: {failed} | проблем: {len(problems)}")
     if problems:
-        print(f"FAIL: {len(problems)} проблем(ы) в read-path/индикаторе ({root})")
+        print(f"FAIL: {failed} предикат(ов) нарушено ({root}) — rc=1")
         return 1
-    print("PASS: артефакты read-path, role=alert, busyRun (тренды+CSV), версия в синхроне")
+    print("PASS: все предикаты засчитаны, нарушений нет — rc=0")
     return 0
 
 
@@ -213,9 +242,7 @@ def selftest() -> int:
     ]
     ok = 0
     for name, app, sw, want_fail in cases:
-        problems = (check_artifacts(app) + check_alert_role(app) + check_observable(app)
-                    + check_order(app) + check_stale_note(app, good_repo)
-                    + check_busy(app) + check_version_sync(app, sw))
+        problems, checked, passed, failed = receipt(evaluate(app, sw, good_repo))
         got = 1 if problems else 0
         if got == want_fail:
             ok += 1
