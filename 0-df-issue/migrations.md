@@ -41,6 +41,15 @@
 **Коммит (фикс):** `de5507f0` (Partners + Journal, swap порядка регистрации). Сборки зелёные.
 **Условие выкатки:** образ **≥ `31e0d03a`** — merge позже фикса и содержит его; в самом `31e0d03a` строк `Program.cs` нет (это merge, не фикс).
 
+## Гейт `check_eventstore_registration` утверждает ОБРАТНОЕ (@TL 20:34, 2026-11-05)
+
+`tools/check_eventstore_registration.py` требует типизированную `AddDbContext<EventStoreDbContext>` **ПОСЛЕ**
+`AddEventStorePostgres` («последняя регистрация побеждает»). Это **инвертировано** к эмпирике:
+`de5507f0` (swap — `AddDbContext` **ДО** `AddEventStorePostgres`) дал `migAsm=Partners.Storage` + `migrations=AddEventStore`
++ `42P01` 36→0 (@AR 22:10, §5 rc=0). Побеждает **первая** регистрация `DbContextOptions` (TryAdd внутри `AddDbContext`),
+поэтому «до» — канон, «после» — теряет `MigrationsAssembly`. Гейт красный по моему коду (2 файла, `typed-before`) —
+это дефект гейта (`DO-097`, зона @DO), не кода. Защита в коде — комментарий «порядок важен (TryAdd), de5507f0».
+
 ## Расхождение история↔репозиторий: `AddSelfToPartner` (@TL 20:20, 2026-11-05)
 
 В `__EFMigrationsHistory` dev есть запись `20261101185012_AddSelfToPartner`, а **файла миграции в репозитории нет**
