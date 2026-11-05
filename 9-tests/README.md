@@ -228,7 +228,7 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 ни слова). Теперь `npm test` без фильтров, исключение — явный `test.skip(…, причина)` с флагом
 `XDIARY_CHANGE_PIN=1`, и гейт падает, если в `npm test` появится `--grep`/`--grep-invert`/`--project`
 или если флаг пропуска не описан в `front-e2e.md`. Сейчас: **скриптов 4 | спек 22 | флагов пропуска 2 |
-фильтров в test 0 | не описано 0**, `rc=0`; `--selftest` **4/4**.
+фильтров в test 0 | не описано 0**, `rc=0`; `--selftest` **7/7**.
 
 **`e2e-dryrun.js` — сухой прогон тел спек без браузера.** Подменяет `@playwright/test` и `./api`
 заглушками (записывающий fake-`page`, «любое значение» для ответов API, настоящий временный CSV для
@@ -243,7 +243,8 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 `durationMin`, а двойник его не возвращает (так и было с `durationMin`, `place`, `notes`, `gender`).
 Сейчас: **спек 22 | утверждаемых полей API 5 | не отдаёт двойник 0**, `rc=0`; `--selftest` **4/4**.
 
-**`check_e2e_traceability.py` — у каждой спеки есть ссылка на карточку** (правило `9-tests/AGENTS.md`:
+**`check_e2e_traceability.py` — у каждой спеки есть ссылка на ДЕЙСТВУЮЩУЮ карточку** (правило
+`9-tests/AGENTS.md`:
 «тест без критерия приёмки — не тест»). Проверяет первые 12 строк: `TE-NNN` **или** метка `LEGACY`
 с причиной. Сейчас: **спек 22 | с TE-ссылкой 21 | LEGACY 1 | без ссылки 0**, `rc=0`; `--selftest` **4/4**.
 
@@ -256,6 +257,10 @@ python 9-tests/scripts/check_swagger_perimeter.py \
 `rc=0`; `--selftest` **6/6**. Исключения: `onboarding` и `pin-first-login` создают **клиента**
 сценарием входа — `DELETE /clients/{id}` в API нет, уборка невозможна by design; `garmin-somatic`
 пишет точки соматических серий (привязаны ко времени, удаления нет); `no-pin` — legacy под `describe.skip`.
+
+Проверяется не только наличие `TE-NNN`: карточка должна **существовать** в `5-tech-backlog/tester/`
+и не быть `Отклонена` — ссылка на отклонённую задачу это тот же «второй источник правды», только
+в трассировке (поймано на своей же ссылке `TE-013`, которая была отклонена).
 
 **`check_e2e_fixture_contract.py` — контракт тестовой обвязки.** Проверяет, что каждое имя из
 `const { … } = require('./api')` есть в `module.exports` файла `tests/api.js`, что спека, вызывающая
