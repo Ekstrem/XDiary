@@ -125,7 +125,17 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: API-E2E (9-tests/E2E, все 9)
-        run: dotnet test 9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj --verbosity minimal
+        run: |
+          # 2026-11-05 (@DO): шаг звал несуществующий путь — падал «MSB1009: Project file
+          # does not exist», и это читалось как дефект продукта. Проверяем существование
+          # и падаем с ЯВНЫМ текстом: «проекта нет в репозитории», а не «тесты не прошли».
+          PROJ=9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj
+          if [ ! -f "$PROJ" ]; then
+            echo "::error::API-E2E не измерен: $PROJ отсутствует в репозитории "
+            echo "(каталога 9-tests/E2E нет; тесты сервисов живут в 6-msa/*/src/*.ApiTests)"
+            exit 2
+          fi
+          dotnet test "$PROJ" --verbosity minimal
       # Контракт журнала (@TE, TE-038). Блокирующий гейт (DO-061, @TL 10:10):
       # временное окно `continue-on-error` закончилось — BE-053 в dev (журнал с
       # `EnsureOwns`, ревизия d2326de0), поэтому красный контракт теперь означает
