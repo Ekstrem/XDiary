@@ -69,3 +69,37 @@ node node_modules/@playwright/test/cli.js test tests/trends.spec.js tests/csv.sp
 Строка `→ @TL` с: (1) точкой замера (`base`), (2) коммитом/версией образа, (3) числом
 `passed/failed/skipped`, (4) ссылкой на прогон. «Не получилось» без причины не принимается —
 причина обязана быть названа так же, как в таблице выше (код ошибки + что именно запрещено).
+
+## Приёмка после выкатки `partners` (`BE-069`) — что именно прислать
+
+Одна выкатка разблокирует `BE-069`, `TE-050`, `FE-041`, `DO-079`. Чтобы вердикты были мгновенными,
+нужны **пять строк**, каждая — с числом или кодом (не «работает»):
+
+```bash
+# 1. сервис жив и отвечает бизнес-кодом, а не 500 (изнутри контура)
+podman exec xdiary-client curl -sS -o /dev/null -w '%{http_code}\n'   -H "Authorization: Bearer <JWT>" http://xdiary-partners:8080/api/v1/partners
+# ожидание: 200 (было 500). Без токена — 401, это не показатель.
+
+# 2. контракт мягкого удаления
+gh workflow run test-partner-softdelete.yml --ref main
+# ожидание в логе: Total tests: 4 / Passed: 4 / Failed: 0
+
+# 3. E2E, офлайн-сценарий визарда (поведенческая приёмка TE-054)
+podman run --rm --network xdiary -v "$PWD:/w" -w /w/9-tests/RnD/front-e2e \
+  -e XDIARY_E2E_BASE_URL=https://xdiary-vps2.taile0b6ee.ts.net -e XDIARY_E2E_PIN=1234 \
+  -e XDIARY_READPATH_OFFLINE=1 mcr.microsoft.com/playwright:v1.64.1-noble \
+  node node_modules/@playwright/test/cli.js test tests/wizard-offline.spec.js
+# ожидание: 1 passed; в логе спека печатает «версия измеряемого фронта = 0.9x»
+# (если версия < 0.93 — красный объясним известным дефектом 0.92, см. отчёт)
+
+# 4. lock соответствует git после выкатки
+python tools/gen_images_lock.py --check     # ожидание rc=0
+
+# 5. условие «чистая БД» (@AR): сервис стартовал без ручных CREATE TABLE
+podman exec xdiary-journal psql -U <user> -d journal -c '\dt'   # ожидание: 3 read-таблицы
+```
+
+**Почему именно так:** `TE-050` принимается по `4 passed` **плюс** `/partners` → 200 изнутри
+(иначе тесты снова упадут `500`); `TE-054` — только по поведению (`wizard-offline`), а не по
+source-level гейту; `lock rc=0` нужен, чтобы «зелёный E2E» относился к выкаченной версии, а не к
+предыдущей; `\dt` — чтобы `4 passed` не оказался «работает там, где таблицы создали руками».
