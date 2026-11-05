@@ -116,6 +116,31 @@ def check(md: str, operations: dict) -> list:
     return problems
 
 
+def front_reads(root: str, operations: dict) -> list:
+    """Какие GET-операции индекса читает фронт (поиск пути в `8-front/js/*.js`).
+
+    Мера полноты реестра, которую требует @AR (`read-paths.md` §2.1, 2026-11-05):
+    гейт обязан печатать «зарегистрировано N из M чтений фронта» и падать **только**
+    на расхождении зарегистрированного. Неполнота §2 — видимый пробел, не красный гейт.
+    """
+    js_dir = os.path.join(root, "8-front", "js")
+    text = ""
+    try:
+        for name in sorted(os.listdir(js_dir)):
+            if name.endswith(".js"):
+                text += read_text(os.path.join(js_dir, name))
+    except OSError:
+        return []                       # фронта рядом нет — полноту не измеряем
+    found = []
+    for op_id, (method, path) in operations.items():
+        if str(method).upper() != "GET":
+            continue
+        concrete = re.sub(r"\{[^}]+\}", "", str(path)).rstrip("/")
+        if concrete and concrete in text:
+            found.append(op_id)
+    return sorted(set(found))
+
+
 def run(root: str) -> int:
     md_path = os.path.join(root, "04-architecture", "read-paths.md")
     idx_path = os.path.join(root, "04-architecture", "api-index.yaml")
@@ -134,16 +159,27 @@ def run(root: str) -> int:
 
     try:
         problems = check(md, operations)
+        section = registry_section(md)
     except ValueError as e:
         print(f"::error::check_read_paths: структура read-paths.md не та ({e}) — rc=2")
         return 2
+
+    # полнота реестра: N из M (§2.1) — печатаем всегда, на вердикт не влияет
+    readings = front_reads(root, operations)
+    registered = {op_id for call, op_id in SOURCES if call in section} & set(readings)
+    outside = [op_id for op_id in readings if op_id not in registered]
+    coverage = f"проверено {len(registered)} из {len(readings)} чтений фронта"
+
     for p in problems:
         print(f"::error::check_read_paths: {p}")
     if problems:
-        print(f"FAIL: {len(problems)} расхождений §2 ↔ api-index (операций в индексе: {len(operations)})")
+        print(f"FAIL: {len(problems)} расхождений §2 ↔ api-index ({coverage}; операций в индексе: {len(operations)})")
         return 1
-    print(f"PASS: §2 и api-index согласованы ({len(SOURCES)} источников реестра, "
-          f"{len(MV_READ_BY_FRONT)} MV читаются фронтом; операций в индексе: {len(operations)})")
+    print(f"PASS: §2 и api-index согласованы ({coverage}; источников реестра: {len(SOURCES)}, "
+          f"MV читаются фронтом: {len(MV_READ_BY_FRONT)}; операций в индексе: {len(operations)})")
+    if outside:
+        print(f"INFO: вне реестра §2 {len(outside)} чтений — известный пробел §2.1, не ошибка "
+              f"(не считаем красным, иначе гейт будут отключать): {', '.join(outside)}")
     return 0
 
 
