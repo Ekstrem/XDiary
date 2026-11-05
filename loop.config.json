@@ -243,9 +243,8 @@
     "readme": "9-tests/README.md",
     "_comment": "карта «проект → сервисы»; гейт check_test_map.py"
   },
-  "knout": {
+  "whip": {
     "project": "XDiary",
-    "idle_hours": 6,
     "idle_ratio": 0.8,
     "interval_min": 15,
     "chat_dir": "5-tech-backlog/chat",
@@ -259,6 +258,7 @@
       "lm"
     ],
     "from_chat": "5-tech-backlog/chat/lm.md",
-    "to": "@TL"
+    "to": "@TL",
+    "idle_minutes": 15
   }
 }
