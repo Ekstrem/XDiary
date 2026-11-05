@@ -50,7 +50,9 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    var es = scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>();
+    Console.WriteLine($"[migrate] asm={typeof(DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext).Assembly.GetName().Name}, migrations={string.Join(",", es.Database.GetMigrations())}");
+    es.Database.Migrate();
     scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
         readDb.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS partners_read (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL, \"Photo\" text NOT NULL, \"Gender\" text NOT NULL, \"Notes\" text NOT NULL, \"ClientId\" uuid NULL, \"DeletedAt\" timestamptz NULL);");
