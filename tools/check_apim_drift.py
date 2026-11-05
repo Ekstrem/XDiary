@@ -102,6 +102,35 @@ def apim_operations(api_base, token, exec_container=None, timeout=20):
     return ids, ""
 
 
+def receipt_header(container=None):
+    """Шапка квитанции (условие @AR 2026-11-05 18:50): REF, образ, время.
+
+    Без них «дрейф есть» не работает: непонятно, к какому состоянию он относится.
+    Внутри CI REF берётся из `GITHUB_SHA`, локально — из `git rev-parse HEAD`.
+    """
+    ref = (os.environ.get("GITHUB_SHA") or "").strip()
+    if not ref:
+        try:
+            ref = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace").stdout.strip()
+        except Exception:  # noqa: BLE001
+            ref = "неизвестен"
+    image = "—"
+    if container:
+        try:
+            out = subprocess.run(
+                ["podman", "inspect", container, "--format",
+                 "{{.ImageName}}"], capture_output=True, text=True,
+                encoding="utf-8", errors="replace")
+            if out.returncode == 0 and out.stdout.strip():
+                image = out.stdout.strip()
+        except Exception:  # noqa: BLE001
+            pass
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print("  REF=%s | образ=%s | время=%s" % (ref[:12] or "неизвестен", image, now))
+
+
 def selftest():
     ok = 0
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-apim")
@@ -210,6 +239,7 @@ def main():
     basic = os.environ.get("GRAVITEE_BASIC", "").strip()      # "user:password"
     want = index_operations(root)
     specs = spec_operations(root)
+    receipt_header(None if getattr(a, "specs_only", False) else a.container)
     print("check_apim_drift: индекс %d operationId, спеки %d (openapi/*.json)"
           % (len(want), len(specs)))
     if a.specs_only:
@@ -269,9 +299,9 @@ def main():
         print("check_apim_drift: индекс %d операций, спек 0 — drift считается по спекам "
               "(реестр ещё не выкачен), APIM %d" % (len(want), len(got)))
     for op in missing[:20]:
-        print("::error::(apim) %s — есть в индексе/спеках, нет в APIM" % op)
+        print("::error::(apim) %s — есть в реестре (индекс/спеки), НЕТ в APIM" % op)
     for op in extra[:20]:
-        print("::error::(apim) %s — есть в APIM, нет в индексе/спеках" % op)
+        print("::error::(apim) %s — есть в APIM, НЕТ в реестре (индекс/спеки)" % op)
     print("check_apim_drift: APIM %d операций, расхождений %d" % (len(got), len(missing) + len(extra)))
     return 1 if (missing or extra) else 0
 

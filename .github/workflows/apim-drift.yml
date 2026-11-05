@@ -1,0 +1,72 @@
+name: APIM drift with token (@AR 2026-11-05 18:50)
+
+# Зачем: сверка «реестр ↔ APIM» возможна ТОЛЬКО с `GRAVITEE_TOKEN` (Management API требует Bearer).
+# До этого workflow секрет не был подключён НИГДЕ: `git grep GRAVITEE_TOKEN -- .github tools`
+# → совпадений нет, то есть ветка сравнения с APIM никогда не исполнялась в CI.
+# Следствие: «серая зона» была вечной не из-за отсутствия инструмента, а из-за отсутствия секрета.
+#
+# Квитанция (условие @AR 18:50): REF / образ / время + расхождения списком
+# «что в реестре, что в APIM» — печатает сам инструмент (`receipt_header`).
+#
+# Требуется один секрет репозитория: GRAVITEE_TOKEN (Management API, Bearer).
+# Без него шаг честно даёт rc=2 (НЕ ИЗМЕРЕНО), а не зелёное.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: apim-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Самопроверка гейта
+        run: python3 tools/check_apim_drift.py --selftest
+
+      - name: Режим без токена (спеки против индекса)
+        run: python3 tools/check_apim_drift.py --specs-only
+
+      - name: Есть ли секрет GRAVITEE_TOKEN
+        id: token
+        env:
+          T: ${{ secrets.GRAVITEE_TOKEN }}
+        run: |
+          if [ -z "${T}" ]; then
+            echo "have=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::GRAVITEE_TOKEN не задан в секретах репозитория — сверка с APIM НЕ будет выполнена (rc=2), это не «совпадает»"
+          else
+            echo "have=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Копировать инструмент и реестр на прод
+        if: steps.token.outputs.have == 'yes'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "tools/check_apim_drift.py,04-architecture/api-index.yaml"
+          target: "/home/deploy/apim-drift"
+
+      - name: Сверка с APIM (токен не печатается)
+        if: steps.token.outputs.have == 'yes'
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GRAVITEE_TOKEN: ${{ secrets.GRAVITEE_TOKEN }}
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          envs: GRAVITEE_TOKEN
+          script_stop: true
+          script: |
+            set -u
+            cd /home/deploy/apim-drift
+            python3 tools/check_apim_drift.py \
+              --root . \
+              --api http://127.0.0.1:18083 \
+              --container xdiary-apim-management
