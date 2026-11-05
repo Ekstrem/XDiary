@@ -28,6 +28,22 @@ except Exception:                             # noqa: BLE001
     pass
 
 
+CRITERIA = (
+    "HTTP /api/v1/partners",
+    "HTTP /internal/journal/records",
+    "число partners_read = источник",
+    "число journal_read = источник",
+    "содержимое: partners_read.Name",
+    "содержимое: journal_read.PartnersNames",
+    "содержимое: ContraceptiveCount",
+    "проекция «создал → увидел»",
+    "контракт passed/failed",
+    "идемпотентность по событиям",
+    "идемпотентность по строкам",
+    "путь записи и объявление ремонта",
+)
+
+
 def verdict(partners_read=None, partners_src=None, journal_read=None, journal_src=None,
             partners_http=None, journal_http=None,
             contract_passed=None, contract_failed=None,
@@ -184,6 +200,11 @@ def receipt(args, issues, unmeasured):
         print(f"  ::warning::accept_read_path: {u}")
     for i in issues:
         print(f"  ::error::accept_read_path: {i}")
+    # Норма @AR `round-checklist.md` 3.6: три числа раздельно + причина на каждого не засчитанного.
+    total = len(CRITERIA)
+    passed = max(0, total - len(unmeasured) - len(issues))
+    print(f"  квитанция: критериев {total} | засчитано: {passed} | "
+          f"не засчитано: {len(unmeasured)} | нарушено: {len(issues)}")
     if issues:
         print(f"НАРУШЕНИЕ: {len(issues)} (не измерено: {len(unmeasured)})")
         return 1
@@ -248,6 +269,17 @@ def selftest() -> int:
             "repair_date": "2026-11-05", "repair_file_found": True}, 0),
         ("неизвестный путь записи", {**base, "write_path": "direct"}, 1),
     ]
+    # §3.6: три числа обязаны складываться в число критериев
+    issues0, unmeasured0 = verdict(**base)
+    _total = len(CRITERIA)
+    _passed = max(0, _total - len(unmeasured0) - len(issues0))
+    if len(issues0) == 0 and len(unmeasured0) == 0 and _passed == _total:
+        print(f"  [OK] квитанция сходится: критериев {_total} = "
+              f"засчитано {_passed} + не засчитано 0 + нарушено 0")
+    else:
+        print(f"  [FAIL] квитанция не сходится: критериев {_total}, "
+              f"засчитано {_passed}, не засчитано {len(unmeasured0)}, нарушено {len(issues0)}")
+        return 1
     ok = 0
     for name, kw, want in cases:
         issues, unmeasured = verdict(**kw)
