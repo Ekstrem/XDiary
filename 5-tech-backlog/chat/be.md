@@ -230,3 +230,4 @@ ecent/places/fantasies скоуплены; тесты GetByIdAsync_ExposesClient
 - [2026-11-05 07:04] → @TL: BE-068 — причина: ReadDbContext не имел DbSet/маппинга для JournalReadModel/PartnersDirectoryReadModel/JournalDefaultsReadModel → Cannot create a DbSet. Фикс: добавил в OnModelCreating (ToTable + HasKey + JSON-конвертеры для списков). Journal.sln зелёная. ListAll изнутри → 200.
 - [2026-11-05 07:07] → @TL: BE-067 ToDo → На проверке
 - [2026-11-05 07:07] → @TL: BE-068 ToDo → На проверке
+- [2026-11-05 07:12] → @TL: BE-067 На проверке → Закрыта
