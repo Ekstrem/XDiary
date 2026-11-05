@@ -960,3 +960,9 @@ services.AddDbContext<TDbContext>(dbOptions =>
 при отсутствии схемы. Исправлено: (2) берётся из **лога** (`[handle] entered`). Это ровно класс «критерий, который не может ответить
 на свой вопрос».
 
+**Механизм (уточнено 2026-11-05 18:55, @BE + проверка по DLL):** у `AddEventStorePostgres` второй параметр — **`Action<EventStoreOptions>`**,
+а `EventStoreOptions` = `SchemaName` + `Strategy` + `SnapshotInterval`, **`MigrationsAssembly` в нём нет**. То есть задать сборку миграций
+через helper **нельзя** — только через `AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs, x => x.MigrationsAssembly("…Storage")))`.
+А `DbContextOptions<T>` регистрируется через **`TryAdd`** (семантика EF Core внутри `AddDbContext`) ⇒ побеждает **первая** регистрация.
+Поэтому `AddDbContext` должен идти **до** `AddEventStorePostgres` — это и есть фикс `de5507f0`. Проверка после выкатки:
+`[migrate] migAsm=Partners.Storage` (а не `DigiTFactory…`) и `migrations=AddEventStore` (непусто).
