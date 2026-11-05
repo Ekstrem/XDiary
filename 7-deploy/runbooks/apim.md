@@ -290,3 +290,27 @@ sudo tailscale funnel status                    # ждём `/ proxy http://127.0
 **Дискриминатор без заголовков** (прокси может срезать `Via`/`X-Gravitee-*`):
 неизвестный путь — APIM даёт `404` + тело `No context-path matches the request URI.` (40 Б),
 YARP даёт `401` + `Unauthorized` (12 Б).
+
+## Подъём APIM на контуре с rootful podman (dev/VPS-2) — грабли, проверенные 2026-11-05
+
+Порядок, который реально приводит к запуску (иначе теряется час):
+
+1. **RAM.** APIM нужен ≈1.26 ГБ RSS. На VPS-2 было 1963 МБ при 87 МБ свободных → без swap стек
+   не поднимется. Проверка: `free -m`, `swapon --show`. Временное решение — swap 2 ГБ:
+   `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile &&
+   sudo swapon /swapfile`, затем строка `/swapfile none swap sw 0 0` в `/etc/fstab`.
+2. **CNI.** На **rootful** podman `podman network create apim` пишет в `/etc/cni/net.d/` конфиг с
+   `cniVersion: 1.0.0` и плагином `firewall`, который в установленной версии понимает только
+   `0.4.0`. Симптом: `Error: ... CNI network "apim" not found`, контейнеры создаются и не стартуют.
+   Лечение — свой конфиг `/etc/cni/net.d/10-apim.conflist` с `cniVersion: 0.4.0`, своим бриджем и
+   подсетью (пример: bridge `cni-podman30`, `10.89.30.0/24` — не пересекается с сервисной
+   `10.89.9.0/24`). На **rootless** (прод) тот же файл лежит в `~/.config/cni/net.d/apim.conflist`.
+3. **Запуск.** `sudo HOME=/root bash /opt/xdiary/7-deploy/apim/up.sh` (rootful) — скрипт ждёт, что
+   сеть уже существует.
+4. **Проверка.** `podman ps` (4 контейнера `running`, `restarts=0`), `ss -ltn | grep 18082`,
+   `podman exec xdiary-apim-management curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8083/management/v2/`
+   → `200`.
+5. **Install — отдельный шаг, API его не делает.** `GET /management/v2/organizations` пуст, а
+   `POST /management/v2/organizations` (`admin:admin`) отвечает **500** — первый админ и организация
+   создаются **консолью** (`127.0.0.1:18084`, только через ssh-туннель). Без этого `import.sh`
+   запускать нечем: импорт 12 API и `check_apim_drift` заблокированы.
