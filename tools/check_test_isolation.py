@@ -194,11 +194,42 @@ def selftest():
                   % (sorted(files), got, expect))
     total_grp = len(group_cases)
 
+    # (13) @TL 2026-11-05 14:48 / DO-092: Compile Include обязан точно совпадать с .cs в папке
+    set_cases = [
+        ({"P/P.csproj": '<Project><PropertyGroup><EnableDefaultCompileItems>false'
+                        '</EnableDefaultCompileItems></PropertyGroup><ItemGroup>'
+                        '<Compile Include="A.cs" /></ItemGroup></Project>',
+          "P/A.cs": "// code"}, 0),
+        ({"P/P.csproj": '<Project><PropertyGroup><EnableDefaultCompileItems>false'
+                        '</EnableDefaultCompileItems></PropertyGroup><ItemGroup>'
+                        '<Compile Include="A.cs" /></ItemGroup></Project>',
+          "P/A.cs": "// code", "P/B.cs": "// code"}, 1),
+        ({"P/P.csproj": '<Project><PropertyGroup><EnableDefaultCompileItems>false'
+                        '</EnableDefaultCompileItems></PropertyGroup><ItemGroup>'
+                        '<Compile Include="Missing.cs" /></ItemGroup></Project>'}, 1),
+        ({"P/P.csproj": '<Project><ItemGroup><Compile Include="A.cs" /></ItemGroup></Project>',
+          "P/A.cs": "// code", "P/B.cs": "// code"}, 0),
+    ]
+    for files, expect in set_cases:
+        set_dir = os.path.join(base, "set")
+        shutil.rmtree(set_dir, ignore_errors=True)
+        for rel, content in files.items():
+            full = os.path.join(set_dir, rel.replace("/", os.sep))
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            open(full, "w", encoding="utf-8").write(content)
+        got = len(scan_compile_set(set_dir))
+        if got == expect:
+            ok += 1
+        else:
+            print("  [FAIL] compile-set %s -> нарушений %d, ждали %d"
+                  % (sorted(files), got, expect))
+    total_set = len(set_cases)
+
     # @TL 2026-11-05 13:30: «нечего проверять» ≠ «проверил, чисто».
     # Кейс «нет csproj» обязан давать rc=2, иначе неверный --root снова станет зелёным.
     empty = os.path.join(base, "empty")
     os.makedirs(empty, exist_ok=True)
-    total = len(cases) + 1 + total_grp
+    total = len(cases) + 1 + total_grp + total_set
     if not csproj_files(empty):
         ok += 1
     else:
@@ -316,6 +347,55 @@ def scan_group_layout(root):
     return out
 
 
+COMPILE_INC = re.compile(r'<Compile\s+Include="([^"]+)"', re.I)
+FLAG_OFF = re.compile(r'<EnableDefaultCompileItems>\s*false\s*</EnableDefaultCompileItems>', re.I)
+
+
+def scan_compile_set(root):
+    """(13) @TL 2026-11-05 14:48 / DO-092: при выключенном автоглобе Compile Include точны.
+
+    Если в csproj стоит `EnableDefaultCompileItems=false`, список `<Compile Include="...">`
+    обязан **точно** совпадать с множеством `.cs` в папке проекта (без `bin`/`obj`).
+    Расхождение в любую сторону — ошибка: недостающий файл молча не попадёт в сборку,
+    лишний — сборка упадёт непонятно где.
+    """
+    out = []
+    skip = {'bin', 'obj'}
+    projects = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP]
+        for fn in filenames:
+            if fn.endswith('.csproj'):
+                projects.append(os.path.join(dirpath, fn))
+    for proj in sorted(projects):
+        try:
+            text = open(proj, encoding='utf-8', errors='replace').read()
+        except OSError:
+            continue
+        if not (FLAG_OFF.search(text) and 'Compile Include' in text):
+            continue
+        rel_proj = os.path.relpath(proj, root).replace(os.sep, '/')
+        base_dir = os.path.dirname(proj)
+        declared = set()
+        for m in COMPILE_INC.finditer(text):
+            raw = m.group(1).replace('\\', '/').lstrip('./')
+            declared.add(os.path.normpath(os.path.join(base_dir, raw)))
+        actual = set()
+        for dirpath, dirnames, filenames in os.walk(base_dir):
+            dirnames[:] = [d for d in dirnames if d not in skip]
+            for fn in filenames:
+                if fn.endswith('.cs'):
+                    actual.add(os.path.normpath(os.path.join(dirpath, fn)))
+        for missing in sorted(actual - declared):
+            out.append(("13", rel_proj, "есть .cs, но нет в Compile Include: %s"
+                        % os.path.relpath(missing, base_dir).replace(os.sep, '/')))
+        for extra in sorted(declared - actual):
+            if not os.path.exists(extra):
+                out.append(("13", rel_proj, "Compile Include на несуществующий файл: %s"
+                            % os.path.relpath(extra, base_dir).replace(os.sep, '/')))
+    return out
+
+
 def scan_broken_refs(root):
     """(ж) ProjectReference в тестовом проекте указывает на существующий файл.
 
@@ -364,6 +444,8 @@ def main():
         v.append(("11", parent, "вложенный csproj внутри тестового проекта: %s" % nested))
     for kind, rel, why in scan_group_layout(root):
         v.append((kind, rel, why))
+    for kind, rel, why in scan_compile_set(root):
+        v.append((kind, rel, why))
     for kind, rel, why in v:
         print("::error::(%s) %s: %s" % (kind, rel, why))
     # Форма отчёта — требование @TL 2026-11-14 34:11: ДВА числа и дедуп по пути.
@@ -388,7 +470,8 @@ def main():
                   "д": "запрещённая общая папка", "е": "тест вне папки сервиса",
                   "ж": "include в никуда", "з": "Compile Include чужого BC",
                   "11": "вложенный проект внутри тестового",
-                  "12": "раскладка групповой папки тестов"}
+                  "12": "раскладка групповой папки тестов",
+                  "13": "Compile Include не совпадает с .cs в папке"}
         parts = []
         for kind, count in sorted(kinds.items()):
             in_proj = len({rel for k, rel, _ in v if k == kind})
