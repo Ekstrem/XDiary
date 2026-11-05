@@ -108,3 +108,35 @@ git ls-tree -r --name-only origin/main -- 6-msa/ApiGateway.Tests | grep -c '\.cs
 который проигнорируют… лечить надо **проверку**, а не ослаблять её». Записано, потому что я
 предлагал `--warn-only` — и это было бы ослаблением. Правильный порядок: сначала правило и
 счёт проектов, потом (если понадобится) мягкий режим — но не вместо.
+
+## 8. Вторая находка того же разбора: `EnableDefaultCompileItems=false` (в ДВУХ сборках)
+
+Замер по `origin` (`REF=1f522807`): хак стоит **в обоих** csproj группы, а не в одном:
+
+| csproj | `EnableDefaultCompileItems=false` | `Compile Include` | `.cs` в папке |
+|---|---|---|---|
+`ApiGateway.Tests/ApiGateway.Tests/ApiGateway.Tests.csproj` | **да** | `GatewayRoutesTests.cs` | 1 |
+`ApiGateway.Tests/ApiGateway.ApiTests/ApiGateway.ApiTests.csproj` | **да** | `GatewayBehaviorTests.cs`, `StandFactAttribute.cs` | 2 |
+
+Сейчас списки **полные** (ни один `.cs` не забыт), поэтому «сегодня» покрытие не потеряно. Опасность —
+на будущее, и она **проверена дефектом**: копируем `ApiGateway.Tests.csproj`, кладём рядом новый
+`NewFeatureTests.cs` → `Compile Include` его не содержит, `EnableDefaultCompileItems=false` запрещает
+глоб ⇒ **`NewFeatureTests.cs` не попадёт в сборку**, тест не запустится, CI останется зелёным.
+Класс: «тест есть, но его нет» — тише, чем «теста нет».
+
+**Почему хак больше не нужен:** он появился, когда `csproj` лежал на уровень выше своих `.cs`
+(глоб тянул файлы соседнего проекта). После раскладки «подпапка = имя проекта» каждый `.cs` лежит
+рядом со своим `csproj`, и дефолтный глоб даёт ровно нужный набор.
+
+**Что должно проверяться (правило для `tools/`, зона @DO):** если в тестовом csproj стоит
+`EnableDefaultCompileItems=false`, то множество `<Compile Include>` обязано **точно совпадать** с
+множеством `.cs` в папке проекта. Расхождение (файл есть, но не перечислен) → `rc=1` с именем файла.
+Это ловит и «забыли добавить», и «удалили файл, а строку оставили».
+
+**Команда проверки сейчас:**
+```bash
+git ls-tree -r --name-only origin/main -- 6-msa/ApiGateway.Tests | grep -c '\.csproj$'        # = 2
+python - <<'PY'
+# сверка Compile Include с файлами в папке (без сборки)
+PY
+```
