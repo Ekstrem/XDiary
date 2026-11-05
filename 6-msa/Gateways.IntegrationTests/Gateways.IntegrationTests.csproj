@@ -16,12 +16,12 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\6-msa\BC-GarminGateway\src\GarminGateway.Domain\GarminGateway.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-GarminGateway\src\GarminGateway.Storage\GarminGateway.Storage.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-GarminGateway\src\GarminGateway.InternalContracts\GarminGateway.InternalContracts.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.Domain\AppleHealthGateway.Domain.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.Storage\AppleHealthGateway.Storage.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.InternalContracts\AppleHealthGateway.InternalContracts.csproj" />
-    <ProjectReference Include="..\..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
+    <ProjectReference Include="..\..\6-msa\BC-GarminGateway\src\GarminGateway.Domain\GarminGateway.Domain.csproj" />
+    <ProjectReference Include="..\..\6-msa\BC-GarminGateway\src\GarminGateway.Storage\GarminGateway.Storage.csproj" />
+    <ProjectReference Include="..\..\6-msa\BC-GarminGateway\src\GarminGateway.InternalContracts\GarminGateway.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.Domain\AppleHealthGateway.Domain.csproj" />
+    <ProjectReference Include="..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.Storage\AppleHealthGateway.Storage.csproj" />
+    <ProjectReference Include="..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.InternalContracts\AppleHealthGateway.InternalContracts.csproj" />
+    <ProjectReference Include="..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>
