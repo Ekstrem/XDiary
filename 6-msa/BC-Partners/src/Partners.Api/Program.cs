@@ -41,6 +41,7 @@ builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.C
 builder.Services.AddEventBusInMemory();
 builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
 builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
+builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
 builder.Services.AddScoped<Partners.Api.PartnerDataMigration>();
 builder.Services.AddHostedService<Partners.Api.PartnerDataMigrationRunner>();
 builder.Services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
