@@ -26,7 +26,10 @@ except Exception:  # noqa: BLE001
 # маркеры list-репортёра Playwright: ✓ passed, ✘/✗/× failed, - skipped
 MARK = {"\u2713": "passed", "\u2717": "failed", "\u2718": "failed", "\u00d7": "failed",
         "-": "skipped", "\u203a": "skipped", "\u00bb": "skipped"}
-LINE = re.compile(r"^\s*([\u2713\u2717\u2718\u00d7\-\u203a\u00bb])\s+\d+\s+(tests/[\w./\-\[\]() ]+?\.spec\.js)")
+# строка list-репортёра: маркер, номер, [проект] › путь:строка › название (время)
+# проект может отсутствовать, а у ретраев в названии есть «(retry #N)»
+LINE = re.compile(r"^\s*([\u2713\u2717\u2718\u00d7\-\u203a\u00bb])\s+\d+\s+(?:\[[^\]]+\]\s*\u203a\s*)?"
+                  r"(tests/[\w./\-\[\]() ]+?\.spec\.js)")
 
 
 def parse_list(text):
@@ -43,6 +46,16 @@ def parse_list(text):
         c = per_spec.setdefault(spec, collections.Counter())
         c[state] += 1
         totals[state] += 1
+        if "retry #" in line:
+            c["retries"] += 1
+            totals["retries"] += 1
+    # «флейки»: у спеки были падения, но итог — passed (Playwright тоже печатает «N flaky»)
+    for c in per_spec.values():
+        if c.get("failed") and c.get("passed") and c.get("retries"):
+            c["flaky"] = 1
+            totals["flaky"] += 1
+            c["failed"] = 0
+            totals["failed"] -= 1
     return per_spec, totals
 
 
@@ -76,12 +89,22 @@ def receipt(per_spec, totals, ref):
         return totals.get(k, 0)
 
     failed_specs = [s for s, c in per_spec.items() if c.get("failed")]
-    total = sum(totals.values())
-    parts = [f"итого {total}: passed {n('passed')}, failed {n('failed')}, skipped {n('skipped')}",
-             f"спек {len(per_spec)}"]
+    flaky_specs = [s for s, c in per_spec.items() if c.get("flaky")]
+    total = sum(totals.values()) - n("retries")
+    parts = [f"итого {total}: passed {n('passed')}, failed {n('failed')}, skipped {n('skipped')}"]
+    if n("flaky"):
+        # флейк — это пройденный тест с падениями в ретраях: зелёный, но нестабильный,
+        # и в квитанции он обязан быть виден, иначе «зелено» скрывает нестабильность
+        parts.append(f"flaky {n('flaky')} (пройден ретраем)")
+    parts.append(f"спек {len(per_spec)}")
     if failed_specs:
         parts.append("упавшие: " + ", ".join(sorted(failed_specs)[:8])
                      + (" …" if len(failed_specs) > 8 else ""))
+    if flaky_specs:
+        parts.append("нестабильные: " + ", ".join(sorted(flaky_specs)[:8])
+                     + (" …" if len(flaky_specs) > 8 else ""))
+    if n("retries"):
+        parts.append(f"ретраев {n('retries')}")
     parts.append(f"REF={ref or 'НЕ УКАЗАН'}")
     return "квитанция front-e2e: " + " | ".join(parts), failed_specs, total
 
@@ -166,6 +189,14 @@ def selftest():
         {"file": "tests/d.spec.js", "tests": [{"results": [{"status": "failed"}]}]},
     ]}]})
     case("json: failed", json_bad, 1, ["failed 1", "tests/d.spec.js"])
+
+    flaky_out = (
+        "  \u2713  1 [chromium] \u203a tests/a.spec.js:1:1 \u203a первый (1.2s)\n"
+        "  \u2718  2 [chromium] \u203a tests/b.spec.js:5:1 \u203a второй (2.0s)\n"
+        "  \u2713  2 [chromium] \u203a tests/b.spec.js:5:1 \u203a второй (retry #1) (1.1s)\n"
+    )
+    case("флейк: падение + успешный ретрай", flaky_out, 0,
+         ["flaky 1", "нестабильные: tests/b.spec.js", "ретраев 1", "failed 0"])
 
     case("пустой вывод", "", 2, ["не разобран"])
 
