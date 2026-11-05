@@ -4,6 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <RootNamespace>XDiary.Tests.Gateways</RootNamespace>
     <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
@@ -23,5 +24,9 @@
     <ProjectReference Include="..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.Storage\AppleHealthGateway.Storage.csproj" />
     <ProjectReference Include="..\..\6-msa\BC-AppleHealthGateway\src\AppleHealthGateway.InternalContracts\AppleHealthGateway.InternalContracts.csproj" />
     <ProjectReference Include="..\..\6-msa\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AppleHealthGatewayTests.cs" />
+    <Compile Include="GarminGatewayTests.cs" />
   </ItemGroup>
 </Project>
