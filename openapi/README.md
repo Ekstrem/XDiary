@@ -29,27 +29,21 @@ sudo -n podman inspect xdiary-<service> --format '{{index .Config.Labels "org.op
 
 ## Почему не 12 (блокер, а не «не смог»)
 
-В коде swagger подключён условно:
+**Устарело (правка 2026-11-05):** код больше не под `IsDevelopment` — общий
+`UseXdiarySwagger` (`XDiary.Contracts/SwaggerExtensions.cs`) уже под флагом
+`Swagger:Enabled` (default false), все 12 сервисов идут через него. Правка кода на 12
+сервисах **не нужна** — осталось включить флаг в конфигурации и проверить периметр.
 
-```csharp
-// 6-msa/BC-Client/src/Client.Api/Program.cs:52
-if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
-```
+Исторически: swagger был подключён условно (`if (app.Environment.IsDevelopment())`),
+среда dev = `Single`, поэтому `/swagger/v1/swagger.json` = 404 у 10 сервисов.
 
-Так — почти во всех сервисах; **`Analytics` единственный**, у кого условие
-`IsDevelopment() || EnvironmentName == "Single"` (`BC-Analytics/src/Analytics.Api/Program.cs:27`).
-Стенд dev работает с `ASPNETCORE_ENVIRONMENT=Single`, поэтому у 10 сервисов
-`/swagger/v1/swagger.json` = **404**, а `api-gateway` за авторизацией даёт **401**
-(и 401 на несуществующих путях тоже — по нему нельзя судить о наличии маршрута).
+**Что осталось (по @AR 18:12, не снимать реестр дважды):**
 
-**Что нужно, чтобы получить все 12** (зона @BE, одна строка на сервис):
+1. `Swagger__Enabled=true` на dev (@DO, конфиг, код не меняем);
+2. проверка периметра — снаружи `/swagger*` не 200, изнутри 200+JSON (@TE, гейт rc=1 при утечке);
+3. только потом ре-снятие `api-index.yaml`/спек из фактического swagger + сверка в три стороны (@BE).
 
-1. заменить условие на флаг конфигурации, например `if (app.Configuration.GetValue<bool>("Swagger:Enabled"))`
-   и включать его переменной окружения `Swagger__Enabled=true` на dev (в CI — по умолчанию);
-2. **или** повторить условие `Analytics`: `IsDevelopment() || EnvironmentName == "Single"`.
-
-После деплоя образа на dev реестр снимается одной командой (см. выше) — правки
-`check_edm`/drift-check не нужны, путь реестра передаётся параметром.
+После (1)+(2) реестр снимается одной командой (см. выше).
 
 ## Правила для этого каталога
 
