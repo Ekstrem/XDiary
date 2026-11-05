@@ -14,9 +14,11 @@
 """
 
 import argparse
+import os
 import pathlib
 import shutil
 import subprocess
+import tempfile
 import sys
 
 try:
@@ -133,6 +135,54 @@ def main(argv=None):
     return rc
 
 
+# Гейты, у которых проверяем СВЯЗЬ С ФАЙЛАМИ: минимальный корень с дефектной спекой обязан дать rc=1,
+# а с корректной — rc=0. Внутренний `--selftest` гейта проверяет логику на словарях; здесь — что гейт
+# действительно читает файлы по `--root` (класс «гейт написан, но к данным не подключён»).
+WIRED = ("check_e2e_no_sleeps.py", "check_e2e_diagnostics.py")
+
+BAD_SPEC = "test('x', async ({ page }) => { await page.waitForTimeout(100); });\n"
+GOOD_SPEC = ("// норма: паузы нет, диагностика есть\n"
+             "console.log('[wired] ok');\n"
+             "test('x', async () => { expect(1).toBe(1); });\n")
+
+
+def wired_selftest():
+    """Проверка связи гейтов с файлами через `--root`. Возвращает (ok, total)."""
+    ok = total = 0
+    builtin = pathlib.Path(__file__).resolve().parent
+    # `tempfile.mkdtemp` под песочницей создаёт каталог, в котором нельзя создать вложенные
+    # (WinError 5); обычный `mkdir` — можно. Поэтому имя строим сами.
+    tmp = pathlib.Path(tempfile.gettempdir()) / f"e2e-wired-{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir(parents=True)
+    try:
+        tests = tmp / "9-tests" / "RnD" / "front-e2e" / "tests"
+        tests.mkdir(parents=True)
+        for name in WIRED:
+            gate = builtin / name
+            total += 1
+            if not gate.exists():
+                print(f"  [FAIL] wired {name}: файла гейта нет")
+                continue
+            (tests / "wired.spec.js").write_text(BAD_SPEC, encoding="utf-8")
+            bad = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+            (tests / "wired.spec.js").write_text(GOOD_SPEC, encoding="utf-8")
+            good = subprocess.run([sys.executable, str(gate), "--root", str(tmp)],
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if bad.returncode == 1 and good.returncode == 0:
+                ok += 1
+            else:
+                print(f"  [FAIL] wired {name}: на дефекте rc={bad.returncode} (ждали 1), "
+                      f"на норме rc={good.returncode} (ждали 0)")
+        return ok, total
+    except OSError as e:  # noqa: BLE001
+        print(f"  [FAIL] wired: не удалось создать временный корень: {e}")
+        return 0, len(WIRED)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def selftest():
     ok = total = 0
 
@@ -174,7 +224,12 @@ def selftest():
     else:
         print(f"  [FAIL] текст сводки: {line}")
 
-    print(f"check_e2e_all --selftest: {ok}/{total} (красный = rc=1, только «не измерено» = rc=2)")
+    w_ok, w_total = wired_selftest()
+    ok, total = ok + w_ok, total + w_total
+
+    print(f"check_e2e_all --selftest: {ok}/{total} "
+          f"(сводка: красный = rc=1, только \u00abне измерено\u00bb = rc=2; "
+          f"связь с файлами: {w_ok}/{w_total} \u2014 дефект краснеет, норма зеленеет)")
     return 0 if ok == total else 1
 
 
