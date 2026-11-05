@@ -24,6 +24,9 @@
 `#view-trends`, `#tab-trends` | `trends.spec.js` | графики/агрегаты |
 `#view-import` | `csv.spec.js` | импорт CSV, разбор ошибок |
 `#view-settings`, `#tab-settings` | `settings.spec.js` | настройки: PIN, профиль, приватность |
+`#tab-trends` | `busy-indicator.spec.js` | индикатор «Считаем тренды»: на 1000 мс появляется, на 100 мс — нет, после завершения исчезает; > 3 с текст «дольше обычного» + «Повторить»; включается `XDIARY_BUSY=1`
+`#view-journal` | `stale-note.spec.js` | read-paths §5 п.2: пометка «данные могли устареть» есть на устаревшем кэше и отсутствует на свежих данных; включается `XDIARY_STALENOTE=1`
+`#view-partners`, `#tab-partners` | `partners-read-parity.spec.js` | `BE-071`: созданный партнёр появляется в `GET /partners` (паритет read-модели с живыми данными, а не «200 на пустоте»)
 — (Garmin/соматика) | `garmin-somatic.spec.js` | данные Garmin и соматические серии на экранах журнала/трендов |
 
 **Не покрыто браузером (осознанно):** контракты API, инварианты агрегатов, межсервисные сценарии — это `6-msa/BC-<X>/src/` (unit/интеграция/`*.ApiTests`) по ADR-028 ред. 3 — общих тестовых папок нет.
