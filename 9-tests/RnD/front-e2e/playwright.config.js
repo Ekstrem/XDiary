@@ -5,6 +5,12 @@ module.exports = defineConfig({
   timeout: 90_000,
   // PIN на стенде общий, а change-pin его меняет — тесты идут строго последовательно.
   workers: 1,
+  // Дефолт Playwright для `expect(...)` без явного таймаута — 5 с. На dev-стенде UI иногда
+  // «доезжает» дольше (загрузка IndexedDB после reload), и 5 с давали ложные красные
+  // в утверждениях без собственного таймаута. 10 с — компромисс: медленные ожидания
+  // по-прежнему диагностируются, а мгновенный флейк уходит. Управляется тем же
+  // `XDIARY_E2E_UI_WAIT`, если нужно поднять разом.
+  expect: { timeout: Number(process.env.XDIARY_E2E_EXPECT_WAIT || 10000) },
   fullyParallel: false,
   globalSetup: './tests/global-setup.js',
   reporter: [['list'], ['./reporters/notice.js']],

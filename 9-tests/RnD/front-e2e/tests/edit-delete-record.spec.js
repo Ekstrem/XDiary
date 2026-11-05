@@ -3,7 +3,7 @@
 // карточка записи → «Редактировать» → меняем длительность → «Сохранить»,
 // затем удаляем через «Удалить» + подтверждение. Результат каждого шага — через API.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin, unlockIfLocked } = require('./api');
+const { UI_WAIT, API_BASE, loginWithPin, unlockIfLocked } = require('./api');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 const NOW = new Date();
@@ -113,7 +113,7 @@ test('E2E: запись журнала — редактирование и уд�
     await page.click('#btn-wizard-next');
     await page.click('#btn-wizard-next');
     await page.click('#btn-wizard-save');
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: UI_WAIT });
 
     const edited = await apiRecord(page, id);
     expect(edited.ok).toBe(true);

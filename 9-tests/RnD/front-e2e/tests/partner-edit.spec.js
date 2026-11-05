@@ -2,7 +2,7 @@
 // Партнёр создаётся через живой API (setup), правка — через UI
 // (Партнёры → карточка → форма → имя/notes/пол → Сохранить), проверка — через API.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin, removeByName } = require('./api');
+const { UI_WAIT, API_BASE, loginWithPin, removeByName } = require('./api');
 
 const OLD = 'TE-P-' + Date.now();
 const NEW = OLD + '-renamed';
@@ -76,7 +76,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await page.click('#pe-gender-female');
       await page.click('#pe-gender-male');
       await page.click('#btn-partner-save');
-      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: UI_WAIT });
     });
 
     await test.step('проверка через API: rename + profile', async () => {
@@ -121,11 +121,23 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await page.click('#btn-partner-delete');
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-yes');
-      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: UI_WAIT });
       await expect(
         page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
         'после удаления партнёра нет в списке'
       ).toHaveCount(0);
+
+      // Контракт @TL 01:06 (BE-080/BE-085): после удаления `GET /partners/{id}` обязан отдавать 404/403,
+      // а не 200 с «мягко удалённой» записью — иначе клиент продолжит показывать партнёра.
+      const after = await page.evaluate(async ({ base, id }) => {
+        const t = localStorage.getItem('xdiary.accessToken');
+        const r = await fetch(base + '/api/v1/partners/' + id, { headers: { Authorization: 'Bearer ' + t } });
+        return { status: r.status };
+      }, { base: API_BASE, id });
+      expect(
+        [404, 403].includes(after.status),
+        'GET /partners/{id} после удаления: ' + after.status + ' (ожидали 404/403)'
+      ).toBe(true);
       id = null;
     });
   } finally {

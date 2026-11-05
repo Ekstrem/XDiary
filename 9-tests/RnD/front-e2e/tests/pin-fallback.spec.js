@@ -123,4 +123,13 @@ test('E2E: без локального PIN замка нет; с локальн�
   }, API_BASE);
   expect(me.status, 'GET /clients/me после разблокировки вернул ' + me.status).toBe(200);
   expect(me.body && me.body.id, '/clients/me вернул id клиента').toBeTruthy();
+
+  await test.step('«Забыли PIN?» уводит в онбординг (FE-032, локальный PIN сбрасывается)', async () => {
+    // `#btn-pin-forgot` не проверялся: по коду (`app.js:2465`) он сбрасывает ЛОКАЛЬНЫЙ PIN
+    // и открывает онбординг. Это последний шаг спеки: состояние «PIN снят» ожидаемо,
+    // а следующая спека сама ставит PIN через `loginWithPin`.
+    await page.click('#btn-pin-forgot');
+    await expect(page.locator('#view-onboarding'), 'после «Забыли PIN?» открыт онбординг')
+      .toBeVisible({ timeout: 20000 });
+  });
 });
