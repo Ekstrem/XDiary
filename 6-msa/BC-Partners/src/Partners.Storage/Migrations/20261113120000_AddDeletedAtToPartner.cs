@@ -1,11 +1,16 @@
 using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Partners.Storage;
 
 #nullable disable
 
 namespace Partners.Storage.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(CommandDbContext))]
+    [Migration("20261113120000_AddDeletedAtToPartner")]
     public partial class AddDeletedAtToPartner : Migration
     {
         /// <inheritdoc />
