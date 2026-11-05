@@ -89,11 +89,72 @@ def count_attr(ref: str, pattern: str) -> int:
     return total
 
 
+KNOWN_FLAGS = ("--pre", "--post", "--selftest", "--ref")
+
+
+def selftest() -> int:
+    """Самопроверка (TE-060): кейсы на поведение, а не на «прошло».
+
+    1. baseline-константы соответствуют ref (иначе гейт «краснеет на норме» — так и было с BASE_THEORY);
+    2. невалидный ref -> rc=2 и строка `::error::` (а не PASS и не rc=1);
+    3. неизвестный флаг -> rc=2 и `::error::` (раньше `--selftest` молча прогонял норму).
+    """
+    ok = total = 0
+    ref = (os.environ.get("REF") or "").strip()
+    for cand in (ref, "refs/remotes/gh/main", "gh/main", "origin/main", "HEAD"):
+        if cand and git_ok("rev-parse", "--verify", f"{cand}^{{commit}}"):
+            ref = cand
+            break
+    total += 1
+    if ref:
+        fact = count_attr(ref, r"\[Fact")
+        stand = count_attr(ref, r"\[StandFact")
+        theory = count_attr(ref, r"\[Theory")
+        api = count_attr(ref, r"\[(ApiFact|E2EFact)")
+        good = (fact >= BASE_FACT and stand >= BASE_STAND
+                and theory >= BASE_THEORY and api >= BASE_API)
+        if good:
+            ok += 1
+        else:
+            print(f"  [FAIL] baseline против ref: Fact={fact}/{BASE_FACT} StandFact={stand}/{BASE_STAND} "
+                  f"Theory={theory}/{BASE_THEORY} ApiFact={api}/{BASE_API} (порог устарел)")
+    else:
+        print("  [FAIL] baseline: ни один ref не резолвится")
+
+    def run(args):
+        return subprocess.run([sys.executable, os.path.abspath(__file__), *args],
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    for name, args in (("невалидный ref", ["--pre", "--ref", "no-such-ref-xyz"]),
+                       ("неизвестный флаг", ["--nonsense-flag"])):
+        total += 1
+        r = run(args)
+        out = (r.stdout or "") + (r.stderr or "")
+        if r.returncode == 2 and "::error::" in out and "PASS:" not in out:
+            ok += 1
+        else:
+            print(f"  [FAIL] {name}: rc={r.returncode}, ждали rc=2 и ::error:: без PASS")
+
+    print(f"check_adr028_move --selftest: {ok}/{total} (baseline против ref; rc=2 и ::error:: на невалидном ref/флаге)")
+    return 0 if ok == total else 1
+
+
 def main() -> int:
-    mode = "post"
-    if "--pre" in sys.argv[1:]:
-        mode = "pre"
-    ref = (os.environ.get("REF") or "origin/main").strip()
+    args = sys.argv[1:]
+    unknown = [a for a in args if a.startswith("--") and a.split("=")[0] not in KNOWN_FLAGS]
+    if unknown:
+        print(f"::error::check_adr028_move: неизвестный флаг {unknown[0]} "
+              f"(известны: {', '.join(KNOWN_FLAGS)}) — приёмка не выполнена (rc=2)")
+        return 2
+    if "--selftest" in args:
+        return selftest()
+
+    mode = "pre" if "--pre" in args else "post"
+    ref = (os.environ.get("REF") or "").strip()
+    if "--ref" in args:
+        i = args.index("--ref")
+        ref = args[i + 1] if i + 1 < len(args) else ""
+    ref = (ref or "origin/main").strip()
     if not git_ok("rev-parse", "--verify", f"{ref}^{{commit}}"):
         print(f"::error::ADR-028: REF={ref!r} не резолвится в этом репозитории — приёмка не выполнена")
         print(f"REF={ref} | FAIL: невалидная ревизия | режим --{mode}")
