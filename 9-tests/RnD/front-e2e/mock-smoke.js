@@ -129,6 +129,23 @@ async function waitReady(timeoutMs = 15000) {
     const clientsGet = await j('GET', '/api/v1/clients');
     check('GET /clients → 405 (как стенд)', clientsGet.status === 405, clientsGet);
 
+    // Браузеру нужен preflight: без него локальный прогон упадёт CORS-ошибкой, которую не видно
+    // в контрактных проверках. Раньше двойник этого не проверял.
+    const pre = await fetch(BASE + '/api/v1/partners', {
+      method: 'OPTIONS',
+      headers: { Origin: 'http://127.0.0.1:4173', 'Access-Control-Request-Method': 'POST' },
+    });
+    check('OPTIONS /partners   204 (preflight браузера)', pre.status === 204, { status: pre.status });
+    check('preflight отдаёт Access-Control-Allow-Origin',
+      pre.headers.get('access-control-allow-origin') === '*',
+      { cors: pre.headers.get('access-control-allow-origin') });
+    check('обычный ответ тоже с CORS',
+      (await fetch(BASE + '/health')).headers.get('access-control-allow-origin') === '*');
+
+    const unknown = await j('GET', '/api/v1/definitely-not-here');
+    check('неизвестный путь   404 JSON (а не 200)',
+      unknown.status === 404 && unknown.data && Boolean(unknown.data.error), unknown);
+
     const partnersNoAuth = await fetch(BASE + '/api/v1/partners');
     check('/partners без токена → 401', partnersNoAuth.status === 401);
 
