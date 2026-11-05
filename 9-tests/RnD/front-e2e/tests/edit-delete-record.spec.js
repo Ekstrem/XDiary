@@ -96,7 +96,10 @@ test('E2E: запись журнала — редактирование и уд�
     // редактирование: длительность 15 -> 45
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
-    await page.locator('#wizard-progress button').nth(6).click();
+    // Шаг берём ПО ИМЕНИ (title кнопки прогресса = `STEPS[i]`, `app.js:8`), а не по индексу:
+    // `nth(6)` ломается молча, если в мастере поменяется порядок/число шагов — клик уедет
+    // на другой экран, и падение будет выглядеть как дефект продукта.
+    await page.locator('#wizard-progress button[title="Длительность"]').click();
     await page.fill('#w-dur-custom', '45');
     await page.click('#btn-wizard-next');
     await page.click('#btn-wizard-next');
@@ -115,7 +118,7 @@ test('E2E: запись журнала — редактирование и уд�
     await expect(page.locator('#view-detail')).toBeVisible();
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
-    await page.locator('#wizard-progress button').nth(8).click();
+    await page.locator('#wizard-progress button[title="Итог"]').click();
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-yes');
