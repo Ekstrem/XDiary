@@ -108,7 +108,8 @@ test('E2E: без локального PIN замка нет; с локальн�
 
   await reportStep(page, 'шаг 5: верный PIN → журнал');
   await page.fill('#pin-input', PIN);
-  await page.press('#pin-input', 'Enter');
+  // Явная кнопка «Войти» (`#pin-submit`) не проверялась: раньше вход шёл только по Enter.
+  await page.click('#pin-submit');
   await expectScreen(page, '#view-journal', 'верный PIN → журнал', 20000);
   await expect(page.locator('#view-lock')).toBeHidden();
 

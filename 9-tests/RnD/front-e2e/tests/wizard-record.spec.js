@@ -89,6 +89,12 @@ test('E2E: запись через визард — создаётся и вид
   await page.click('#btn-wizard-next');  // вернулись и снова 0 -> 1
   await page.click('#btn-wizard-next');  // 0 -> 1
     await page.click('#btn-wizard-next');  // 1 -> 2
+    // Кнопка «Без партнёра» (`#w-partner-none`) не проверялась ни одной спекой: она сбрасывает
+    // партнёра и перерисовывает шаг. Проверяем, что шаг остаётся рабочим и мастер не ломается.
+    if (await page.locator('#w-partner-none').isVisible()) {
+      await page.click('#w-partner-none');
+      await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+    }
     await page.click('#btn-wizard-next');  // 2 -> 3
     await page.click('#btn-wizard-next');  // 3 -> 4
     await page.click('#btn-wizard-next');  // 4 -> 5

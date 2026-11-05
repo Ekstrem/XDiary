@@ -64,6 +64,8 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
     await test.step('UI: изменить имя, notes и пол → Сохранить', async () => {
       await page.fill('#pe-name', NEW);
       await page.fill('#pe-notes', NOTES);
+      // Второй вариант пола (`#pe-gender-female`) не проверялся: нажимаем оба, сохраняем мужской.
+      await page.click('#pe-gender-female');
       await page.click('#pe-gender-male');
       await page.click('#btn-partner-save');
       await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
