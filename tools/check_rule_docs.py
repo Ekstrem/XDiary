@@ -14,6 +14,7 @@ import argparse
 import glob
 import os
 import re
+import subprocess
 import sys
 
 SKIP_DIRS = {"chat", "archive", ".git", "bin", "obj", "node_modules", ".obsidian"}
@@ -24,6 +25,35 @@ FORCE = re.compile(r"push[^\n]{0,40}--force(?!-with-lease)")
 
 
 def md_files(root):
+    """Файлы для проверки: ТОЛЬКО отслеживаемые git (2026-11-05).
+
+    Раньше был обход `glob("**/*.md")`, и в скан попадали **неотслеживаемые** копии:
+    в дереве появился вложенный worktree `origin/main` (545 md-файлов), из-за чего
+    гейт показывал «файлов 1062, ошибок 33» — про чужую копию, а не про репозиторий.
+    Гейт должен проверять то, что лежит **в репозитории**; распакованные архивы,
+    временные worktree и выгрузки — не его предмет.
+
+    Fallback на обход — если git недоступен (selftest во временном каталоге).
+    """
+    tracked = None
+    try:
+        out = subprocess.run(["git", "-c", "core.hooksPath=", "ls-files", "*.md"],
+                             cwd=root, capture_output=True, text=True,
+                             encoding="utf-8", errors="replace")
+        if out.returncode == 0 and out.stdout.strip():
+            tracked = [os.path.join(root, rel.strip()) for rel in out.stdout.splitlines()
+                       if rel.strip()]
+    except Exception:  # noqa: BLE001
+        tracked = None
+
+    if tracked is not None:
+        for path in tracked:
+            parts = set(os.path.relpath(path, root).replace("\\", "/").split("/")[:-1])
+            if parts & SKIP_DIRS:
+                continue
+            yield path
+        return
+
     for path in glob.glob(os.path.join(root, "**", "*.md"), recursive=True):
         parts = set(os.path.relpath(path, root).replace("\\", "/").split("/")[:-1])
         if parts & SKIP_DIRS:
