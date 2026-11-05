@@ -32,7 +32,7 @@ REG = re.compile(
 # DDL лежит в C#-строке, поэтому кавычки экранированы: \"Id\" — допускаем оба варианта.
 DDL = re.compile(r'CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+\\?"?([A-Za-z0-9_]+)\\?"?\s*\((.*?)\)\s*;',
                  re.IGNORECASE | re.DOTALL)
-COL = re.compile(r'\\?"([A-Za-z0-9_]+)\\?"\s+[A-Za-z]')
+COL = re.compile(r'\\?"([A-Za-z0-9_]+)\\?"\s+([A-Za-z]+)')
 PROP = re.compile(r'public\s+(?:virtual\s+)?[A-Za-z0-9_<>\[\],\.\?\s]+?\s+([A-Za-z0-9_]+)\s*\{\s*get')
 
 
@@ -48,7 +48,7 @@ def ddl_tables(text):
     out = {}
     for m in DDL.finditer(text):
         table = m.group(1).lower()
-        cols = {c.lower() for c in COL.findall(m.group(2))}
+        cols = {name.lower(): typ.lower() for name, typ in COL.findall(m.group(2))}
         if cols:
             out[table] = cols
     return out
@@ -72,6 +72,25 @@ def model_props(text):
     return props
 
 
+# @AR 16:30: сверяем типы только для uuid/integer/boolean — на них ошибка даёт
+# `operator does not exist`/неявный каст. `text` vs `varchar` не проверяем: конвертеры
+# дают ложные красные, а пользы нет. Список соответствия — явный, без эвристики «C# -> SQL».
+EXPECTED_TYPES = {
+    'id': 'uuid',
+    'clientid': 'uuid',
+    'durationmin': 'integer',
+    'contraceptivecount': 'integer',
+    'count': 'integer',
+    'rating': 'integer',
+    'garmin': 'boolean',
+    'deleted': 'boolean',
+}
+TYPE_ALIASES = {
+    'uuid': {'uuid'},
+    'integer': {'integer', 'int', 'int4', 'bigint', 'int8', 'smallint'},
+    'boolean': {'boolean', 'bool'},
+}
+
 def resolve_table(model, tables):
     """Имя таблицы для модели: точное snake, затем без суффикса `_read` (правило неоднородно)."""
     full = snake(model)
@@ -84,10 +103,23 @@ def resolve_table(model, tables):
     return None
 
 
+def type_mismatches(cols_with_types):
+    """[(колонка, ожидали, получили)] — только для колонок из EXPECTED_TYPES."""
+    bad = []
+    for name, typ in cols_with_types.items():
+        want = EXPECTED_TYPES.get(name)
+        if not want:
+            continue
+        if typ not in TYPE_ALIASES[want]:
+            bad.append((name, want, typ))
+    return sorted(bad)
+
+
 def compare(model, props, ddl_cols):
     """(missing, extra) — разности множеств; missing приоритетнее."""
-    missing = sorted(props - ddl_cols)
-    extra = sorted(ddl_cols - props)
+    ddl_names = set(ddl_cols)  # ddl_cols — {колонка: тип}
+    missing = sorted(props - ddl_names)
+    extra = sorted(ddl_names - props)
     return missing, extra
 
 
@@ -127,7 +159,7 @@ def selftest():
     # разбор DDL и свойств
     total += 2
     t = ddl_tables('CREATE TABLE IF NOT EXISTS journal_read ("Id" uuid PRIMARY KEY, "ClientId" uuid NULL);')
-    if t.get('journal_read') == {'id', 'clientid'}:
+    if t.get('journal_read') == {'id': 'uuid', 'clientid': 'uuid'}:
         ok += 1
     else:
         print('  [FAIL] разбор DDL:', t)
@@ -136,6 +168,25 @@ def selftest():
         ok += 1
     else:
         print('  [FAIL] разбор свойств (NotMapped):', p)
+
+    # типы (@AR 16:30): uuid/integer/boolean сверяем, text — нет
+    total += 4
+    if type_mismatches({'id': 'uuid', 'durationmin': 'integer', 'garmin': 'boolean'}) == []:
+        ok += 1
+    else:
+        print('  [FAIL] корректные типы должны быть чистыми')
+    if type_mismatches({'durationmin': 'text'}) == [('durationmin', 'integer', 'text')]:
+        ok += 1
+    else:
+        print('  [FAIL] integer->text не поймано:', type_mismatches({'durationmin': 'text'}))
+    if type_mismatches({'id': 'text'}) == [('id', 'uuid', 'text')]:
+        ok += 1
+    else:
+        print('  [FAIL] uuid->text не поймано')
+    if type_mismatches({'startedat': 'varchar'}) == []:
+        ok += 1
+    else:
+        print('  [FAIL] text-подобные не должны проверяться')
 
     print('check_readstore_ddl --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
@@ -172,6 +223,7 @@ def main():
             for f in files:
                 props |= model_props(open(f, encoding='utf-8', errors='replace').read())
             missing, extra = compare(model, props, tables[table])
+            type_bad = type_mismatches(tables[table])
             if missing:
                 bad += 1
                 print('  %s: DDL таблицы %s не содержит колонок для полей %s'
@@ -179,7 +231,15 @@ def main():
                 print('::error::check_readstore_ddl: %s — %s: в DDL нет колонок %s '
                       '(EF сгенерирует запрос по ним → 42703)' %
                       (prog.replace(os.sep, '/'), table, ', '.join(missing)))
-            elif extra:
+            if type_bad:
+                bad += 1
+                for name, want, got in type_bad:
+                    print('  %s: %s.%s объявлена как %s, ожидали %s'
+                          % (prog.replace(os.sep, '/'), table, name, got, want))
+                print('::error::check_readstore_ddl: %s — %s: типы колонок не совпадают с '
+                      'ожидаемыми (%s)' % (prog.replace(os.sep, '/'), table,
+                                           ', '.join('%s: %s≠%s' % (n, g, w) for n, w, g in type_bad)))
+            if not missing and not type_bad and extra:
                 print('  %s: таблица %s имеет колонки без полей модели: %s (не дефект)'
                       % (prog.replace(os.sep, '/'), table, ', '.join(extra)))
 
