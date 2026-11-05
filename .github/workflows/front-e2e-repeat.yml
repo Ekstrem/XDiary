@@ -31,8 +31,13 @@ jobs:
   repeat:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # DO-079/@AR 09:20: группа была общей с `ci-front.yml` (`front-e2e`), и ручной
+    # прогон ВЫТЕСНЯЛСЯ пушем: GitHub держит в группе один pending-прогон, поэтому
+    # dispatch получал `cancelled` с нулём шагов (#15/#16). Теперь группы разные по
+    # триггеру: manual не конкурирует с push.
+    # Остаточный риск (два прогона на одном стенде) снят шагом «ждать ci-front» ниже.
     concurrency:
-      group: front-e2e
+      group: front-e2e-${{ github.event_name == 'workflow_dispatch' && 'manual' || 'push' }}
       cancel-in-progress: false
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
@@ -44,6 +49,21 @@ jobs:
       REPEAT: ${{ inputs.repeat }}
       WORKERS: ${{ inputs.workers }}
     steps:
+      # Стенд один на всех: перед стартом ждём, пока не идёт E2E из `ci-front.yml`
+      # (другая группа concurrency его не останавливает, а чистящие шаги обоих
+      # прогонов удаляют данные друг друга → флейк «список пуст»).
+      - name: Ждать, пока не идёт E2E из ci-front (максимум 10 мин)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            busy=$(gh api "repos/${{ github.repository }}/actions/workflows/ci-front.yml/runs?status=in_progress" \
+                     --jq '.workflow_runs | length' 2>/dev/null || echo 0)
+            [ "$busy" = "0" ] && { echo "ci-front не идёт — стартуем"; exit 0; }
+            echo "ci-front в процессе ($busy), ждём 30 с…"; sleep 30
+          done
+          echo "::warning::ci-front так и не освободил стенд за 10 мин — стартуем, но прогон может быть шумным"
       # `Reset dev PIN to 1234` убран (DO/@TL 17:11): он дёргал legacy-контур `/privacy/pin/set`,
       # хотя спеки используют ЛОКАЛЬНЫЙ PIN (`setPin` в localStorage, api.js) — серверный PIN
       # им не нужен. Гейт больше не зависит от `/privacy/*`.
