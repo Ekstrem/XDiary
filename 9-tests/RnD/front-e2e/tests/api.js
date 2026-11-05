@@ -323,6 +323,8 @@ async function seedSessionOnce(page) {
 const NET_ERROR_RE = /Failed to fetch|ERR_FAILED|net::ERR|ECONNRESET|ETIMEDOUT/i;
 const SEED_ATTEMPTS = 3; // 1 + 2 повтора
 
+// `seedSession` вызывается ВНУТРИ обвязки (installBase → seedSessionOnce → seedSession), поэтому
+// в спеках его нет: экспорт оставлен для будущих сценариев и для отладки вручную.
 async function seedSession(page) {
   let lastErr;
   for (let attempt = 1; attempt <= SEED_ATTEMPTS; attempt++) {
@@ -513,6 +515,10 @@ async function expectScreen(page, selector, where, timeout) {
 // В логе #17 сетевых вызовов нет, а `#onb-link-error` остался `hidden` — то есть
 // невозможно отличить «запрос не отправлялся» от «отправлялся и вернул ошибку».
 // Поэтому перехватываем ВСЁ, что матчит `/link-partner`: метод+URL, статус, тело (200 симв.).
+//
+// LEGACY (`ADR-021`/`TE-037`): после E7 (0.88) шага привязки в UI нет, ни одна спека эту функцию
+// не вызывает — она оставлена для разбора старых образов (< 0.88) и это видно в квитанции
+// `check_e2e_fixture_contract.py` строкой «не используют спеки». Удалять — только с решением @TL.
 function watchLinkPartner(page) {
   const events = [];
   const match = (url) => String(url || '').indexOf('/link-partner') >= 0;
