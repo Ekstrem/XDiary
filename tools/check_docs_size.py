@@ -2,6 +2,7 @@
 """Гейт бюджета инструкций: сумма AGENTS.md ≤ 64 КиБ, каждый ≤ 16 КиБ."""
 import argparse
 import glob
+import subprocess
 import json
 import os
 import sys
@@ -31,7 +32,21 @@ def main():
     total_limit = args.total or budget.get("total_bytes") or DEFAULT_TOTAL
     per_limit = args.per_file or budget.get("per_file_bytes") or DEFAULT_PER_FILE
 
-    files = sorted(glob.glob(os.path.join(root, "**", "AGENTS.md"), recursive=True))
+    # 2026-11-05 (@TE 19:01): обход `glob("**/AGENTS.md")` подхватывал НЕотслеживаемую копию —
+    # вложенный worktree `origin/main` (545 md, 10,6 МБ), из-за чего бюджет раздувался до 76141.
+    # Бюджет инструкций — про файлы репозитория, поэтому перечень берём из git (как в check_rule_docs).
+    files = None
+    try:
+        out = subprocess.run(["git", "-c", "core.hooksPath=", "ls-files", "*AGENTS.md"],
+                             cwd=root, capture_output=True, text=True,
+                             encoding="utf-8", errors="replace")
+        if out.returncode == 0 and out.stdout.strip():
+            files = sorted(os.path.join(root, rel.strip()) for rel in out.stdout.splitlines()
+                           if rel.strip())
+    except Exception:  # noqa: BLE001
+        files = None
+    if files is None:
+        files = sorted(glob.glob(os.path.join(root, "**", "AGENTS.md"), recursive=True))
     rows, total = [], 0
     for path in files:
         size = os.path.getsize(path)
