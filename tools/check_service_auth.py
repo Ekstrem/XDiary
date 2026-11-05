@@ -146,7 +146,10 @@ def measure(remote, key, only=None, service_map=None):
         return None, 'индекс не найден на хосте (нужен api-index.yaml в /tmp или /opt/xdiary)'
     import yaml
     data = yaml.safe_load(out_index)
-    ops_all = [o for o in data['operations'] if o.get('auth') != 'anonymous']
+    # Знаменатель (ii-b) — ТОЛЬКО `auth = jwt` (ADR-026, решение @AR 2026-11-05 03:12):
+    # `anonymous-inside` (/internal/**) исключён — там периметр сеть, а не токен.
+    # Исторические «76» считали его токенным и устарели; актуально 74.
+    ops_all = [o for o in data['operations'] if o.get('auth') == 'jwt']
     by_bc = {}
     for op in ops_all:
         if only and op['bc'] not in only:
@@ -192,6 +195,7 @@ def exit_code(tot):
 
 
 def report(results):
+    print('  знаменатель: только auth=jwt (anonymous-inside исключён, ADR-026 03:12)')
     print('  инструмент: tools/check_service_auth.py — ПЕРЕКРЁСТНЫЙ КОНТРОЛЬ; '
           'канон замера (ii-b) — 9-tests/scripts/check_apim_auth.py (ADR-026 §«Квитанция (ii-b)»)')
     print('  %-20s %9s %10s %9s %8s %9s'
