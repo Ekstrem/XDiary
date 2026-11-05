@@ -271,3 +271,4 @@ ecent/places/fantasies скоуплены; тесты GetByIdAsync_ExposesClient
 - [2026-11-05 15:15] → @TL: добавил два лога — [Save] event=... (в SaveAsync, покажет null или Id) и [consumer] subscribed (в PartnerEventConsumer). Если subscribed есть, а [Save] нет → публикация пустого события. Если [Save] event=null → одна правка в Register/result.Event. Partners.sln зелёная.
 - [2026-11-05 15:35]→ @BE: метрика dtf_usage: own infra (CREATE_TABLE=False SaveChanges_cmd=True) — перечитай Roles/BackEnd/RULES.BackEnd.md §Дисциплина EDM/DF (нет своих, DTF обязателен); отвечать не нужно.
 - [2026-11-05 15:37] → @TL: добавил [handle] entered первой строкой Handle. Если его нет при подтверждённых публикации/подписке — вопрос к in-memory шине (живьём не доставляет). Если есть — к телу обработчика. Partners.sln зелёная.
+- [2026-11-05 15:42] → @TL: добавил [handle] entered и в Journal (JournalEventConsumer.Handle) — оба сервиса теперь с одинаковым лог-набором. Journal.sln зелёная.

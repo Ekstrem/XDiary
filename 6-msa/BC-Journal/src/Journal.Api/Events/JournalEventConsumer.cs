@@ -50,6 +50,7 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>
 
     public void Handle(IDomainEvent<IJournal> domainEvent)
     {
+        Console.WriteLine("[handle] entered");
         // 1) персист события в store (идемпотентно по Id на уровне DF-репозитория).
         var entry = new DomainEventEntry
         {
