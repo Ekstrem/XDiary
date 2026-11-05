@@ -7,6 +7,7 @@ using Partners.Domain;
 using Partners.Domain.Abstraction;
 using Partners.Domain.Implementation;
 using Partners.InternalContracts;
+using XDiary.Contracts;
 using Xunit;
 
 /// <summary>
@@ -20,7 +21,10 @@ public class PartnerEventHandlerTests
         public int SavedEvents;
         public Task SaveEventAsync(DomainEventEntry entry, CancellationToken ct = default) { SavedEvents++; return Task.CompletedTask; }
         public Task SaveSnapshotAsync(Guid id, long version, string aggregateJson, CancellationToken ct = default) => Task.CompletedTask;
-        public Task<long> GetEventCountAsync(Guid id, CancellationToken ct = default) => Task.FromResult(0L);
+        public Task<int> GetEventCountAsync(Guid id, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<List<IPartnerAnemicModel>> GetById(Guid id, CancellationToken ct = default) => Task.FromResult(new List<IPartnerAnemicModel>());
+        public Task<IPartnerAnemicModel> GetByIdAndVersion(Guid id, long version, CancellationToken ct = default) => Task.FromResult<IPartnerAnemicModel>(null!);
+        public Task<IPartnerAnemicModel> GetByCorrelationToken(Guid correlationToken, CancellationToken ct = default) => Task.FromResult<IPartnerAnemicModel>(null!);
     }
 
     private sealed class FakeReadStore : IReadModelStore<IPartners, PartnersReadModel>
