@@ -4,6 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <RootNamespace>XDiary.Tests.GatewaysApi</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
@@ -13,5 +14,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="GatewayBehaviorTests.cs" />
+    <Compile Include="StandFactAttribute.cs" />
   </ItemGroup>
 </Project>
