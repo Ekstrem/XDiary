@@ -24,6 +24,7 @@ public sealed class JournalEventConsumer : BackgroundService
         _consumer = consumer;
         _handler = handler;
         _consumer.Subscribe(handler);
+        Console.WriteLine("[consumer] subscribed");
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
