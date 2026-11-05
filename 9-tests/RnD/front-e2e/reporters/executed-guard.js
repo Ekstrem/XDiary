@@ -14,9 +14,30 @@ class ExecutedGuardReporter {
     this.failed = 0;
     this.flaky = 0;
     this.skipped = 0;
+    // Строки в формате list-репортёра: их разбирает `9-tests/scripts/e2e_receipt.py`.
+    // Артефакт `test-results/` уезжает из CI, а лог джобы — нет; без этого файла квитанцию
+    // нечем накормить, и «числа из прогона» приходилось бы копировать руками.
+    this.lines = [];
+  }
+
+  _record(test, result) {
+    const mark = result.status === 'passed' ? '\u2713'
+      : result.status === 'skipped' ? '-'
+      : '\u2717';
+    const project = (test.parent && typeof test.parent.project === 'function')
+      ? (test.parent.project() || {}).name : '';
+    const file = (test.location && test.location.file) || (test.titlePath ? test.titlePath()[0] : '?');
+    const line = (test.location && test.location.line) || 1;
+    const retry = result.retry ? ' (retry #' + result.retry + ')' : '';
+    const idx = this.passed + this.failed + this.flaky + this.skipped + 1;
+    this.lines.push(
+      mark + '  ' + idx + (project ? ' [' + project + ']' : '') + ' \u203a ' + file + ':' + line
+      + ' \u203a ' + test.title + retry
+    );
   }
 
   onTestEnd(test, result) {
+    this._record(test, result);
     switch (result.status) {
       case 'passed':
         // ретрай после падения — это flaky, а не чистое прохождение
@@ -45,9 +66,24 @@ class ExecutedGuardReporter {
       process.exitCode = 1;
       return;
     }
+    this._writeReceipt(summary);
     if (this.skipped > 0) {
       console.log('::notice::front-e2e: исполнено ' + executed + ', пропущено ' + this.skipped
         + ' (' + summary + ', статус ' + result.status + ')');
+    }
+  }
+
+  _writeReceipt(summary) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const dir = path.resolve(__dirname, '..', 'test-results');
+      fs.mkdirSync(dir, { recursive: true });
+      const body = this.lines.concat(['', 'итог: ' + summary]).join('\n') + '\n';
+      fs.writeFileSync(path.join(dir, 'receipt.txt'), body, 'utf8');
+    } catch (e) {
+      // файл квитанции — удобство, а не условие прогона: не роняем из-за него
+      console.log('::warning::front-e2e: не удалось записать test-results/receipt.txt: ' + e.message);
     }
   }
 

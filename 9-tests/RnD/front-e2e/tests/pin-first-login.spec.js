@@ -5,6 +5,11 @@
 // Поэтому сценарий разделён:
 //   1) чистое устройство → онбординг (никакого PIN-экрана);
 //   2) PIN-экран появляется на устройстве, где онбординг уже пройден и есть clientId/PIN.
+//
+//
+// TE-036 (умный вход на устройстве с PIN), TE-044 (диагностика шагов в логе).
+// MVP-истории: US-11
+//   US-11 вход по PIN (первый вход на устройстве)
 const { test, expect } = require('@playwright/test');
 const { readToken, API_BASE, PIN, uniquePhone, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews } = require('./api');
 

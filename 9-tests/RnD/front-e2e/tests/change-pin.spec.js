@@ -6,6 +6,9 @@
 //   1) новый локальный PIN пускает в журнал;
 //   2) старый локальный PIN больше не проходит проверку;
 //   3) `Pin.hasPin()` = true, а в `finally` исходный PIN возвращается (чистота стенда).
+//
+// MVP-истории: US-11
+//   US-11 вход по PIN (смена PIN)
 const { test, expect } = require('@playwright/test');
 const { waitAppReady, PIN, loginWithPin, unlockIfLocked } = require('./api');
 
