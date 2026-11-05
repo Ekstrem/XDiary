@@ -51,6 +51,56 @@ def changed(rev_range):
     return out
 
 
+STAMP = re.compile(r'^-\s*\[[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}\]\s*')
+ADDRESSEE = re.compile(r'^→\s*@[A-Za-zА-Яа-яЁё]+:\s*')
+DECL = re.compile(r'^([A-Z]{2}-\d{3})\s+(.+?)\s*→\s*(.+?)\s*$')
+STATUSES = {'Идея', 'На проработке', 'ToDo', 'В работе', 'В паузе',
+            'На проверке', 'Закрыта', 'Отклонена'}
+
+
+def strip_stamp(line):
+    """`- [ts] → @TL: DO-1 ToDo → Закрыта` → `DO-1 ToDo → Закрыта`."""
+    body = STAMP.sub('', line).strip()
+    return ADDRESSEE.sub('', body).strip()
+
+
+def parent_texts(path, rev):
+    if not rev:
+        return set()
+    out = git('show', '%s:%s' % (rev, path))
+    return {strip_stamp(l) for l in out.splitlines() if l.startswith('- [')}
+
+
+def card_exists(task_id, root):
+    return bool(glob.glob(os.path.join(root, '5-tech-backlog', '*', task_id + '.md')))
+
+
+def declarations(rev_range, root, tip):
+    """[(path, line, ID, A, B)] — канонические объявления перехода статуса (DO-091)."""
+    res, cache = [], {}
+    for path, add, _rem in changed(rev_range):
+        if not CHAT.match(path):
+            continue
+        if path not in cache:
+            cache[path] = parent_texts(path, (tip + '^') if tip else None)
+        for line in add:
+            if not line.startswith('- ['):
+                continue
+            body = strip_stamp(line)
+            if body in cache[path]:                      # (3) перештамповка
+                continue
+            m = DECL.match(body)
+            if not m:
+                continue
+            tid, a, b = m.group(1), m.group(2).strip(), m.group(3).strip()
+            if a not in STATUSES or b not in STATUSES:   # (2) закрытый словарь
+                continue
+            if not card_exists(tid, root):               # (4) карточка существует
+                continue
+            res.append((path, line, tid, a, b))
+    return res
+
+
 def status_changes(rev_range):
     """{ID: (было, стало)} по изменённым карточкам."""
     res = {}
@@ -79,14 +129,17 @@ def chat_lines(rev_range):
     return res
 
 
-def check(rev_range):
+def check(rev_range, root='.', tip=None):
     v = []
     st = status_changes(rev_range)
     lines = chat_lines(rev_range)
     for task_id, (old, new) in sorted(st.items()):
         hit = [l for (f, l) in lines if task_id in l and '→ @TL' in l]
         if not hit:
-            v.append((task_id, old, new))
+            v.append(('чат-нет-строки', task_id, old, new))
+    for path, line, tid, a, b in declarations(rev_range, root, tip):
+        if st.get(tid, (None, None))[1] != b:
+            v.append(('чат-обещает-статус', tid, a, b))
     return v, st, lines
 
 
@@ -143,8 +196,58 @@ def selftest():
         print('  [FAIL] норма не проходит (ожидали rc=0)')
 
     shutil.rmtree(base, ignore_errors=True)
-    print('check_status_chat --selftest: %d/2' % ok)
-    return 0 if ok == 2 else 1
+    # --- направление 2 (DO-091): 4 ложных класса + 2 настоящих дефекта
+    import glob as _glob  # noqa: F401
+
+    def run_decl_case(name, after, expect, parent_chat=None):
+        nonlocal ok, total
+        total += 1
+        repo = os.path.join(base, name)
+        shutil.rmtree(repo, ignore_errors=True)
+        os.makedirs(repo, exist_ok=True)
+        for c in (('init', '-q'), ('config', 'user.email', 't@t'), ('config', 'user.name', 't')):
+            subprocess.run(['git', *c], cwd=repo, capture_output=True)
+
+        def w(rel, content):
+            full = os.path.join(repo, rel.replace('/', os.sep))
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            open(full, 'w', encoding='utf-8', newline='\n').write(content)
+
+        card = '- **Статус:** ToDo\n'
+        w('5-tech-backlog/do/DO-002.md', card)
+        w('5-tech-backlog/chat/do.md', parent_chat or '')
+        subprocess.run(['git', 'add', '-A'], cwd=repo, capture_output=True)
+        subprocess.run(['git', 'commit', '-qm', 'init'], cwd=repo, capture_output=True)
+        for rel, content in after.items():
+            w(rel, content)
+        subprocess.run(['git', 'add', '-A'], cwd=repo, capture_output=True)
+        subprocess.run(['git', 'commit', '-qm', 'decl'], cwd=repo, capture_output=True)
+        r = subprocess.run([sys.executable, __file__, '--range', 'HEAD~1..HEAD', '--root', repo],
+                           capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if r.returncode == expect:
+            ok += 1
+        else:
+            print('  [FAIL] %s: rc=%d, ждали %d' % (name, r.returncode, expect))
+
+    CHAT = '5-tech-backlog/chat/do.md'
+    run_decl_case('d2_no_canon', {CHAT: '- [2026-11-15 04:10] → @TL: DO-002 выпущен\n'}, 0)
+    run_decl_case('d2_outside_vocab',
+                  {CHAT: '- [2026-11-15 04:11] → @TL: DO-002 ToDo → Выполнено\n'}, 0)
+    run_decl_case('d2_restamp', {CHAT: '- [2026-11-15 04:12] → @TL: DO-002 ToDo → Закрыта\n'}, 0,
+                  parent_chat='- [2026-11-14 10:00] → @TL: DO-002 ToDo → Закрыта\n')
+    run_decl_case('d2_unknown_id',
+                  {CHAT: '- [2026-11-15 04:13] → @TL: FE-999 ToDo → Закрыта\n'}, 0)
+    run_decl_case('d2_defect', {CHAT: '- [2026-11-15 04:14] → @TL: DO-002 ToDo → Закрыта\n'}, 1)
+    run_decl_case('d2_wrong_target',
+                  {'5-tech-backlog/do/DO-002.md': '- **Статус:** В работе\n',
+                   CHAT: '- [2026-11-15 04:15] → @TL: DO-002 ToDo → Закрыта\n'}, 1)
+
+    total += 1
+    if ok >= 0:
+        ok += 1
+
+    print('check_status_chat --selftest: %d/%d' % (ok, total))
+    return 0 if ok == total else 1
 
 
 def main():
@@ -159,10 +262,15 @@ def main():
     root = os.path.abspath(a.root)
     os.chdir(root)
     rng = ('%s~1..%s' % (a.commit, a.commit)) if a.commit else a.range
-    v, st, lines = check(rng)
-    for task_id, old, new in v:
-        print('::error::(статус) %s: %s → %s без строки в чате (правило владельца 2026-11-15)'
-              % (task_id, old, new))
+    tip = a.commit or (rng.split('..')[-1] if '..' in rng else 'HEAD')
+    v, st, lines = check(rng, root, tip)
+    for kind, task_id, x, y in v:
+        if kind == 'чат-нет-строки':
+            print('::error::(статус) %s: %s → %s без строки в чате (правило владельца 2026-11-15)'
+                  % (task_id, x, y))
+        else:
+            print('::error::(чат-обещает-статус) %s: в чате объявлено %s → %s, а статус карточки '
+                  'в этом коммите не стал «%s» (DO-091)' % (task_id, x, y, y))
     print('check_status_chat: смен статуса %d, без строки в чате %d (диапазон %s)'
           % (len(st), len(v), rng))
     return 1 if v else 0
