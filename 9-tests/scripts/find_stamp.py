@@ -48,18 +48,40 @@ def classify(now_hits: int, history_commits: int) -> str:
 
 
 def history_commits(stamp: str, path: str = "") -> list:
-    args = ["log", "--all", "-S", stamp, "--format=%h|%ad|%s", "--date=short"]
+    """Коммиты, где подстрока метки менялась (pickaxe). Это КАНДИДАТЫ, а не доказательство:
+    метка может встречаться в цитате («несуществующая 2026-11-05 23:59»), и тогда `-S` найдёт
+    коммит, хотя штампа в нём не было. Поэтому кандидаты проверяются ниже каноническим поиском.
+    """
+    args = ["log", "--all", "-S", stamp, "--format=%H|%ad|%s", "--date=short"]
     if path:
         args += ["--", path]
     rc, out = git(*args)
     if rc != 0:
         return []
     rows = []
-    for line in out.splitlines()[:8]:
+    for line in out.splitlines()[:12]:
         parts = line.split("|", 2)
         if len(parts) == 3:
             rows.append(tuple(parts))
     return rows
+
+
+def canonical_in_history(stamp: str, candidates: list, path: str = "") -> list:
+    """Оставляет только те коммиты, где существовала КАНОНИЧЕСКАЯ строка `- [<stamp>] …`.
+
+    Проверка дешёвая (`git grep -c -F` по конкретной ревизии), поэтому не читаем мегабайтные
+    блобы целиком. Так «цитата в тексте» перестаёт создавать ложную историю.
+    """
+    found = []
+    for sha, date, subject in candidates:
+        # `-e` обязателен: шаблон начинается с `-`, иначе git считает его опцией (rc=129).
+        args = ["grep", "-c", "-F", "-e", "- [%s]" % stamp, sha]
+        if path:
+            args += ["--", path]
+        rc, _ = git(*args)
+        if rc == 0:
+            found.append((sha[:8], date, subject))
+    return found
 
 
 def is_canonical_line(content: str, stamp: str) -> bool:
@@ -72,17 +94,34 @@ def is_canonical_line(content: str, stamp: str) -> bool:
     return content.lstrip().startswith("- [" + stamp + "]")
 
 
-def now_hits(stamp: str, path: str = "") -> int:
+def parse_grep_line(line: str, stamp: str) -> tuple:
+    """`git grep -n` → (это_штамп, файл, строка). Разбор отдельно, чтобы проверить без git."""
+    parts = line.split(":", 2)
+    if len(parts) != 3:
+        return (False, "", "")
+    path, lineno, content = parts
+    return (is_canonical_line(content, stamp), path, lineno)
+
+
+def now_scan(stamp: str, path: str = "") -> tuple:
+    """Возвращает (штампы [(файл, строка)], число упоминаний в тексте).
+
+    Печатать `файл:строку` предложил @FE (`chat/fe.md` `[2026-11-05 14:31]`): при поиске
+    по всем чатам вердикт «СЕЙЧАС» без адреса неоднозначен, а «упоминаний» и «штампов» —
+    разные числа (та же ловушка «122 против 59»).
+    """
     args = ["grep", "-n", "-F", stamp]
     if path:
         args += ["--", path]
     rc, out = git(*args)
-    total = 0
+    stamps, mentions = [], 0
     for line in out.splitlines():
-        parts = line.split(":", 2)
-        if len(parts) == 3 and is_canonical_line(parts[2], stamp):
-            total += 1
-    return total
+        ok, f, n = parse_grep_line(line, stamp)
+        if ok:
+            stamps.append((f, n))
+        elif f:
+            mentions += 1
+    return stamps, mentions
 
 
 def selftest() -> int:
@@ -100,7 +139,20 @@ def selftest() -> int:
         (0, 0, "НЕТ НИГДЕ", "не существует"),
         (0, 1, "ТОЛЬКО В ИСТОРИИ", "одного коммита достаточно"),
     ]
+    parse_cases = [
+        ("5-tech-backlog/chat/fe.md:250:- [2026-11-16 11:45] → @TE: текст", "2026-11-16 11:45",
+         (True, "5-tech-backlog/chat/fe.md", "250"), "штамп с адресом"),
+        ("5-tech-backlog/chat/fe.md:251:- [2026-11-05 14:04] → @TE: метка 2026-11-16 11:45", "2026-11-16 11:45",
+         (False, "5-tech-backlog/chat/fe.md", "251"), "упоминание с адресом"),
+        ("мусор без двоеточий", "2026-11-16 11:45", (False, "", ""), "не parseable"),
+    ]
     ok = 0
+    for line, stamp, want, label in parse_cases:
+        got = parse_grep_line(line, stamp)
+        if got == want:
+            ok += 1
+        else:
+            print(f"  [FAIL] {label}: got={got}, want={want}")
     for content, stamp, want, label in line_cases:
         got = is_canonical_line(content, stamp)
         if got == want:
@@ -113,7 +165,7 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] {label}: got={got}, want={want}")
-    total = len(line_cases) + len(cases)
+    total = len(parse_cases) + len(line_cases) + len(cases)
     print(f"find_stamp --selftest: {ok}/{total} (история + различение «штамп / упоминание»)")
     return 0 if ok == total else 1
 
@@ -135,12 +187,16 @@ def main() -> int:
         return 2
 
     path = args.file or "5-tech-backlog/chat"
-    now = now_hits(args.stamp, path)
-    hist = history_commits(args.stamp, path)
+    stamps, mentions = now_scan(args.stamp, path)
+    now = len(stamps)
+    candidates = history_commits(args.stamp, path)
+    hist = canonical_in_history(args.stamp, candidates, path)
     verdict = classify(now, len(hist))
     print(f"find_stamp: метка «{args.stamp}» в {path or 'репозитории'}")
-    print(f"  текущее состояние: вхождений {now}")
-    print(f"  история (git log -S): коммитов {len(hist)}")
+    where = ", ".join(f"{f}:{n}" for f, n in stamps[:3])
+    print(f"  текущее состояние: штампов {now}" + (f" ({where})" if where else "")
+          + f" | упоминаний в тексте: {mentions}")
+    print(f"  история: кандидатов {len(candidates)}, с КАНОНИЧЕСКИМ штампом {len(hist)}")
     for h in hist:
         print(f"    {h[0]} {h[1]} {h[2][:80]}")
     print(f"  ВЕРДИКТ: {verdict}")
