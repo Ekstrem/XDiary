@@ -25,7 +25,7 @@
 // ВАЖНО (TE-055): на этапе 3 `FE-042` маршрут `/api/v1/privacy/token` удаляется вместе с
 // device-токеном — тогда эту пробу нужно заменить внешним признаком (`XDIARY_STAND_HAS_PIN=1`).
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, loginWithPin, reportStep, expectScreen, dumpViews } = require('./api');
+const { readToken, API_BASE, PIN, loginWithPin, reportStep, expectScreen, dumpViews } = require('./api');
 
 /** Внешний факт: задан ли PIN на стенде. `null` — состояние неизвестно (падаем, не пропускаем). */
 async function standHasPin(request) {
@@ -111,4 +111,15 @@ test('E2E: без локального PIN замка нет; с локальн�
   await page.press('#pin-input', 'Enter');
   await expectScreen(page, '#view-journal', 'верный PIN → журнал', 20000);
   await expect(page.locator('#view-lock')).toBeHidden();
+
+  // Поведенческое утверждение: после разблокировки сессия ЖИВА, а не просто «экран сменился».
+  const token = await readToken(page);
+  expect(token, 'client-JWT на устройстве после разблокировки').toBeTruthy();
+  const me = await page.evaluate(async (base) => {
+    const t = localStorage.getItem('xdiary.accessToken');
+    const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  }, API_BASE);
+  expect(me.status, 'GET /clients/me после разблокировки вернул ' + me.status).toBe(200);
+  expect(me.body && me.body.id, '/clients/me вернул id клиента').toBeTruthy();
 });

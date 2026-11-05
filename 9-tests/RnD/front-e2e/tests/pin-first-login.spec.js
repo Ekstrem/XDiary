@@ -6,7 +6,7 @@
 //   1) чистое устройство → онбординг (никакого PIN-экрана);
 //   2) PIN-экран появляется на устройстве, где онбординг уже пройден и есть clientId/PIN.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, PIN, uniquePhone, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews } = require('./api');
+const { readToken, API_BASE, PIN, uniquePhone, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews } = require('./api');
 
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс. — иначе коллизия с накопленными клиентами (~16%)
@@ -83,5 +83,18 @@ test('E2E: новое устройство → онбординг (без PIN-э
     } else {
       console.log('::notice::после reload — сразу журнал');
     }
+
+    // Поведенческое утверждение (а не «экран виден»): у устройства ЖИВАЯ сессия.
+    // Токен проверяем через API: 200 и `id` в ответе — иначе «журнал открылся» мог быть
+    // отрисован на пустом/протухшем состоянии.
+    const token = await readToken(page);
+    expect(token, 'client-JWT сохранён на устройстве после входа').toBeTruthy();
+    const me = await page.evaluate(async (base) => {
+      const t = localStorage.getItem('xdiary.accessToken');
+      const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });
+      return { status: r.status, body: await r.json().catch(() => null) };
+    }, API_BASE);
+    expect(me.status, 'GET /clients/me с токеном вернул ' + me.status).toBe(200);
+    expect(me.body && me.body.id, 'ответ /clients/me содержит id клиента').toBeTruthy();
   });
 });
