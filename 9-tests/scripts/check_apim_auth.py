@@ -775,6 +775,9 @@ def main() -> int:
     ap.add_argument("--index", default=INDEX)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--all", action="store_true", dest="all_conditions",
+                    help="одна квитанция на все условия: (ii-a) публичный вход + (ii-c) /internal/** "
+                         "(при --direct дополнительно (ii-b))")
     ap.add_argument("--ii-c", action="store_true", dest="ii_c",
                     help="условие (ii-c): /internal/** снаружи обязан давать 401/403/404, 2xx = публикация внутреннего API (rc=1)")
     ap.add_argument("--json", action="store_true")
@@ -797,6 +800,35 @@ def main() -> int:
 
     if args.selftest:
         return selftest()
+
+    if args.all_conditions:
+        # Одно действие — один артефакт: перед переключением трафика решение принимается по ТРЁМ
+        # условиям, и разрозненные прогоны дают три числа из трёх моментов времени (@EX `03:31`).
+        if not args.base:
+            print("::error::check_apim_auth: для --all нужен --base <публичный вход>")
+            return 2
+        ops_all = [o for o in load_ops(args.index) if requires_auth(o)]
+        res_all = [(op, *check_one(args.base, op)) for op in ops_all]
+        v_a, c_a, u_a, p_a = verdict(res_all, args.five_xx_unknown if args.direct else True,
+                                     direct=args.direct)
+        rc_a = identity_rc(final_rc(v_a, c_a, u_a, p_a, len(ops_all)), p_a,
+                           len(v_a), len(c_a), len(u_a), len(ops_all))
+        iops = internal_ops(load_ops(args.index))
+        res_c = [(op, *check_one(args.base, op)) for op in iops]
+        ok_c, bad_c, unk_c = verdict_internal(res_c)
+        rc_c = 1 if bad_c else (2 if (unk_c or not ok_c) else 0)
+        where = args.where or args.base
+        print(receipt_line("ii-a", current_ref(), p_a, len(ops_all), rc_a, where,
+                           len(v_a), len(c_a), len(u_a),
+                           resolve_images(args.images, []) if not args.direct else "", args.network))
+        print(receipt_line("ii-c", current_ref(), len(ok_c), len(iops), rc_c, where,
+                           len(bad_c), 0, len(unk_c),
+                           resolve_images(args.images, []) if not args.direct else "", args.network))
+        worst = max(rc_a, rc_c)
+        names = {0: "PASS", 1: "FAIL", 2: "UNKNOWN"}
+        print(f"ИТОГ: (ii-a) {names[rc_a]} {p_a}/{len(ops_all)} · (ii-c) {names[rc_c]} "
+              f"{len(ok_c)}/{len(iops)} · rc={worst}")
+        return worst
 
     if args.ii_c:
         ops = internal_ops(load_ops(args.index))
