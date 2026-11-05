@@ -11,12 +11,6 @@ namespace Partners.Storage.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTime>(
-                name: "DeletedAt",
-                table: "partners",
-                type: "timestamp with time zone",
-                nullable: true);
-
             migrationBuilder.CreateTable(
                 name: "outbox",
                 columns: table => new
@@ -39,10 +33,6 @@ namespace Partners.Storage.Migrations
         {
             migrationBuilder.DropTable(
                 name: "outbox");
-
-            migrationBuilder.DropColumn(
-                name: "DeletedAt",
-                table: "partners");
         }
     }
 }
