@@ -66,22 +66,35 @@ def history_commits(stamp: str, path: str = "") -> list:
     return rows
 
 
+def filter_canonical(candidates: list, grep_rc) -> list:
+    """Оставляет кандидатов, где по ревизии нашлась КАНОНИЧЕСКАЯ строка.
+
+    `grep_rc(sha)` возвращает код `git grep`: 0 — нашёл, ≠0 — нет. Вынесено в параметр,
+    чтобы `--selftest` проверял **логику фильтра** без git и без состояния репозитория
+    (норма @TL `chat/tl.md` `[2026-11-05 14:30]`: кейс не должен зависеть от дерева).
+    """
+    return [c for c in candidates if grep_rc(c[0]) == 0]
+
+
 def canonical_in_history(stamp: str, candidates: list, path: str = "") -> list:
     """Оставляет только те коммиты, где существовала КАНОНИЧЕСКАЯ строка `- [<stamp>] …`.
 
     Проверка дешёвая (`git grep -c -F` по конкретной ревизии), поэтому не читаем мегабайтные
     блобы целиком. Так «цитата в тексте» перестаёт создавать ложную историю.
     """
-    found = []
-    for sha, date, subject in candidates:
+    cache = {}
+    for sha, _date, _subject in candidates:
         # `-e` обязателен: шаблон начинается с `-`, иначе git считает его опцией (rc=129).
         args = ["grep", "-c", "-F", "-e", "- [%s]" % stamp, sha]
         if path:
             args += ["--", path]
-        rc, _ = git(*args)
-        if rc == 0:
-            found.append((sha[:8], date, subject))
-    return found
+        cache[sha] = git(*args)[0]
+
+    def grep_rc(sha: str) -> int:
+        return cache.get(sha, 1)
+
+    return [(sha[:8], date, subject)
+            for sha, date, subject in filter_canonical(candidates, grep_rc)]
 
 
 def is_canonical_line(content: str, stamp: str) -> bool:
@@ -165,7 +178,21 @@ def selftest() -> int:
             ok += 1
         else:
             print(f"  [FAIL] {label}: got={got}, want={want}")
-    total = len(parse_cases) + len(line_cases) + len(cases)
+    filter_cases = [
+        ([("a1", "2026-01-01", "канон"), ("a2", "2026-01-02", "цитата")],
+         {"a1": 0, "a2": 1}, ["a1"], "цитата отброшена, канон оставлен"),
+        ([("b1", "2026-01-01", "только цитаты")], {"b1": 1}, [],
+         "нет канона в истории -> НЕТ НИГДЕ (это и был дефект @TL 14:32)"),
+        ([("c1", "2026-01-01", "канон 1"), ("c2", "2026-01-02", "канон 2")],
+         {"c1": 0, "c2": 0}, ["c1", "c2"], "оба каноны"),
+    ]
+    for cands, rc_map, want, label in filter_cases:
+        got = [c[0] for c in filter_canonical(cands, lambda sha, m=rc_map: m.get(sha, 1))]
+        if got == want:
+            ok += 1
+        else:
+            print(f"  [FAIL] {label}: got={got}, want={want}")
+    total = len(filter_cases) + len(parse_cases) + len(line_cases) + len(cases)
     print(f"find_stamp --selftest: {ok}/{total} (история + различение «штамп / упоминание»)")
     return 0 if ok == total else 1
 
