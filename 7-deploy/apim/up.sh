@@ -12,6 +12,13 @@
 # Проверено: явный `podman run --network apim --memory=768m` доходит до инициализаторов.
 # Поэтому compose остаётся описанием, а запуск — явный.
 set -euo pipefail
+
+# ВАЖНО (2026-11-05, DO-076): стек СЕЙЧАС В ПУТИ ТРАФИКА
+# `Funnel -> Caddy:8081 -> APIM:18082 -> сервисы`. Раньше скрипт поднимал
+# «control plane вне пути» — это больше не так: упавший gateway = недоступный API.
+# Проверка после запуска: `python3 tools/check_apim_health.py --remote deploy@<host>`.
+# Вручную то же самое: `sudo tailscale funnel status` (ждём апстрим 8081) и
+# `curl -H 'Host: <публичное имя>' http://127.0.0.1:8081/api/v1/catalog` -> 401 + `X-Gravitee-*`.
 cd "$(dirname "$0")"
 
 NET=apim
