@@ -5,18 +5,19 @@
 при формально закрытом API**. Снаружи `200` — это `rc=1` с текстом «описание API доступно
 вне периметра», а не предупреждение.
 
-Три условия @AR, все машинные:
+Шаг (2) порядка @TL `chat/tl.md` `[2026-11-05 18:44]`: включили `Swagger__Enabled=true` на dev —
+мерим периметр; только после этого шаг (3) — ре-снятие `api-index.yaml`/спек.
 
-1. снаружи `/swagger*` **не** отвечает `200` (deny на шлюзе, а не «порт не опубликован случайно»);
-2. изнутри периметра — `200` и валидный JSON;
-3. нарушение (1) — `rc=1`, а не тишина.
+Внутренних сервисов несколько, поэтому `--internal-base` можно указывать **несколько раз**:
+для каждого проверяется `/swagger/v1/swagger.json` → `200` + валидный JSON.
 
 Коды возврата: `0` — измерено и в норме; `1` — измерено и нарушено; `2` — не измерено
 (нет адресов, сеть недоступна, ответ не разобрать). `rc=2` не «плохо» и не «зелено».
 
 Использование:
     python 9-tests/scripts/check_swagger_perimeter.py \
-        --public-base https://<публичный вход> --internal-base http://<внутри контура>
+        --public-base https://<публичный вход> \
+        --internal-base http://partners:8080 --internal-base http://journal:8080
     python 9-tests/scripts/check_swagger_perimeter.py --selftest
 """
 
@@ -30,10 +31,11 @@ import urllib.request
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
+except Exception:  # noqa: BLE001 — не критично для работы гейта
     pass
 
 PATHS = ("/swagger/v1/swagger.json", "/swagger/index.html", "/swagger")
+SPEC = PATHS[0]
 PUBLIC_ALLOWED = (401, 403, 404)
 
 
@@ -50,60 +52,67 @@ def probe(url, timeout=5.0):
 
 
 def evaluate(public, internal):
-    """public/internal — {путь: (код, тело)}. Возвращает (issues, unmeasured, checked)."""
+    """public — {путь: (код, тело)}; internal — {адрес: (код, тело)}.
+
+    Возвращает (issues, unmeasured, checked).
+    """
     issues, unmeasured, checked = [], [], 0
     for path in PATHS:
         code, body = public.get(path, (None, "не запрашивался"))
         if code is None:
             unmeasured.append(f"снаружи {path}: {body}")
-        else:
-            checked += 1
-            if code == 200:
-                issues.append(f"описание API доступно вне периметра: снаружи {path} → 200 "
-                              f"(ожидали 401/403/404)")
-            elif code not in PUBLIC_ALLOWED:
-                issues.append(f"снаружи {path} → {code}: ожидали 401/403/404 или «не измерено»")
+            continue
+        checked += 1
+        if code == 200:
+            issues.append(f"описание API доступно вне периметра: снаружи {path} → 200 "
+                          f"(ожидали 401/403/404)")
+        elif code not in PUBLIC_ALLOWED:
+            issues.append(f"снаружи {path} → {code}: ожидали 401/403/404 или «не измерено»")
 
-    code, body = internal.get(PATHS[0], (None, "не запрашивался"))
-    if code is None:
-        unmeasured.append(f"изнутри {PATHS[0]}: {body}")
-    else:
+    if not internal:
+        unmeasured.append("изнутри: не задан ни один --internal-base")
+    for base, (code, body) in internal.items():
+        if code is None:
+            unmeasured.append(f"изнутри {base}{SPEC}: {body}")
+            continue
         checked += 1
         if code != 200:
-            issues.append(f"изнутри {PATHS[0]} → {code}: описание API должно быть доступно "
+            issues.append(f"изнутри {base}{SPEC} → {code}: описание API должно быть доступно "
                           f"внутри периметра")
-        else:
-            try:
-                json.loads(body)
-            except ValueError:
-                issues.append(f"изнутри {PATHS[0]} → 200, но тело не JSON — сверять нечего")
+            continue
+        try:
+            json.loads(body)
+        except ValueError:
+            issues.append(f"изнутри {base}{SPEC} → 200, но тело не JSON — сверять нечего")
     return issues, unmeasured, checked
 
 
-def receipt_line(checked, issues, unmeasured, public_base, internal_base, when):
+def receipt_line(checked, issues, unmeasured, public_base, internal_bases, when):
     """Квитанция с ПРОВЕНАНСОМ замера (@AR `chat/ar.md` `[2026-11-05 18:25]`).
 
     Без адресов и времени через день нельзя ответить, что именно мерили: прод, dev
     или локальный сервер из `--selftest`.
     """
-    return (f"квитанция: проверено {checked} из {len(PATHS) + 1} | "
+    bases = ", ".join(internal_bases) if internal_bases else "НЕ УКАЗАН"
+    return (f"квитанция: проверено {checked} из {len(PATHS) + max(1, len(internal_bases))} | "
             f"нарушено: {len(issues)} | не засчитано: {len(unmeasured)} | "
             f"public-base: {public_base or 'НЕ УКАЗАН'} | "
-            f"internal-base: {internal_base or 'НЕ УКАЗАН'} | "
-            f"измерено: {when}")
+            f"internal-base: {bases} | измерено: {when}")
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--public-base", help="публичный адрес (вне периметра)")
-    ap.add_argument("--internal-base", help="адрес внутри периметра (podman/локально)")
+    ap.add_argument("--internal-base", action="append", default=None,
+                    help="адрес внутри периметра; можно указывать несколько раз")
     ap.add_argument("--timeout", type=float, default=5.0)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
 
-    if not (a.public_base or a.internal_base):
+    internal_bases = a.internal_base or []
+    if not (a.public_base or internal_bases):
         print("::error::check_swagger_perimeter: не задан ни --public-base, ни --internal-base "
               "— измерять нечего (rc=2)")
         return 2
@@ -112,8 +121,8 @@ def main(argv=None):
     if a.public_base:
         for p in PATHS:
             public[p] = probe(a.public_base.rstrip("/") + p, a.timeout)
-    if a.internal_base:
-        internal[PATHS[0]] = probe(a.internal_base.rstrip("/") + PATHS[0], a.timeout)
+    for base in internal_bases:
+        internal[base] = probe(base.rstrip("/") + SPEC, a.timeout)
 
     issues, unmeasured, checked = evaluate(public, internal)
     for msg in issues:
@@ -121,8 +130,8 @@ def main(argv=None):
     for msg in unmeasured:
         print(f"::warning::check_swagger_perimeter: не измерено: {msg}")
     from datetime import datetime as _dt, timezone as _tz
-    _when = _dt.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    print(receipt_line(checked, issues, unmeasured, a.public_base, a.internal_base, _when))
+    when = _dt.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(receipt_line(checked, issues, unmeasured, a.public_base, internal_bases, when))
     if issues:
         return 1
     return 0 if not unmeasured else 2
@@ -131,14 +140,15 @@ def main(argv=None):
 def selftest():
     """Красный контроль на локальном сервере: каждый кейс падает по своей причине."""
     ok = total = 0
+    j = '{"openapi": "3.0.0"}'
+    deny = {p: (404, "") for p in PATHS}
 
     def case(name, public, internal, want_rc, must=(), must_not=()):
         nonlocal ok, total
         total += 1
         issues, unmeasured, checked = evaluate(public, internal)
-        text = "\n".join(issues + unmeasured) + (
-            f"\nквитанция: проверено {checked} из {len(PATHS) + 1} | "
-            f"нарушено: {len(issues)} | не засчитано: {len(unmeasured)}")
+        text = "\n".join(issues + unmeasured) + "\n" + receipt_line(
+            checked, issues, unmeasured, "https://pub.example", list(internal), "2026-11-05T18:45:00Z")
         rc = 1 if issues else (0 if not unmeasured else 2)
         miss = [m for m in must if m not in text]
         bad = [m for m in must_not if m in text]
@@ -147,20 +157,27 @@ def selftest():
         else:
             print(f"  [FAIL] {name}: rc={rc} (ждали {want_rc}), нет {miss}, лишнее {bad}")
 
-    j = '{"openapi": "3.0.0"}'
-    deny = {p: (404, "") for p in PATHS}
-    case("норма: снаружи 404, изнутри JSON", deny, {PATHS[0]: (200, j)}, 0, ["проверено"])
-    case("спека открыта миру: снаружи 200", {**deny, PATHS[0]: (200, j)},
-         {PATHS[0]: (200, j)}, 1, ["описание API доступно вне периметра"])
-    case("снаружи 401 — норма", {p: (401, "") for p in PATHS}, {PATHS[0]: (200, j)}, 0)
-    case("снаружи 500 — не норма", {**deny, PATHS[0]: (500, "")},
-         {PATHS[0]: (200, j)}, 1, ["ожидали 401/403/404"])
-    case("изнутри 404 — описание недоступно", deny, {PATHS[0]: (404, "")}, 1,
+    case("норма: снаружи 404, изнутри JSON", deny, {"http://partners:8080": (200, j)}, 0,
+         ["проверено 4 из 4", "public-base: https://pub.example"])
+    case("спека открыта миру: снаружи 200", {**deny, SPEC: (200, j)},
+         {"http://partners:8080": (200, j)}, 1, ["описание API доступно вне периметра"])
+    case("снаружи 401 — норма", {p: (401, "") for p in PATHS}, {"http://p:8080": (200, j)}, 0)
+    case("снаружи 500 — не норма", {**deny, SPEC: (500, "")}, {"http://p:8080": (200, j)}, 1,
+         ["ожидали 401/403/404"])
+    case("изнутри 404 — описание недоступно", deny, {"http://p:8080": (404, "")}, 1,
          ["должно быть доступно внутри периметра"])
-    case("изнутри 200, но не JSON", deny, {PATHS[0]: (200, "<html>")}, 1, ["тело не JSON"])
-    case("ничего не измерено", {}, {}, 2, ["не запрашивался"], ["описание API доступно"])
+    case("изнутри 200, но не JSON", deny, {"http://p:8080": (200, "<html>")}, 1, ["тело не JSON"])
+    case("ничего не измерено", {}, {}, 2, ["не задан ни один --internal-base"],
+         ["описание API доступно"])
+    # несколько внутренних сервисов: один сломан -> нарушение
+    case("два сервиса, второй отдаёт 500", deny,
+         {"http://a:8080": (200, j), "http://b:8080": (500, "")}, 1,
+         ["http://b:8080/swagger/v1/swagger.json → 500"])
+    # каждый из двух — в квитанции
+    case("два сервиса в квитанции", deny,
+         {"http://a:8080": (200, j), "http://b:8080": (200, j)}, 0,
+         ["internal-base: http://a:8080, http://b:8080", "проверено 5 из 5"])
 
-    # живой сервер: ДВА разных (снаружи всё закрыто, изнутри JSON) — иначе кейс бессмыслен
     class Closed(http.server.BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802
             self.send_response(404)
@@ -171,7 +188,7 @@ def selftest():
 
     class Open(http.server.BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802
-            if self.path == PATHS[0]:
+            if self.path == SPEC:
                 body = j.encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -193,7 +210,7 @@ def selftest():
     intr = f"http://127.0.0.1:{srv_int.server_address[1]}"
     total += 1
     got = {p_: probe(pub + p_) for p_ in PATHS}
-    internal = {PATHS[0]: probe(intr + PATHS[0])}
+    internal = {intr: probe(intr + SPEC)}
     issues, unmeasured, checked = evaluate(got, internal)
     if not issues and not unmeasured and checked == len(PATHS) + 1:
         ok += 1
@@ -202,25 +219,16 @@ def selftest():
     srv_pub.shutdown()
     srv_int.shutdown()
 
-    # кейс на ТЕКСТ: квитанция сходится и не содержит None
+    # кейс на ТЕКСТ: квитанция сходится, называет адрес и время, не содержит None
     total += 1
-    issues, unmeasured, checked = evaluate({p: (404, "") for p in PATHS}, {PATHS[0]: (200, j)})
-    line = (f"квитанция: проверено {checked} из {len(PATHS) + 1} | "
-            f"нарушено: {len(issues)} | не засчитано: {len(unmeasured)}")
-    if "проверено 4 из 4" in line and "None" not in line and len(issues) + len(unmeasured) == 0:
+    issues, unmeasured, checked = evaluate(deny, {"http://p:8080": (200, j)})
+    line = receipt_line(checked, issues, unmeasured, "https://pub.example",
+                        ["http://p:8080"], "2026-11-05T18:45:00Z")
+    if ("проверено 4 из 4" in line and "internal-base: http://p:8080" in line
+            and "измерено: 2026-11-05T18:45:00Z" in line and "None" not in line):
         ok += 1
     else:
         print(f"  [FAIL] текст: {line}")
-
-    # кейс: квитанция называет адреса и время (@AR 18:25) — без них замер не засчитывается
-    total += 1
-    _is, _un, _ch = evaluate({p_: (404, "") for p_ in PATHS}, {PATHS[0]: (200, j)})
-    _line = receipt_line(_ch, _is, _un, "https://pub.example", "http://int:8080", "2026-11-05T18:25:00Z")
-    if ("public-base: https://pub.example" in _line and "internal-base: http://int:8080" in _line
-            and "измерено: 2026-11-05T18:25:00Z" in _line and "None" not in _line):
-        ok += 1
-    else:
-        print(f"  [FAIL] квитанция без провенанса: {_line}")
 
     print(f"check_swagger_perimeter --selftest: {ok}/{total} "
           f"(спека вне периметра = rc=1, каждый кейс краснеет своей причиной)")
