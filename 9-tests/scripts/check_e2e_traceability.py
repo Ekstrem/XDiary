@@ -22,12 +22,30 @@ TE = re.compile(r"TE-\d{3}")
 HEAD_LINES = 12
 
 
-def evaluate(specs):
-    """specs — {имя: первые N строк}. Возвращает (issues, traced, legacy)."""
+def evaluate(specs, cards=None):
+    """specs — {имя: шапка}. cards — {TE-ID: текст карточки} или None.
+
+    Проверяется не только наличие `TE-NNN`, но и что карточка **есть** и не `Отклонена`:
+    ссылка на отклонённую задачу — тот же «второй источник правды», только в трассировке.
+    """
     issues, traced, legacy = [], 0, 0
     for name, head in sorted(specs.items()):
-        if TE.search(head):
+        refs = TE.findall(head)
+        if refs:
             traced += 1
+            for ref in refs:
+                if cards is None:
+                    continue
+                text = cards.get(ref)
+                if text is None:
+                    issues.append(f"{name}: ссылка на `{ref}`, а такой карточки нет "
+                                  f"в `5-tech-backlog/tester/`")
+                    continue
+                m = re.search(r"\*\*Статус:\*\*\s*([^\n]+)", text)
+                status = (m.group(1).strip() if m else "")
+                if status.startswith("Отклонена"):
+                    issues.append(f"{name}: ссылка на `{ref}`, которая `Отклонена` — "
+                                  f"выберите действующую карточку")
         elif re.search(r"LEGACY", head):
             legacy += 1
         else:
@@ -48,7 +66,7 @@ def load(specs_dir: pathlib.Path):
 def output_lines(issues, traced, legacy, total):
     lines = [f"::error::check_e2e_traceability: {m}" for m in issues]
     lines.append(f"квитанция: спек {total} | с TE-ссылкой: {traced} | LEGACY: {legacy} | "
-                 f"без ссылки: {len(issues)}")
+                 f"нарушено: {len(issues)}")
     return lines
 
 
@@ -64,7 +82,17 @@ def main(argv=None):
     if err:
         print(f"::error::check_e2e_traceability: {err} — проверять нечего (rc=2)")
         return 2
-    issues, traced, legacy = evaluate(specs)
+    cards = {}
+    tester = pathlib.Path(a.root) / "5-tech-backlog" / "tester"
+    if tester.is_dir():
+        try:
+            for p in sorted(tester.glob("TE-*.md")):
+                cards[p.stem] = p.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            print(f"::error::check_e2e_traceability: не читаются карточки: {e} — "
+                  f"часть проверки не измерена")
+            cards = None
+    issues, traced, legacy = evaluate(specs, cards if cards else None)
     for line in output_lines(issues, traced, legacy, len(specs)):
         print(line)
     return 1 if issues else 0
@@ -86,14 +114,38 @@ def selftest():
             print(f"  [FAIL] {name}: rc={rc} (ждали {want_rc}), нет {miss}")
 
     case("норма: TE и LEGACY", {"a.spec.js": "// TE-050 критерий", "b.spec.js": "// LEGACY: снят"},
-         0, ["с TE-ссылкой: 1", "LEGACY: 1", "без ссылки: 0"])
+         0, ["с TE-ссылкой: 1", "LEGACY: 1", "нарушено: 0"])
     case("спека без ссылки", {"a.spec.js": "// без ссылки"}, 1,
          ["a.spec.js", "ни `TE-NNN`, ни метки `LEGACY`"])
     case("TE во второй строке", {"a.spec.js": "// заголовок\n// TE-013\n"}, 0, ["с TE-ссылкой: 1"])
 
+    cards_ok = {"TE-010": "- **Статус:** Закрыта", "TE-011": "- **Статус:** Отклонена (проверено)"}
+    case("ссылка на действующую карточку",
+         {"a.spec.js": "// TE-010 критерий"}, 0, ["нарушено: 0"]) if False else None
     total += 1
-    line = "квитанция: спек 2 | с TE-ссылкой: 2 | LEGACY: 0 | без ссылки: 0"
-    if "None" not in line and "без ссылки: 0" in line:
+    issues, traced, legacy = evaluate({"a.spec.js": "// TE-010 критерий"}, cards_ok)
+    if not issues and traced == 1:
+        ok += 1
+    else:
+        print(f"  [FAIL] действующая карточка: {issues}")
+
+    total += 1
+    issues, traced, legacy = evaluate({"b.spec.js": "// TE-011 критерий"}, cards_ok)
+    if issues and "Отклонена" in issues[0]:
+        ok += 1
+    else:
+        print(f"  [FAIL] отклонённая карточка не поймана: {issues}")
+
+    total += 1
+    issues, traced, legacy = evaluate({"c.spec.js": "// TE-999 критерий"}, cards_ok)
+    if issues and "такой карточки нет" in issues[0]:
+        ok += 1
+    else:
+        print(f"  [FAIL] отсутствующая карточка не поймана: {issues}")
+
+    total += 1
+    line = "квитанция: спек 2 | с TE-ссылкой: 2 | LEGACY: 0 | нарушено: 0"
+    if "None" not in line and "нарушено: 0" in line:
         ok += 1
     else:
         print(f"  [FAIL] текст: {line}")
