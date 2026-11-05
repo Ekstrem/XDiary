@@ -109,7 +109,7 @@
 
 ## Квитанция (ii-b): только ссылка + как пользоваться инструментом
 
-**Норма (поля, классы, условие `PASS`, тождество) — ТОЛЬКО в `ADR-026 → «Квитанция (ii-b)»`.**
+**Норма — только `ADR-026 → «ФИНАЛЬНЫЙ формат квитанции (ii-b)»`** (поля, классы, условие зачёта, тождество).
 `ITERATION-PLAN §19.1` ссылается на него. Здесь намеренно **нет** пересказа нормы: два описания
 расходятся на первой правке (класс уже вычищался трижды: `2xx`-only → `400` в нарушители → `contract`).
 
@@ -122,7 +122,7 @@
 python 9-tests/scripts/check_apim_auth.py --base https://<вход>                 # ii-a: публичный вход (YARP)
 python 9-tests/scripts/check_apim_auth.py --direct --network xdiary \
        --images auto --where "podman run --network xdiary"                        # ii-b: изнутри контура
-python 9-tests/scripts/check_apim_auth.py --selftest                            # без сети: 18/18
+python 9-tests/scripts/check_apim_auth.py --selftest                            # без сети: 19/19
 python 9-tests/scripts/check_apim_auth.py --dry-run --direct                    # план: BC → сервис, 12/76
 python 9-tests/scripts/check_apim_auth.py --direct --only Catalog,Analytics     # срез (нужен --network)
 ```
@@ -130,7 +130,7 @@ python 9-tests/scripts/check_apim_auth.py --direct --only Catalog,Analytics     
 **Флаги, которые нужны на практике:**
 - `--base <url>` — мерить через вход (прокси); `--direct` — бить в сервисы напрямую (обязателен `--network`);
 - `--network <имя>` — сеть контура; без него `--direct` возвращает `rc=2` (недействительно, а не «зелено»);
-- `--where "…"` — чем измерено (обязателен для `PASS`; без него `rc=2`);
+- `--where "…"` — чем измерено; без него результат не засчитывается (`rc=2`, «нет provenance»);
 - `--images auto` — digest'ы контейнеров через `podman inspect`; если podman нет — `НЕ ИЗМЕРЕНО` (не `REF`);
 - `--service-map map.json` — свои адреса (`host:port` | URL | имя сервиса); `--only BC,…` — срез;
 - `--5xx-unknown` — вернуть `5xx` в `unknown` (по умолчанию в `--direct` это нарушитель).
@@ -142,9 +142,9 @@ REF=9257a1d2 | (ii-a) UNKNOWN защищено=0/76 (не засчитывает
 network=НЕ УКАЗАНО | tool=9-tests/scripts/check_apim_auth.py@e77f5c571b8b
 ```
 
-**Коды возврата:** `0` — всё измерено, нарушителей/`contract`/`unknown` нет; `1` — есть нарушители или
-`contract`; `2` — недействительно/не измерено (ни одного ответа, сумма ≠ `total`, база не резолвится,
-`--direct` без `--where`/`--network`).
+**Коды возврата:** `0` — всё измерено и чисто; `1` — есть нарушители или `contract`;
+`2` — результат недействителен или не измерен (ни одного ответа, не сходится сумма по целям, база не
+резолвится, `--direct` без `--where`/`--network`).
 
 
 ## Runbook: E2E и нагрузка на стенде (TE-007..011)
