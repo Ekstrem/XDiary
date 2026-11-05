@@ -107,3 +107,12 @@ IDomainOperationResult`; геттеры `Command` + `ChangedValueObjects`.
 не регистрируется** этим методом (значит `IAggregateProvider` — либо другая библиотека, либо пишется
 свой). E1 заменяет `IRepository.GetByIdAsync` → `IAnemicModelRepository.GetById`, `SaveAsync` →
 `IEventBusProducer.Publish(result.Event)`; `BusAdapter`/`Notifier` — не нужны (канон публикует напрямую).
+
+### Точная сигнатура `IAnemicModelRepository` (round 58)
+
+- `Task<List<TAnemicModel>> GetById(Guid, CancellationToken)` — **список** (история версий агрегата);
+- `Task<TAnemicModel> GetByIdAndVersion(Guid, long, CancellationToken)` — одна версия;
+- `Task<TAnemicModel> GetByCorrelationToken(Guid, CancellationToken)`.
+
+`GetById` возвращает **список**, а не одиночную модель — для UPDATE-команды берётся последняя версия.
+Это и есть семантика замены `IRepository.GetByIdAsync → TModel?` на канон.
