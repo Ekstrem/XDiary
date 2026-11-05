@@ -57,7 +57,8 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             contraceptive_count_mismatches=None, projection_verified_by=None,
             measured_on=None, schema_present=None, post_partners_status=None,
             delivery_reached=None,
-            projection_result=None, projection_waited_ms=None):
+            projection_result=None, projection_waited_ms=None,
+            projection_provenance=None):
     """Возвращает (issues, unmeasured). Пустые оба = приёмка пройдена."""
     issues, unmeasured = [], []
 
@@ -132,6 +133,20 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
     # Версия, на которой сделан замер (@TL `chat/tl.md` `[2026-11-05 14:50]` п.3):
     # замер 11:14 был сделан на варианте B, а вердикт применяли к A — именно так родилось
     # «проекция не пишет». Поэтому поведенческий результат без образа/коммита не засчитывается.
+    # §5 п.3 (@AR `chat/ar.md` `[2026-11-05 16:51]`): «представление строится проекцией» доказывается
+    # ПЕРЕСБОРКОЙ (удалили строки -> POST -> числа вернулись) или ВРЕМЕНЕМ (`UpdatedAt` позже починки).
+    # Непустая таблица после ручного ремонта — не доказательство.
+    if projection_provenance == "repair":
+        issues.append("представление: строки появились ручным ремонтом (SQL), это НЕ проекция — "
+                      "§5 п.3 не выполнен; доказательство: пересборка либо UpdatedAt позже починки")
+    elif projection_provenance in (None, "none"):
+        if projection_verified_by:
+            unmeasured.append("представление: провенанс строк не указан "
+                              "(--projection-provenance rebuild|time|repair)")
+    elif projection_provenance not in ("rebuild", "time"):
+        issues.append(f"провенанс представления '{projection_provenance}' неизвестен: "
+                      "ожидали rebuild|time|repair")
+
     if (projection_result or projection_verified_by) and not measured_on:
         unmeasured.append("версия замера: поведенческий результат без `--measured-on` "
                           "(образ/коммит) не засчитывается — на какой версии мерили, такой вердикт и верен")
@@ -223,6 +238,7 @@ def receipt(args, issues, unmeasured):
     if args.measured_on:
         proj += f" [замер на {args.measured_on}]"
     print(f"  проекция «создал → увидел»: {proj}")
+    print(f"  провенанс представления: {args.projection_provenance or 'НЕ УКАЗАН'}")
     print(f"  контракт: passed={num(args.contract_passed)} failed={num(args.contract_failed)}")
     print(f"  события: {num(args.event_count)} → повтор {num(args.rerun_event_count)}")
     print(f"  доставка до консьюмера: "
@@ -375,6 +391,8 @@ def main() -> int:
     ap.add_argument("--projection-result", choices=["passed", "failed"],
                     help="результат поведенческой проверки: создали → увидели (passed) или нет (failed)")
     ap.add_argument("--projection-waited-ms", type=int, help="сколько ждали появления в read-модели")
+    ap.add_argument("--projection-provenance", choices=["rebuild", "time", "repair", "none"],
+                    help="чем доказано, что представление строится проекцией: rebuild (пересборка), time (UpdatedAt позже починки), repair (ручной SQL — не доказательство), none")
     ap.add_argument("--delivery-reached", choices=["yes", "no"],
                     help="дошло ли событие до обработчика (маркер `[handle] entered` в логе)")
     ap.add_argument("--schema-present", choices=["yes", "no"],
@@ -413,6 +431,7 @@ def main() -> int:
         projection_verified_by=args.projection_verified_by,
         projection_result=args.projection_result,
         projection_waited_ms=args.projection_waited_ms,
+        projection_provenance=args.projection_provenance,
         measured_on=args.measured_on,
         schema_present=args.schema_present,
         delivery_reached=args.delivery_reached,
