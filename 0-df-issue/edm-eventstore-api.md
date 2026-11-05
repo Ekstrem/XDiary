@@ -75,3 +75,17 @@ API прочитан. E1 разблокирован по сигнатурам; �
 IDomainOperationResult`; геттеры `Command` + `ChangedValueObjects`.
 **Вывод:** механизм хендлера задаётся конвенцией/рефлексией, которой нет в метаданных. Для консьюмера
 нужен пример из DF-доков или исходник; писать `Handle` наугад нельзя.
+
+## Канон агрегата/шины (round 41, рефлексия SeedWorks 0.5.0)
+
+Найдены типы канона DF (то, что «классический CEQRS» заменил самописным):
+- `AggregateBusinessOperation<TSelf, TBC>.Handle(IAnemicModel, CommandToAggregate, IBoundedContextScope<TBC>)` → `AggregateResult`;
+- `IAggregateProvider<TBC>.GetAggregate(Guid[, long])` → `TAnemicModel` (non-null), `GetAggregateAsync`;
+- `IBoundedContextScope<TBC>` — `Operations` + `Validators`;
+- `CommandToAggregate` (конкретный) — `CorrelationToken`/`Version`/`CommandName`/`SubjectName`;
+- `DomainEventNotifier<T, ...>` — публичных методов в метаданных нет (механизм notify→Publish внутренний).
+
+То есть `BusAdapter`/`Notifier`/`IRepository` → канон: команда → `IAggregateProvider.GetAggregate` →
+`AggregateBusinessOperation.Handle` → `result.Event` → `DomainEventNotifier`/`IEventBusProducer.Publish`.
+Раскатка = «вернуть наследование DF-базы» (E1), по BC; точный `BusAdapter`-пример — в
+`microservice-implementation-guide.md` (в нашем репо отсутствует).
