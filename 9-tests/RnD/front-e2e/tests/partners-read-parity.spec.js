@@ -12,7 +12,7 @@
 // чтобы не менять поведение обычных прогонов: сценарий требует живого бэкенда с фиксом `partners_read`
 // (BE-068/`e7a9bd30`) и осмыслен только после выкатки.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin, removeByName, reportStep } = require('./api');
+const { API_BASE, loginWithPin, removeByName, reportStep, waitToken } = require('./api');
 
 const ENABLED = process.env.XDIARY_READPARITY === '1';
 const POLL_MS = Number(process.env.XDIARY_READPARITY_POLL_MS || 1000);
@@ -36,14 +36,20 @@ test('E2E: read-модель партнёров не пуста при живы�
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
     await reportStep(page, 'шаг 1: сессия получена');
 
+    // Ключ токена берём там, где он реально есть: приложение хранит `xdiary.accessToken`
+    // (`8-front`: других ключей с токеном нет). Сначала ждём его появления через общий хелпер
+    // `waitToken` — он же даст диагностику, если JWT не пришёл; ключ не дублируем руками,
+    // поэтому переименование в приложении не сломает спеку молча (@DO `08:38`, REF=7bf8c3e9).
+    await waitToken(page);
+    await reportStep(page, 'шаг 1.1: JWT в localStorage появился');
     token = await page.evaluate(() => {
       try {
-        return localStorage.getItem('xdiary.token') || localStorage.getItem('token') || '';
+        return localStorage.getItem('xdiary.accessToken') || '';
       } catch (e) {
         return '';
       }
     });
-    expect(token, 'нет токена сессии — дальше проверять нечего').not.toBe('');
+    expect(token, 'нет токена сессии (`xdiary.accessToken`) — дальше проверять нечего').not.toBe('');
 
     // 1. Создаём партнёра через тот же API, что и приложение (не через UI — нам нужен контроль времени).
     const created = await page.evaluate(
