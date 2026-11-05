@@ -27,7 +27,8 @@ STATUS = re.compile(r'^\s*[-*]\s*\*\*\u0421\u0442\u0430\u0442\u0443\u0441:\*\*\s
 TASK = re.compile(r'^5-tech-backlog/([a-z-]+)/([A-Z]{2}-\d{3})\.md$')
 CHAT = re.compile(r'^5-tech-backlog/chat/([a-z]+)\.md$')
 CHAT_LINE = re.compile(r'^- \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] \u2192 @([A-Za-z\u0410-\u044f]+):\s*(.+)$')
-DECL = re.compile(r'^([A-Z]{2}-\d{3})\s+(.+?)\s*\u2192\s*(.+?)\s*$')
+DECL = re.compile(r'^`?([A-Z]{2}-\d{3})`?\s+(.+?)\s*\u2192\s*(.+?)\s*$')
+TICKS = re.compile(r'[`\u2018\u2019\u00ab\u00bb]')
 
 STATUSES = {'\u0418\u0434\u0435\u044f', '\u041d\u0430 \u043f\u0440\u043e\u0440\u0430\u0431\u043e\u0442\u043a\u0435',
             'ToDo', '\u0412 \u0440\u0430\u0431\u043e\u0442\u0435', '\u0412 \u043f\u0430\u0443\u0437\u0435',
@@ -117,10 +118,11 @@ def declarations(rev_range, root, tip):
             body = m.group(2).strip()
             if body in cache[path]:                         # restamp
                 continue
-            d = DECL.match(body)
+            d = DECL.match(TICKS.sub('', body).strip())
             if not d:
                 continue
             tid, a, b = d.group(1), d.group(2).strip(), d.group(3).strip()
+            a, b = TICKS.sub('', a).strip(), TICKS.sub('', b).strip()
             if a not in STATUSES or b not in STATUSES:      # closed vocabulary
                 continue
             if not card_exists(tid, root):                  # card exists
@@ -185,27 +187,38 @@ def selftest():
     def line(body):
         return '- [2026-11-15 04:00] \u2192 @TL: ' + body + '\n'
 
-    # direction 1
+    def line(body):
+        return '- [2026-11-15 04:00] \u2192 @TL: ' + body + '\n'
+
+    # порядок по @FE 2026-11-05 14:26: СНАЧАЛА дефект (иначе зелено на пустоте), затем ложные.
+    # (1) настоящий дефект: объявление без смены статуса -> rc=1
+    case('d2_defect', {CARD_PATH: CARD, CHAT: ''},
+         {CHAT: line('`DO-001` ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 1)
+    # (2) норма: та же строка + смена статуса в том же коммите -> rc=0
+    case('d2_norm', {CARD_PATH: CARD, CHAT: ''},
+         {CARD_PATH: '- **\u0421\u0442\u0430\u0442\u0443\u0441:** \u0417\u0430\u043a\u0440\u044b\u0442\u0430\n',
+          CHAT: line('`DO-001` ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 0)
+    # (3) перештамповка: тот же текст уже был у родителя с другой меткой -> rc=0
+    case('d2_restamp',
+         {CARD_PATH: CARD, CHAT: '- [2026-11-14 10:00] \u2192 @TL: `DO-001` ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430\n'},
+         {CHAT: '- [2026-11-15 04:12] \u2192 @TL: `DO-001` ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430\n'}, 0)
+    # (4) цитата примера: карточки FE-999 нет -> rc=0
+    case('d2_unknown_id', {CARD_PATH: CARD, CHAT: ''},
+         {CHAT: line('`FE-999` ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 0)
+    # (5) слово статуса без перехода A -> B -> rc=0
+    case('d2_no_canon', {CARD_PATH: CARD, CHAT: ''},
+         {CHAT: line('`DO-001` \u2192 `\u041d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435`')}, 0)
+    # (6) статус вне закрытого словаря -> rc=0
+    case('d2_outside_vocab', {CARD_PATH: CARD, CHAT: ''},
+         {CHAT: line('`DO-001` ToDo \u2192 \u0412\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e')}, 0)
+    # (7) сменил, но не на объявленный статус -> rc=1
+    case('d2_wrong_target', {CARD_PATH: CARD, CHAT: ''},
+         {CARD_PATH: CARD_WORK,
+          CHAT: line('`DO-001` ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 1)
+    # направление 1
     case('d1_defect', {CARD_PATH: CARD, CHAT: ''}, {CARD_PATH: CARD_WORK}, 1)
     case('d1_norm', {CARD_PATH: CARD, CHAT: ''},
          {CARD_PATH: CARD_WORK, CHAT: line('DO-001 ToDo \u2192 \u0412 \u0440\u0430\u0431\u043e\u0442\u0435')}, 0)
-
-    # direction 2: false classes
-    case('d2_no_canon', {CARD_PATH: CARD, CHAT: ''},
-         {CHAT: line('DO-001 \u0432\u044b\u043f\u0443\u0449\u0435\u043d, \u0440\u0430\u0431\u043e\u0442\u0430 \u0438\u0434\u0451\u0442')}, 0)
-    case('d2_outside_vocab', {CARD_PATH: CARD, CHAT: ''},
-         {CHAT: line('DO-001 ToDo \u2192 \u0412\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e')}, 0)
-    case('d2_unknown_id', {CARD_PATH: CARD, CHAT: ''},
-         {CHAT: line('FE-999 ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 0)
-    case('d2_restamp',
-         {CARD_PATH: CARD, CHAT: '- [2026-11-14 10:00] \u2192 @TL: DO-001 ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430\n'},
-         {CHAT: '- [2026-11-15 04:12] \u2192 @TL: DO-001 ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430\n'}, 0)
-
-    # direction 2: real defects
-    case('d2_defect', {CARD_PATH: CARD, CHAT: ''},
-         {CHAT: line('DO-001 ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 1)
-    case('d2_wrong_target', {CARD_PATH: CARD, CHAT: ''},
-         {CARD_PATH: CARD_WORK, CHAT: line('DO-001 ToDo \u2192 \u0417\u0430\u043a\u0440\u044b\u0442\u0430')}, 1)
 
     shutil.rmtree(base, ignore_errors=True)
     print('check_status_chat --selftest: %d/%d' % (ok, total))
