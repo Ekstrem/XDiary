@@ -209,10 +209,12 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     line += f" | where={where or 'НЕ УКАЗАНО'} | images={images or 'НЕ УКАЗАНО'}"
     line += f" | network={network or 'НЕ УКАЗАНО'}"
     line += f" | via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}"
+    line += f" | unknown_retried={RETRY_STATS['retried']}"
     line += f" | tool={tool_id()}"
     return line
 
 
+RETRY_STATS = {"retried": 0}   # провенанс ретраев (@AR `chat/ar.md` `[2026-11-05 17:10]`)
 VIA_NOTE = ""      # кто ответил в текущем прогоне
 STRICT_VIA = False  # требовать via=gravitee для всех условий (--strict-via) (@TL `05:00`); заполняется один раз в main
 
@@ -352,7 +354,11 @@ def probe_with_retry(probe, retries: int = 1) -> tuple[int | None, str, int]:
     for n in range(1, attempts + 1):
         code, where = probe()
         if code is not None:
+            if n > 1:
+                RETRY_STATS["retried"] += 1   # не ответил с первого раза
             return code, where, n
+    if attempts > 1:
+        RETRY_STATS["retried"] += 1            # не ответил даже после повторов
     return code, where, attempts
 
 
