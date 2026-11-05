@@ -43,7 +43,7 @@ def parse(out):
 
 
 def verdict(facts):
-    """(rc, [(пункт, выполнено, текст)]) — без догадок: только по числам."""
+    """(rc, [(пункт, выполнено, текст)], provenance) — без догадок: только по числам."""
     schema = facts.get('schema')
     hist = int(facts.get('history') or 0)
     events = int(facts.get('events') or 0)
@@ -88,11 +88,15 @@ def verdict(facts):
                   % (pread, recs, jread, updated, repaired_at or 'не задан', provenance)))
 
     if all(ok for _, ok, _ in items):
-        return 0, items
-    # противоречие: схема есть, а событий нет — это уже не «не измерено»
+        return 0, items, provenance
+    # Лексика вердиктов согласована с @TE (`accept_read_path --projection-provenance`):
+    # `repair` — НАРУШЕНИЕ §5 п.3 (rc=1), «провенанс не указан/строк нет» — НЕ ИЗМЕРЕНО (rc=2).
+    if provenance == 'repair':
+        return 1, items, provenance
+    # противоречие: схема есть, а событий нет — тоже не «не измерено»
     if schema == 'yes' and events == 0:
-        return 1, items
-    return 2, items
+        return 1, items, provenance
+    return 2, items, provenance
 
 
 def selftest():
@@ -101,7 +105,7 @@ def selftest():
     def case(label, facts, want):
         nonlocal ok, total
         total += 1
-        rc, items = verdict(facts)
+        rc, items, _ = verdict(facts)
         if rc == want:
             ok += 1
         else:
@@ -114,10 +118,19 @@ def selftest():
          {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
           'records': '4', 'journal_read': '4',
           'journal_read_updated': '2026-11-06T10:00:00+00:00', 'repaired_at': REP}, 0)
-    case('read непуст, но ВСЁ до ремонта (ручной ремонт)',
+    # @TE 16:56: `repair` — нарушение §5 п.3 (rc=1), а не «не измерено»
+    case('read непуст, но ВСЁ до ремонта (ручной ремонт) -> нарушение',
          {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
           'records': '4', 'journal_read': '4',
-          'journal_read_updated': '2026-11-03T17:03:18+00:00', 'repaired_at': REP}, 2)
+          'journal_read_updated': '2026-11-03T17:03:18+00:00', 'repaired_at': REP}, 1)
+    case('явно передан rebuild -> доказательство принято',
+         {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
+          'records': '4', 'journal_read': '4', 'journal_read_updated': '2026-11-03T00:00:00+00:00',
+          'repaired_at': REP, 'provenance': 'rebuild'}, 0)
+    case('явно передан repair -> нарушение',
+         {'schema': 'yes', 'history': '1', 'events': '5', 'partners_read': '13',
+          'records': '4', 'journal_read': '4', 'repaired_at': REP,
+          'provenance': 'repair'}, 1)
     case('схемы нет', {'schema': 'no', 'history': '0', 'events': '0', 'partners_read': '0',
                        'records': '2481', 'journal_read': '0', 'repaired_at': REP}, 2)
     case('схема есть, событий нет',
@@ -129,7 +142,7 @@ def selftest():
 
     # текстовый кейс (норма @TL): в выводе обязаны быть числа, а не «None»
     total += 1
-    _, items = verdict({'schema': 'no', 'history': '0', 'events': '0',
+    _, items, _ = verdict({'schema': 'no', 'history': '0', 'events': '0',
                         'partners_read': '0', 'records': '2481', 'journal_read': '0',
                         'repaired_at': '2026-11-05'})
     text = ' | '.join(t for _, _, t in items)
@@ -178,7 +191,7 @@ def main():
         print('check_eventstore_ready: НЕ ИЗМЕРЕНО — вывод не разобран: %r' % (r.stdout or '')[:160])
         return 2
 
-    rc, items = verdict(facts)
+    rc, items, provenance = verdict(facts)
     for name, okay, text in items:
         print('  [%s] %s — %s' % ('OK  ' if okay else 'НЕТ ', name, text))
     if not items[2][1]:
@@ -187,11 +200,8 @@ def main():
               '(repair-2026-11-05-readmodels.sql), а не работа проекции'
               % (facts.get('repaired_at') or 'не задан'))
     print('  провенанс представления: %s%s'
-          % (items[2][1] and facts.get('provenance', 'time') or
-             ('rebuild' if facts.get('provenance') == 'rebuild' else
-              'time' if facts.get('provenance') == 'time' else
-              'none' if facts.get('provenance') == 'none' else 'repair'),
-             '' if items[2][1] else '  (НЕ доказательство проекции)'))
+          % (provenance, '' if provenance in ('rebuild', 'time')
+             else '  (НЕ доказательство проекции)'))
     print('check_eventstore_ready: предпосылки §5 %s'
           % ('выполнены' if rc == 0 else ('противоречие' if rc == 1 else 'НЕ ВЫПОЛНЕНЫ')))
     return rc
