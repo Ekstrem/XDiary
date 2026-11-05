@@ -31,6 +31,7 @@ GATES = (
     ("check_e2e_selectors.py", "id/классы/тексты спек существуют во фронте"),
     ("check_e2e_interactions.py", "у click/fill есть адресат: обработчик и поле ввода"),
     ("check_e2e_views.py", "экраны, которых ждут спеки, фронт умеет показывать"),
+    ("check_e2e_mock_fields.py", "двойник API отдаёт поля, которые спеки утверждают"),
     ("check_e2e_traceability.py", "у каждой спеки TE-ссылка или LEGACY"),
     ("check_e2e_fixture_contract.py", "импорты спек соответствуют module.exports обвязки"),
     ("check_e2e_no_sleeps.py", "нет фиксированных пауз (waitForTimeout)"),
