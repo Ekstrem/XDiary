@@ -81,6 +81,15 @@ const server = http.createServer(async (req, res) => {
 
   if (method === 'OPTIONS') return send(res, 204, undefined);
 
+  // ── контракт стенда, который проверяет `tests/global-setup.js` ────────────────────────────
+  // Без этих ответов локальный прогон падал бы в globalSetup («стенд отвечает не так»),
+  // то есть двойник был бы непригоден, хотя спеки к нему готовы.
+  if (path === '/health') return send(res, 200, { status: 'ok' });
+  if (method === 'GET' && path === '/api/v1/clients') {
+    // стенд на GET списка клиентов отвечает 405 — globalSetup принимает 200/400/401/405
+    return send(res, 405, { error: 'method not allowed' });
+  }
+
   // --- клиенты и вход ---
   if (method === 'POST' && path === '/api/v1/clients') {
     const b = await readBody(req);
@@ -95,11 +104,17 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { accessToken: token(), refreshToken: token(), id: m[1] });
   }
   if (method === 'POST' && path === '/api/v1/clients/refresh') {
-    return send(res, 200, { accessToken: token() });
+    const b = await readBody(req);
+    const rt = String((b && b.refreshToken) || '');
+    // стенд на битый refresh отвечает 4xx; двойник держит тот же контракт
+    if (!/^mock\.jwt\./.test(rt)) {
+      return send(res, 401, { error: 'invalid refresh token' }, { 'WWW-Authenticate': 'Bearer' });
+    }
+    return send(res, 200, { accessToken: token(), refreshToken: token() });
   }
   if (method === 'GET' && path === '/api/v1/clients/me') {
     const c = currentClient(req);
-    if (!c) return send(res, 401, { error: 'unauthorized' });
+    if (!c) return send(res, 401, { error: 'unauthorized' }, { 'WWW-Authenticate': 'Bearer' });
     return send(res, 200, {
       id: c.id, phone: c.phone, displayName: c.displayName, gender: c.gender,
       verified: c.verified, linkedPartnerId: null,
@@ -127,7 +142,9 @@ const server = http.createServer(async (req, res) => {
   if (path === '/api/v1/partners' || path === '/api/v1/partners/') {
     const c = currentClient(req);
     if (method === 'GET') {
-      const mine = db.partners.filter((p) => !c || p.clientId === c.id).map(partnerView);
+      // без токена — 401: иначе globalSetup не подтвердит, что client-JWT обязателен
+      if (!c) return send(res, 401, { error: 'unauthorized' }, { 'WWW-Authenticate': 'Bearer' });
+      const mine = db.partners.filter((p) => p.clientId === c.id).map(partnerView);
       return send(res, 200, mine);
     }
     if (method === 'POST') {
