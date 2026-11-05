@@ -100,4 +100,16 @@ test('E2E: настройки — пол сохраняется после пе�
     await page.click('#my-gender-male');
     await expect(page.locator('#my-gender-male')).toHaveClass(/active/);
   });
+
+  await test.step('«Снять „я“» открывает шаг профиля и не ломает сессию', async () => {
+    // `#btn-self-clear` не проверялся: открывает шаг профиля онбординга (`showProfileStep`).
+    // После проверки возвращаемся reload'ом — сессия обязана остаться рабочей.
+    await page.click('#btn-self-clear');
+    await expect(page.locator('#view-onboarding'), '«Снять я» открывает онбординг')
+      .toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#onb-profile'), 'виден шаг профиля «Кто вы?»').toBeVisible({ timeout: 20000 });
+    await page.reload();
+    await unlockIfLocked(page);
+    await expect(page.locator('#view-journal'), 'после возврата журнал открывается').toBeVisible({ timeout: 20000 });
+  });
 });
