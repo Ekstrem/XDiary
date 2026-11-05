@@ -582,6 +582,32 @@ def selftest() -> int:
             ((0, 76, 0, 0, 0, 76), 0, "всё защищено -> PASS"),
             ((2, 0, 0, 0, 76, 76), 2, "rc=2 не пересчитывается"),
         ]
+        total += 1
+        # Форма реального замера (@TL `02:39`, @DO `02:35`): 40 защищено + 8 нарушителей +
+        # 28 неизвестно = 76. Тождество сходится, поэтому rc=1 (нарушители есть), а НЕ 2.
+        shape = ([({"method": "GET", "path": f"/ok{i}", "operationId": f"OK{i}", "bc": "Catalog"}, 401, "u")
+                  for i in range(40)]
+                 + [({"method": "GET", "path": f"/v{i}", "operationId": f"V{i}", "bc": "Analytics"}, 200, "u")
+                    for i in range(8)]
+                 + [({"method": "GET", "path": f"/u{i}", "operationId": f"U{i}", "bc": "Journal"}, None, "u")
+                    for i in range(28)])
+        _v, _c, _u, _p = verdict(shape, five_xx_unknown=False, direct=True)
+        _rc = identity_rc(final_rc(_v, _c, _u, _p, 76), _p, len(_v), len(_c), len(_u), 76)
+        # Вторая форма — дословный критерий @TL `02:40`: 40 `401` + 36 прочих (все `403`)
+        # -> protected=76, сумма 76/76, rc=0. Один кейс на обе формы реального замера.
+        shape_ok = ([({"method": "GET", "path": f"/p{i}", "operationId": f"P{i}", "bc": "Catalog"}, 403, "u")
+                     for i in range(36)])
+        allpot = list(shape[:0]) + [r for r in shape[:40]] + shape_ok
+        _v2, _c2, _u2, _p2 = verdict(allpot, five_xx_unknown=False, direct=True)
+        _rc2 = identity_rc(final_rc(_v2, _c2, _u2, _p2, 76), _p2, len(_v2), len(_c2), len(_u2), 76)
+        if (_p == 40 and len(_v) == 8 and len(_c) == 0 and len(_u) == 28
+                and _p + len(_v) + len(_c) + len(_u) == 76 and _rc == 1
+                and _p2 == 76 and not _v2 and not _c2 and not _u2 and _rc2 == 0):
+            ok += 1
+        else:
+            print(f"  [FAIL] формы 40/8/0/28 и 76/0/0/0: "
+                  f"({_p},{len(_v)},{len(_c)},{len(_u)},rc={_rc}) / ({_p2},{len(_v2)},{len(_c2)},{len(_u2)},rc={_rc2})")
+
         bad_irc = [t for (args, want, t) in irc if identity_rc(*args) != want]
         if not bad_irc:
             ok += 1
@@ -728,10 +754,12 @@ def main() -> int:
                 results.append((op, code, got))
         violators, contracts, unknown, protected_count = verdict(results, args.five_xx_unknown if args.direct else True, direct=args.direct)
         passed = protected_count
+        # Порядок важен (@TL `02:39` п.2): сначала базовый вердикт, затем тождество — и только
+        # потом печать. Обратный порядок затирал результат `identity_rc` вызовом `final_rc`.
+        rc = final_rc(violators, contracts, unknown, passed, len(targets))
         rc = identity_rc(rc, passed, len(violators), len(contracts), len(unknown), len(targets))
         print("   расшифровка по BC: " + breakdown_line(breakdown_by_bc(
             results, args.five_xx_unknown if args.direct else True)))
-        rc = final_rc(violators, contracts, unknown, passed, len(targets))
         # Детали печатаем ВСЕГДА — до любых ранних выходов: иначе при недоступном контуре
         # в логе не видно, какие именно `метод+путь+bc` не измерены (@TL `00:16` п.3).
         for svc, lst in sorted(per_service.items()):
