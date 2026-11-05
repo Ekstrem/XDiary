@@ -81,6 +81,11 @@ test('E2E: каталог — archive и restore через UI, проверка
     await test.step('удалить позицию каталога через UI (#btn-catalog-delete)', async () => {
       // До этого спека не трогала `#btn-catalog-delete` вовсе: удаление позиции каталога
       // не проверялось никак (карта `check_e2e_ui_coverage`).
+      // Навигация назад из правки позиции (`#btn-catalog-edit-back`) — тоже не была покрыта.
+      await openItem(page);
+      await page.click('#btn-catalog-edit-back');
+      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
+
       await openItem(page);
       await page.click('#btn-catalog-delete');
       await expect(page.locator('#confirm-modal')).toBeVisible();

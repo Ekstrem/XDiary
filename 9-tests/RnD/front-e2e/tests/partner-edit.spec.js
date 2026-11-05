@@ -92,6 +92,11 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
         await expect(page.locator('#pe-name')).toHaveValue(NEW);
       };
 
+      // Навигация назад (`#btn-partner-edit-back`) — не была покрыта ни одной спекой.
+      await open();
+      await page.click('#btn-partner-edit-back');
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 20000 });
+
       await open();
       await page.click('#btn-partner-delete');
       await expect(page.locator('#confirm-modal')).toBeVisible();

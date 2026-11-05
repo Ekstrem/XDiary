@@ -59,6 +59,16 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
       mimeType: 'text/csv',
       buffer: Buffer.from(csv, 'utf8'),
     });
+    // Назад с экрана импорта (`#btn-import-back`) — не была покрыта: обязана вернуть в настройки.
+    await page.click('#btn-import-back');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
+
+    await page.click('#btn-import-open');
+    await page.setInputFiles('#import-any-file', {
+      name: 'somatic.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(csv, 'utf8'),
+    });
     await expect(page.locator('#btn-import-apply')).toBeVisible({ timeout: 20000 });
     await page.click('#btn-import-apply');
     await expect(page.locator('#import-result')).toBeVisible({ timeout: 20000 });

@@ -93,6 +93,15 @@ test('E2E: запись журнала — редактирование и уд�
     await card.click();
     await expect(page.locator('#view-detail')).toBeVisible();
 
+    // Навигация назад — не проверялась ни одной спекой (`#btn-detail-back` в карте непокрытых):
+    // из карточки записи кнопка «назад» обязана вернуть в журнал, не меняя запись.
+    await page.click('#btn-detail-back');
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    const untouched = await apiRecord(page, id);
+    expect(untouched.ok, 'после возврата из карточки запись на месте').toBe(true);
+    await card.click();
+    await expect(page.locator('#view-detail')).toBeVisible();
+
     // редактирование: длительность 15 -> 45
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
