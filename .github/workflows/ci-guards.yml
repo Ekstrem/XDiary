@@ -114,6 +114,14 @@ jobs:
       # DO-079/BE-069: тот же класс, что BE-067 — `IPaging` передаётся null (`null!`
       # глушит только компилятор, а библиотека читает `paging.Page` сразу). За сутки
       # это случилось трижды в разных BC (journal → partners), поэтому теперь машинно.
+      # DO-079/BE-068: тот же класс, что IPaging-канон — read-модель из
+      # `AddReadStorePostgres` должна быть в маппинге своего контекста, иначе сервис падает
+      # `Cannot create a DbSet for …`. Случилось трижды (journal два раза, partners один).
+      - name: Канон «read-модель смаплена в контексте» (BE-068)
+        if: always()
+        run: |
+          python tools/check_readstore_mapping.py --selftest
+          python tools/check_readstore_mapping.py --root 6-msa
       - name: Канон «IPaging не null» (BE-067/BE-069)
         # `always()`: гейт должен давать вердикт независимо от того, упал ли
         # предыдущий шаг. Иначе он «skipped», и это читается как «проверено»,
