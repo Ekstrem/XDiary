@@ -447,24 +447,35 @@ Assert.Contains("CommandDb", Cs(store));    // store ходит в CommandDb п�
 
 **Дополнение к приёмке E1:** «сервис стартует» **недостаточно**. Нужно: **чистая БД → сервис стартует → read-эндпоинт отдаёт `200`**
 (а не `500` про отсутствующую relation). Это проверяется прогоном на пустой базе, а не на текущей.
-### Третий случай «тихой подстановки»: 
-ull! вместо обязательного параметра (2026-11-05 07:40)
+### Третий случай «тихой подстановки»: `null!` вместо обязательного параметра (2026-11-05 07:40)
 
-Partners.Storage/PartnerReadRepository.cs:16 → wait _read.GetAllAsync(null!, ct) передаёт 
-ull как IPaging;
-библиотека сразу читает paging.Page → NullReferenceException → GET /partners = 500 → контракт 4/4 failed, E2E падает на seedSession.
+`Partners.Storage/PartnerReadRepository.cs:16` → `await _read.GetAllAsync(null!, ct)` передаёт `null` как `IPaging`;
+библиотека сразу читает `paging.Page` → `NullReferenceException` → `GET /partners` = `500` → контракт `4/4 failed`, E2E падает на `seedSession`.
 
 Это **третий** случай одного класса за сутки:
 
 | Случай | Что подставили | Что библиотека сделала |
 |---|---|---|
-| AddReadStorePostgres(cs, null) | «нет конфигуратора» | модель без маппингов → Cannot create a DbSet |
-| ?? "" у строки подключения | пустая строка | подключение к неверной БД, ошибка позже и не там |
-| GetAllAsync(null!) (BE-069) | «нет пейджинга» | paging.Page → NullReferenceException |
+| `AddReadStorePostgres(cs, null)` | «нет конфигуратора» | модель без маппингов → `Cannot create a DbSet` |
+| `?? ""` у строки подключения | пустая строка | подключение к неверной БД, ошибка позже и не там |
+| `GetAllAsync(null!)` (BE-069) | «нет пейджинга» | `paging.Page` → `NullReferenceException` |
 
-**Правило:** 
-ull/
-ull! в вызове **библиотечного** метода требует комментария «почему допустимо»; без него это
+**Правило:** `null`/`null!` в вызове **библиотечного** метода требует комментария «почему допустимо»; без него это
 **отложенный дефект** — он проявится на первом вызове, и в месте, которое не подсказывает причину.
-Дешёвая профилактика — --warn-only гейт на 
-ull! в *Repository.cs (блокирующим делать рано, пока класс не вычищен).
+
+**Где ставить гейт (уточнение 2026-11-05 07:57, по @TE + проверка по коду):**
+
+| Цель | Почему так |
+|---|---|
+| `null!` в `*Repository.cs` — **не цель** | после `26a2937a` вхождений **0**: гейт был бы всегда зелёным, то есть **не мог бы провалиться** |
+| `Add*StorePostgres<…>(…, null)` — **цель**, но с различением | в `*.Api/Program.cs` таких вызовов **6** (Journal 4, Partners 2), и все 6 **законны**: маппинги объявлены в контексте |
+
+**Различение (иначе 6 ложных красных):** `AddReadStorePostgres<…, TModel, TContext>(…, null)` допустим **только если**
+`TContext` объявляет `Entity<TModel>` в `OnModelCreating`. Проверено: `Partners.Storage/ReadDbContext` → `PartnerEntity`;
+`Journal.Storage/ReadDbContext` → `JournalReadModel`, `PartnersDirectoryReadModel`, `JournalDefaultsReadModel`.
+`AddEventStorePostgres(…, null)` допустим **всегда** — маппинги внутри библиотеки.
+
+**Профилактика записи (`check_nul` — уже поймал):** код-спаны в markdown нельзя собирать через `pwsh`-here-string:
+PowerShell трактует бэктик как escape, и `\`` + `n` → перевод строки, `\`` + `a` → BEL (0x07), `\`` + `t` → таб.
+Именно так в этом файле появились BEL и «`ull`» вместо «`null`». Правило: тексты с код-спанами писать через файловые
+инструменты, а после любой скриптовой правки `.md` — прогонять `tools/check_nul.py` **до** коммита.
