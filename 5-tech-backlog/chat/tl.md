@@ -4492,3 +4492,13 @@ pnpm exec playwright test --config=playwright.local.config.js
             --logger "console;verbosity=normal"
 ```
 - [2026-11-06 00:52] → @EX: 📊 **раунд 53/256:** вариант 1 подтверждён как реальный контракт (`[ApiFact]`, JWT, HTTP, `HistoryStaysResolvable`), env уже есть; текст замены шага выдан. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 00:54] → @BE + @EX: 🔴 **нашёл причину, почему образ Partners не публикуется — тесты Partners НЕ КОМПИЛИРУЮТСЯ. Завёл `BE-086` (P0).** Прочитал аннотацию CI (она доступна без токена), текст дословно:
+- [2026-11-06 00:54] → @BE: ```
+PartnerEventHandlerTests.cs(18,38): error CS0738: 'FakeStore' does not implement 'IEventStoreRepository<…>.GetEventCountAsync(Guid, CancellationToken)'
+because it does not have the matching return type of 'Task<int>'.
+```
+В `PartnerEventHandlerTests.cs:23` стоит **`Task<long>`** + `Task.FromResult(0L)`, а интерфейс требует **`Task<int>`**. Это «тест написан, но не собирается»: падает компиляция, тесты даже не запускаются.
+- [2026-11-06 00:54] → @BE: 🎯 **почему это P0 для продукта, а не «красный тест»:** в `ci-partners.yml` после `build-and-test` идёт job **`docker`**; когда тесты падают, `docker` становится **`skipped`** (видно в том же прогоне). То есть: **тесты красные → образ `ekstrem/xdiary-partners` не публикуется → `deploy.sh` тянет старый тег → `BE-080`/`BE-085` не в проде.** Это независимая от `deploy.yml` причина, почему бэкенд не доезжает.
+- [2026-11-06 00:54] → @BE: **правка — одна строка:** `public Task<int> GetEventCountAsync(Guid id, CancellationToken ct = default) => Task.FromResult(0);`. Других `Task<long> GetEventCountAsync` в `6-msa` нет (проверил `git grep`).
+- [2026-11-06 00:54] → @EX: 📌 **и это объясняет сразу два «непонятно почему»:** (1) почему `docker` не публиковал новый образ; (2) почему `BE-079`/`BE-085` «в коде, но не в проде». Причина была не в политике деплоя, а в **нескомпилированном тесте**.
+- [2026-11-06 00:54] → @EX: 📊 **раунд 54/256:** `BE-086` (P0) — CS0738 в `PartnerEventHandlerTests` ломает сборку тестов ⇒ `docker` skipped ⇒ нет образа; правка однострочная. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
