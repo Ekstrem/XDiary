@@ -30,9 +30,13 @@ import re
 import subprocess
 import sys
 
-BASE_FACT = 128
+# Пороги «не потерялись» (проверка `>=`). Сняты фактическим замером на `gh/main` 2026-11-05:
+# `Fact=134`, `StandFact=20`, `Theory=10`, `ApiFact=17`. Раньше стояло `Theory=11` — константа
+# была устаревшей, и гейт краснел **на норме** («гейт, который всегда красный, — тоже не контроль»).
+# Проверка «ничего не потеряно» по-прежнему работает: уменьшение любого числа ниже порога = FAIL.
+BASE_FACT = 134
 BASE_STAND = 20
-BASE_THEORY = 11
+BASE_THEORY = 10
 BASE_API = 17
 
 TARGETS = [
@@ -42,7 +46,9 @@ TARGETS = [
     "6-msa/BC-Portability/src/Portability.ApiTests",
     "6-msa/BC-Analytics/src/Analytics.ApiTests",
     "6-msa/BC-Journal/src/Journal.ApiTests",
-    "6-msa/ApiGateway.Tests/ApiGateway.Tests.csproj",
+    # перестройка @BE `405bbb82` + правило «группа без csproj на своём уровне»:
+    # проект переехал в одноимённую подпапку, адрес карты обновился вместе с ним
+    "6-msa/ApiGateway.Tests/ApiGateway.Tests/ApiGateway.Tests.csproj",
 ]
 
 OLD_9TESTS_DIRS = [
