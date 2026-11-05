@@ -99,9 +99,36 @@ def selftest_ref() -> int:
 
 def main() -> int:
     # единое имя у всех гейтов @TE: `--selftest`; `--selftest-ref` оставлен как алиас
-    if len(sys.argv) > 1 and sys.argv[1] in ("--selftest", "--selftest-ref"):
+    args = sys.argv[1:]
+    if len(args) > 0 and args[0] in ("--selftest", "--selftest-ref"):
         return selftest_ref()
-    explicit = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REF") or "").strip()
+
+    # @DO `chat/do.md` `[2026-11-05 17:50]`: `--ref`/`--pre` не парсились — обёртка передавала
+    # `--ref HEAD`, а инструмент читал это как имя ревизии.
+    known = ("--ref", "--pre", "--post")
+    positional = []
+    ref_flag = ""
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a.startswith("--") and a.split("=")[0] not in known:
+            print(f"::error::check_front_088: неизвестный флаг {a} "
+                  f"(известны: {', '.join(known)}, --selftest) — rc=2")
+            return 2
+        if a == "--ref":
+            if i + 1 < len(args):
+                ref_flag = args[i + 1]
+                i += 2
+                continue
+            print("::error::check_front_088: --ref без значения — rc=2")
+            return 2
+        if a.startswith("--ref="):
+            ref_flag = a.split("=", 1)[1]
+        elif a not in ("--pre", "--post"):
+            positional.append(a)
+        i += 1
+
+    explicit = (ref_flag or (positional[0] if positional else os.environ.get("REF") or "")).strip()
     ref = explicit or newest_ref()
     print(f"   REF={describe_ref(ref)}" + (" (задан явно)" if explicit else " (выбран как самый свежий)"))
     expect_ver = (sys.argv[2] if len(sys.argv) > 2 else os.environ.get("EXPECT_VERSION") or "").strip()

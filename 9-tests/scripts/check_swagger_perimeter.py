@@ -80,6 +80,19 @@ def evaluate(public, internal):
     return issues, unmeasured, checked
 
 
+def receipt_line(checked, issues, unmeasured, public_base, internal_base, when):
+    """Квитанция с ПРОВЕНАНСОМ замера (@AR `chat/ar.md` `[2026-11-05 18:25]`).
+
+    Без адресов и времени через день нельзя ответить, что именно мерили: прод, dev
+    или локальный сервер из `--selftest`.
+    """
+    return (f"квитанция: проверено {checked} из {len(PATHS) + 1} | "
+            f"нарушено: {len(issues)} | не засчитано: {len(unmeasured)} | "
+            f"public-base: {public_base or 'НЕ УКАЗАН'} | "
+            f"internal-base: {internal_base or 'НЕ УКАЗАН'} | "
+            f"измерено: {when}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--public-base", help="публичный адрес (вне периметра)")
@@ -107,8 +120,9 @@ def main(argv=None):
         print(f"::error::check_swagger_perimeter: {msg}")
     for msg in unmeasured:
         print(f"::warning::check_swagger_perimeter: не измерено: {msg}")
-    print(f"квитанция: проверено {checked} из {len(PATHS) + 1} | "
-          f"нарушено: {len(issues)} | не засчитано: {len(unmeasured)}")
+    from datetime import datetime as _dt, timezone as _tz
+    _when = _dt.now(_tz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    print(receipt_line(checked, issues, unmeasured, a.public_base, a.internal_base, _when))
     if issues:
         return 1
     return 0 if not unmeasured else 2
@@ -197,6 +211,16 @@ def selftest():
         ok += 1
     else:
         print(f"  [FAIL] текст: {line}")
+
+    # кейс: квитанция называет адреса и время (@AR 18:25) — без них замер не засчитывается
+    total += 1
+    _is, _un, _ch = evaluate({p_: (404, "") for p_ in PATHS}, {PATHS[0]: (200, j)})
+    _line = receipt_line(_ch, _is, _un, "https://pub.example", "http://int:8080", "2026-11-05T18:25:00Z")
+    if ("public-base: https://pub.example" in _line and "internal-base: http://int:8080" in _line
+            and "измерено: 2026-11-05T18:25:00Z" in _line and "None" not in _line):
+        ok += 1
+    else:
+        print(f"  [FAIL] квитанция без провенанса: {_line}")
 
     print(f"check_swagger_perimeter --selftest: {ok}/{total} "
           f"(спека вне периметра = rc=1, каждый кейс краснеет своей причиной)")
