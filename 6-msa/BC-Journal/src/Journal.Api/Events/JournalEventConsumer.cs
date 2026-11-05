@@ -63,16 +63,7 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        try
-        {
-            _store.SaveEventAsync(entry).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            // Event Store (DomainEvents) может отсутствовать до BE-072 (42P01 Commands.DomainEvents):
-            // проекция read-модели не должна падать из-за персиста события.
-            Console.Error.WriteLine($"[JournalEventHandler] SaveEventAsync skipped: {ex.Message}");
-        }
+        _store.SaveEventAsync(entry).GetAwaiter().GetResult();
 
         // 2) проекция MV (UpsertAsync) из changed-VO.
         var read = JournalProjection.Project(domainEvent);

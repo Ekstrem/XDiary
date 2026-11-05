@@ -54,16 +54,7 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        try
-        {
-            _store.SaveEventAsync(entry).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            // Event Store (DomainEvents) может отсутствовать до BE-072 (42P01 Commands.DomainEvents):
-            // проекция read-модели не должна падать из-за персиста события.
-            Console.Error.WriteLine($"[PartnerEventHandler] SaveEventAsync skipped: {ex.Message}");
-        }
+        _store.SaveEventAsync(entry).GetAwaiter().GetResult();
 
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
