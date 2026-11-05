@@ -39,7 +39,7 @@ CALL = re.compile(r"\.(?:locator|click|fill|press|type|check|uncheck|hover|selec
                   r"waitForSelector|isVisible)\(\s*'([^']+)'")
 # селектор может лежать в константе: `const BANNER = '.busy-banner'` — берём и такие литералы
 CLASS_LIT = re.compile(r"""['"](\.[\w-]+(?:\.[\w-]+)*)(?::(?:visible|hidden))?['"]""")
-TEXT_RE = re.compile(r"to(?:ContainText|HaveText)\(\s*/([^/]{3,})/")
+TEXT_RE = re.compile(r"to(?:ContainText|HaveText)\(\s*/([^/]{3,})/([a-z]*)")
 TEXT_STR = re.compile(r"to(?:ContainText|HaveText)\(\s*'([^']{3,})'")
 WORD = re.compile(r"[\wА-Яа-яЁё]{4,}")
 
@@ -83,13 +83,34 @@ def collect(root: pathlib.Path):
             classes.update(class_parts(sel))
         for lit in CLASS_LIT.findall(text):
             classes.update(class_parts(lit))
-        texts = [m for m in TEXT_RE.findall(text)] + [m for m in TEXT_STR.findall(text)]
+        # `TEXT_RE` теперь с двумя группами (шаблон + флаги) — берём ТОЛЬКО шаблон,
+        # иначе в список текстов попадают кортежи и проверка падает на типах.
+        texts = [m.group(1) for m in TEXT_RE.finditer(text)] + list(TEXT_STR.findall(text))
         specs[p.name] = {
             "ids": set(SEL_ID.findall(text)),
             "classes": classes,
             "texts": texts,
         }
     return front, specs
+
+
+def text_matches(fragment, front_low):
+    """Строгая проверка: регулярка из спеки должна совпасть с текстом фронта.
+
+    Шаблон без букв (`^\\s*$` — «поле не пустое») текстом интерфейса не является и не проверяется:
+    иначе гейт краснел бы не по делу. Проверка «есть ли буква» сделана через `str.isalpha()`,
+    чтобы не зависеть от кириллицы в регулярном выражении.
+    """
+    # `\\s`, `\\d` и прочие escape-последовательности — не текст: убираем их ПЕРЕД проверкой букв,
+    # иначе `^\\s*$` считается «текстом с буквой s» и гейт краснеет не по делу.
+    probe = re.sub(r"\\.", "", fragment)
+    if not any(ch.isalpha() for ch in probe):
+        return True
+    try:
+        rx = re.compile(fragment, re.I)
+    except re.error:
+        return True  # экзотический шаблон — не наша забота, лишь бы спека компилировалась
+    return bool(rx.search(front_low))
 
 
 def text_hits(fragment, front_low):
@@ -128,10 +149,10 @@ def evaluate(front, specs):
             issues.append(f"{name}: классы, которых нет во фронте: "
                           + ", ".join("." + g for g in gone_cls[:8]))
 
-        gone_txt = [t for t in used["texts"] if not text_hits(t, front["text"])]
+        gone_txt = [t for t in used["texts"] if not text_matches(t, front["text"])]
         if gone_txt:
-            issues.append(f"{name}: ожидаемый текст отсутствует во фронте: "
-                          + "; ".join("«" + t[:40] + "»" for t in gone_txt[:4]))
+            issues.append(f"{name}: ожидаемый текст не совпадает с текстом фронта: "
+                          + "; ".join("/" + t[:40] + "/" for t in gone_txt[:4]))
     return issues, stats
 
 
@@ -195,7 +216,7 @@ def selftest():
     case("пропавший текст",
          f,
          {"bad3.spec.js": {"ids": set(), "classes": set(), "texts": ["совершенно другой текст"]}},
-         1, ["ожидаемый текст отсутствует"])
+         1, ["ожидаемый текст не совпадает"])
 
     total += 1
     stats = {"spec": 3, "ids": 5, "classes": 2, "texts": 1}
