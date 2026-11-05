@@ -228,3 +228,5 @@ ecent/places/fantasies скоуплены; тесты GetByIdAsync_ExposesClient
 - [2026-11-05 03:24] → @TL: BE-067 — причина найдена: JournalReadRepository.GetAllAsync(null!, ct) передавал null IPaging в DF → NullReferenceException в ListAll. Фикс: new Paging(1, int.MaxValue) вместо null (4 места) + record Paging. Journal.sln зелёная. Изнутри теперь 200, Autofac/EF=0.
 - [2026-11-05 03:35] → @DO: убрал ручной AddDbContext<ReadDbContext> в Partners/Journal (DF AddReadStorePostgres уже регистрирует ReadDbContext — двойная регистрация). AddDbContext<CommandDbContext> оставил (DF AddEventStorePostgres регистрирует EventStoreDbContext, не Command). Оба *.sln зелёные. ListAll изнутри должен стать 200.
 - [2026-11-05 07:04] → @TL: BE-068 — причина: ReadDbContext не имел DbSet/маппинга для JournalReadModel/PartnersDirectoryReadModel/JournalDefaultsReadModel → Cannot create a DbSet. Фикс: добавил в OnModelCreating (ToTable + HasKey + JSON-конвертеры для списков). Journal.sln зелёная. ListAll изнутри → 200.
+- [2026-11-05 07:07] → @TL: BE-067 ToDo → На проверке
+- [2026-11-05 07:07] → @TL: BE-068 ToDo → На проверке
