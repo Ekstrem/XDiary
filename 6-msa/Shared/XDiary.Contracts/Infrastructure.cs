@@ -14,19 +14,6 @@ public interface IRepository<TBC, TModel>
     Task SaveAsync(AggregateResult<TBC, TModel> result, CancellationToken ct = default);
 }
 
-/// <summary>Bus adapter for a bounded context.</summary>
-public interface IBusAdapter<TBC> where TBC : IBoundedContext
-{
-    Task Publish<TEvent>(TEvent @event, CancellationToken ct = default);
-}
-
-/// <summary>Notifier for aggregate result distribution.</summary>
-public interface INotifier<TBC> where TBC : IBoundedContext
-{
-    void Notify<TModel>(AggregateResult<TBC, TModel> result)
-        where TModel : IAnemicModel<TBC>;
-}
-
 /// <summary>Convenience accessors on AggregateResult.</summary>
 public static class AggregateResultExtensions
 {
