@@ -1,6 +1,7 @@
 namespace Portability.Api.Controllers;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Portability.Application.Commands;
 using Portability.Application.Queries;
@@ -10,19 +11,26 @@ using XDiary.Contracts;
 
 [ApiController]
 [Route("api/v1/portability")]
+[Authorize]
 public sealed class PortabilityController : ControllerBase
 {
     private readonly IMediator _mediator;
     public PortabilityController(IMediator mediator) => _mediator = mediator;
     private IActionResult Respond(AggregateResult<IPortability, ICsvDocumentAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
 
+    // BE-084(c): владелец документа — sub из токена; хранение и выдача привязаны к клиенту.
+    private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
+
     [HttpPost("export")]
-    public async Task<IActionResult> Export([FromBody] ExportRecordsCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> Export([FromBody] ExportRecordsCommand c, CancellationToken ct)
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct)); }
     [HttpPost("import/records")]
-    public async Task<IActionResult> ImportRecords([FromBody] ImportRecordsCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> ImportRecords([FromBody] ImportRecordsCommand c, CancellationToken ct)
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct)); }
     [HttpPost("import/somatic")]
-    public async Task<IActionResult> ImportSomatic([FromBody] ImportSomaticCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> ImportSomatic([FromBody] ImportSomaticCommand c, CancellationToken ct)
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct)); }
     [HttpGet("document")]
     public async Task<IActionResult> Document(CancellationToken ct)
-    { var r = await _mediator.Send(new GetDocumentQuery(), ct); return r is null ? NotFound() : Ok(r); }
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); var r = await _mediator.Send(new GetDocumentQuery(clientId.Value), ct); return r is null ? NotFound() : Ok(r); }
 }

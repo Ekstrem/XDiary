@@ -16,13 +16,13 @@ public sealed class Aggregate
     { var d = BusinessOperationData<IPortability, ICsvDocumentAnemicModel>.Commit<IPortability, ICsvDocumentAnemicModel>(Model, m); return new AggregateResultSuccess<IPortability, ICsvDocumentAnemicModel>(d); }
     private AggregateResult<IPortability, ICsvDocumentAnemicModel> Fail(string e)
     { var d = BusinessOperationData<IPortability, ICsvDocumentAnemicModel>.Commit<IPortability, ICsvDocumentAnemicModel>(Model, Model); return new AggregateResultException<IPortability, ICsvDocumentAnemicModel>(d, new FailedSpecification<IPortability, ICsvDocumentAnemicModel>(e)); }
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Rows = Model.Rows, Kind = Model.Kind };
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Rows = Model.Rows, Kind = Model.Kind, ClientId = Model.ClientId };
 
-    private AggregateResult<IPortability, ICsvDocumentAnemicModel> Build(IReadOnlyList<string> headers, IReadOnlyList<string> rows, string kind)
+    private AggregateResult<IPortability, ICsvDocumentAnemicModel> Build(IReadOnlyList<string> headers, IReadOnlyList<string> rows, string kind, Guid clientId)
     {
         var v = new HeaderContractValidator();
         if (!v.IsSatisfiedBy(headers)) return Fail(v.Reason);
-        var m = Clone(); m.Root = CsvDocumentRoot.CreateInstance(headers); m.Rows = rows; m.Kind = kind; return Success(m);
+        var m = Clone(); m.Root = CsvDocumentRoot.CreateInstance(headers); m.Rows = rows; m.Kind = kind; m.ClientId = clientId; return Success(m);
     }
 
     // Идемпотентность по id (первая колонка CSV): последняя строка с тем же id перезаписывает предыдущую
@@ -39,7 +39,7 @@ public sealed class Aggregate
         return order;
     }
 
-    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ExportRecords(IReadOnlyList<string> rows) => Build(CsvHeaderContract.All, rows, "records");
-    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportRecords(IReadOnlyList<string> rows) => Build(CsvHeaderContract.All, DedupById(rows), "records");
-    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportSomatic(IReadOnlyList<string> rows) => Build(CsvHeaderContract.All, DedupById(rows), "somatic");
+    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ExportRecords(IReadOnlyList<string> rows, Guid clientId) => Build(CsvHeaderContract.All, rows, "records", clientId);
+    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportRecords(IReadOnlyList<string> rows, Guid clientId) => Build(CsvHeaderContract.All, DedupById(rows), "records", clientId);
+    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportSomatic(IReadOnlyList<string> rows, Guid clientId) => Build(CsvHeaderContract.All, DedupById(rows), "somatic", clientId);
 }

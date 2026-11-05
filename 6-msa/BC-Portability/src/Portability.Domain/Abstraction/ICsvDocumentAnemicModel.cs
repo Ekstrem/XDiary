@@ -5,4 +5,5 @@ public interface ICsvDocumentAnemicModel : IAnemicModel<IPortability>
     ICsvDocumentRoot Root { get; }
     IReadOnlyList<string> Rows { get; }
     string Kind { get; }
+    Guid? ClientId { get; }
 }

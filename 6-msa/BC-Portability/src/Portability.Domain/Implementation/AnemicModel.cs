@@ -11,6 +11,7 @@ public sealed class AnemicModel : ICsvDocumentAnemicModel
     public ICsvDocumentRoot Root { get; set; } = null!;
     public IReadOnlyList<string> Rows { get; set; } = new List<string>();
     public string Kind { get; set; } = string.Empty;
+    public Guid? ClientId { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
 }

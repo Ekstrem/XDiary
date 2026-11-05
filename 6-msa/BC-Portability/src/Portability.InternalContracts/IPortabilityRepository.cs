@@ -4,5 +4,5 @@ using Portability.Domain.Abstraction;
 using XDiary.Contracts;
 public interface IPortabilityRepository : IRepository<IPortability, ICsvDocumentAnemicModel>
 {
-    Task<ICsvDocumentAnemicModel?> GetLastAsync(CancellationToken ct = default);
+    Task<ICsvDocumentAnemicModel?> GetLastAsync(Guid clientId, CancellationToken ct = default);
 }

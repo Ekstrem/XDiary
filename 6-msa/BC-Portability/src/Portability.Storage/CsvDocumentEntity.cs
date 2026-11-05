@@ -6,4 +6,5 @@ public sealed class CsvDocumentEntity
     public string HeadersJson { get; set; } = "[]";
     public string RowsJson { get; set; } = "[]";
     public long Version { get; set; }
+    public Guid? ClientId { get; set; }
 }
