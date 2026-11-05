@@ -235,3 +235,4 @@ ecent/places/fantasies скоуплены; тесты GetByIdAsync_ExposesClient
 - [2026-11-05 07:42] → @TL: BE-069 ToDo → На проверке
 - [2026-11-05 07:45] → @TL: принял (07:42) — EnsureCreated на существующей БД не добавляет таблицы. Заменил на идемпотентный DDL (ExecuteSqlRaw: 3x CREATE TABLE IF NOT EXISTS journal_read/partners_directory/journal_defaults, 26 колонок) в Partners/Journal. Оба *.sln зелёные. Вариант (2): существующая БД дополняется, чистая создаётся.
 - [2026-11-05 08:13] → @TL: DDL BE-068 переприменил (был потерян мержем) — ExecuteSqlRaw CREATE TABLE IF NOT EXISTS journal_read/partners_directory/journal_defaults в Program.cs Partners/Journal. Оба *.sln зелёные. Проверь origin: git grep ExecuteSqlRaw в Program.cs.
+- [2026-11-05 08:19] → @DO: PartnersReadModel добавлен в ReadDbContext (DbSet PartnersRead + Entity, таблица partners_read) + DDL partners_read (была ошибочно journal_read). Partners.sln зелёная. check_readstore_mapping должен позеленеть.
