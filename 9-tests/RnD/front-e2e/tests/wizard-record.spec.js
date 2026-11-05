@@ -3,7 +3,7 @@
 // `saveWizard` делает ~10 последовательных запросов, поэтому после «Сохранить» ЖДЁМ
 // переключения вида (а не снимаем снимок сразу). Диагностика при падении: тосты + API-лог.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin } = require('./api');
+const { UI_WAIT, API_BASE, loginWithPin } = require('./api');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 const NOW = new Date();
@@ -107,7 +107,7 @@ test('E2E: запись через визард — создаётся и вид
 
     // ждём переключения на журнал (цепочка из ~10 запросов)
     try {
-      await expect(page.locator('#view-journal')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('#view-journal')).toBeVisible({ timeout: UI_WAIT });
     } catch (e) {
       const toasts = await page.evaluate(() => window.__toasts || []);
       const vis = await viewState(page);

@@ -24,6 +24,8 @@ except Exception:  # noqa: BLE001
     pass
 
 TIMEOUT = re.compile(r"timeout:\s*(\d[\d_]*)")
+UI_WAIT_REF = re.compile(r"timeout:\s*UI_WAIT\b")
+UI_WAIT_DEFAULT = re.compile(r"XDIARY_E2E_UI_WAIT\s*\|\|\s*(\d+)")
 
 
 def parse_limit(config_text):
@@ -31,12 +33,21 @@ def parse_limit(config_text):
     return (int(m.group(1).replace("_", "")) / 1000.0) if m else 90.0
 
 
-def evaluate(specs, limit_sec):
-    """(issues, stats)."""
+def ui_wait_default(api_text, override=None):
+    """Сколько «стоит» один `timeout: UI_WAIT` (мс)."""
+    if override:
+        return override / 1000.0
+    m = UI_WAIT_DEFAULT.search(api_text)
+    return (int(m.group(1)) / 1000.0) if m else 30.0
+
+
+def evaluate(specs, limit_sec, ui_wait=30.0):
+    """(issues, stats). `ui_wait` — цена одного `timeout: UI_WAIT` в секундах."""
     per_spec = {}
     over = []
     for name, text in sorted(specs.items()):
         vals = [int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(text)]
+        vals += [ui_wait] * len(UI_WAIT_REF.findall(text))
         total = round(sum(vals), 1)
         per_spec[name] = total
         if total > limit_sec:
@@ -90,6 +101,8 @@ def main(argv=None):
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--plan", action="store_true",
                     help="показать план сокращений ожиданий (ничего не меняет)")
+    ap.add_argument("--ui-wait", type=int, default=None,
+                    help="считать `timeout: UI_WAIT` как это число (мс), чтобы примерить настройку")
     ap.add_argument("--strict", action="store_true",
                     help="превышение — ошибка (rc=1); без флага — ::warning::")
     a = ap.parse_args(argv)
@@ -97,12 +110,14 @@ def main(argv=None):
         return selftest()
 
     base = pathlib.Path(a.root) / "9-tests" / "RnD" / "front-e2e"
-    cfg, tests_dir = base / "playwright.config.js", base / "tests"
+    cfg, tests_dir, api = base / "playwright.config.js", base / "tests", base / "tests" / "api.js"
     if not cfg.exists() or not tests_dir.is_dir():
         print("::error::check_e2e_timeout_sums: нет конфига или спек — не измерено (rc=2)")
         return 2
     try:
         limit = parse_limit(cfg.read_text(encoding="utf-8", errors="replace"))
+        api_text = api.read_text(encoding="utf-8", errors="replace") if api.exists() else ""
+        ui_wait = ui_wait_default(api_text, a.ui_wait)
         specs = {p.name: p.read_text(encoding="utf-8", errors="replace")
                  for p in sorted(tests_dir.glob("*.spec.js"))}
     except OSError as e:
@@ -111,7 +126,8 @@ def main(argv=None):
     if a.plan:
         print(f"  лимит теста {limit:.0f} с, цель 80% = {limit * 0.8:.0f} с")
         for name, text in sorted(specs.items()):
-            total = round(sum(int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(text)), 1)
+            total = round(sum(int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(text))
+                          + ui_wait * len(UI_WAIT_REF.findall(text)), 1)
             if total <= limit:
                 continue
             changes, after, target = plan_for_spec(text, limit)
@@ -121,11 +137,11 @@ def main(argv=None):
                 print(f"      {was:.0f} с → {now:.0f} с ×{times}")
         return 0
 
-    issues, stats = evaluate(specs, limit)
+    issues, stats = evaluate(specs, limit, ui_wait)
     marker = "::error::" if a.strict else "::warning::"
     for m in issues:
         print(f"{marker}check_e2e_timeout_sums: {m}")
-    print(receipt_line(stats, issues))
+    print(receipt_line(stats, issues) + f" | UI_WAIT = {ui_wait:.0f} с")
     return 1 if (issues and a.strict) else 0
 
 

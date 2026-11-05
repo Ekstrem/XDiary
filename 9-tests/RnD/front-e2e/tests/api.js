@@ -3,6 +3,12 @@
 // ВАЖНО: дефолт — ТЕСТОВЫЙ стенд (VPS-2). Прод (VPS-1) — реальный дневник владельца;
 // случайный локальный прогон без env не должен в него писать.
 const API_BASE = (process.env.XDIARY_E2E_BASE_URL || 'https://xdiary-vps2.taile0b6ee.ts.net').replace(/\/+$/, '');
+// Единый переключатель ожиданий UI: по умолчанию 30 с (как было в спеках числом), но его можно
+// поднять/опустить ОДНОЙ переменной окружения, не правя 22 файла. Нужен, когда стенд медленный
+// (`XDIARY_E2E_UI_WAIT=45000`) или наоборот быстрый (`=15000`), и чтобы `check_e2e_timeout_sums`
+// можно было уложить в лимит теста без «слепого» сокращения таймаутов.
+const UI_WAIT = Number(process.env.XDIARY_E2E_UI_WAIT || 30000);
+
 const PIN = process.env.XDIARY_E2E_PIN || '1234';
 
 // Ключ, под которым приложение хранит JWT. Источник правды — `8-front/js/api.js:8`
@@ -554,4 +560,4 @@ function watchLinkPartner(page) {
   };
 }
 
-module.exports = { waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+module.exports = { UI_WAIT, waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };

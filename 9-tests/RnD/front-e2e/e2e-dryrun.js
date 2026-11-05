@@ -308,6 +308,7 @@ function stubApi(registry, page, log) {
     get: (t, prop) => {
       if (prop === 'API_BASE') return 'http://127.0.0.1:4180';
       if (prop === 'PIN') return '1234';
+      if (prop === 'UI_WAIT') return 30000;
       if (prop === 'TEST_OTP') return '000000';
       if (prop === 'ACCESS_KEY') return 'xdiary.accessToken';
       if (prop === 'expectScreen') return async () => anyValue('screen');

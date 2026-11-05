@@ -2,7 +2,7 @@
 // Партнёр создаётся через живой API (setup), правка — через UI
 // (Партнёры → карточка → форма → имя/notes/пол → Сохранить), проверка — через API.
 const { test, expect } = require('@playwright/test');
-const { API_BASE, loginWithPin, removeByName } = require('./api');
+const { UI_WAIT, API_BASE, loginWithPin, removeByName } = require('./api');
 
 const OLD = 'TE-P-' + Date.now();
 const NEW = OLD + '-renamed';
@@ -76,7 +76,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await page.click('#pe-gender-female');
       await page.click('#pe-gender-male');
       await page.click('#btn-partner-save');
-      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: UI_WAIT });
     });
 
     await test.step('проверка через API: rename + profile', async () => {
@@ -121,7 +121,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await page.click('#btn-partner-delete');
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-yes');
-      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 30000 });
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: UI_WAIT });
       await expect(
         page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
         'после удаления партнёра нет в списке'
