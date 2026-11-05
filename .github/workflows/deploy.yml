@@ -110,6 +110,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`
+      # (APIM не в пути) и канон честно даёт rc=2, то есть гейт был бы «не измерен» всегда.
+      XDIARY_PROD_BASE_URL: https://xdiary-vps1.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
     steps:
       - name: Check dev /health
@@ -129,7 +132,7 @@ jobs:
       # Заменён на ИЗМЕРЕНИЕ канона входа: 74/74 + 2/2, via=gravitee, rc=0/2/1.
       - name: API-канон входа (measure, не заглушка)
         run: |
-          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_E2E_BASE_URL"
+          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"
       # 2026-11-05 (@DO): путь `9-tests/Contract.ClientJournal` в репозитории ОТСУТСТВУЕТ
       # (в `9-tests/` только RnD/reports/scripts) — тот же класс, что мёртвый E2E-путь выше.
       # Не удаляю и не закрашиваю: печатаю «не измерено» и выхожу rc=2; проект выбирает @TE.
@@ -149,6 +152,9 @@ jobs:
     timeout-minutes: 30
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`
+      # (APIM не в пути) и канон честно даёт rc=2, то есть гейт был бы «не измерен» всегда.
+      XDIARY_PROD_BASE_URL: https://xdiary-vps1.taile0b6ee.ts.net
       XDIARY_E2E_PIN: "1234"
     steps:
       - uses: actions/checkout@v4
