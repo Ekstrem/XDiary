@@ -5,9 +5,14 @@
 `images.lock` фиксирует «какой образ каждого сервиса считается текущим»; деплой читает
 только его, откат = revert коммита с этим файлом (видно в `git log`).
 
-Тег сервиса = `single-<short sha последнего коммита, тронувшего его путь>` — ровно то, что
-публикует CI (`type=sha,prefix=single-`). Поэтому lock ссылается на реально существующие
-теги, а не на «sha HEAD», которого для неизменённого сервиса нет.
+Тег сервиса = `single-<short sha HEAD>` — **один релизный коммит на все сервисы**.
+
+Почему так (2026-11-06, DO-102): раньше тег считался по «последнему коммиту, тронувшему путь
+сервиса», а CI публикует `single-<sha собираемого коммита>` = `single-<HEAD>`. Эти два правила
+не могут совпасть: после любого пуша lock требовал теги, которых в registry не было
+(проверено `--verify-registry`: 10 из 13 отсутствовали), а `deploy.sh` всё равно берёт **один**
+тег на все сервисы. Семантика «один релизный коммит» делает lock, CI и деплой согласованными:
+13 образов собраны из одного коммита, откат = revert этого коммита.
 
 Использование:
     python tools/gen_images_lock.py            # напечатать lock
@@ -57,11 +62,22 @@ def git(*args):
                           errors="replace").stdout.strip()
 
 
-def short_sha(path):
-    sha = git("log", "-1", "--format=%h", "--", path)
-    if not sha:
-        sha = git("rev-parse", "--short=7", "HEAD")
-    return sha[:7] if len(sha) >= 7 else sha
+HEAD_SHA = None
+
+
+def short_sha(path=None):
+    """Тег релиза: `single-<short HEAD>`, одинаковый для всех сервисов.
+
+    `path` оставлен в сигнатуре для совместимости вызовов, но больше не влияет:
+    один релизный коммит — один набор образов (см. docstring модуля).
+    """
+    global HEAD_SHA
+    if HEAD_SHA is None:
+        sha = git("rev-parse", "--short=7", "HEAD") or ""
+        if not sha:
+            raise SystemExit("gen_images_lock: не могу определить HEAD")
+        HEAD_SHA = sha[:7]
+    return HEAD_SHA
 
 
 def render():
