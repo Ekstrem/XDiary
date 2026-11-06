@@ -31,7 +31,10 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-ANNOTATION = re.compile(r"::error::(\{.*?\})\s*$")
+# GitHub переписывает `::error::`-команды в `##[error]` (то же для warning/notice):
+# в скачанном логе джобы аннотаций в исходном виде НЕТ, и триаж по реальному логу
+# сначала возвращал rc=2 «нет аннотаций». Поддерживаем оба формата.
+ANNOTATION = re.compile(r"(?:::error::|##\[error\])(\{.*?\})\s*$")
 CLASSES = (
     ("test-timeout", re.compile(r"test timeout of \d+\s*ms exceeded", re.I)),
     ("session-lost", re.compile(r"http (401|404).*(clients/me|journal)|(clients/me|journal).*(401|404)", re.I)),
@@ -40,6 +43,7 @@ CLASSES = (
     ("assert", re.compile(r"expect|tobe|tohave|expected|received", re.I)),
 )
 ADVICE = {
+    "browser-noise": "шум диагностики браузера/фикстуры, а не отдельное падение — смотреть, к какому тесту относится",
     "test-timeout": "лимит теста израсходован: смотри длительности шагов; сокращать время входа/навигации, "
                     "а не увеличивать ожидания",
     "wait-timeout": "элемент не появился: проверь вход (фазы в логе), экран и стенд; это не «продукт ответил не то»",
@@ -73,6 +77,29 @@ def classify(text):
     return "other"
 
 
+def classify_item(title, status, blobby):
+    """Класс падения с приоритетом того, что реально мешает разбору.
+
+    `browser http error` / `browser console.error`   это шум диагностики фикстуры, а не отдельное
+    падение: в живом логе такого шума 90 записей против 19 падений тестов, и без разделения таблица
+    нечитаема. Сами падения классифицируем по статусу и тексту ошибки.
+    """
+    t = (title or "").strip()
+    if t.startswith("browser ") or t.startswith("storage snapshot") or t.startswith("views "):
+        return "browser-noise"
+    if (status or "").lower() in ("timedout", "interrupted") or "test timeout of" in (blobby or "").lower():
+        return "test-timeout"
+    if re.search(r"(http|status)[^0-9]{0,6}(5\d\d)", blobby or "", re.I):
+        return "stand"
+    if re.search(r"http (401|404).*(clients/me|journal)|(clients/me|journal).*(401|404)", blobby or "", re.I):
+        return "session-lost"
+    if re.search(r"expect|tobe|tohave|expected|received", blobby or "", re.I):
+        return "assert"
+    if re.search(r"timeout \d+\s*ms exceeded|locator\.\w+.*timeout|waitfor", blobby or "", re.I):
+        return "wait-timeout"
+    return "other"
+
+
 def parse(log_text):
     """(items, classes). items = [(spec, title, status, klass, error)]."""
     items = []
@@ -89,7 +116,7 @@ def parse(log_text):
         steps = str(payload.get("steps") or "")
         spec = title.split(" › ")[0].strip() if " › " in title else title
         blobby = " ".join((title, steps, err))
-        items.append((spec, title, payload.get("status") or "?", classify(blobby), err[:300], slowest_step(steps)))
+        items.append((spec, title, payload.get("status") or "?", classify_item(title, payload.get("status"), blobby), err[:300], slowest_step(steps)))
     return items
 
 
@@ -101,7 +128,8 @@ def report(items):
         by_class[klass].append((spec or title, err.splitlines()[0][:160] if err else "", slow))
     lines = ["| класс | сколько | примеры (спека) | самый долгий шаг | лечение |",
              "|---|---|---|---|---|"]
-    for klass, _ in CLASSES + (("other", None),):
+    for klass, _ in (("test-timeout", None), ("wait-timeout", None), ("session-lost", None),
+                     ("stand", None), ("assert", None), ("other", None), ("browser-noise", None)):
         rows = by_class.get(klass) or []
         if not rows:
             continue
