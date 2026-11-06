@@ -17,6 +17,10 @@ Partners — `Fail("Partner not found.")` → **400** (`remove`, `link-client`).
 
 import argparse
 import pathlib
+import sys as _sys
+_sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from filelist_source import tracked_or_walk  # норма @AR 23:30: список из git ls-files, walk — фолбэк
+
 import re
 import sys
 
@@ -97,12 +101,18 @@ def evaluate(files):
     return issues, stats
 
 
+FILES_SOURCE = ""
+
+
 def collect(root):
     base = root / "6-msa"
     if not base.is_dir():
         return None, "нет папки 6-msa — не измерено"
     files = {}
-    for p in _skip_nested_repos(base.rglob("*CommandRepository.cs"), root):
+    repos, src = tracked_or_walk(root, "6-msa/**/*CommandRepository.cs")
+    global FILES_SOURCE
+    FILES_SOURCE = src
+    for p in repos:
         try:
             files[str(p.relative_to(root)).replace("\\", "/")] = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -114,7 +124,8 @@ def collect(root):
 
 def receipt_line(stats, issues):
     return (f"квитанция: командных репозиториев {stats['repos']} | "
-            f"без fallback: {len(issues)} | известных исключений: {stats.get('known', 0)}")
+            f"без fallback: {len(issues)} | известных исключений: {stats.get('known', 0)} | "
+            f"источник: {FILES_SOURCE}")
 
 
 def main(argv=None):

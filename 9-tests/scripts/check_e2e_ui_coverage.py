@@ -14,6 +14,10 @@
 
 import argparse
 import pathlib
+import sys as _sys
+_sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from filelist_source import tracked_or_walk  # норма @AR 23:30: список из git ls-files, walk — фолбэк
+
 import re
 import sys
 
@@ -46,6 +50,9 @@ MVP_CRITICAL = {
 }
 
 
+FILES_SOURCE = ""
+
+
 def collect(root: pathlib.Path):
     js_dir = root / "8-front" / "js"
     index = root / "8-front" / "index.html"
@@ -53,14 +60,18 @@ def collect(root: pathlib.Path):
     if not index.exists() or not tests_dir.is_dir():
         return None, "нет 8-front/index.html или каталога спек"
     js = ""
-    if js_dir.is_dir():
-        for p in sorted(js_dir.glob("*.js")):
+    global FILES_SOURCE
+    js_files, src_js = tracked_or_walk(root, "8-front/js/*.js")
+    spec_files, src_spec = tracked_or_walk(root, "9-tests/RnD/front-e2e/tests/*.spec.js")
+    FILES_SOURCE = f"{src_js} + {src_spec}"
+    for p in js_files:
+        if p.is_file():
             js += "\n" + p.read_text(encoding="utf-8", errors="replace")
     html = index.read_text(encoding="utf-8", errors="replace")
     bound = set(BIND.findall(js)) | set(BIND_HTML.findall(html))
     touched = set()
     try:
-        for p in sorted(tests_dir.glob("*.spec.js")):
+        for p in spec_files:
             t = p.read_text(encoding="utf-8", errors="replace")
             touched |= set(TOUCH.findall(t)) | set(TOUCH_LOC.findall(t))
     except OSError as e:
@@ -89,7 +100,7 @@ def receipt_line(stats, issues):
     return (f"квитанция: элементов с обработчиком {stats['bound']} | трогают спеки {stats['covered']} | "
             f"не покрыто {stats['uncovered']} | критичных без покрытия {stats['critical']} | "
             f"вне MVP {len([i for i in stats['list'] if i in OUT_OF_MVP])} | "
-            f"нарушено: {0 if not issues else len(issues)}")
+            f"нарушено: {0 if not issues else len(issues)} | источник: {FILES_SOURCE}")
 
 
 def main(argv=None):
