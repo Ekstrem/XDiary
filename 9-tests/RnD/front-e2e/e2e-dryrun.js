@@ -18,6 +18,15 @@ const path = require('path');
 const fs = require('fs');
 
 const ROOT = __dirname;
+// TE-086: без флагов часть спек уходит в `test.skip` и их код НЕ исполняется. С `--all-flags`
+// все `XDIARY_*` включены, поэтому на заглушках исполняются ВСЕ тела тестов (28 из 28),
+// то есть проверяется отсутствие исключений/опечаток в коде ранее пропускавшихся спек.
+// Это НЕ поведение продукта: заглушки проверяют только исполнимость кода спек.
+if (process.argv.includes('--all-flags')) {
+  for (const flag of ['XDIARY_BUSY', 'XDIARY_STALENOTE', 'XDIARY_READPATH_OFFLINE', 'XDIARY_READPARITY', 'XDIARY_CHANGE_PIN']) {
+    process.env[flag] = '1';
+  }
+}
 const TESTS = process.env.DRYRUN_TESTS || path.join(ROOT, 'tests');
 
 let ok = 0;
