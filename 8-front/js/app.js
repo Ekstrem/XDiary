@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.97"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.98"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -389,14 +389,17 @@
       console.error("register error:", e);
       // «телефон уже зарегистрирован» — не тупик: сразу к вводу кода
       if (e && (e.status === 400 || e.status === 409)) {
-        // BE-047: сервер сам отправит код и может отдать clientId в теле ошибки
+        // BE-047 предполагал clientId в теле ошибки, но `ClientsController.Register` на отказе
+        // отдаёт `BadRequest(string)`, поэтому id берём только локальный (storedClientId).
         var d = (e && e.data) || {};
         var cid = d.clientId || d.aggregateId || d.id || onbClientId || storedClientId();
         if (cid) {
           onbClientId = cid;
           try { localStorage.setItem("xdiary.clientId", cid); } catch (err) {}
           showOtpStep(phone);
-          showOnbError("onb-otp-error", "Номер уже зарегистрирован. Мы запросили новый код — введите его из Telegram; если не пришёл, нажмите «Запросить код заново».");
+          // @AR/@TL 2026-11-06 21:42: тело 400 — плоская строка, `delivery` живёт только в 200,
+          // поэтому «мы запросили новый код» здесь было бы утверждением без основания.
+          showOnbError("onb-otp-error", "Номер уже зарегистрирован. Если код приходил ранее — введите его; если нет — нажмите «Запросить код заново».");
           return;
         }
       }
