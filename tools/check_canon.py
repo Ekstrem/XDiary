@@ -18,6 +18,8 @@ check_canon.py — канон = единственный источник пра
 """
 
 import argparse
+import fnmatch
+import subprocess
 import glob
 import json
 import os
@@ -28,22 +30,58 @@ MARK = re.compile(r'<!--\s*canon:\s*([\w][\w.-]*)\s*-->')
 DEFAULT_PATTERNS = ['**/*.md']
 
 
-def scan(root, patterns):
-    """id канона -> список путей, где маркер встретился."""
-    counts = {}
+def _git_tracked(root, patterns):
+    """Файлы из `git ls-files` по шаблонам; None — если это не git-корень.
+
+    Почему не `glob` по дереву (2026-11-06, находка @AR): в рабочем каталоге лежит
+    вложенный worktree `origin/main/`, и обход дерева считал копии ADR оттуда — гейт
+    печатал «canon:receipt-v1 встречается 3 раза» там, где в репозитории маркер ОДИН
+    (`git ls-files` не содержит ни одного пути `origin/main/`). Тот же класс уже
+    исправлен в `check_rule_docs` и `check_docs_size`.
+    """
+    try:
+        out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True,
+                             encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if out.returncode != 0 or not out.stdout.strip():
+        return None
+    files = []
+    for rel in out.stdout.splitlines():
+        rel = rel.strip()
+        if rel and any(fnmatch.fnmatch(rel, pat.lstrip("./")) for pat in patterns):
+            files.append(rel)
+    return sorted(set(files))
+
+
+def _walk_files(root, patterns):
+    files = []
     for pat in patterns:
         for path in glob.glob(os.path.join(root, pat), recursive=True):
             if os.path.isdir(path):
                 continue
-            rel = path.replace('\\', '/')
-            if '/.git/' in rel or '/node_modules/' in rel or '/chat/' in rel:
-                continue
-            try:
-                text = open(path, encoding='utf-8-sig').read()
-            except (OSError, UnicodeDecodeError):
-                continue
-            for m in MARK.finditer(text):
-                counts.setdefault(m.group(1), []).append(rel)
+            files.append(os.path.relpath(path, root).replace("\\", "/"))
+    return sorted(set(files))
+
+
+def scan(root, patterns):
+    """id канона -> список путей, где маркер встретился."""
+    counts = {}
+    rels = _git_tracked(root, patterns)
+    source = "git ls-files" if rels is not None else "обход дерева (fallback: не git-корень)"
+    if rels is None:
+        rels = _walk_files(root, patterns)
+    for rel in rels:
+        if "/chat/" in "/" + rel:
+            continue
+        path = os.path.join(root, rel.replace("/", os.sep))
+        try:
+            text = open(path, encoding="utf-8-sig").read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for m in MARK.finditer(text):
+            counts.setdefault(m.group(1), []).append("./" + rel)
+    print("  источник файлов: %s (%d шт.)" % (source, len(rels)))
     return counts
 
 
