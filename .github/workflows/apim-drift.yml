@@ -53,7 +53,7 @@ jobs:
           fi
 
       - name: Копировать инструмент и реестр на прод
-        if: steps.token.outputs.have == 'yes'
+        if: steps.basic.outputs.have == 'yes' || steps.token.outputs.have == 'yes'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
@@ -63,15 +63,16 @@ jobs:
           target: "/home/deploy/apim-drift"
 
       - name: Сверка с APIM (токен не печатается)
-        if: steps.token.outputs.have == 'yes'
+        if: steps.basic.outputs.have == 'yes' || steps.token.outputs.have == 'yes'
         uses: appleboy/ssh-action@v1.2.0
         env:
           GRAVITEE_TOKEN: ${{ secrets.GRAVITEE_TOKEN }}
+          GRAVITEE_BASIC: ${{ secrets.GRAVITEE_BASIC }}
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: GRAVITEE_TOKEN
+          envs: GRAVITEE_TOKEN,GRAVITEE_BASIC
           script_stop: true
           script: |
             set -u
