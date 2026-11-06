@@ -10,7 +10,7 @@ public class SomaticSeriesTests
 {
     private static ISomaticSeriesAnemicModel Record(string t, int hr, int bb)
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(t, hr, bb);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(t, hr, bb, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         return r.Model();
     }
@@ -31,7 +31,7 @@ public class SomaticSeriesTests
     [InlineData("")]
     public void RecordPoint_InvalidTimeFormat_Fails(string t)
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(t, 72, 85);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(t, 72, 85, Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
@@ -40,14 +40,14 @@ public class SomaticSeriesTests
     [InlineData(50, -1)]
     public void RecordPoint_Negative_Fails(int hr, int bb)
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:03", hr, bb);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:03", hr, bb, Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
     [Fact]
     public void RecordPoint_ZeroValues_Succeeds()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:03", 0, 0);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:03", 0, 0, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
 }

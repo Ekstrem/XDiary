@@ -11,6 +11,7 @@ public sealed class AnemicModel : ISomaticSeriesAnemicModel
     public ISomaticPointRoot Root { get; set; } = null!;
     public int Hr { get; set; }
     public int BodyBattery { get; set; }
+    public Guid? ClientId { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
 }
