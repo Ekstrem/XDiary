@@ -180,3 +180,26 @@ Npgsql.PostgresException (0x80004005): 23505: duplicate key value violates uniqu
 `api-index.yaml` → `trace_rule`: «Любой ответ 5xx обязан нести заголовок `X-Correlation-Id` (тот же, что попал в лог сервиса)».
 Причина — сегодняшние два `500`: тело пустое и идентификатора нет, поэтому «запрос → строка в логе» восстанавливалось вручную.
 **Задачи:** @BE/@DO — отдавать заголовок на 5xx; @TE — гейт в smoke: на любой 5xx заголовок обязателен, отсутствует ⇒ `rc=1`.
+
+## Гипотеза по `deploy-dev` (проверено по workflow и скриптам, @TL)
+
+Шаг «Deploy dev (VPS-2)» выполняет на стенде (`appleboy/ssh-action`, `deploy.yml:71+`):
+
+```bash
+set -eu
+for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
+  grep -q 'запрещено: тег задаётся только images.lock' "$f" || { echo "на VPS $f без DO-066 — поставь шим из 7-deploy/legacy-shims.sh"; exit 1; }
+done
+cd /opt/xdiary/7-deploy
+bash update.sh
+sleep 20
+curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
+```
+
+Проверено в репозитории: маркер DO-066 **есть** в `7-deploy/update.sh` и `7-deploy/deploy.sh`; шим-скрипт `7-deploy/legacy-shims.sh` **есть** и ставит `/home/deploy/*.sh` с этим маркером (сохраняя прежние в `/home/deploy/legacy-<ts>/`).
+
+⇒ Наиболее вероятная причина: после уборки «двух копий `7-deploy`» (`DO-110`) файлы `/home/deploy/deploy.sh` / `update.sh` на VPS-2 отсутствуют или без маркера ⇒ `grep` не находит строку ⇒ `exit 1` **до** `update.sh`. Это объясняет и «no annotations»: сообщение печатается в лог job, а не в аннотацию.
+
+**Проверка одной командой на VPS-2:** `grep -c 'запрещено: тег задаётся только images.lock' /home/deploy/deploy.sh /home/deploy/update.sh`
+**Починка:** `sudo -n bash /opt/xdiary/7-deploy/legacy-shims.sh` — затем перезапуск прогона.
+Альтернативы (менее вероятны, проверяются тем же stderr): `cd /opt/xdiary/7-deploy` не существует; `update.sh` падает на pull/`podman`; `curl /health` не отвечает за 20 с.
