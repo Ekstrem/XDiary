@@ -68,8 +68,19 @@ jobs:
           fi
           exit 0
 
+      # @TL 22:37: mixed-lock (собранный из реестра) нельзя затирать генерацией из git —
+      # иначе следующая правка кода снова сделает lock невыкатываемым (у journal/partners
+      # тег «последнего коммита» может быть не опубликован).
       - name: Перегенерировать lock
-        run: python tools/gen_images_lock.py --write
+        run: |
+          set -uo pipefail
+          if grep -q "набор смешанный" 7-deploy/images.lock; then
+            echo "lock смешанный — перегенерирую из реестра"
+            python tools/gen_images_lock.py --from-registry --write
+          else
+            echo "lock обычный — перегенерирую из git"
+            python tools/gen_images_lock.py --write
+          fi
 
       - name: Проверить, что после записи гейт зелёный
         run: python tools/gen_images_lock.py --check

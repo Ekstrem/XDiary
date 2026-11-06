@@ -439,13 +439,12 @@ def main():
                   % (a.file, len(text.splitlines())))
             return 0
         if a.check:
-            current = open(a.file, encoding="utf-8").read() if os.path.exists(a.file) else ""
-            if current != text:
-                print("::error::gen_images_lock --check: смешанный lock не совпадает с реестром: "
-                      "перегенерируй --from-registry --write")
-                return 1
-            print("check_images_lock: смешанный lock совпадает с реестром")
-            return 0
+            # Сверка «файл == свежий рендер» здесь НЕПРИГОДНА: «самый свежий опубликованный
+            # предок HEAD» меняется после каждого мержа (проверено 2026-11-06: journal fdf7550 ->
+            # 89b3a2f после merge), поэтому такой --check мигал бы красным на ровном месте.
+            # Значимый инвариант смешанного lock: каждый его тег есть в реестре.
+            print("check_images_lock: lock смешанный — проверяю теги в реестре (а не совпадение с рендером)")
+            return verify_registry(a.file, registry=a.registry, owner=a.owner)
         print("::error::укажи --write или --check вместе с --from-registry")
         return 2
 
