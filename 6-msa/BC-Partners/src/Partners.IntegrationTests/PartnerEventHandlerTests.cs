@@ -34,6 +34,13 @@ public class PartnerEventHandlerTests
         public Task DeleteAsync(Guid id, CancellationToken ct = default) => Task.CompletedTask;
     }
 
+    private sealed class FakeRead : IReadRepository<IPartners, PartnersReadModel>
+    {
+        public Task<PartnersReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<PartnersReadModel?>(null);
+        public Task<IReadOnlyList<PartnersReadModel>> GetAllAsync(IPaging paging, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<PartnersReadModel>>(new List<PartnersReadModel>());
+        public Task<long> CountAsync(CancellationToken ct = default) => Task.FromResult(0L);
+    }
+
     [Fact]
     public void Handle_PersistsEvent_And_MaterializesReadModel()
     {
@@ -43,7 +50,7 @@ public class PartnerEventHandlerTests
 
         var store = new FakeStore();
         var readStore = new FakeReadStore();
-        var handler = new PartnerEventHandler(store, readStore);
+        var handler = new PartnerEventHandler(store, readStore, new FakeRead());
 
         handler.HandleAsync(reg.Event!).GetAwaiter().GetResult();
 
@@ -63,7 +70,7 @@ public class PartnerEventHandlerTests
 
         var store = new FakeStore();
         var readStore = new FakeReadStore();
-        var handler = new PartnerEventHandler(store, readStore);
+        var handler = new PartnerEventHandler(store, readStore, new FakeRead());
 
         handler.HandleAsync(removed.Event!).GetAwaiter().GetResult();
 
