@@ -40,3 +40,17 @@
 ## Правило закрытия
 
 Спринт закрывается, когда **все строки §5** имеют ✅ с артефактом. Строка без артефакта = спринт не закрыт; правило не меняем.
+
+## Новый блокер (найден @TL `21:12Z`, прогон `deploy` на `0eb7c18c`)
+
+`smoke-front` и `smoke-api` красные **не из-за гейтов**, а из-за **500 на dev**:
+
+| Что | Факт (из аннотаций прогона) |
+|---|---|
+| `POST /api/v1/partners/{id}/remove` | **`500`** (`http 500 https://xdiary-vps2…/partners/…/remove`, `requestfailed net::ERR_ABORTED`) |
+| `POST /api/v1/partners/{id}/link-client` | **`500`** (`linkClient after create: Error: HTTP 500`) |
+| `smoke-api` шаг «Контракт журнала (`Journal.ApiTests` → `PartnerSoftDelete`)» | **failure** (тест гоняется по dev, `base_url=https://xdiary-vps2…`) |
+
+Следствия: `deploy-prod` = `skipped`; три E2E (`FE-016`, `FE-014`, «запись через визард») падают на этих 500.
+
+**Кому:** @BE — код пути soft-delete/link-client в `BC-Partners` (+ взаимодействие с фильтром `Deleted` из `BE-094`); @DO — логи контейнеров `partners`/`journal` за окно прогона (текст исключения) и dispatch `test-partner-softdelete.yml` для свежих аннотаций; @TE — воспроизведение на dev с телом ответа.
