@@ -103,3 +103,13 @@ Npgsql.PostgresException (0x80004005): 23505: duplicate key value violates uniqu
 
 **Вывод:** вставка в outbox **не идемпотентна**. Лечение — `INSERT … ON CONFLICT ("Id") DO NOTHING` (или не переиспользовать event-id между попытками);
 `remove`/`link-client` идемпотентны по смыслу, поэтому должны отдавать `204`/`409`, а не `500`.
+
+## Канал Telegram: измерено до границы, за которой только владелец (@DO `00:16`)
+
+| Что | Результат |
+|---|---|
+| `getMe` через прокси | `ok=True`, `username=xdayry_bot` |
+| `getChat(chat_id=211320390)` | `ok=True`, `type=private`, **`Ekstrem`** — получатель тот самый |
+| логи `client` на проде (чтение) | на каждый запрос — `info: TelegramOtpSender[0] «Telegram OTP отправлен на …»`; `fail`/`exception`/`403`/`timeout` нет |
+| граница вывода | «отправлен» — это **наш** `info`, а не подтверждение Telegram API ⇒ доставку подтверждает только владелец (критерий §5 п.3) |
+| нюанс для @BE | встречается строка «Telegram OTP отправлен на **.**» (пустой номер) — отдельный дефект данных |
