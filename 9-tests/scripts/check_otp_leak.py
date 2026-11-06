@@ -13,6 +13,7 @@
 
 import argparse
 import json
+import pathlib
 import re
 import sys
 import urllib.error
@@ -24,22 +25,35 @@ except Exception:  # noqa: BLE001
     pass
 
 PROBE_PATH = "/api/v1/clients"
+CONTRACT = "04-architecture/api-index.yaml"
+OPERATION = "Client.Register"
+# Ключи, похожие на секрет: их в теле быть не должно НИКОГДА, независимо от контракта.
+SECRET_KEYS = ("otpcode", "otp_code", "otpattempts", "code", "pin", "password", "secret", "token")
 # Поля, которых в ответе быть не должно. `code` — не проверяем слепо: в домене есть и другие `code`
 # (коды ошибок), поэтому ищем только OTP-специфичные имена.
-LEAK_FIELDS = ("otpCode", "otpcode", "otp_code", "otpAttempts", "otpExpiresAt", "otpExpires")
+# Поля, которых в ответе быть НЕ должно: по ним получают доступ — код и счётчик попыток.
+LEAK_FIELDS = ("otpCode", "otpcode", "otp_code", "otpAttempts")
 # Ловим и JSON (`"otpCode":`), и не-JSON (`otpCode=`, `otpCode :`) — иначе «не разобрали» выглядело бы как «чисто».
-LEAK_RX = re.compile(r'\b(otpCode|otp_code|otpAttempts|otpExpiresAt|otpExpires)\b\s*[:=]', re.I)
+LEAK_RX = re.compile(r'\b(otpCode|otp_code|otpAttempts)\b\s*[:=]', re.I)
+# Поле, которое контракт РАЗРЕШАЕТ в теле 200: `04-architecture/api-index.yaml:177` —
+# «новый номер: тело id, version, phone, otpExpiresAt, verified, delivery». По метке времени JWT
+# не получить, поэтому это НЕ утечка: печатаем notice и в нарушения не берём.
+CONTRACT_ALLOWED = ("otpExpiresAt", "otpExpires")
+ALLOWED_RX = re.compile(r'\b(otpExpiresAt|otpExpires)\b\s*[:=]', re.I)
 
 
 def scan_body(text):
-    """Возвращает список найденных OTP-полей (по ключам JSON, рекурсивно)."""
-    found = []
+    """(утечки, разрешённые контрактом поля) — по ключам JSON, рекурсивно."""
+    leaks, allowed = [], []
 
     def walk(node, path=""):
         if isinstance(node, dict):
             for k, v in node.items():
-                if k in LEAK_FIELDS or k.lower() in [f.lower() for f in LEAK_FIELDS]:
-                    found.append(f"{path}{k}")
+                low = k.lower()
+                if low in [f.lower() for f in LEAK_FIELDS]:
+                    leaks.append(f"{path}{k}")
+                elif low in [f.lower() for f in CONTRACT_ALLOWED]:
+                    allowed.append(f"{path}{k}")
                 walk(v, f"{path}{k}.")
         elif isinstance(node, list):
             for i, v in enumerate(node):
@@ -47,27 +61,78 @@ def scan_body(text):
 
     try:
         walk(json.loads(text))
-        return found
+        return leaks, allowed
     except (ValueError, TypeError):
         # не JSON — ищем по тексту, чтобы «не разобрали» не выглядело как «чисто»
-        return [m.group(1) for m in LEAK_RX.finditer(text or "")]
+        return ([m.group(1) for m in LEAK_RX.finditer(text or "")],
+                [m.group(1) for m in ALLOWED_RX.finditer(text or "")])
 
 
-def evaluate(status, body, transient_gone=(), known_leak=()):
+def contract_allowed_fields(contract_path, operation=OPERATION):
+    """Поля, которые контракт РАЗРЕШАЕТ в теле `200`, из `api-index.yaml` (единственный источник правды).
+
+    Возвращает (set полей | None, где искать). None — контракт не найден/не разобран: тогда проверка
+    «поле не из контракта» невозможна, и это надо сказать вслух, а не считать «всё разрешено».
+    """
+    p = pathlib.Path(contract_path)
+    if not p.exists():
+        return None, f"нет {contract_path}"
+    lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+    start = next((i for i, l in enumerate(lines) if f"operationId: {operation}" in l), None)
+    if start is None:
+        return None, f"в {contract_path} нет operationId: {operation}"
+    codes = next((l for l in lines[start:start + 12] if l.strip().startswith("codes:")), None)
+    if not codes:
+        return None, "у операции нет строки codes:"
+    body = codes.split("{", 1)[1] if "{" in codes else codes
+    parts = re.split(r",\s*(?=\d{3}\s*:)", body)
+    ok_part = next((x for x in parts if x.strip().startswith(("200:", "200 :"))), None)
+    if not ok_part:
+        return None, "нет описания кода 200"
+    tokens = set(w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9]{1,}", ok_part))
+    return tokens, f"{contract_path} (код 200: {ok_part.split(':', 1)[1].strip()[:80]}…)"
+
+
+def unexpected_fields(body_keys, allowed):
+    """Поля тела, которых контракт не разрешает (кроме секретных — они ловятся отдельно)."""
+    if not allowed:
+        return []
+    return sorted(k for k in body_keys
+                  if k.lower() not in allowed and k.lower() not in SECRET_KEYS)
+
+
+def evaluate(status, body, transient_gone=(), known_leak=(), allowed_fields=None):
     """(issues, stats). `status` — код ответа, `body` — текст ответа."""
     issues = []
-    leaked = scan_body(body or "")
+    leaked, allowed = scan_body(body or "")
     if leaked:
         issues.append(f"`POST {PROBE_PATH}` вернул OTP-поле(я) {sorted(set(leaked))} — "
                       f"по этому коду можно получить JWT владельца (BE-090), это доступ к чужим данным")
+    # «поле, которого нет в контракте» — второй, независимый признак (принцип @AR 22:34):
+    # контракт разрешает — гейт не спорит; контракт не разрешает — это и есть утечка формы.
+    unexpected = []
+    try:
+        doc = json.loads(body or "")
+        if isinstance(doc, dict) and allowed_fields is not None:
+            unexpected = unexpected_fields(list(doc.keys()), allowed_fields)
+    except (ValueError, TypeError):
+        pass
+    for k in unexpected:
+        issues.append(f"в теле есть поле `{k}`, которого НЕТ в контракте (`{OPERATION}`, код 200) — "
+                      f"это утечка формы: сервис отдаёт больше, чем разрешено индексом")
     stats = {"status": status, "leaked": sorted(set(leaked)),
+             "allowed": sorted(set(allowed)),
+             "unexpected": unexpected,
              "len": len((body or "").strip())}
     return issues, stats
 
 
 def receipt_line(stats, issues):
+    allowed = stats.get("allowed") or []
     return (f"квитанция: POST {PROBE_PATH} → {stats['status']} | тело {stats['len']} симв. | "
             f"OTP-полей: {len(stats['leaked'])}{(' ' + str(stats['leaked'])) if stats['leaked'] else ''} | "
+            f"разрешено контрактом: {len(allowed)}{(' ' + str(allowed)) if allowed else ''} | "
+            f"вне контракта: {len(stats.get('unexpected') or [])} | "
             f"нарушено: {len(issues)}")
 
 
@@ -93,6 +158,7 @@ def main(argv=None):
     ap.add_argument("--phone", default="+70000000000", help="номер для пробы")
     ap.add_argument("--body", help="офлайн-проверка: подставить тело ответа")
     ap.add_argument("--status", type=int, help="офлайн-проверка: подставить код ответа")
+    ap.add_argument("--contract", default=CONTRACT, help="путь к api-index.yaml (источник правды по форме)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -109,9 +175,18 @@ def main(argv=None):
             print(f"::error::check_otp_leak: {err} — не измерено (rc=2)")
             return 2
 
-    issues, stats = evaluate(status, body)
+    allowed_fields, contract_where = contract_allowed_fields(a.contract)
+    if allowed_fields is None:
+        print(f"::warning::check_otp_leak: контракт не прочитан ({contract_where}) — проверка «поле вне "
+              f"контракта» не выполняется, проверяются только секретные ключи")
+    else:
+        print(f"::notice::check_otp_leak: разрешённые поля взяты из контракта — {contract_where}")
+    issues, stats = evaluate(status, body, allowed_fields=allowed_fields)
     for m in issues:
         print(f"::error::check_otp_leak: {m}")
+    if stats.get("allowed"):
+        print(f"::notice::check_otp_leak: в теле есть {stats['allowed']} — это разрешено контрактом "
+              f"(api-index.yaml:177), JWT по метке времени не получить, утечкой не считаем")
     print(receipt_line(stats, issues))
     return 1 if issues else 0
 
@@ -138,8 +213,8 @@ def selftest():
     case("норма: в ответе нет OTP-полей", 200,
          '{"id":"c1","version":1,"phone":"+70000000000","verified":false}', 0, ["OTP-полей: 0"])
 
-    case("утечка вложена в объект", 200, '{"client":{"id":"c1","otpExpiresAt":"2026-11-06T00:00:00Z"}}', 1,
-         ["client.otpExpiresAt"])
+    case("утечка вложена в объект", 200, '{"client":{"id":"c1","otpCode":"123456"}}', 1,
+         ["client.otpCode"])
 
     case("400 с OTP в теле — всё равно утечка", 400, '{"errors":{"otpCode":["required"]}}', 1, ["otpCode"])
 
@@ -147,8 +222,51 @@ def selftest():
 
     case("пустое тело (401 без тела) — нарушений нет", 401, "", 0, ["нарушено: 0"])
 
+    # Контракт (`api-index.yaml:177`) разрешает `otpExpiresAt` в теле 200 — это НЕ утечка.
+    case("otpExpiresAt разрешён контрактом — не красный", 200,
+         '{"id":"c1","version":1,"phone":"+7","otpExpiresAt":"2026-11-06T19:31:37Z","verified":false}', 0,
+         ["OTP-полей: 0", "разрешено контрактом: 1"])
+
+    case("факт прода после выкатки: тело без кода", 200,
+         '{"id":"c1","version":1,"phone":"+7","otpExpiresAt":"2026-11-06T19:31:37Z","verified":false}', 0,
+         ["нарушено: 0"])
+
+    case("код вернулся вместе с otpExpiresAt — снова красный", 200,
+         '{"id":"c1","otpCode":"123456","otpExpiresAt":"2026-11-06T19:31:37Z"}', 1,
+         ["otpCode"])
+
+    # Принцип @AR 22:34: «разрешённое берём из контракта», а «поле вне контракта» — утечка формы.
+    allowed = {"id", "version", "phone", "otpexpiresat", "verified", "delivery"}
     total += 1
-    line = receipt_line({"status": 200, "leaked": [], "len": 10}, [])
+    iss, st = evaluate(200, '{"id":"c1","version":1,"phone":"+7","otpExpiresAt":"t","verified":false}', allowed_fields=allowed)
+    if not iss and st["unexpected"] == []:
+        ok += 1
+    else:
+        print(f"  [FAIL] контракт разрешает — красным быть не должно: {iss}")
+
+    total += 1
+    iss, st = evaluate(200, '{"id":"c1","root":{"x":1},"commandName":"","otpExpiresAt":"t"}', allowed_fields=allowed)
+    if iss and st["unexpected"] == ["commandName", "root"]:
+        ok += 1
+    else:
+        print(f"  [FAIL] поля вне контракта: unexpected={st.get('unexpected')}, issues={iss}")
+
+    total += 1
+    checked, where = contract_allowed_fields(pathlib.Path("04-architecture/api-index.yaml"))
+    if checked and "otpexpiresat" in checked and "delivery" in checked:
+        ok += 1
+    else:
+        print(f"  [FAIL] разбор контракта: {checked} ({where})")
+
+    total += 1
+    missing, where = contract_allowed_fields(pathlib.Path("no/such/file.yaml"))
+    if missing is None and "нет" in where:
+        ok += 1
+    else:
+        print(f"  [FAIL] отсутствующий контракт должен давать None: {missing} / {where}")
+
+    total += 1
+    line = receipt_line({"status": 200, "leaked": [], "allowed": [], "unexpected": [], "len": 10}, [])
     if "OTP-полей: 0" in line and "нарушено: 0" in line and "POST /api/v1/clients" in line:
         ok += 1
     else:
