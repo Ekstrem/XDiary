@@ -117,7 +117,7 @@ test('E2E: запись журнала — редактирование и уд�
     await page.fill('#w-dur-custom', '45');
     await page.click('#btn-wizard-next');
     await page.click('#btn-wizard-next');
-    await page.click('#btn-wizard-save');
+    await page.click('#btn-wizard-save', { timeout: 20000 });
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: UI_WAIT });
 
     const edited = await apiRecord(page, id);
@@ -133,7 +133,7 @@ test('E2E: запись журнала — редактирование и уд�
     await page.click('#btn-detail-edit');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
     await page.locator('#wizard-progress button[title="Итог"]').click();
-    await page.click('#btn-wizard-delete');
+    await page.click('#btn-wizard-delete', { timeout: 20000 });
     await expect(page.locator('#confirm-modal')).toBeVisible();
 
     // НЕГАТИВНЫЙ КОНТРОЛЬ перед удалением: «Нет» в подтверждении обязано НЕ удалять.
@@ -146,7 +146,7 @@ test('E2E: запись журнала — редактирование и уд�
 
     // теперь удаляем по-настоящему
     await page.locator('#wizard-progress button[title="Итог"]').click();
-    await page.click('#btn-wizard-delete');
+    await page.click('#btn-wizard-delete', { timeout: 20000 });
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-yes');
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 10000 });

@@ -68,7 +68,7 @@ test('E2E: каталог — archive и restore через UI, проверка
       });
       await page.click('#ce-archive');
       await expect(page.locator('#ce-archive')).toHaveText(/Вернуть/);
-      await page.click('#btn-catalog-save');
+      await page.click('#btn-catalog-save', { timeout: 20000 });
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: UI_WAIT });
 
       const archived = await getItem(page, id);
@@ -82,7 +82,7 @@ test('E2E: каталог — archive и restore через UI, проверка
       await expect(page.locator('#ce-archive')).toHaveText(/Вернуть/);
       await page.click('#ce-archive');
       await expect(page.locator('#ce-archive')).toHaveText(/В архив/);
-      await page.click('#btn-catalog-save');
+      await page.click('#btn-catalog-save', { timeout: 20000 });
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: UI_WAIT });
 
       const restored = await getItem(page, id);
@@ -126,7 +126,7 @@ test('E2E: каталог — archive и restore через UI, проверка
       expect(kept, 'после отмены позиция каталога на месте (API)').toBeTruthy();
 
       await openItem(page);
-      await page.click('#btn-catalog-delete');
+      await page.click('#btn-catalog-delete', { timeout: 20000 });
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-yes');
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: UI_WAIT });

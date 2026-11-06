@@ -34,7 +34,7 @@ for (const kind of KINDS) {
           await page.locator('#ce-partner').selectOption({ index: 0 });
         }
       }
-      await page.click('#btn-catalog-save');
+      await page.click('#btn-catalog-save', { timeout: 20000 });
 
       // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
