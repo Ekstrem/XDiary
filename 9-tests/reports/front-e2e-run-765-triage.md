@@ -410,3 +410,34 @@ dispatch-прогон**.
 ночном расписании (как уже сделано для `ci-front`), а `deploy-prod` гейтить `smoke-api` + `diff-paths`.
 Правило «гейт не обходится» при этом не нарушается: браузерный вердикт остаётся обязательным для релиза,
 просто не на каждом пушe.
+
+## 10. Расхождение, которое нельзя объяснить кодом: `images.lock` уже содержит фиксы, а `when` всё ещё 404
+
+Проверил, **какие коммиты считаются текущими образами** (`7-deploy/images.lock`) и что в них лежит:
+
+| Сервис | Тег в `images.lock` | Коммит | Что в нём |
+|---|---|---|---|
+`journal` | `single-eae6258` | `eae62589` «be: Journal EnsureOwns → fallback command-store (read-after-write 404)» | `_anemic` fallback **есть** |
+`partners` | `single-b5213f3` | `b5213f3d` «be: PartnerEventHandler → `$` в ChangedValueObjectsJson» | `IValueObjectJsonConverter` **есть** |
+`front` | `single-cb57caa` | `cb57caa4` «fe: 0.96 P0 — ensureView не считает splash экраном» | `APP_VERSION = 0.96`, `splash` исключён |
+
+**Таймлайн обновления `images.lock`** (bot-коммиты `lock-sync`): `01:36` → journal `1dde681`,
+`01:58` → journal **`eae6258`**, `02:00` → partners **`b5213f3`**.
+
+**А `smoke-front` #1638 (REF `a2b28c85`) шёл в `02:46` — уже после обоих обновлений — и всё равно получил
+`{"ok":false,"step":"when","status":404}`.** При этом маршрут шлюза не при чём: `ApiGateway/appsettings.json:18`
+ловит `/api/v1/journal/{**catch-all}`, то есть `POST /records/{id}/when` доходит до Journal.
+
+Возможные объяснения, и все три проверяемы, поэтому не гадаю:
+
+1. **Контейнер не тот, что в lock.** `deploy-dev` в #1638 завершился `success`, но в логе шага нет digest'ов
+   (там только имена 12 сервисов) — то есть «lock обновлён» ≠ «контейнер обновлён». Проверка @DO:
+   `podman inspect --format '{{.ImageName}}' xdiary-journal` на dev и сравнить с `images.lock`.
+2. **Fallback не спасает:** `_anemic.GetById(id)` возвращает `LastOrDefault()`; если событие создания ещё не
+   в event-store в момент `when`, fallback тоже пуст. Проверка @BE: лог Journal на `[handle] entered` /
+   наличие записи в `Commands.DomainEvents` для этого `recordId`.
+3. **Другой клиент:** `EnsureOwns` сравнивает `ClientId`, и при несовпадении отдал бы `403`, а не `404` —
+   поэтому версия слабее остальных, но снимается тем же логом.
+
+**Чего я НЕ делаю:** не правлю `7-deploy/**` и `6-msa/**` (зоны @DO/@BE) и не запускаю прогоны (§5.1).
+Мой вклад — измерение и точная формулировка проверки для владельца зоны.
