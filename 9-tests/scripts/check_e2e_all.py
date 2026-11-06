@@ -43,6 +43,7 @@ def _orphan_gates():
 
 GATES = (
     ("check_e2e_coverage.py", "экраны фронта покрыты спеками, маркер не врёт"),
+    ("check_e2e_eventsourcing_contract.py", "писатель событий без IValueObjectJsonConverter = модифицирующие ручки дают 404"),
     ("check_e2e_bounded_actions.py", "мутирующий клик обязан иметь явный timeout, иначе тест молчит до лимита"),
     ("check_e2e_or_first.py", "`.or(...).first()` на экранах выбирает по DOM, а не по видимости"),
     ("check_e2e_conditional_fields.py", "поля, скрытые по условию, заполняют только когда видны"),
