@@ -43,6 +43,8 @@ def _orphan_gates():
 
 GATES = (
     ("check_e2e_coverage.py", "экраны фронта покрыты спеками, маркер не врёт"),
+    ("check_e2e_ci_env_flags.py", "флаг, без которого спека скипается, обязан быть выставлен в CI"),
+    ("check_e2e_command_read_path.py", "командное чтение только из read-модели = лаг проекции → 404/400"),
     ("check_e2e_gate_hygiene.py", "у каждого гейта есть --selftest, квитанция и подключение к агрегатору"),
     ("check_e2e_eventsourcing_contract.py", "писатель событий без IValueObjectJsonConverter = модифицирующие ручки дают 404"),
     ("check_e2e_bounded_actions.py", "мутирующий клик обязан иметь явный timeout, иначе тест молчит до лимита"),
@@ -87,6 +89,8 @@ ARGS_REQUIRED = {"e2e_receipt.py": "квитанция прогона: нуже�
 JS_GATES = (
     ("9-tests/RnD/front-e2e/login-paths.test.js",
      "пути входа (кэш сессии / без лишнего reload / повтор при 401) — без браузера"),
+    ("9-tests/RnD/front-e2e/helpers.test.js",
+     "waitAnyScreen: возвращает показанный экран, таймаут, диагностику при провале — без браузера"),
     ("9-tests/RnD/front-e2e/e2e-dryrun.js",
      "исполняет тела спек на заглушках (без браузера): нет исключений в коде тестов"),
 )
