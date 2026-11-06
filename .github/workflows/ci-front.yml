@@ -49,7 +49,8 @@ jobs:
     needs: spec-gates
     if: github.event_name != 'push' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # @TE 2026-11-06 08:26: 19 падений × 90 с съедают бюджет — 60 -> 75 минут.
+    timeout-minutes: 75
     concurrency:
       group: front-e2e-stand
       cancel-in-progress: false
