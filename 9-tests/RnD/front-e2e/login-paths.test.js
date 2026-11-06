@@ -10,7 +10,9 @@
 //   3) журнал уже открыт и токен на месте → ни засева, ни `reload` (fast path до засева);
 //   4) сессию убили посреди входа (401 на /clients/me) → ровно один повтор, затем падение с диагнозом;
 //   5) PIN не снимает замок → диагноз с экранами (а не пустой timeout);
-//   6) `expectScreen` несёт текст тоста и имя шага.
+//   6) `expectScreen` несёт текст тоста и имя шага;
+//   7) сетевой сбой `POST /verify` → повтор вытягивает засев;
+//   8) сетевые сбои исчерпали попытки → падение с причиной, а не «пусто».
 //
 // Код возврата: 0 — все пути как ожидалось; 1 — расхождение.
 
@@ -33,6 +35,8 @@ function makeEnv(opts = {}) {
     lockVisible: !!opts.lockVisible,
     lockStuck: !!opts.lockStuck,
     toast: opts.toast || '',
+    netFailVerify: opts.netFailVerify || 0,
+    verifyCalls: 0,
     errors: opts.errors || [],
   };
   const ls = {
@@ -58,7 +62,11 @@ function makeEnv(opts = {}) {
       text: async () => JSON.stringify(body),
     });
     // порядок важен: `/clients/{id}/verify` содержит и `/clients`
-    if (u.includes('/verify')) return ok(200, { accessToken: 'aa.bb.cc', refreshToken: 'rr' });
+    if (u.includes('/verify')) {
+      state.verifyCalls += 1;
+      if (state.verifyCalls <= state.netFailVerify) throw new TypeError('Failed to fetch');
+      return ok(200, { accessToken: 'aa.bb.cc', refreshToken: 'rr' });
+    }
     if (u.includes('/api/v1/clients/me/profile')) return ok(200, { displayName: 'TE-SEED' });
     if (u.includes('/api/v1/clients/me')) {
       const st = state.cachedCheck ? state.meStatus : 200;
@@ -80,6 +88,7 @@ function makeEnv(opts = {}) {
     goto: async () => { state.gotos += 1; state.journalVisible = state.journalVisible || !!state.openOnGoto; },
     reload: async () => { state.reloads += 1; },
     waitForFunction: async () => true,
+    waitForTimeout: async () => {},
     fill: async () => {},
     click: async () => {},
     evaluate: async (fn, arg) => await fn(arg),
@@ -205,6 +214,27 @@ async function check(name, fn) {
     }
     assert.ok(/Шаг не пройден: проверка экрана/.test(msg), 'ожидали «Шаг не пройден», получили: ' + msg.slice(0, 120));
     assert.ok(/сервер недоступен/.test(msg), 'в ошибке должен быть текст тоста');
+  });
+
+  await check('сетевой сбой засева: повтор вытягивает вход', async () => {
+    const env = makeEnv({ journalVisible: false, openOnGoto: true, netFailVerify: 1 });
+    const api = freshApi();
+    await api.seedSession(env.page);            // первый /verify падает сетью
+    assert.ok(env.state.storage['xdiary.accessToken'], 'после повтора токен должен появиться');
+    assert.ok(env.state.verifyCalls >= 2, 'должен быть повтор запроса, вызовов: ' + env.state.verifyCalls);
+  });
+
+  await check('сетевые сбои исчерпали попытки: падение с причиной', async () => {
+    const env = makeEnv({ journalVisible: false, netFailVerify: 99 });
+    const api = freshApi();
+    let msg = '';
+    try {
+      await api.seedSession(env.page);
+    } catch (e) {
+      msg = String(e && e.message);
+    }
+    assert.ok(/seedSession/.test(msg), 'ожидали ошибку засева, получили: ' + msg.slice(0, 120));
+    assert.ok(/Failed to fetch|шаг verify|попыт/i.test(msg), 'в причине должна быть сеть, получили: ' + msg.slice(0, 160));
   });
 
   const failed = results.filter(([, ok]) => !ok);

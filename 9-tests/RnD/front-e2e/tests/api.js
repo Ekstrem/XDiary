@@ -415,7 +415,12 @@ async function seedSession(page) {
       await page.waitForTimeout(500 * attempt); // backoff: сетевой ретрай seedSession, не догадка о времени
     }
   }
-  throw lastErr;
+  // Сетевые попытки исчерпаны: причину дописываем, чтобы в логе было видно ЧИСЛО попыток,
+  // а не голое `Failed to fetch` (по такому сообщению нельзя отличить «сеть упала один раз»
+  // от «стенд не отвечает все 3 попытки»).
+  const lastMsg = String((lastErr && lastErr.message) || lastErr);
+  throw new Error('seedSession: засев не удался после ' + SEED_ATTEMPTS + ' попыток (сеть): ' +
+    lastMsg.slice(0, 200));
 }
 
 // TE-056 (@DO 2026-11-06 02:34): прогон `18 failed, 3 skipped, 8 passed` — падения в
