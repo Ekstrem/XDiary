@@ -16,15 +16,15 @@ public sealed class Aggregate
     { var d = BusinessOperationData<ICatalog, ICatalogAnemicModel>.Commit<ICatalog, ICatalogAnemicModel>(Model, m); return new AggregateResultSuccess<ICatalog, ICatalogAnemicModel>(d); }
     private AggregateResult<ICatalog, ICatalogAnemicModel> Fail(string e)
     { var d = BusinessOperationData<ICatalog, ICatalogAnemicModel>.Commit<ICatalog, ICatalogAnemicModel>(Model, Model); return new AggregateResultException<ICatalog, ICatalogAnemicModel>(d, new FailedSpecification<ICatalog, ICatalogAnemicModel>(e)); }
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Notes = Model.Notes, Brand = Model.Brand, Archived = Model.Archived, FantasyPartner = Model.FantasyPartner };
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Notes = Model.Notes, Brand = Model.Brand, Archived = Model.Archived, FantasyPartner = Model.FantasyPartner, ClientId = Model.ClientId };
 
-    public AggregateResult<ICatalog, ICatalogAnemicModel> AddItem(string kind, string name)
+    public AggregateResult<ICatalog, ICatalogAnemicModel> AddItem(string kind, string name, Guid clientId)
     {
         var kv = new KindEnumValidator();
         if (!kv.IsSatisfiedBy(kind)) return Fail(kv.Reason);
         var probe = new AnemicModel { Root = CatalogItemRoot.CreateInstance(kind, name) };
         if (!new NameRequiredValidator().IsSatisfiedBy(probe)) return Fail("Имя элемента обязательно.");
-        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = CatalogItemRoot.CreateInstance(kind, name) };
+        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = CatalogItemRoot.CreateInstance(kind, name), ClientId = clientId };
         return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Rename(string name)

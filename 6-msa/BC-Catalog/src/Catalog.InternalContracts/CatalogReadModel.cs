@@ -11,4 +11,5 @@ public sealed class CatalogReadModel : IReadModel<Catalog.Domain.ICatalog>
     public string Brand { get; set; } = string.Empty;
     public bool Archived { get; set; }
     public string FantasyPartner { get; set; } = string.Empty;
+    public Guid? ClientId { get; set; }
 }

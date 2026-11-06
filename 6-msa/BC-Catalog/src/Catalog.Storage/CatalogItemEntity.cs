@@ -10,4 +10,5 @@ public sealed class CatalogItemEntity
     public bool Archived { get; set; }
     public string FantasyPartner { get; set; } = string.Empty;
     public long Version { get; set; }
+    public Guid? ClientId { get; set; }
 }

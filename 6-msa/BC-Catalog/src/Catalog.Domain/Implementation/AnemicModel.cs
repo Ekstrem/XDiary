@@ -14,6 +14,7 @@ public sealed class AnemicModel : ICatalogAnemicModel
     public string Brand { get; set; } = string.Empty;
     public bool Archived { get; set; }
     public string FantasyPartner { get; set; } = string.Empty;
+    public Guid? ClientId { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
 }

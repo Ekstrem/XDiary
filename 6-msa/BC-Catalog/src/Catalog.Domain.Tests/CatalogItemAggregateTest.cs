@@ -8,7 +8,7 @@ public class CatalogItemAggregateTest
     [Fact]
     public void Add_Then_Rename_Then_Remove()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball");
+        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball", Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, start.Result);
         var rename = Aggregate.CreateInstance(start.Model()).Rename("Big Ball");
         Assert.Equal(DomainOperationResultEnum.Success, rename.Result);
@@ -18,20 +18,20 @@ public class CatalogItemAggregateTest
     [Fact]
     public void Add_BadKind_Fails()
     {
-        var result = Aggregate.CreateInstance(new AnemicModel()).AddItem("bad", "X");
+        var result = Aggregate.CreateInstance(new AnemicModel()).AddItem("bad", "X", Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
     [Fact]
     public void Archive_NonToy_Fails()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("costume", "Costume");
+        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("costume", "Costume", Guid.NewGuid());
         var result = Aggregate.CreateInstance(start.Model()).Archive();
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
     [Fact]
     public void Archive_Toy_Succeeds()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball");
+        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball", Guid.NewGuid());
         var result = Aggregate.CreateInstance(start.Model()).Archive();
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }

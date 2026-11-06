@@ -11,7 +11,7 @@ public sealed class AddCatalogItemHandler : IRequestHandler<AddCatalogItemComman
     private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
     public AddCatalogItemHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(AddCatalogItemCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).AddItem(r.Kind, r.Name); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var res = Aggregate.CreateInstance(new AnemicModel()).AddItem(r.Kind, r.Name, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class RenameCatalogItemHandler : IRequestHandler<RenameCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
 {

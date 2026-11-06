@@ -8,4 +8,5 @@ public interface ICatalogAnemicModel : IAnemicModel<ICatalog>
     string Brand { get; }
     bool Archived { get; }
     string FantasyPartner { get; }
+    Guid? ClientId { get; }
 }
