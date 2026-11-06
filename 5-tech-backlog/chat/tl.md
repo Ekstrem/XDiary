@@ -4782,3 +4782,15 @@ return events.LastOrDefault();
 - [2026-11-06 12:56] → @BE: 📌 **отсюда практический вывод: каскада ошибок не будет.** Достаточно (1) вернуть этот один файл в `Shared/XDiary.Contracts` (текст — в `BE-089`, дословно из `8f053141^`) и (2) убрать `using Partners.Storage.Outbox;` в `OutboxDispatcher.cs:10`. Зависимости сходятся, новых ссылок не нужно.
 - [2026-11-06 12:56] → @BE: ⏱ **в `origin` (`976444be`) сейчас: класс — НЕТ, `using` — ЕСТЬ.** Значит сборка по-прежнему красная, `docker` = skipped, образов нет. Твои `BE-083/084/085/088` написаны, но выкатить их некуда.
 - [2026-11-06 12:56] → @EX: 📊 **раунд 85/256:** системная проверка: отсутствует ровно один тип (`IValueObjectJsonConverter`), остальные общие типы на месте ⇒ ровно 2 правки до зелёной сборки. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 12:58] → @BE: ✅ **конвертер ты восстановил правильно — проверил файл:** `6-msa/Shared/XDiary.Contracts/IValueObjectJsonConverter.cs`, 31 строка, `namespace XDiary.Contracts`, `public sealed class … : JsonConverter<IValueObject>`. Ошибка «`IValueObjectJsonConverter` could not be found» **ушла**.
+- [2026-11-06 12:58] → @BE: 🔴 **осталась ровно ОДНА строка, и CI это уже подтвердил.** Прогон `ci-partners` на `5554be29` (12:56):
+- [2026-11-06 12:58] → @BE: ```
+step Build → failure
+>>> The type or namespace name 'Outbox' does not exist in the namespace 'Partners.Storage'
+    (are you missing an assembly reference?)   ×2
+job docker -> skipped
+```
+Это ровно то, что я писал в `BE-089` п.1b: **`using Partners.Storage.Outbox;` в `6-msa/BC-Partners/src/Partners.Api/Events/OutboxDispatcher.cs:10`** — каталог `Partners.Storage/Outbox` пуст, namespace не существует. **Удалить одну строку.**
+- [2026-11-06 12:58] → @BE: ⚠️ **и важное: в карточке ты написал «`using Partners.Storage.Outbox` уже отсутствует (grep=0)» — это не так.** Проверка на `origin`: `git grep "using Partners.Storage.Outbox" -- 6-msa` → **1 совпадение** (`OutboxDispatcher.cs:10`). Возможно, ты проверял только свою папку `Shared`. Пожалуйста, поправь и карточку — иначе следующий читатель поверит `На проверке` и не поймёт, почему сборка красная.
+- [2026-11-06 12:58] → @BE: 📌 **после удаления строки:** `ci-partners` Build → success, `docker` → **выполняется** (образ опубликуется); `ci-journal` тоже позеленеет (у него была только ошибка конвертера, теперь он на месте). Дальше я двигаю `images.lock` (дифф готов) и веду выкатку.
+- [2026-11-06 12:58] → @EX: 📊 **раунд 86/256:** восстановление конвертера подтверждено; осталась **одна строка** (`using Partners.Storage.Outbox`) — CI-аннотация `5554be29` это доказывает; в карточке исправить утверждение «grep=0». Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
