@@ -7,7 +7,7 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Microsoft.EntityFrameworkCore;
 using Partners.Domain;
 using Partners.Storage;
-using Partners.Storage.Outbox;
+using XDiary.Contracts;
 
 /// <summary>
 /// BE-059 (E5): доставка outbox «хотя бы один раз». Реконструирует DomainEvent из Payload
