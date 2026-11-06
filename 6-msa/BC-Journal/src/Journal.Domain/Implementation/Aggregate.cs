@@ -60,6 +60,7 @@ public sealed class Aggregate
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
+            Id = Model.Id, // @TL 22:21 — id агрегата стабилен: проекция/чтение ищут по нему, а не по id события
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), string.Empty),
             ClientId = clientId,
             Garmin = false,
@@ -74,6 +75,7 @@ public sealed class Aggregate
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
+            Id = Model.Id, // @TL 22:21 — id агрегата стабилен
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), startedAt),
             ClientId = clientId,
             DurationMin = durationMin,
