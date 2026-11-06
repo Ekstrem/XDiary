@@ -16,6 +16,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Analytics.Api\Analytics.Api.csproj" />
     <ProjectReference Include="..\Analytics.Application\Analytics.Application.csproj" />
     <ProjectReference Include="..\Analytics.Domain\Analytics.Domain.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
