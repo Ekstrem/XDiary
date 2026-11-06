@@ -12,6 +12,15 @@ python 9-tests/scripts/e2e_triage.py --input front-e2e-results
 
 Скрипт сам находит `test-results/receipt.txt` в распакованном артефакте и печатает таблицу
 `класс | сколько | примеры спек | самый долгий шаг | лечение`. Классы: `test-timeout`, `wait-timeout`,
+
+**Второй шаг — сравнить с прошлым прогоном по именам тестов, а не по числам:**
+
+```bash
+python 9-tests/scripts/e2e_compare_runs.py --runs <id прошлого> <id текущего>
+```
+
+Он печатает три списка (позеленели / **регресс** / остались красными) и квитанцию
+`A=… упало N | B=… упало M | позеленело X | регресс Y | осталось Z`; `rc=2` — сравнивать нечего.
 `session-lost`, `stand`, `assert`, `other`. Если аннотаций нет — `rc=2` («не измерено»), это не зелёный.
 
 ## 2. Класс → кто виноват → что делать
@@ -52,9 +61,14 @@ python 9-tests/scripts/e2e_triage.py --input front-e2e-results
 
 Проверено на живых прогонах (#766/#767/#768): их окна тестов пересекались, а шаг «Очистить E2E-данные»
 одного прогона попадал **внутрь** тестов другого и удалял клиентов `+7999…` и партнёров `TE-…`. Симптомы:
-`POST /journal/records/{id}/when` → 404, `link-client` → 400, пустой `#view-partners`. Это **не дефект BE**.
+`POST /journal/records/{id}/when` → 404, `link-client` → 400, пустой `#view-partners`. Одна из причин — гонка; **не единственная** (см. поправку ниже).
 Проверка: `Actions API` → `jobs[].steps[]` с `started_at/completed_at`; если окна `Front E2E` и `Очистить`
 разных прогонов пересекаются — причина найдена.
+
+⚠ **Поправка по прогонам #770/#775:** те же ответы дают и **дефекты продукта** — @BE доказал два:
+read-after-write в `JournalController.EnsureOwns` (fallback в command-store) и потерю `IValueObject` при
+сериализации (`IValueObjectJsonConverter` в `PartnerEventConsumer`). Правило различения: гонка объясняет
+разброс между прогонами, дефект продукта — **повтор на одиночном прогоне**.
 
 ## 5. Чего НЕ делать при разборе
 
@@ -65,7 +79,7 @@ python 9-tests/scripts/e2e_triage.py --input front-e2e-results
 
 ## 6. Что считается «прогон состоялся»
 
-- шаг `check_e2e_all` зелёный (33 гейта);
+- шаг `check_e2e_all` зелёный (36 гейтов);
 - браузерный шаг завершился сам (не `cancelled`);
 - в артефакте `front-e2e-results` есть `test-results/receipt.txt`;
 - квитанция печатает `passed/failed/skipped`, и **исполнено ≥ 1** (иначе `rc=2` — «не измерено»).
@@ -76,3 +90,21 @@ python 9-tests/scripts/e2e_triage.py --input front-e2e-results
 который шёл **один**, — это продукт (`JournalController.EnsureOwns` fallback, `PartnerEventConsumer`
 конвертер), и заводится дефект @BE с номером прогона как источником.
 
+
+## 7. Где браузер запускается на самом деле (и почему прод стоит)
+
+С 2026-11-06 браузерных путей **три**, и путать их нельзя:
+
+| Workflow | Когда | Что запускает |
+|---|---|---|
+`ci-front.yml` (`spec-gates`) | каждый пуш/PR | только статические гейты (`check_e2e_all`) |
+`ci-front.yml` (`front-e2e`) | **`workflow_dispatch` + `0 4 * * *` UTC** | полный набор спек |
+`deploy.yml` (`smoke-front`) | **каждый пуш кода** | `npx playwright test add-partner wizard-record change-pin` |
+
+**Измерено на 12 последних прогонах `Deploy` (workflow `403460885`):** `smoke-front` — **0 success / 12 failure**,
+`smoke-api` (контракт `PartnerSoftDelete`) — **0 / 12**, `deploy-prod` — **skipped 12/12**: прод не доезжает,
+пока эти два гейта красные (`deploy.yml:180-183`).
+
+Разбор примера (#1638, REF `a2b28c85`): 5 тестов → 1 passed / 3 failed / 1 skipped, причины — два
+`when → 404` (read-after-write, @BE) и `GET /journal/records` из визарда (`FE-016`, @FE). Тесты честные:
+они показывали дефекты продукта, а не мешали релизу.
