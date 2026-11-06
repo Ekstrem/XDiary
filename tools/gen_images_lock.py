@@ -26,6 +26,9 @@
 отрабатывал `rc=0` — то есть «деплой по lock» был невоспроизводим, и гейт этого не видел.
 Registry проверяется анонимным токеном GHCR (образы публичные), манифест — через HEAD.
 """
+import json
+import urllib.request
+import urllib.error
 import argparse
 import os
 import subprocess
@@ -101,15 +104,21 @@ def _registry_manifest_url(registry, owner, service, tag):
 
 
 def _ghcr_token(registry, owner, service, timeout=20):
-    """Анонимный pull-токен GHCR (образы публичные). Бросает OSError при сбое сети."""
+    """Анонимный pull-токен GHCR. Пустая строка — токен не выдан (в т.ч. 403 у приватного пакета).
+
+    403 не должен валить вызывающего: для него это «не измерено», а не «образа нет».
+    """
     import json
     import urllib.parse
     import urllib.request
     q = urllib.parse.urlencode({"service": registry,
                                 "scope": "repository:%s/xdiary-%s:pull" % (owner, service)})
     url = "https://%s/token?%s" % (registry, q)
-    with urllib.request.urlopen(url, timeout=timeout) as r:
-        data = json.load(r)
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            data = json.load(r)
+    except Exception:
+        return ""
     return data.get("token") or data.get("access_token") or ""
 
 
@@ -269,39 +278,165 @@ def selftest():
     return 0 if ok == total else 1
 
 
+
+# ---------- DO-108: lock «из реестра» (временный разблокировщик деплоя) ----------
+#
+# Зачем: если у сервиса красные тесты, образа для «последнего коммита» нет, и `lock-published`
+# блокирует деплой ЦЕЛИКОМ, включая сервисы, которые не менялись. В этом режиме для каждого
+# сервиса берётся самый свежий ОПУБЛИКОВАННЫЙ тег `single-*`, чей коммит — предок `HEAD`.
+#
+# Условия @AR (2026-11-06 21:40), без них режим запрещён:
+#   1. провенанс в самом lock: рядом с тегом — коммит, из которого образ собран;
+#   2. заголовок прямо говорит: это НЕ сборка HEAD, набор смешанный;
+#   3. `--verify-registry` обязателен, недоступный реестр = `rc=2` «не измерено»;
+#   4. механизм временный: строка «вывести после появления release.yml» в lock и в карточке.
+
+MIXED_MARK = "# набор смешанный"
+MIXED_HEADER = """# images.lock — какие образы считаются текущими (ADR-027, DO-066)
+#
+# ВНИМАНИЕ: набор смешанный — это последние ДОСТУПНЫЕ образы, а НЕ сборка HEAD.
+# Причина: у части сервисов красные тесты, образа «последнего коммита» нет (DO-108).
+# Провенанс: `commit=<sha>` — коммит, из которого образ собран; он всегда предок HEAD.
+# Вывести этот режим после появления `release.yml` (13 сервисов на одном коммите).
+#
+# Формат: <service> <tag> <путь>  commit=<sha>
+# Проверка: python tools/gen_images_lock.py --verify-registry
+"""
+
+
+def is_mixed_lock(text):
+    return MIXED_MARK in text
+
+
+def _ghcr_tags(registry, owner, service, timeout=25):
+    """Опубликованные теги пакета `xdiary-<service>` (пусто при любой ошибке сети/прав)."""
+    token = _ghcr_token(registry, owner, service, timeout=timeout)
+    if not token:
+        return []
+    url = "https://%s/v2/%s/xdiary-%s/tags/list?n=1000" % (registry, owner, service)
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            payload = json.loads(r.read().decode("utf-8", "replace"))
+    except Exception:
+        return []
+    tags = payload.get("tags") or []
+    return [t for t in tags if isinstance(t, str) and t.startswith("single-")]
+
+
+def _commit_of(tag):
+    """Полный sha для тега `single-<sha>`; None, если такого коммита нет в локальной истории."""
+    sha = tag[len("single-"):]
+    if not sha:
+        return None
+    full = git("rev-parse", "--verify", "--quiet", sha + "^{commit}")
+    return full or None
+
+
+def _is_ancestor(sha):
+    return subprocess.run(["git", "merge-base", "--is-ancestor", sha, "HEAD"],
+                          capture_output=True).returncode == 0
+
+
+def registry_rows(registry, owner, echo=print):
+    """[(service, tag, path, commit)] — самый свежий опубликованный образ-предок HEAD."""
+    rows, missing = [], []
+    for service, path in SERVICES:
+        tags = _ghcr_tags(registry, owner, service)
+        best = None
+        for tag in tags:
+            full = _commit_of(tag)
+            if not full or not _is_ancestor(full):
+                continue
+            try:
+                ts = int(git("log", "-1", "--format=%ct", full) or 0)
+            except ValueError:
+                ts = 0
+            if best is None or ts > best[0]:
+                best = (ts, full, tag)
+        if best is None:
+            missing.append(service)
+            rows.append((service, "НЕТ-ОБРАЗА", path, ""))
+        else:
+            rows.append((service, best[2], path, best[1][:7]))
+        echo("  %-20s %-18s commit=%s" % (rows[-1][0], rows[-1][1], rows[-1][3] or "—"))
+    return rows, missing
+
+
+def render_registry(rows):
+    lines = [MIXED_HEADER.rstrip("\n")]
+    for service, tag, path, commit in rows:
+        if commit:
+            lines.append("%-20s %-18s %s  commit=%s" % (service, tag, path, commit))
+        else:
+            lines.append("%-20s %-18s %s" % (service, tag, path))
+    return "\n".join(lines) + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--from-registry", action="store_true",
+                    help="DO-108: собрать lock из опубликованных образов (набор смешанный)")
     ap.add_argument("--file", default="7-deploy/images.lock")
     ap.add_argument("--verify-registry", action="store_true",
-                    help="DO-102: проверить, что каждый тег из lock опубликован в registry")
+                    help="проверить, что теги опубликованы (rc=1 нет образа, rc=2 не измерено)")
     ap.add_argument("--registry", default="ghcr.io", help="хост registry (по умолчанию ghcr.io)")
     ap.add_argument("--owner", default="ekstrem", help="владелец пакетов (по умолчанию ekstrem)")
     ap.add_argument("--selftest", action="store_true",
                     help="самопроверка: детерминизм рендера + обнаружение дрейфа")
     a = ap.parse_args()
+
     if a.selftest:
         return selftest()
+
     if a.verify_registry:
         return verify_registry(a.file, registry=a.registry, owner=a.owner)
+
+    if a.from_registry:
+        rows, missing = registry_rows(a.registry, a.owner)
+        if missing:
+            print("::error::gen_images_lock: нет опубликованного образа для: %s — "
+                  "lock из реестра НЕ пишу" % ", ".join(missing))
+            return 2
+        text = render_registry(rows)
+        if a.write:
+            open(a.file, "w", encoding="utf-8", newline="\n").write(text)
+            print("записано (из реестра, набор смешанный): %s (%d строк)"
+                  % (a.file, len(text.splitlines())))
+            return 0
+        if a.check:
+            current = open(a.file, encoding="utf-8").read() if os.path.exists(a.file) else ""
+            if current != text:
+                print("::error::gen_images_lock --check: смешанный lock не совпадает с реестром: "
+                      "перегенерируй --from-registry --write")
+                return 1
+            print("check_images_lock: смешанный lock совпадает с реестром")
+            return 0
+        print("::error::укажи --write или --check вместе с --from-registry")
+        return 2
+
+    # обычный режим: lock выводится из git
+    current = open(a.file, encoding="utf-8").read() if os.path.exists(a.file) else ""
+    if a.check and is_mixed_lock(current):
+        # смешанный lock нельзя сверять с git: он собран из реестра (DO-108).
+        print("check_images_lock: lock помечен как смешанный — сверяю с реестром")
+        return verify_registry(a.file, registry=a.registry, owner=a.owner)
+
     text = render()
     if a.write:
         open(a.file, "w", encoding="utf-8", newline="\n").write(text)
         print("записано: %s (%d строк)" % (a.file, len(text.splitlines())))
         return 0
     if a.check:
-        if not os.path.exists(a.file):
-            print("::error::(lock) %s отсутствует — деплой не воспроизводим" % a.file)
-            return 1
-        current = open(a.file, encoding="utf-8").read()
         if current != text:
-            print("::error::(lock) %s отстал от git: перегенерируй "
-                  "`python tools/gen_images_lock.py --write`" % a.file)
+            print("::error::(lock) %s отстал от git: перегенерируй `python tools/gen_images_lock.py --write`"
+                  % a.file)
             return 1
         print("check_images_lock: %s соответствует git" % a.file)
         return 0
-    sys.stdout.write(text)
+    print(text)
     return 0
 
 
