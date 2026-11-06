@@ -30,11 +30,17 @@ TOUCH = re.compile(r"\.(?:click|press|fill|type|selectOption|check|uncheck|setIn
 TOUCH_LOC = re.compile(r"locator\(\s*'#([\w-]+)")
 
 # элементы, без которых MVP-сценарий неполон (негативные пути, удаление, выбор пола и т.п.)
+# Решение @TL от 2026-11-06 01:06: `#btn-import` — ВНЕ MVP-спеки. Сам импорт уже покрыт через
+# `#import-file` (`csv.spec.js`), а кнопка лишь триггер выбора файла: отдельного поведения у неё нет.
+# Держим её здесь, а не в MVP_CRITICAL, чтобы карта покрытия не выглядела долгом и не врала про MVP.
+OUT_OF_MVP = {
+    "btn-import": "вне MVP (решение @TL 2026-11-06 01:06): триггер выбора файла, импорт покрыт через #import-file",
+}
+
 MVP_CRITICAL = {
     "confirm-no": "отмена подтверждения удаления",
     "btn-partner-delete": "удаление партнёра",
     "btn-catalog-delete": "удаление позиции каталога",
-    "btn-import": "импорт CSV",
     "onb-gender-female": "второй вариант пола в онбординге",
     "btn-wizard-prev": "возврат на шаг назад в мастере",
 }
@@ -82,6 +88,7 @@ def evaluate(data, strict):
 def receipt_line(stats, issues):
     return (f"квитанция: элементов с обработчиком {stats['bound']} | трогают спеки {stats['covered']} | "
             f"не покрыто {stats['uncovered']} | критичных без покрытия {stats['critical']} | "
+            f"вне MVP {len([i for i in stats['list'] if i in OUT_OF_MVP])} | "
             f"нарушено: {0 if not issues else len(issues)}")
 
 
@@ -106,7 +113,7 @@ def main(argv=None):
         print(f"{marker}check_e2e_ui_coverage: {m}")
     if a.list:
         for ident in stats["list"]:
-            mark = " (MVP)" if ident in MVP_CRITICAL else ""
+            mark = " (MVP)" if ident in MVP_CRITICAL else (" (вне MVP)" if ident in OUT_OF_MVP else "")
             print(f"  не покрыто: #{ident}{mark}")
     print(receipt_line(stats, issues))
     if a.strict and critical_gaps:
