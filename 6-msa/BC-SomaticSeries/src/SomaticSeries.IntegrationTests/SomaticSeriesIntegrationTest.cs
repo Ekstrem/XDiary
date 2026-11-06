@@ -9,7 +9,7 @@ public class SomaticSeriesIntegrationTest
     [Fact]
     public void Command_Then_Query()
     {
-        var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:00", 72, 55);
+        var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-10-29T21:00", 72, 55, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, res.Result);
         var entity = new SomaticPointEntity { Id = res.Model().Id };
         SomaticSeriesMapper.MapToEntity(res.Model(), entity);

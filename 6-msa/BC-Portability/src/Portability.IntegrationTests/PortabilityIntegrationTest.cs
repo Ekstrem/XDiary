@@ -9,7 +9,7 @@ public class PortabilityIntegrationTest
     [Fact]
     public void Export_Then_Query()
     {
-        var res = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "row1" });
+        var res = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "row1" }, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, res.Result);
         var entity = new CsvDocumentEntity { Id = res.Model().Id };
         PortabilityMapper.MapToEntity(res.Model(), entity);

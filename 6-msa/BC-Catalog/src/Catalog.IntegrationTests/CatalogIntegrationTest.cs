@@ -9,7 +9,7 @@ public class CatalogIntegrationTest
     [Fact]
     public void Command_Then_Query()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball");
+        var start = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball", Guid.NewGuid());
         var details = Aggregate.CreateInstance(start.Model()).UpdateDetails("photo", "note", "Brand", "");
         Assert.Equal(DomainOperationResultEnum.Success, details.Result);
         var entity = new CatalogItemEntity { Id = details.Model().Id };

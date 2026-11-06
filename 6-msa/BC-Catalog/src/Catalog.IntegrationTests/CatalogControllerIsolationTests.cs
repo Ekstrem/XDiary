@@ -15,7 +15,7 @@ public class CatalogControllerIsolationTests
             => Task.FromResult((TResponse)Result!);
         public Task<object?> Send(object request, CancellationToken ct = default)
             => Task.FromResult(Result);
-        public Task Send<TRequest>(TRequest request, CancellationToken ct = default)
+        public Task Send<TRequest>(TRequest request, CancellationToken ct = default) where TRequest : IRequest
             => Task.CompletedTask;
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken ct = default)
             => throw new NotImplementedException();
