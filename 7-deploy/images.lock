@@ -7,7 +7,7 @@
 journal              single-1dde681  6-msa/BC-Journal
 partners             single-2e0ad80  6-msa/BC-Partners
 catalog              single-6647cdc  6-msa/BC-Catalog
-somatic-series       single-6647cdc  6-msa/BC-SomaticSeries
+somatic-series       single-acf1539  6-msa/BC-SomaticSeries
 daily-metrics        single-6647cdc  6-msa/BC-DailyMetrics
 garmin-gateway       single-6647cdc  6-msa/BC-GarminGateway
 apple-health-gateway single-6647cdc  6-msa/BC-AppleHealthGateway
