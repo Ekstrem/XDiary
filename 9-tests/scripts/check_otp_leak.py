@@ -26,20 +26,29 @@ except Exception:  # noqa: BLE001
 PROBE_PATH = "/api/v1/clients"
 # Поля, которых в ответе быть не должно. `code` — не проверяем слепо: в домене есть и другие `code`
 # (коды ошибок), поэтому ищем только OTP-специфичные имена.
-LEAK_FIELDS = ("otpCode", "otpcode", "otp_code", "otpAttempts", "otpExpiresAt", "otpExpires")
+# Поля, которых в ответе быть НЕ должно: по ним получают доступ — код и счётчик попыток.
+LEAK_FIELDS = ("otpCode", "otpcode", "otp_code", "otpAttempts")
 # Ловим и JSON (`"otpCode":`), и не-JSON (`otpCode=`, `otpCode :`) — иначе «не разобрали» выглядело бы как «чисто».
-LEAK_RX = re.compile(r'\b(otpCode|otp_code|otpAttempts|otpExpiresAt|otpExpires)\b\s*[:=]', re.I)
+LEAK_RX = re.compile(r'\b(otpCode|otp_code|otpAttempts)\b\s*[:=]', re.I)
+# Поле, которое контракт РАЗРЕШАЕТ в теле 200: `04-architecture/api-index.yaml:177` —
+# «новый номер: тело id, version, phone, otpExpiresAt, verified, delivery». По метке времени JWT
+# не получить, поэтому это НЕ утечка: печатаем notice и в нарушения не берём.
+CONTRACT_ALLOWED = ("otpExpiresAt", "otpExpires")
+ALLOWED_RX = re.compile(r'\b(otpExpiresAt|otpExpires)\b\s*[:=]', re.I)
 
 
 def scan_body(text):
-    """Возвращает список найденных OTP-полей (по ключам JSON, рекурсивно)."""
-    found = []
+    """(утечки, разрешённые контрактом поля) — по ключам JSON, рекурсивно."""
+    leaks, allowed = [], []
 
     def walk(node, path=""):
         if isinstance(node, dict):
             for k, v in node.items():
-                if k in LEAK_FIELDS or k.lower() in [f.lower() for f in LEAK_FIELDS]:
-                    found.append(f"{path}{k}")
+                low = k.lower()
+                if low in [f.lower() for f in LEAK_FIELDS]:
+                    leaks.append(f"{path}{k}")
+                elif low in [f.lower() for f in CONTRACT_ALLOWED]:
+                    allowed.append(f"{path}{k}")
                 walk(v, f"{path}{k}.")
         elif isinstance(node, list):
             for i, v in enumerate(node):
@@ -47,27 +56,31 @@ def scan_body(text):
 
     try:
         walk(json.loads(text))
-        return found
+        return leaks, allowed
     except (ValueError, TypeError):
         # не JSON — ищем по тексту, чтобы «не разобрали» не выглядело как «чисто»
-        return [m.group(1) for m in LEAK_RX.finditer(text or "")]
+        return ([m.group(1) for m in LEAK_RX.finditer(text or "")],
+                [m.group(1) for m in ALLOWED_RX.finditer(text or "")])
 
 
 def evaluate(status, body, transient_gone=(), known_leak=()):
     """(issues, stats). `status` — код ответа, `body` — текст ответа."""
     issues = []
-    leaked = scan_body(body or "")
+    leaked, allowed = scan_body(body or "")
     if leaked:
         issues.append(f"`POST {PROBE_PATH}` вернул OTP-поле(я) {sorted(set(leaked))} — "
                       f"по этому коду можно получить JWT владельца (BE-090), это доступ к чужим данным")
     stats = {"status": status, "leaked": sorted(set(leaked)),
+             "allowed": sorted(set(allowed)),
              "len": len((body or "").strip())}
     return issues, stats
 
 
 def receipt_line(stats, issues):
+    allowed = stats.get("allowed") or []
     return (f"квитанция: POST {PROBE_PATH} → {stats['status']} | тело {stats['len']} симв. | "
             f"OTP-полей: {len(stats['leaked'])}{(' ' + str(stats['leaked'])) if stats['leaked'] else ''} | "
+            f"разрешено контрактом: {len(allowed)}{(' ' + str(allowed)) if allowed else ''} | "
             f"нарушено: {len(issues)}")
 
 
@@ -112,6 +125,9 @@ def main(argv=None):
     issues, stats = evaluate(status, body)
     for m in issues:
         print(f"::error::check_otp_leak: {m}")
+    if stats.get("allowed"):
+        print(f"::notice::check_otp_leak: в теле есть {stats['allowed']} — это разрешено контрактом "
+              f"(api-index.yaml:177), JWT по метке времени не получить, утечкой не считаем")
     print(receipt_line(stats, issues))
     return 1 if issues else 0
 
@@ -138,14 +154,27 @@ def selftest():
     case("норма: в ответе нет OTP-полей", 200,
          '{"id":"c1","version":1,"phone":"+70000000000","verified":false}', 0, ["OTP-полей: 0"])
 
-    case("утечка вложена в объект", 200, '{"client":{"id":"c1","otpExpiresAt":"2026-11-06T00:00:00Z"}}', 1,
-         ["client.otpExpiresAt"])
+    case("утечка вложена в объект", 200, '{"client":{"id":"c1","otpCode":"123456"}}', 1,
+         ["client.otpCode"])
 
     case("400 с OTP в теле — всё равно утечка", 400, '{"errors":{"otpCode":["required"]}}', 1, ["otpCode"])
 
     case("не-JSON тело с otpCode — не маскируется", 200, "otpCode=123456", 1, ["otpCode"])
 
     case("пустое тело (401 без тела) — нарушений нет", 401, "", 0, ["нарушено: 0"])
+
+    # Контракт (`api-index.yaml:177`) разрешает `otpExpiresAt` в теле 200 — это НЕ утечка.
+    case("otpExpiresAt разрешён контрактом — не красный", 200,
+         '{"id":"c1","version":1,"phone":"+7","otpExpiresAt":"2026-11-06T19:31:37Z","verified":false}', 0,
+         ["OTP-полей: 0", "разрешено контрактом: 1"])
+
+    case("факт прода после выкатки: тело без кода", 200,
+         '{"id":"c1","version":1,"phone":"+7","otpExpiresAt":"2026-11-06T19:31:37Z","verified":false}', 0,
+         ["нарушено: 0"])
+
+    case("код вернулся вместе с otpExpiresAt — снова красный", 200,
+         '{"id":"c1","otpCode":"123456","otpExpiresAt":"2026-11-06T19:31:37Z"}', 1,
+         ["otpCode"])
 
     total += 1
     line = receipt_line({"status": 200, "leaked": [], "len": 10}, [])
