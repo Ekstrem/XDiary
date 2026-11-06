@@ -38,17 +38,37 @@ public sealed class AnalyticsPrecomputeService : BackgroundService
         }
     }
 
+    private HttpRequestMessage WithAuth(HttpMethod method, string url)
+    {
+        var req = new HttpRequestMessage(method, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateServiceToken());
+        return req;
+    }
+
+    private async Task<List<JournalRecord>> GetRecordsAsync(HttpClient client, Guid cid, CancellationToken ct)
+    {
+        var resp = await client.SendAsync(WithAuth(HttpMethod.Get, $"{_journalUrl}/internal/journal/records?clientId={cid}"), ct);
+        return resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<List<JournalRecord>>(ct) ?? new() : new();
+    }
+
+    private async Task<List<MetricInput>> GetMetricsAsync(HttpClient client, Guid cid, CancellationToken ct)
+    {
+        var resp = await client.SendAsync(WithAuth(HttpMethod.Get, $"{_metricsUrl}/api/v1/daily-metrics/series?clientId={cid}"), ct);
+        var metrics = resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<List<DailyMetricDto>>(ct) ?? new() : new();
+        return metrics.Select(m => new MetricInput { Date = m.Date, RestingHr = m.RestingHr, SleepScore = m.SleepScore }).ToList();
+    }
+
     private async Task RecalculateAsync(CancellationToken ct)
     {
         var client = _http.CreateClient();
-        var req = new HttpRequestMessage(HttpMethod.Get, $"{_journalUrl}/internal/journal/records");
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", CreateServiceToken());
-        var resp = await client.SendAsync(req, ct);
-        var records = resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<List<JournalRecord>>(ct) ?? new() : new();
-        var metrics = await client.GetFromJsonAsync<List<DailyMetricDto>>($"{_metricsUrl}/api/v1/daily-metrics/series", ct) ?? new();
-        var metricInputs = metrics.Select(m => new MetricInput { Date = m.Date, RestingHr = m.RestingHr, SleepScore = m.SleepScore }).ToList();
-        // BE-083: снимок по клиенту — записи без владельца (ClientId=null) не попадают никому.
-        foreach (var group in records.Where(r => r.ClientId is not null).GroupBy(r => r.ClientId!.Value))
-            _snapshot.Rebuild(group.Key, group.ToList(), metricInputs);
+        // BE-091: per-client — сначала список clientId из Journal, затем записи и метрики каждого клиента.
+        var idsResp = await client.SendAsync(WithAuth(HttpMethod.Get, $"{_journalUrl}/internal/journal/client-ids"), ct);
+        var clientIds = idsResp.IsSuccessStatusCode ? await idsResp.Content.ReadFromJsonAsync<List<Guid>>(ct) ?? new() : new();
+        foreach (var cid in clientIds)
+        {
+            var records = await GetRecordsAsync(client, cid, ct);
+            var metricInputs = await GetMetricsAsync(client, cid, ct);
+            _snapshot.Rebuild(cid, records, metricInputs);
+        }
     }
 }

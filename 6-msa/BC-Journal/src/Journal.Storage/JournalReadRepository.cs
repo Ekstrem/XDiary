@@ -70,6 +70,12 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         return result;
     }
 
+    public async Task<IReadOnlyList<Guid>> GetClientIdsAsync(CancellationToken ct = default)
+    {
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
+        return all.Where(x => x.ClientId is not null).Select(x => x.ClientId!.Value).Distinct().ToList();
+    }
+
     public async Task<int> CountAsync(CancellationToken ct = default)
         => (int)await _read.CountAsync(ct);
 
