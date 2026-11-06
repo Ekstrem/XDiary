@@ -368,6 +368,9 @@ operations:
     method: POST
     path: "/api/v1/journal/records/from-garmin"
     operationId: Journal.StartFromGarmin
+    request:
+      required: [startedAt, durationMin, garminId]
+      types: {startedAt: string (ISO), durationMin: int, garminId: string}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка", 401: "no-token"}
     codes_status: verified
@@ -384,6 +387,10 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/accessories"
     operationId: Journal.AddAccessories
+    request:
+      required: [costumes, toys, fantasies, tags]
+      types: {costumes: string[], toys: string[], fantasies: string[], tags: string[]}
+      note: "все четыре массива обязательны: отсутствие любого даёт 400 (случай @TE 2026-11-06)"
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -392,6 +399,8 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/complete"
     operationId: Journal.Complete
+    request:
+      required: []
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -400,6 +409,9 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/contraception"
     operationId: Journal.RecordContraception
+    request:
+      required: [contraceptives, contraceptiveCount]
+      types: {contraceptives: string[], contraceptiveCount: int}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -408,6 +420,8 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/delete"
     operationId: Journal.Delete
+    request:
+      required: []
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -416,6 +430,9 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/duration"
     operationId: Journal.SpecifyDuration
+    request:
+      required: [durationMin]
+      types: {durationMin: int}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -424,6 +441,10 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/orgasms"
     operationId: Journal.RecordOrgasms
+    request:
+      required: [orgasms]
+      types: {orgasms: OrgasmsDto[] { participant: string, count: int, types: string[], rating: int }}
+      note: "элемент — {participant, count, types, rating} (OrgasmsDto)"
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -456,6 +477,9 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/place"
     operationId: Journal.SpecifyPlace
+    request:
+      required: [place]
+      types: {place: string}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -464,6 +488,9 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/positions"
     operationId: Journal.AddPositions
+    request:
+      required: [positions]
+      types: {positions: string[]}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -472,6 +499,9 @@ operations:
     method: POST
     path: "/api/v1/journal/records/{id}/when"
     operationId: Journal.SpecifyWhen
+    request:
+      required: [startedAt]
+      types: {startedAt: string (ISO)}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -696,6 +726,10 @@ operations:
     method: POST
     path: "/internal/partners/events"
     operationId: Journal.IngestPartnerEvent
+    request:
+      required: [partnerId, name]
+      types: {partnerId: guid, name: string, clientId: guid|null, deletedAt: datetime|null}
+      note: "E1-срез: конверт не соответствует приёмке E1 (нет eventId/type/schemaVersion) — долг зафиксирован в contract_note ниже"
     auth: anonymous-inside
     internal: true
     codes: {200: "ok — upsert в partners_directory", 401: "снаружи/через шлюз (внутренний контур не публикуется)"}
