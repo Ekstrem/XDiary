@@ -29,6 +29,10 @@ TIMEOUT = re.compile(r"timeout:\s*(\d[\d_]*)")
 SPEC_BUDGET = re.compile(r"test\.setTimeout\(\s*(\d[\d_]*)\s*\)")
 UI_WAIT_REF = re.compile(r"timeout:\s*UI_WAIT\b")
 UI_WAIT_DEFAULT = re.compile(r"XDIARY_E2E_UI_WAIT\s*\|\|\s*(\d+)")
+# TE-084: допуск на «структурную» сумму. Объявленные ожидания бывают взаимоисключающими
+# (ветки if/else, try/catch), поэтому сумма всех `timeout:` — верхняя оценка. Предупреждаем,
+# только если сумма больше бюджета в MAX_RATIO раз, то есть тест заведомо не укладывается.
+MAX_RATIO = 1.5
 
 
 def parse_limit(config_text):
@@ -71,14 +75,18 @@ def evaluate(specs, limit_sec, ui_wait=30.0):
             vals += [ui_wait] * len(UI_WAIT_REF.findall(block))
             block_total = round(sum(vals), 1)
             worst = max(worst, block_total)
-            if block_total > spec_limit:
-                over.append((name, block_total, round(block_total / spec_limit, 2)))
+            # TE-084: сравниваем со СВОИМ бюджетом спеки и отсекаем «структурные» суммы:
+            # объявленные ожидания часто взаимоисключающие (if/else, try/catch), поэтому сумма
+            # всех `timeout:` — верхняя оценка, а не реальное время. Порог MAX_RATIO отделяет
+            # «верхняя оценка чуть больше бюджета» от «тест физически не может уложиться».
+            if block_total > spec_limit * MAX_RATIO:
+                over.append((name, block_total, round(block_total / spec_limit, 2), spec_limit))
         per_spec[name] = worst
     issues = []
-    for name, total, ratio in over:
-        issues.append(f"{name}: объявленных ожиданий на {total:.0f} с при лимите теста "
-                      f"{limit_sec:.0f} с (×{ratio}) — на медленном стенде тест упадёт по общему "
-                      f"таймауту, хотя поведение может быть верным")
+    for name, total, ratio, spec_limit in over:
+        issues.append(f"{name}: объявленных ожиданий на {total:.0f} с при СВОЁМ бюджете теста "
+                      f"{spec_limit:.0f} с (x{ratio}) - на медленном стенде тест упадёт по таймауту, "
+                      f"хотя поведение может быть верным")
     stats = {"specs": len(specs), "limit": limit_sec, "over": len(over),
              "max": max(per_spec.values()) if per_spec else 0,
              "max_spec": max(per_spec, key=per_spec.get) if per_spec else "—"}
@@ -112,9 +120,9 @@ def plan_for_spec(text, limit_sec, target_ratio=0.8):
 
 
 def receipt_line(stats, issues):
-    return (f"квитанция: спек {stats['specs']} | лимит теста {stats['limit']:.0f} с | "
-            f"превышений {stats['over']} | максимум {stats['max']:.0f} с "
-            f"({stats['max_spec']}) | нарушено: {len(issues)}")
+    return (f"квитанция: спек {stats['specs']} | общий лимит {stats['limit']:.0f} с | "
+            f"превышений бюджета ×{MAX_RATIO:g}+: {stats['over']} | максимум {stats['max']:.0f} с "
+            f"({stats['max_spec']}) | ошибок: {len(issues)} (мягкий режим: ::warning::; --strict → rc=1)")
 
 
 def main(argv=None):
@@ -183,15 +191,18 @@ def selftest():
             print(f"  [FAIL] {name}: rc={rc} (ждали {want_rc}), нет {miss}, text={text[:170]}")
 
     case("всё в лимите", {"a.spec.js": "await expect(x).toBeVisible({ timeout: 20000 });"}, 90, True, 0,
-         ["превышений 0", "нарушено: 0"])
+         ["1.5+: 0", "ошибок: 0"])
     case("превышение в мягком режиме",
-         {"b.spec.js": "{ timeout: 60000 } { timeout: 60000 }"}, 90, False, 0,
-         ["превышений 1", "b.spec.js"])
+         {"b.spec.js": "{ timeout: 60000 } { timeout: 60000 } { timeout: 60000 }"}, 90, False, 0,
+         ["1.5+: 1", "b.spec.js"])
     case("превышение под --strict",
-         {"b.spec.js": "{ timeout: 60000 } { timeout: 60000 }"}, 90, True, 1,
-         ["превышений 1"])
+         {"b.spec.js": "{ timeout: 60000 } { timeout: 60000 } { timeout: 60000 }"}, 90, True, 1,
+         ["1.5+: 1"])
+    case("структурная сумма (x1.33) не считается превышением",
+         {"d.spec.js": "{ timeout: 60000 } { timeout: 60000 }"}, 90, True, 0,
+         ["1.5+: 0", "ошибок: 0"])
     case("граница ровно в лимит",
-         {"c.spec.js": "{ timeout: 45000 } { timeout: 45000 }"}, 90, True, 0, ["превышений 0"])
+         {"c.spec.js": "{ timeout: 45000 } { timeout: 45000 }"}, 90, True, 0, ["1.5+: 0"])
 
     # план сокращений: три по 30 с → цель 72 с ⇒ режем до достижения цели
     total += 1
