@@ -33,13 +33,16 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
 {
     private readonly IEventStoreRepository<IPartners, IPartnerAnemicModel> _store;
     private readonly IReadModelStore<IPartners, PartnersReadModel> _readStore;
+    private readonly IReadRepository<IPartners, PartnersReadModel> _readRepo;
 
     public PartnerEventHandler(
         IEventStoreRepository<IPartners, IPartnerAnemicModel> store,
-        IReadModelStore<IPartners, PartnersReadModel> readStore)
+        IReadModelStore<IPartners, PartnersReadModel> readStore,
+        IReadRepository<IPartners, PartnersReadModel> readRepo)
     {
         _store = store;
         _readStore = readStore;
+        _readRepo = readRepo;
     }
 
     public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
@@ -65,7 +68,21 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
 
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
-            await _readStore.UpsertAsync(read);
+        {
+            // BE-077/@TL 21:37 — Project отдаёт частичную модель; upsert без merge затирает Photo/Gender/Notes.
+            var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default);
+            if (existing is not null)
+            {
+                existing.Name = read.Name;
+                if (read.ClientId is not null) existing.ClientId = read.ClientId;
+                if (read.DeletedAt is not null) existing.DeletedAt = read.DeletedAt;
+                await _readStore.UpsertAsync(existing);
+            }
+            else
+            {
+                await _readStore.UpsertAsync(read);
+            }
+        }
     }
 
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) —
