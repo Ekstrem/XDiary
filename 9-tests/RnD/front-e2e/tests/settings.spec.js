@@ -6,7 +6,9 @@ const { test, expect } = require('@playwright/test');
 const { loginWithPin, unlockIfLocked, reportStep } = require('./api');
 
 test('E2E: настройки — пол сохраняется после перезагрузки', async ({ page }) => {
-  test.setTimeout(150_000);
+  test.setTimeout(180_000);
+  // TE-070: бюджет 150 -> 180 с: возврат на настройки перед «Снять я» добавляет reload и три
+  // ожидания по 20 с; сумма объявленных ожиданий выросла, лимит приведён к ней.
   // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   await test.step('login по PIN', async () => {
@@ -115,10 +117,18 @@ test('E2E: настройки — пол сохраняется после пе�
   await test.step('«Снять „я“» открывает шаг профиля и не ломает сессию', async () => {
     // `#btn-self-clear` не проверялся: открывает шаг профиля онбординга (`showProfileStep`).
     // После проверки возвращаемся reload'ом — сессия обязана остаться рабочей.
+    // TE-070: перед «Снять я» возвращаемся НА НАСТРОЙКИ. Предыдущий шаг («вход в идентификацию»)
+    // оставил приложение на онбординге, а `#btn-self-clear` — контрол настроек: клик по нему
+    // ждал появления до лимита (в прогоне #775 `settings` упал на 150 с именно на этом шаге).
+    await page.reload();
+    await unlockIfLocked(page);
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await page.click('#tab-settings');
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
     await page.click('#btn-self-clear');
     await expect(page.locator('#view-onboarding'), '«Снять я» открывает онбординг')
-      .toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#onb-profile'), 'виден шаг профиля «Кто вы?»').toBeVisible({ timeout: 10000 });
+      .toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#onb-profile'), 'виден шаг профиля «Кто вы?»').toBeVisible({ timeout: 20000 });
     await page.reload();
     await unlockIfLocked(page);
     await expect(page.locator('#view-journal'), 'после возврата журнал открывается').toBeVisible({ timeout: 20000 });
