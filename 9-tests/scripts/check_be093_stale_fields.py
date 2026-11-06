@@ -229,6 +229,26 @@ def stand_flow(base, token, partner_id, place, tags):
         return None, None, f"ответ не JSON: {e}"
 
 
+def direct_read(base, token):
+    """Создать запись и прочитать её по тому же id. → (id, status_чтения, error)."""
+    b = base.rstrip("/")
+    st, body, err = http(b + "/api/v1/journal/records", "POST", token, {"when": "2026-11-08T10:00:00Z"})
+    if err:
+        return None, None, err
+    if st not in (200, 201):
+        return None, None, f"создание записи: status {st}, тело {body[:160]}"
+    rec_id = None
+    try:
+        doc = json.loads(body)
+        rec_id = doc.get("id") or (doc.get("record") or {}).get("id")
+    except (ValueError, TypeError):
+        pass
+    if not rec_id:
+        return None, None, f"создание записи: в ответе нет id ({body[:160]})"
+    stg, _bg, errg = http(f"{b}/api/v1/journal/records/{rec_id}", "GET", token)
+    return rec_id, stg, errg
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", help="адрес API")
@@ -242,10 +262,29 @@ def main(argv=None):
                     help="дополнительно проверить, что после delete запись не отдаётся (условие @TL 21:43)")
     ap.add_argument("--deleted-get-status", type=int, help="офлайн: подставить статус GET после delete")
     ap.add_argument("--deleted-in-list", choices=("true", "false"), help="офлайн: есть ли запись в списке")
+    ap.add_argument("--direct", action="store_true",
+                    help="прямой критерий: создать запись и прочитать её по тому же id (ожидание 200, не 404)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
+
+    if a.direct:
+        token = a.token or os.environ.get("XDIARY_TOKEN")
+        if not a.base or not token:
+            print("::error::check_be093_stale_fields: для --direct нужны --base и --token — не измерено (rc=2)")
+            return 2
+        rid, stg, errd = direct_read(a.base, token)
+        if errd:
+            print(f"::error::check_be093_stale_fields: {errd} — не измерено (rc=2)")
+            return 2
+        if isinstance(stg, int) and 200 <= stg < 300:
+            print(f"квитанция (direct): создано и прочитано по тому же id {rid[:8]}… | GET → {stg} | нарушено: 0")
+            return 0
+        print(f"::error::check_be093_stale_fields: запись создана (id {rid[:8]}…), но `GET /journal/records/{{id}}` → "
+              f"{stg} — read-path не закрыт (тот же критерий, что краснит smoke-front)")
+        print(f"квитанция (direct): GET по id из ответа → {stg} | нарушено: 1")
+        return 1
 
     if a.check_deleted:
         if a.deleted_get_status is not None:
@@ -269,15 +308,21 @@ def main(argv=None):
         return 1 if issues else 0
 
     if a.before_json is not None and a.after_json is not None:
+        def _load(v):
+            """Принимаем и содержимое JSON, и путь к файлу: угадывать не должен вызывающий."""
+            pth = pathlib.Path(v)
+            if len(v) < 4096 and pth.is_file():
+                return json.loads(pth.read_text(encoding="utf-8", errors="replace"))
+            return json.loads(v)
         try:
-            before = json.loads(a.before_json)
-            after = json.loads(a.after_json)
+            before = _load(a.before_json)
+            after = _load(a.after_json)
         except ValueError as e:
             print(f"::error::check_be093_stale_fields: не разобрал --before/--after-json: {e} — не измерено (rc=2)")
             return 2
     else:
         token = a.token or os.environ.get("XDIARY_TOKEN")
-        if not a.base or not token or not a.partner_id:
+        if not a.base or not token or (not a.partner_id and not a.direct and not a.check_deleted):
             print("::error::check_be093_stale_fields: нужны --base, --token (или XDIARY_TOKEN) и --partner-id — "
                   "не измерено (rc=2)")
             return 2
