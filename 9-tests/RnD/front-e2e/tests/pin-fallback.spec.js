@@ -116,10 +116,13 @@ test('E2E: локальный PIN есть   замок, неверный PIN д
   }, API_BASE);
   expect(me.status, 'GET /clients/me после разблокировки вернул ' + me.status).toBe(200);
   expect(me.body && me.body.id, '/clients/me вернул id клиента').toBeTruthy();
-  await test.step('«Забыли PIN?» уводит в онбординг (FE-032, локальный PIN сбрасывается)', async () => {
-    // `#btn-pin-forgot` не проверялся: по коду (`app.js:2465`) он сбрасывает ЛОКАЛЬНЫЙ PIN
-    // и открывает онбординг. Это последний шаг спеки: состояние «PIN снят» ожидаемо,
-    // а следующая спека сама ставит PIN через `loginWithPin`.
+  await test.step('Забыли PIN? уводит в онбординг (FE-032, локальный PIN сбрасывается)', async () => {
+    // TE-066: `#btn-pin-forgot` живёт ТОЛЬКО внутри `#view-lock` (index.html:34). После успешной
+    // разблокировки приложение показывает журнал, кнопки нет — `page.click` ждёт её появления до
+    // общего лимита теста (в прогоне #770 это дало `Test timeout of 100000ms exceeded`, а снимок
+    // `error-context.md` показывал открытый журнал). Поэтому сначала возвращаем замок перезагрузкой.
+    await page.reload();
+    await expectScreen(page, '#view-lock', 'перед «Забыли PIN?» — замок', 20000);
     await page.click('#btn-pin-forgot');
     await expect(page.locator('#view-onboarding'), 'после «Забыли PIN?» открыт онбординг')
       .toBeVisible({ timeout: 20000 });
