@@ -31,6 +31,9 @@ except Exception:  # noqa: BLE001
 
 # Поля, которые обязаны пережить `AddPartner`. Проверяем только те, что легко заполнить в одном запросе.
 WATCH_FIELDS = ("place", "tags")
+# Откуда берётся каждое поле: важно для аудита квитанции. У `tags` нет маршрута `/tags`,
+# но `POST …/accessories` их принимает и сохраняет (проверено на dev), поэтому источник указывается явно.
+SOURCE = {"place": "/place", "tags": "/accessories"}
 # Второе условие @TL (`21:43`): если `Deleted` не проецируется, удалённая запись остаётся в выдаче —
 # это уже приватность, а не косметика. Проверяем: после `delete` чтение по id не должно отдавать запись.
 
@@ -158,7 +161,7 @@ def stand_flow_deleted(base, token, partner_id):
 
 
 def receipt_line(stats, issues):
-    checked = ", ".join(stats["checked"]) or "—"
+    checked = ", ".join(f"{f}={SOURCE.get(f, '?')}" for f in stats["checked"]) or "—"
     return (f"квитанция: проверено полей {len(stats['checked'])} ({checked}) | сохранились {stats['same']} | "
             f"затерто {stats['wiped']} | нарушено: {len(issues)}")
 
