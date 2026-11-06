@@ -183,13 +183,23 @@ def stand_flow(base, token, partner_id, place, tags):
     if err:
         return None, None, err
     if st not in (200, 201):
-        return None, None, f"чтение до: status {st}"
+        # Создано (200 + id), но прочитать нельзя → это НЕ «не измерено», это дефект чтения (BE-088):
+        # запись не появляется в read-модели. Такой исход надо называть, а не прятать в rc=2.
+        return None, None, f"READ_PATH: запись создана (id {rec_id}), но `GET /journal/records/{{id}}` → status {st}"
 
     st2, _, err = http(f"{b}/api/v1/journal/records/{rec_id}/partners", "POST", token, {"partnerId": partner_id})
     if err:
         return None, None, err
     if st2 not in (200, 201, 204):
         return None, None, f"AddPartner: status {st2}"
+
+    # `POST /records` НЕ принимает place/tags (проверено на стенде: в ответе place='' и tags=[]),
+    # поэтому место ставим отдельной операцией; ошибку чтения она тоже покажет.
+    stp, _, errp = http(f"{b}/api/v1/journal/records/{rec_id}/place", "POST", token, {"place": place})
+    if errp:
+        return None, None, errp
+    if stp not in (200, 201, 204):
+        return None, None, f"READ_PATH: `POST …/place` → status {stp} (запись не найдена в read-модели)"
 
     st3, after_body, err = http(f"{b}/api/v1/journal/records/{rec_id}", "GET", token)
     if err:
@@ -257,6 +267,11 @@ def main(argv=None):
         tags = [t.strip() for t in a.tags.split(",") if t.strip()]
         before, after, err = stand_flow(a.base, token, a.partner_id, a.place, tags)
         if err:
+            if err.startswith("READ_PATH:"):
+                print(f"::error::check_be093_stale_fields: {err[10:].strip()} — запись создаётся, но не читается "
+                      f"(read-модель не видит её: BE-088). Приёмку полей провести НЕЛЬЗЯ, пока это не исправлено")
+                print("квитанция: READ_PATH — создано, но `GET` не отдаёт запись | нарушено: 1")
+                return 1
             print(f"::error::check_be093_stale_fields: {err} — не измерено (rc=2)")
             return 2
 
