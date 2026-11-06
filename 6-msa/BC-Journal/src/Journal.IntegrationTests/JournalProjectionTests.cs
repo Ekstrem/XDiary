@@ -61,4 +61,13 @@ public class JournalProjectionTests
         Assert.NotNull(read);
         Assert.True(read!.Deleted);
     }
+
+    // @TL 22:21/22:43: id агрегата — инвариант; StartManualEntry не должен менять его (when-404).
+    [Fact]
+    public void StartManualEntry_PreservesAggregateId()
+    {
+        var blank = new AnemicModel();
+        var result = Aggregate.CreateInstance(blank).StartManualEntry(Guid.NewGuid());
+        Assert.Equal(blank.Id, result.Model().Id);
+    }
 }
