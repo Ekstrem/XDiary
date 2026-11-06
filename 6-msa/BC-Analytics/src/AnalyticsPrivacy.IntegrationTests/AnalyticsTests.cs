@@ -1,3 +1,4 @@
+using Analytics.Api.Precompute;
 using Analytics.Application;
 using Analytics.Domain.Models;
 using Xunit;
@@ -127,4 +128,25 @@ public class AnalyticsTests
     [Fact]
     public void Pearson_ConstantSeries_ReturnsZero()
         => Assert.Equal(0, PearsonCorrelation.Compute(new[] { 5.0, 5, 5 }, new[] { 1.0, 2, 3 }));
+
+    // BE-083 (P0): снимок разделён по клиенту — клиент A не видит ни одного значения из записей B.
+    [Fact]
+    public void Snapshot_PerClient_DoesNotLeakAcrossClients()
+    {
+        var snap = new AnalyticsSnapshot();
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var recA = new JournalRecord { Id = Guid.NewGuid(), ClientId = a, StartedAt = "2026-10-01T21:00", DurationMin = 20 };
+        var recB = new JournalRecord { Id = Guid.NewGuid(), ClientId = b, StartedAt = "2026-10-02T22:00", DurationMin = 30 };
+        snap.Rebuild(a, new[] { recA }, new List<MetricInput>());
+        snap.Rebuild(b, new[] { recB }, new List<MetricInput>());
+
+        var sumA = snap.GetSummary(a, "all");
+        var sumB = snap.GetSummary(b, "all");
+
+        Assert.Equal(1, sumA.Sessions);      // только своя запись
+        Assert.Equal(20, sumA.TotalMinutes);
+        Assert.Equal(1, sumB.Sessions);
+        Assert.Equal(30, sumB.TotalMinutes);
+    }
 }
