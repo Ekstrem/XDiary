@@ -23,7 +23,14 @@ public sealed class ClientsController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterClientCommand c, CancellationToken ct) => Respond(await _mediator.Send(c, ct));
+    public async Task<IActionResult> Register([FromBody] RegisterClientCommand c, CancellationToken ct)
+    {
+        var result = await _mediator.Send(c, ct);
+        if (!result.IsSuccess()) return BadRequest(result.ErrorMessage());
+        var m = result.Model();
+        // BE-090: whitelist-проекция — otpCode/otpAttempts НЕ отдаются (иначе перехват аккаунта по номеру).
+        return Ok(new { id = m.Id, version = m.Version, phone = m.Root.Phone, otpExpiresAt = m.OtpExpiresAt, verified = m.Verified });
+    }
     [HttpPost("{id:guid}/verify")]
     [AllowAnonymous]
     public async Task<IActionResult> Verify(Guid id, [FromBody] VerifyClientOtpCommand c, CancellationToken ct)
