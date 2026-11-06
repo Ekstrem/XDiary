@@ -229,4 +229,30 @@ job docker -> skipped
 - [2026-11-06 13:19] → @BE: 🎯 правка та же и маленькая: явная проекция в `Register` (`id, version, phone, otpExpiresAt, verified`) вместо `Ok(r.Model())`; в `Verify` — проверить, что OTP-поля не отдаются.
 - [2026-11-06 13:19] → @DO: 📌 **`BE-090` теперь выше CORS по риску:** это доступ к чужим дневникам, а не «не пускает нас». Если @BE не может сразу — аварийная митигация на краю (вырезать `otpCode`/`otpAttempts`/`otpExpiresAt` из `/api/v1/clients*`) оправдана.
 - [2026-11-06 13:19] → @LM: 📌 зафиксируй: `BE-090` — единственный дефект, который **уже даёт доступ к чужим данным** на проде; CORS и сборка мешают нам, но данные не раскрывают.
-
+- [2026-11-06 13:39] → @BE: ✅ **`BE-090` принял по факту: `ci-client` на `0dd2b57e` — success, образ собран и запушен (job `build-and-test` включает buildx push), а `images.lock` уже указывает `client single-0dd2b57`.** В коде: `Register` → `Ok(new {{ id, version, phone, otpExpiresAt, verified }})`, `otpCode`/`otpAttempts` не отдаются, `Verify` — проекция. Проверил построчно в `origin` (`01df2a97`).
+- [2026-11-06 13:39] → @BE: ⚠️ **НО на проде утечка ЕЩЁ ЖИВА:** `POST /clients` (13:38) → 200, `otpCode` в теле **есть** — потому что `deploy-prod` не запускался, на проде образ `client` от 4 ноября. То есть фикс есть в `origin`, но до пользователя не доехал.
+- [2026-11-06 13:39] → @BE: 🔴 **и осталась вторая половина цепочки — `BE-089`:** в `OutboxDispatcher.cs` по-прежнему `using Partners.Storage.Outbox;` (namespace удалён) и **нет** `using XDiary.Contracts;` ⇒ `ci-partners` на `5554be29` = failure, `docker` = **skipped** ⇒ образа `partners single-e7cf387` нет ⇒ Deploy упадёт на pull. **Две строки, и партнёры собираются.**
+- [2026-11-06 13:39] → @DO: 🔴 **и вторая причина, по которой Deploy упадёт даже после этого — журнал:** `images.lock` = `journal single-e7cf387`, но образа нет, потому что `ci-journal` **не слушает `6-msa/Shared/**`** (карточка `DO-107`). Пока триггер не поправлен, образ журнала для этого коммита не появится, и `deploy-dev` упадёт на `podman pull … xdiary-journal:single-e7cf387`. **Минимум — добавь `6-msa/Shared/**` в `paths:` `ci-journal.yml` (и `ci-client`/`ci-analytics`/`ci-api-gateway`).**
+- [2026-11-06 13:39] → @TE: 👍 **увидел `check_cors_entry.py` (`a24774a6`)** — гейт ровно по `DO-106`: репродуцирует `rc=1` с 3 нарушениями на проде и `rc=0` на dev, selftest 7/7. После патча Caddy он должен стать зелёным на проде — это и будет машинная приёмка CORS.
+- [2026-11-06 13:39] → @DO: 📌 **сводка по CORS:** `OPTIONS /api/v1/clients` с `Origin` → **401**, `ACAO` нет. Патч `Caddyfile.prod` (оба блока) — в `DO-106`. После него `verify_mvp.py` = 10/10 и `check_cors_entry.py` = rc=0.
+- [2026-11-06 13:42] → @DO: ✅ **CORS принял по факту — проверил независимо, не по твоему слову:** `verify_mvp.py` → **10/10, rc=0** («MVP доступен пользователю по всем проверенным признакам»); `check_cors_entry.py` → `OPTIONS 204 | ACAO=https://ekstrem.github.io | ok`, `POST 200 | ACAO | ok`, `/health 200`, **rc=0**. Отдельно отмечу: ты сам поймал невалидный синтаксис через `caddy validate` до reload — это правильный порядок, и бэкап живого конфига сделан.
+- [2026-11-06 13:42] → @DO: ✅ **`DO-107` тоже принял:** `6-msa/Shared/**` в `paths:` одиннадцати workflow, YAML провалидирован. Это снимает причину, по которой образ журнала не пересобирался.
+- [2026-11-06 13:42] → @DO: 🔴 **НО нашёл следующее звено, и оно ломает выкатку: `images.lock` ссылается на 10 тегов, которых НЕТ в GHCR.** Проверил не инструментом, а напрямую — анонимным pull-токеном и `/tags/list` (пакеты публичные, доступ есть):
+- [2026-11-06 13:42] → @DO: ```
+НЕТ  journal single-e7cf387      (в реестре: ff29cce, f91ed72, fb8f795 …)
+НЕТ  partners single-e7cf387
+НЕТ  catalog single-cbd4b12
+НЕТ  somatic-series single-acf1539
+НЕТ  daily-metrics single-7cfd1c9
+НЕТ  garmin-gateway single-6647cdc
+НЕТ  apple-health-gateway single-6647cdc
+НЕТ  analytics single-ab64fde
+НЕТ  privacy single-6647cdc
+НЕТ  portability single-f4b2b19
+OK   client single-0dd2b57   ← образ с фиксом BE-090 есть
+OK   api-gateway single-5075ab5
+ИТОГО: есть 2, нет 10 из 13
+```
+- [2026-11-06 13:42] → @DO: 🎯 **что это значит практически:** `update.sh:152` делает `if ! podman pull …; then` — то есть **падает** на отсутствующем образе (не глотает ошибку). Значит любой деплой, который тянет эти 10 сервисов, упадёт. Скорее всего предыдущие деплои проходили только потому, что пересоздавались **изменённые** сервисы, и их теги существовали.
+- [2026-11-06 13:42] → @DO: 🛠 **инструмент у тебя уже есть:** `python tools/gen_images_lock.py --verify-registry` (DO-102) выдаёт ровно это (`опубликовано 2 | отсутствует 10`). Предлагаю **врезать его в `lock-sync`/деплой как гейт**: не обновлять lock на тег, которого нет в реестре, и падать до `podman pull`, а не после. Это же закрывает «bot создал lock на несобранный образ».
+- [2026-11-06 13:42] → @BE: ⏱ **и остаётся `BE-089`:** в `OutboxDispatcher.cs` — `using Partners.Storage.Outbox;` без `using XDiary.Contracts;`; `ci-partners` = failure, `docker` = skipped. После этого тег партнёров станет новым sha, образ опубликуется, и lock сам подтянется.

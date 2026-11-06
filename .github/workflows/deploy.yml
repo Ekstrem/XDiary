@@ -233,3 +233,29 @@ jobs:
             [ "$ph" = "401" ] || { echo "::error::публичный вход: /api/v1/catalog = $ph (ожидали 401; 404 = APIM без маршрута, 502 = APIM мёртв)"; exit 1; }
             grep -qi 'x-gravitee' /tmp/pub_hdr.txt || { echo "::error::публичный вход без x-gravitee — трафик идёт МИМО APIM"; exit 1; }
             echo APIM_IN_PATH_OK
+
+  # DO-106 (2026-11-06): CORS на ПРОД-входе — отдельный джоб, потому что этот класс дефекта
+  # не виден ни одному прежнему гейту: они проверяют коды без `Origin` и не делают preflight.
+  # Симптом был: `OPTIONS` → 401, в ответах нет `Access-Control-Allow-Origin`, а фронт
+  # (другой origin) читал это как «Нет связи с сервером». `if: always()` — мерим даже когда
+  # `deploy-prod` пропущен: прод всё равно публичный, и CORS должен быть в порядке.
+  smoke-prod-cors:
+    needs: [deploy-prod]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Самопроверка гейта
+        run: python3 tools/check_cors_entry.py --selftest
+
+      - name: CORS на прод-входе (preflight + ACAO)
+        env:
+          PROD_BASE: https://xdiary-vps1.taile0b6ee.ts.net
+        run: |
+          set -uo pipefail
+          python3 tools/check_cors_entry.py --base "$PROD_BASE"
+          rc=$?
+          echo "check_cors_entry rc=$rc"
+          exit $rc

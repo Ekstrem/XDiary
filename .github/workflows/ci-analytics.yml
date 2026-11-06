@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
+      - '6-msa/Shared/**'
       - '6-msa/BC-Analytics/**'
       - '.github/workflows/ci-analytics.yml'
   pull_request:

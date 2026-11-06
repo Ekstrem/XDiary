@@ -36,6 +36,28 @@ xdiary-vps1.taile0b6ee.ts.net {
 	# а не приложение. Раньше здесь стоял прокси в YARP на :8080 (строка удалена) — то есть
 	# единственная оставшаяся публичная нагрузка YARP. Ответ отличается заголовком
 	# `Server: Caddy` вместо `Server: Kestrel` — по нему и проверяется, что прокси нет.
+	# DO-106 (2026-11-06): CORS на краю. Без этого браузер не пускал пользователя:
+	# preflight (`OPTIONS` с `Origin`) уходил в APIM и получал **401**, а в ответах
+	# не было `Access-Control-Allow-Origin` — фронт на `https://ekstrem.github.io`
+	# (другой origin) читал это как «Нет связи с сервером», хотя бэкенд жив.
+	# HOTFIX на краю: пока CORS не включён в самом APIM (правильное место, DO-106 п.1),
+	# preflight отвечаем здесь, а заголовок добавляем ко всем ответам.
+	# Снять после включения CORS в APIM, чтобы политика не жила в двух местах.
+	@preflight method OPTIONS
+	handle @preflight {
+		header Access-Control-Allow-Origin "https://ekstrem.github.io"
+		header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "authorization, content-type, accept, x-requested-with"
+		header Access-Control-Max-Age "600"
+		header Vary "Origin"
+		respond "" 204
+	}
+	header {
+		Access-Control-Allow-Origin "https://ekstrem.github.io"
+		Access-Control-Expose-Headers "content-type, www-authenticate"
+		Vary "Origin"
+	}
+
 	handle /health* {
 		respond "ok" 200
 	}
@@ -47,6 +69,28 @@ xdiary-vps1.taile0b6ee.ts.net {
 
 # DO-076: Funnel проксирует в HTTP-апстрим; развилка повторена на loopback:8081.
 http://:8081 {
+	# DO-106 (2026-11-06): CORS на краю. Без этого браузер не пускал пользователя:
+	# preflight (`OPTIONS` с `Origin`) уходил в APIM и получал **401**, а в ответах
+	# не было `Access-Control-Allow-Origin` — фронт на `https://ekstrem.github.io`
+	# (другой origin) читал это как «Нет связи с сервером», хотя бэкенд жив.
+	# HOTFIX на краю: пока CORS не включён в самом APIM (правильное место, DO-106 п.1),
+	# preflight отвечаем здесь, а заголовок добавляем ко всем ответам.
+	# Снять после включения CORS в APIM, чтобы политика не жила в двух местах.
+	@preflight method OPTIONS
+	handle @preflight {
+		header Access-Control-Allow-Origin "https://ekstrem.github.io"
+		header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "authorization, content-type, accept, x-requested-with"
+		header Access-Control-Max-Age "600"
+		header Vary "Origin"
+		respond "" 204
+	}
+	header {
+		Access-Control-Allow-Origin "https://ekstrem.github.io"
+		Access-Control-Expose-Headers "content-type, www-authenticate"
+		Vary "Origin"
+	}
+
 	handle /health* {
 		respond "ok" 200
 	}
