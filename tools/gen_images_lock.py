@@ -104,11 +104,12 @@ def _registry_manifest_url(registry, owner, service, tag):
 
 
 def _ghcr_token(registry, owner, service, timeout=20):
-    """Анонимный pull-токен GHCR. Пустая строка — токен не выдан (в т.ч. 403 у приватного пакета).
+    """Анонимный pull-токен GHCR: (token, reason), reason = "ok" | "forbidden" | "error".
 
-    403 не должен валить вызывающего: для него это «не измерено», а не «образа нет».
+    403 = пакет приватный: для вызывающего это «не проверено», а НЕ «образа нет» (@TL 22:04).
     """
     import json
+    import urllib.error
     import urllib.parse
     import urllib.request
     q = urllib.parse.urlencode({"service": registry,
@@ -117,16 +118,18 @@ def _ghcr_token(registry, owner, service, timeout=20):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as r:
             data = json.load(r)
+    except urllib.error.HTTPError as ex:
+        return "", ("forbidden" if ex.code in (401, 403) else "error")
     except Exception:
-        return ""
-    return data.get("token") or data.get("access_token") or ""
-
+        return "", "error"
+    tok = data.get("token") or data.get("access_token") or ""
+    return tok, ("ok" if tok else "error")
 
 def manifest_exists(registry, owner, service, tag, timeout=20):
     """True — тег опубликован; False — нет (404); OSError — проверить не смогли."""
     import urllib.error
     import urllib.request
-    token = _ghcr_token(registry, owner, service, timeout=timeout)
+    token, _reason = _ghcr_token(registry, owner, service, timeout=timeout)
     req = urllib.request.Request(
         _registry_manifest_url(registry, owner, service, tag), method="HEAD",
         headers={"Authorization": "Bearer " + token,
@@ -145,19 +148,29 @@ def manifest_exists(registry, owner, service, tag, timeout=20):
 
 
 def parse_lock(text):
-    """[(service, tag, path)] из текста lock: строки без # и с >=2 полями."""
+    """[(service, tag, path, unverified)] — строки без ведущего # и с >=2 полями.
+
+    Хвостовой комментарий (например `# unverified: …`) не попадает в путь, а помечает строку.
+    """
     out = []
     for line in text.splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        parts = line.split()
-        if len(parts) >= 2:
-            out.append((parts[0], parts[1], parts[2] if len(parts) > 2 else ""))
+        comment = stripped.split("#", 1)[1] if "#" in stripped else ""
+        body = stripped.split("#", 1)[0].split()
+        if len(body) >= 2:
+            out.append((body[0], body[1], body[2] if len(body) > 2 else "",
+                        "unverified" in comment))
     return out
 
-
 def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_exists, echo=print):
-    """rc=0 всё опубликовано; rc=1 есть отсутствующие; rc=2 проверить не смогли."""
+    """rc=0 всё опубликовано (в т.ч. если часть строк помечена `unverified`); rc=1 есть отсутствующие;
+    rc=2 проверить не смогли.
+
+    Строки `unverified` (403 на анонимный pull-token) попадают в «не проверено» и на rc НЕ влияют —
+    иначе фронт, который деплоится через Pages, навсегда блокировал бы гейт (@TL 22:04).
+    """
     if not os.path.exists(path):
         echo("check_images_lock: нет файла %s — проверять нечего" % path)
         return 2
@@ -165,8 +178,11 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
     if not entries:
         echo("check_images_lock: в %s нет строк с тегами" % path)
         return 2
-    missing, errors = [], []
-    for service, tag, _ in entries:
+    missing, errors, unverified = [], [], []
+    for service, tag, _path, unv in entries:
+        if unv:
+            unverified.append((service, tag))
+            continue
         try:
             ok = check(registry, owner, service, tag)
         except OSError as ex:
@@ -175,10 +191,14 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
         if not ok:
             missing.append((service, tag))
     total = len(entries)
-    echo("check_images_lock --verify-registry: сервисов %d | опубликовано %d | отсутствует %d | не проверено %d"
-         % (total, total - len(missing) - len(errors), len(missing), len(errors)))
+    echo("check_images_lock --verify-registry: сервисов %d | опубликовано %d | отсутствует %d | "
+         "не проверено %d (unverified — на rc не влияют)"
+         % (total, total - len(missing) - len(errors) - len(unverified), len(missing),
+            len(errors) + len(unverified)))
     for service, tag in missing:
         echo("  ОТСУТСТВУЕТ: %s:%s" % (service, tag))
+    for service, tag in unverified:
+        echo("  НЕ ПРОВЕРЕНО (unverified): %s:%s (403 на анонимный pull-token)" % (service, tag))
     for service, tag, msg in errors:
         echo("  НЕ ПРОВЕРЕНО: %s:%s (%s)" % (service, tag, msg[:80]))
     if missing:
@@ -186,7 +206,6 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
     if errors:
         return 2
     return 0
-
 
 def selftest():
     """@TL 2026-11-05 16:03: у инструмента должна быть самопроверка, как у остальных гейтов.
@@ -309,20 +328,19 @@ def is_mixed_lock(text):
 
 
 def _ghcr_tags(registry, owner, service, timeout=25):
-    """Опубликованные теги пакета `xdiary-<service>` (пусто при любой ошибке сети/прав)."""
-    token = _ghcr_token(registry, owner, service, timeout=timeout)
-    if not token:
-        return []
+    """(теги `single-*`, reason) — reason приходит из `_ghcr_token`."""
+    token, reason = _ghcr_token(registry, owner, service, timeout=timeout)
+    if reason != "ok":
+        return [], reason
     url = "https://%s/v2/%s/xdiary-%s/tags/list?n=1000" % (registry, owner, service)
     req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             payload = json.loads(r.read().decode("utf-8", "replace"))
     except Exception:
-        return []
+        return [], "error"
     tags = payload.get("tags") or []
-    return [t for t in tags if isinstance(t, str) and t.startswith("single-")]
-
+    return [t for t in tags if isinstance(t, str) and t.startswith("single-")], "ok"
 
 def _commit_of(tag):
     """Полный sha для тега `single-<sha>`; None, если такого коммита нет в локальной истории."""
@@ -338,11 +356,20 @@ def _is_ancestor(sha):
                           capture_output=True).returncode == 0
 
 
+UNVERIFIED_NOTE = ("# unverified: 403 на анонимный pull-token; "
+                   "front деплоится через Pages, не контейнером")
+
+
 def registry_rows(registry, owner, echo=print):
-    """[(service, tag, path, commit)] — самый свежий опубликованный образ-предок HEAD."""
-    rows, missing = [], []
+    """[(service, tag, path, commit, unverified)].
+
+    Если пакет закрыт (403 на анонимный токен), строка остаётся с git-тегом и пометкой `unverified`:
+    фронту она в lock нужна (деплой через Pages), но `--verify-registry` обязан считать её
+    «не проверено», и rc от неё не зависит (@TL 22:04).
+    """
+    rows = []
     for service, path in SERVICES:
-        tags = _ghcr_tags(registry, owner, service)
+        tags, reason = _ghcr_tags(registry, owner, service)
         best = None
         for tag in tags:
             full = _commit_of(tag)
@@ -354,24 +381,28 @@ def registry_rows(registry, owner, echo=print):
                 ts = 0
             if best is None or ts > best[0]:
                 best = (ts, full, tag)
-        if best is None:
-            missing.append(service)
-            rows.append((service, "НЕТ-ОБРАЗА", path, ""))
+        if best is not None:
+            rows.append((service, best[2], path, best[1][:7], False))
+        elif reason == "forbidden":
+            sha = short_sha(path)
+            rows.append((service, "single-" + sha, path, sha, True))
         else:
-            rows.append((service, best[2], path, best[1][:7]))
-        echo("  %-20s %-18s commit=%s" % (rows[-1][0], rows[-1][1], rows[-1][3] or "—"))
-    return rows, missing
-
+            rows.append((service, "НЕТ-ОБРАЗА", path, "", False))
+        svc, tag, _p, cm, unv = rows[-1]
+        echo("  %-20s %-18s commit=%-8s%s" % (svc, tag, cm or "—", "  unverified" if unv else ""))
+    return rows
 
 def render_registry(rows):
     lines = [MIXED_HEADER.rstrip("\n")]
-    for service, tag, path, commit in rows:
-        if commit:
-            lines.append("%-20s %-18s %s  commit=%s" % (service, tag, path, commit))
-        else:
+    for service, tag, path, commit, unverified in rows:
+        if not commit:
             lines.append("%-20s %-18s %s" % (service, tag, path))
+            continue
+        line = "%-20s %-18s %s  commit=%s" % (service, tag, path, commit)
+        if unverified:
+            line += "  " + UNVERIFIED_NOTE
+        lines.append(line)
     return "\n".join(lines) + "\n"
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -395,7 +426,8 @@ def main():
         return verify_registry(a.file, registry=a.registry, owner=a.owner)
 
     if a.from_registry:
-        rows, missing = registry_rows(a.registry, a.owner)
+        rows = registry_rows(a.registry, a.owner)
+        missing = [svc for svc, tag, _p, _c, _u in rows if tag == "НЕТ-ОБРАЗА"]
         if missing:
             print("::error::gen_images_lock: нет опубликованного образа для: %s — "
                   "lock из реестра НЕ пишу" % ", ".join(missing))
