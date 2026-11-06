@@ -21,43 +21,14 @@ async function hasPinLocal(page) {
 // Негативы `/privacy/pin/remove` остались как историческая регресс-защита BE-021,
 // но НЕ должны быть условием прохождения ни одного MVP-спека.
 // ============================================================================
-test.describe.skip('legacy: серверный PIN (ADR-021 / AR-009) — вне MVP', () => {
-  async function tokenStatus(request, pin) {
-    const r = await request.post(API_BASE + '/api/v1/privacy/token', { data: { pin } });
-    return r.status();
-  }
-
-  // pin/has скоупится по УСТРОЙСТВУ: голый `request.get` идёт без device-токена
-  // и всегда отдаёт false (это был баг спека, а не продукта — BE-034 отклонена).
-  async function hasPinServer(page) {
-    return page.evaluate(async (base) => {
-      const t = localStorage.getItem('xdiary.accessToken') || '';
-      const r = await fetch(base + '/api/v1/privacy/pin/has', {
-        headers: t ? { Authorization: 'Bearer ' + t } : {},
-      });
-      if (!r.ok) return null;
-      const j = await r.json();
-      return typeof j === 'boolean' ? j : !!(j && (j.hasPin !== undefined ? j.hasPin : j.value));
-    }, API_BASE);
-  }
-
-  test('серверные негативы pin/remove и device-токен', async ({ page, request }) => {
-    await loginWithPin(page);
-
-    const noCurrent = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: {} });
-    expect(noCurrent.status(), 'pin/remove без currentPin должен быть 401').toBe(401);
-
-    const badCurrent = await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: { currentPin: '0000' } });
-    expect(badCurrent.status(), 'pin/remove с неверным currentPin должен быть 401').toBe(401);
-
-    await request.post(API_BASE + '/api/v1/privacy/pin/remove', { data: { currentPin: PIN } });
-    expect(await hasPinServer(page), 'после снятия pin/has = false').toBe(false);
-    expect(await tokenStatus(request, ''), 'device-токен без PIN работает').toBe(200);
-    expect(await tokenStatus(request, PIN), 'снятый PIN не мешает device-токену').toBe(200);
-
-    await request.post(API_BASE + '/api/v1/privacy/pin/set', { data: { pin: PIN } });
-    expect(await hasPinServer(page), 'PIN восстановлен').toBe(true);
-  });
+test.describe.skip('legacy: серверный PIN (ADR-021 / AR-009)   вне MVP', () => {
+  // ADR-021 этап 2 (@AR 2026-11-16): в `9-tests` не должно быть `fetch`/`request` в `/privacy/*`
+  // даже в skipped-блоке   только описания и ссылки. Исторические негативы сняты из кода и
+  // остаются в истории задач: BE-021 (снятие серверного PIN), BE-034 (pin/has скоупится по
+  // устройству), TE-037 (снятие PIN).
+  // Что проверялось: `pin/remove` без `currentPin`  401; с неверным  401; после снятия
+  // `pin/has` = false; device-токен без PIN  200; затем PIN восстанавливался.
+  // Возвращать это в код не нужно: канон MVP   ЛОКАЛЬНЫЙ PIN (`window.Pin`), он проверяется ниже.
 });
 
 test('E2E: снятие локального PIN через UI → журнал без замка', async ({ page }) => {

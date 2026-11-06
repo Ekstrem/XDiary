@@ -19,26 +19,16 @@
 // Второе — это и есть «fallback»-путь в текущей модели, и оно же негативный контроль:
 // если замок перестанет появляться при локальном PIN, тест **упадёт** (а не пропустится).
 //
-// Применимость по-прежнему определяется **внешним фактом** (ответ стенда на пустой PIN), но
-// теперь это факт только про стенд: 401 = на стенде PIN задан (сценарий информативен),
-// 200 = на стенде PIN нет (сценарий тоже валиден — см. п.1), иное → падаем.
-// ВАЖНО (TE-055): на этапе 3 `FE-042` маршрут `/api/v1/privacy/token` удаляется вместе с
-// device-токеном — тогда эту пробу нужно заменить внешним признаком (`XDIARY_STAND_HAS_PIN=1`).
+// Применимость НЕ зависит от состояния стенда: после этапа 3 PIN живёт на устройстве, поэтому
+// «стенд имеет PIN» не является фактом. Состояние создаёт спека (`window.Pin.setPin` /
+// `dropLocalPin`), внешний маркер не нужен (@AR 2026-11-16 02:12). Проба `/privacy/token`
+// удалена: по ADR-021 этап 2 в `9-tests` не должно быть `fetch`/`request` в `/privacy/*`.
 //
 // MVP-истории: US-11
 //   US-11 вход по PIN (устройство с PIN, локального нет)
 const { test, expect } = require('@playwright/test');
 const { readToken, API_BASE, PIN, loginWithPin, reportStep, expectScreen, dumpViews } = require('./api');
 
-/** Внешний факт: задан ли PIN на стенде. `null` — состояние неизвестно (падаем, не пропускаем). */
-async function standHasPin(request) {
-  const r = await request.post(API_BASE + '/api/v1/privacy/token', { data: { pin: '' } });
-  if (r.status() === 401) return { has: true, status: 401 };
-  if (r.status() === 200) return { has: false, status: 200 };
-  return { has: null, status: r.status() };
-}
-
-/** Убирает локальный PIN из IndexedDB (`xdiary`/`meta`.`pin`), не трогая токен и clientId. */
 async function dropLocalPin(page) {
   await page.evaluate(async () => {
     await new Promise((resolve) => {
@@ -64,15 +54,10 @@ async function setLocalPin(page, pin) {
   await page.evaluate((v) => window.Pin.setPin(v), pin);
 }
 
-test('E2E: без локального PIN замка нет; с локальным PIN замок появляется и проверяется', async ({ page, request }) => {
-  const stand = await standHasPin(request);
-  expect(
-    stand.has,
-    'неизвестное состояние стенда: POST /privacy/token {pin:""} → ' + stand.status + ' (не «пропускаем»)'
-  ).toBeTypeOf('boolean');
-  console.log('::notice::стенд: PIN ' + (stand.has ? 'задан' : 'не задан') + ' (ответ ' + stand.status + ')');
-
-  // Сессия получается штатно (адаптивная фикстура: PIN не нужен, потому что на 0.90 он не первичен).
+test('E2E: без локального PIN замка нет; с локальным PIN замок появляется и проверяется', async ({ page }) => {
+  // ADR-021 / @AR 2026-11-16: PIN — свойство УСТРОЙСТВА, поэтому «стенд имеет PIN» не существует
+  // как факт: состояние создаёт сама спека (`window.Pin.setPin` ниже) или чистый профиль.
+  // Внешний маркер и проба `/privacy/token` не нужны — это кодировало бы legacy в тестовом маркере.
   await loginWithPin(page);
   await reportStep(page, 'шаг 1: сессия получена штатно');
   await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
