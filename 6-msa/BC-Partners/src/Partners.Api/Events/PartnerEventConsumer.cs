@@ -44,6 +44,10 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     public void Handle(IDomainEvent<IPartners> domainEvent)
     {
         Console.WriteLine("[handle] entered");
+        // @TE 04:32 — ChangedValueObjectsJson пишется с $type-дискриминатором, иначе
+        // event-sourced GetById (IAnemicModelRepository) не может реконструировать IValueObject.
+        var jsonOptions = new JsonSerializerOptions();
+        jsonOptions.Converters.Add(new Partners.Storage.Outbox.IValueObjectJsonConverter());
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
@@ -52,7 +56,7 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
             BoundedContext = domainEvent.ContextName,
             CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
             SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects),
+            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
