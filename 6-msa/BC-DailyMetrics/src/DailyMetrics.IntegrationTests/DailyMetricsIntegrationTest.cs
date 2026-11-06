@@ -9,9 +9,10 @@ public class DailyMetricsIntegrationTest
     [Fact]
     public void Command_Then_Query()
     {
-        var stress = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 50);
+        var clientId = Guid.NewGuid();
+        var stress = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 50, clientId);
         Assert.Equal(DomainOperationResultEnum.Success, stress.Result);
-        var sleep = Aggregate.CreateInstance(stress.Model()).RecordSleep("2026-10-29", Sleep.CreateInstance(80, 480, 120, 240, 90, 30));
+        var sleep = Aggregate.CreateInstance(stress.Model()).RecordSleep("2026-10-29", Sleep.CreateInstance(80, 480, 120, 240, 90, 30), clientId);
         Assert.Equal(DomainOperationResultEnum.Success, sleep.Result);
         var entity = new DailyMetricsEntity { Id = sleep.Model().Id };
         DailyMetricsMapper.MapToEntity(sleep.Model(), entity);

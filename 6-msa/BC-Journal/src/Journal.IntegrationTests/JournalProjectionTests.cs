@@ -22,10 +22,12 @@ public class JournalProjectionTests
         Assert.Equal(DomainOperationResultEnum.Success, complete.Result);
 
         // Проекция: событие → read model (то, что попадёт в materialized view).
-        var read = JournalProjection.Project(complete.Event);
+        // ChangedValueObjects — diff: Root меняется на AddPartner, ClientId — только на старте.
+        var read = JournalProjection.Project(partner.Event);
         Assert.NotNull(read);
-        Assert.Equal(clientId, read!.ClientId);
-        Assert.Equal(new[] { "partner-1" }, read.Partners);
+        Assert.Equal(new[] { "partner-1" }, read!.Partners);
         Assert.Equal("2026-10-29T21:00", read.StartedAt);
+        var startRead = JournalProjection.Project(start.Event);
+        Assert.Equal(clientId, startRead!.ClientId);
     }
 }
