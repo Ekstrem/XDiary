@@ -677,8 +677,20 @@ async function removeByName(page, kind, name) {
       const rem = kind === 'partner'
         ? base + '/api/v1/partners/' + it.id + '/remove'
         : base + '/api/v1/catalog/' + it.id + '/remove';
-      const d = await fetch(rem, { method: 'POST', headers });
-      return { ok: d.ok, removed: d.ok, status: d.status };
+        const d = await fetch(rem, { method: 'POST', headers });
+        // TE-077: уборка не должна «падать», если объект уже удалён. В прогонах #773/#775 в лог шло
+        // `cleanup partner: {"ok":false,"removed":false,"status":400}`, а 400 у `/partners/{id}/remove`
+        // означает `Partner not found.` (PartnerHandlers.cs: `Fail("Partner not found.")`).
+        // Причина — объект удалил другой прогон/предыдущий шаг, то есть цель уборки уже достигнута.
+        // Теперь такой ответ считается успехом (`alreadyGone`), а реальные ошибки по-прежнему видны.
+        if (!d.ok) {
+          const body = await d.text().catch(() => '');
+          if ((d.status === 400 || d.status === 404) && /not found/i.test(body)) {
+            return { ok: true, removed: false, alreadyGone: true, status: d.status };
+          }
+          return { ok: false, removed: false, status: d.status, body: String(body).slice(0, 120) };
+        }
+        return { ok: true, removed: true, status: d.status };
     }, { base: API_BASE, kind, name });
   } catch (e) {
     return { ok: false, error: String(e && e.message) };

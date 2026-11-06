@@ -69,3 +69,10 @@ python 9-tests/scripts/e2e_triage.py --input front-e2e-results
 - браузерный шаг завершился сам (не `cancelled`);
 - в артефакте `front-e2e-results` есть `test-results/receipt.txt`;
 - квитанция печатает `passed/failed/skipped`, и **исполнено ≥ 1** (иначе `rc=2` — «не измерено»).
+
+**Вторая причина, не путать с первой:** `404` на свежесозданной записи и `400 «Partner not found.»`
+бывают **дефектами продукта**, а не гонкой: read-модель с лагом (read-after-write) и полиморфная
+сериализация value-объектов (`$type`-дискриминатор). Проверка: если `404`/`400` повторяются на прогоне,
+который шёл **один**, — это продукт (`JournalController.EnsureOwns` fallback, `PartnerEventConsumer`
+конвертер), и заводится дефект @BE с номером прогона как источником.
+

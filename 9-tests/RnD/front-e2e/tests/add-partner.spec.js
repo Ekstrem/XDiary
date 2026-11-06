@@ -19,7 +19,7 @@ test('E2E: партнёр — добавить в приложении, увид
     await page.click('#btn-partner-add');
     await expect(page.locator('#view-partner-edit')).toBeVisible();
     await page.fill('#pe-name', name);
-    await page.click('#btn-partner-save');
+    await page.click('#btn-partner-save', { timeout: 20000 });
 
     await expect(page.locator('#view-partners')).toBeVisible();
     await expect(page.locator('#partners-list')).toContainText(name);

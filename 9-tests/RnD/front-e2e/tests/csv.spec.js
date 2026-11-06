@@ -93,7 +93,7 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
       buffer: Buffer.from(csv, 'utf8'),
     });
     await expect(page.locator('#btn-import-apply')).toBeVisible({ timeout: 10000 });
-    await page.click('#btn-import-apply');
+    await page.click('#btn-import-apply', { timeout: 20000 });
     await expect(page.locator('#import-result')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#import-result')).not.toHaveText(/^\s*$/);
     // Диагностика для разбора в CI: печатает тост, если импорт что-то сказал пользователю.

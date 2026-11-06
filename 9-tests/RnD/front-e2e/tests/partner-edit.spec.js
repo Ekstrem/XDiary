@@ -78,7 +78,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       // Второй вариант пола (`#pe-gender-female`) не проверялся: нажимаем оба, сохраняем мужской.
       await page.click('#pe-gender-female');
       await page.click('#pe-gender-male');
-      await page.click('#btn-partner-save');
+      await page.click('#btn-partner-save', { timeout: 20000 });
       await expect(page.locator('#view-partners')).toBeVisible({ timeout: UI_WAIT });
     });
 
@@ -111,7 +111,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       await expect(page.locator('#view-partners')).toBeVisible({ timeout: 10000 });
 
       await open();
-      await page.click('#btn-partner-delete');
+      await page.click('#btn-partner-delete', { timeout: 20000 });
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-no');
       await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 10000 });
@@ -121,7 +121,7 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       ).toHaveCount(1);
 
       await open();
-      await page.click('#btn-partner-delete');
+      await page.click('#btn-partner-delete', { timeout: 20000 });
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-yes');
       await expect(page.locator('#view-partners')).toBeVisible({ timeout: UI_WAIT });

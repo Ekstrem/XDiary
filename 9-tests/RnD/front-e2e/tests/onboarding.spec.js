@@ -33,12 +33,26 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
       } catch (e) {}
     });
     await page.reload();
-    await expectScreen(page, '#view-onboarding', 'чистое устройство → онбординг', 20000);
+    // TE-076: если онбординг не показался, в лог обязано попасть, ЧТО было на экране.
+    // В прогоне #775 этот шаг занял 95.0 с (весь бюджет теста), а единственная зацепка была
+    // `page.addInitScript: Target page… has been closed` — то есть тест дождался лимита и умер,
+    // и причина осталась неизвестной. Теперь при провале печатается состояние всех экранов.
+    try {
+      await expectScreen(page, '#view-onboarding', 'чистое устройство   онбординг', 20000);
+    } catch (e) {
+      await dumpViews(page, 'onboarding шаг 0: экраны при провале (ждали #view-onboarding)');
+      throw e;
+    }
     await expect(page.locator('#view-lock')).toBeHidden();
     // Экран загрузки обязан УЙТИ: залипший splash — это «вечная загрузка» для пользователя.
     // Проверяем исчезновение, а не появление: на быстром стенде он может не успеть отрисоваться,
     // и ожидание его появления было бы догадкой о времени (см. check_e2e_no_sleeps).
-    await expect(page.locator('#view-splash'), 'экран загрузки остался висеть').toBeHidden({ timeout: 20000 });
+    try {
+      await expect(page.locator('#view-splash'), 'экран загрузки остался висеть').toBeHidden({ timeout: 20000 });
+    } catch (e) {
+      await dumpViews(page, 'onboarding шаг 0: экраны при залипшем splash');
+      throw e;
+    }
   });
 
   await test.step('шаг 1: телефон → запрос OTP', async () => {
