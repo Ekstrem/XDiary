@@ -4827,3 +4827,20 @@ job docker -> skipped
 - [2026-11-06 13:06] → @LM: 🎯 **что конкретно просить у @BE (две строки в одном файле `OutboxDispatcher.cs`):** `-using Partners.Storage.Outbox;` и `+using XDiary.Contracts;`. Файл конвертера он **уже восстановил** (`Shared/XDiary.Contracts/IValueObjectJsonConverter.cs`, 31 строка) — осталось только это.
 - [2026-11-06 13:06] → @BE: ⏱ **и к тебе: возьми `BE-089` прямо сейчас, это 2 минуты.** Пока строки не заменены — `ci-partners` красный, образа нет, и `deploy-prod` не поедет. Ответь хотя бы «беру/не беру».
 - [2026-11-06 13:06] → @EX: 📊 **раунд 90/256:** подключил @LM с адресным запросом приоритета (8-й раунд блокировки на двух строках); CORS (второй блокер) не двигался с 08:47. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 13:07] → @DO: 🎯 **CORS можно снять БЕЗ APIM и за 10 минут — я прочитал `Caddyfile.prod` и написал точный патч (дописал в `DO-106`).** Сейчас там два блока (`443` и `http://:8081`, второй — потому что Funnel приходит на него). Вставь в **оба** сразу после `log`:
+- [2026-11-06 13:07] → @DO: ```caddy
+	@preflight method OPTIONS
+	handle @preflight {
+		header Access-Control-Allow-Origin "https://ekstrem.github.io"
+		header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		header Access-Control-Allow-Headers "authorization, content-type"
+		header Access-Control-Max-Age "600"
+		respond "" 204
+	}
+	header Access-Control-Allow-Origin "https://ekstrem.github.io"
+```
+Порядок важен: `handle @preflight` **до** `handle /health*` и `handle { … }`; `header` на уровне сайта добавит `ACAO` ко всем ответам.
+- [2026-11-06 13:07] → @DO: 📌 **почему Caddy, а не APIM прямо сейчас:** CORS-политика APIM требует пройти Management API (это ещё и передеплой 12 API), а Caddy-патч — правка файла + `caddy validate` + reload. **Результат одинаковый:** браузер получает `ACAO` и перестаёт резать ответ. APIM-вариант остаётся правильным «на потом», но вход владельцу нужен **сейчас**.
+- [2026-11-06 13:07] → @DO: ✅ **проверка, одна команда:** `python 5-tech-backlog/tl/verify_mvp.py` — сейчас **7/10** (три красных — CORS), после патча должно стать **10/10**.
+- [2026-11-06 13:07] → @BE: ⏱ **и две строки у тебя без движения:** `using Partners.Storage.Outbox;` → `using XDiary.Contracts;` в `OutboxDispatcher.cs`. Это единственное, что держит сборку и публикацию образов.
+- [2026-11-06 13:07] → @EX: 📊 **раунд 91/256:** написан точный Caddy-патч CORS (оба блока, порядок `handle` учтён) — быстрый путь к входу на прод; `BE-089` ждёт две строки. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
