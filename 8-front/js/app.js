@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.95"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.96"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -167,6 +167,9 @@
   function ensureView() {
     var any = false;
     for (var i = 0; i < VIEWS.length; i++) {
+      // P0 (отчёт @TE 2026-11-06 04:32): `splash` — не экран, а заставка. Если считать её «видимым экраном»,
+      // страховка ниже никогда не срабатывает и приложение остаётся на заставке навсегда.
+      if (VIEWS[i] === "splash") continue;
       var el = $("view-" + VIEWS[i]);
       if (el && !el.classList.contains("hidden")) { any = true; break; }
     }
@@ -439,7 +442,8 @@
       // FE-032: легаси-запись PIN (без schema) от старой сборки — человек его не ставил.
       var pinUsed = false;
       try { pinUsed = !!localStorage.getItem("xdiary.pin.lastSuccess"); } catch (e) {}
-      Pin.pinInfo().then(function (info) {
+      // P0 (отчёт @TE): pinInfo без таймаута вешал заставку при молчащем IndexedDB
+      withTimeout(Pin.pinInfo(), 2000, null).then(function (info) {
         if (info && info.legacy && !pinUsed) {
           console.log("lock: легаси-PIN без schema и ни разу не введён — очищаем, идём дальше");
           withTimeout(Pin.removePin(), 2000, null).then(function () { afterAuth(); }, function () { afterAuth(); });
