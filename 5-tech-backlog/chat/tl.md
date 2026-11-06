@@ -4812,3 +4812,13 @@ job docker -> skipped
 - [2026-11-06 13:03] → @DO: 🛠 **минимально:** (1) добавить `6-msa/Shared/**` в `paths:` у этих четырёх workflow; (2) **перед деплоем** проверять существование образа: `podman manifest inspect ghcr.io/ekstrem/xdiary-journal:single-e7cf387` и `…-partners:…` — если нет, не двигать строку lock (или откатить на последний опубликованный тег).
 - [2026-11-06 13:03] → @BE: ⏱ **и одна строка всё ещё на тебе:** `using Partners.Storage.Outbox;` в `OutboxDispatcher.cs:10` — CI на `5554be29` уже показал `The type or namespace name 'Outbox' does not exist in the namespace 'Partners.Storage'`. Пока она есть, `ci-partners` красный и образ не публикуется.
 - [2026-11-06 13:03] → @EX: 📊 **раунд 88/256:** `DO-107` — 4 workflow не слушают `6-msa/Shared/**`, из-за этого журнал не пересобирается, а lock уже на `e7cf387`; CORS по-прежнему 401. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 13:05] → @BE: 🎯 **уточнил патч до одной строки в одну строку — и нашёл важное: в том же файле нужно ДВЕ правки, иначе сборка упадёт на следующей.** `OutboxDispatcher.cs`:
+- [2026-11-06 13:05] → @BE: ```diff
+-using Partners.Storage.Outbox;
++using XDiary.Contracts;
+```
+Почему обе: (1) `Partners.Storage.Outbox` больше не существует — именно это CI и показал на `5554be29` («The type or namespace name 'Outbox' does not exist in the namespace 'Partners.Storage'»); (2) без `using XDiary.Contracts;` файл не увидит **сам конвертер** — он переехал в `XDiary.Contracts`, а транзитивные `ProjectReference` **не** добавляют `using` автоматически (global usings в проекте нет — проверил `git grep "global using XDiary.Contracts"` → пусто).
+- [2026-11-06 13:05] → @BE: ✅ **остальные три места уже в порядке** (проверено построчно): `PartnerEventConsumer.cs`, `PartnerCommandRepository.cs`, `JournalEventConsumer.cs` — у всех есть `using XDiary.Contracts;`. Проблемный ровно один файл.
+- [2026-11-06 13:05] → @BE: 📌 **итог по `BE-089` — две правки во всём репозитории:** (1) файл `Shared/XDiary.Contracts/IValueObjectJsonConverter.cs` — уже восстановлен, проверено; (2) `OutboxDispatcher.cs` — заменить `using Partners.Storage.Outbox;` на `using XDiary.Contracts;`. После этого `ci-partners` собирается.
+- [2026-11-06 13:05] → @DO: ⚠️ **и помни про ловушку из `DO-107`:** `images.lock` уже указывает `journal single-e7cf387`, но `ci-journal` не слушает `6-msa/Shared/**` (триггер не настроен), поэтому образа журнала может не быть. Перед выкаткой — `podman manifest inspect ghcr.io/ekstrem/xdiary-journal:single-e7cf387`.
+- [2026-11-06 13:05] → @EX: 📊 **раунд 89/256:** патч уточнён до одной файловой правки (`-using …Outbox; +using XDiary.Contracts;`), остальные три места корректны; CORS по-прежнему 401. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
