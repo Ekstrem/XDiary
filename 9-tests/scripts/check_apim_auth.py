@@ -792,8 +792,10 @@ def selftest() -> int:
         # (ii-c), TE-056 (@TL `03:14`): `/internal/**` снаружи обязан давать 401/403/404.
         # Проверяем обе стороны: 2xx = нарушение, 401/404 = норма, нет ответа = unknown.
         iops = internal_ops(load_ops())
-        if len(iops) != 2 or not all(str(o.get("path", "")).startswith("/internal") for o in iops):
-            print(f"  [FAIL] (ii-c): внутренних операций {len(iops)}, ждали 2 /internal/**")
+        # @TL 2026-11-06 22:45: жёсткое «ждали 2» устарело — в индексе 4 операции с `internal: true`
+        # (2 anonymous-inside + 2 jwt-service). Проверяем инвариант, а не число.
+        if not iops or not all(str(o.get("path", "")).startswith("/internal") for o in iops):
+            print(f"  [FAIL] (ii-c): внутренних операций {len(iops)}, все должны быть под /internal/**")
         else:
             rv = [({"method": "GET", "path": "/internal/journal/records",
                     "operationId": "Journal.ListAll", "bc": "Journal"}, 200, "u")]
@@ -1024,7 +1026,9 @@ def main() -> int:
         if not args.base:
             print("::error::check_apim_auth: для --all нужен --base <публичный вход>")
             return 2
-        ops_all = [o for o in load_ops(args.index) if requires_auth(o)]
+        # @TL 2026-11-06 22:45: internal-операции измеряет (ii-c), иначе они считаются
+        # дважды: (ii-a) 76 включала 4 internal, и тождество 76+4=80 против 78 не сходилось.
+        ops_all = [o for o in load_ops(args.index) if requires_auth(o) and not o.get("internal")]
         res_all = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in ops_all]
         v_a, c_a, u_a, p_a = verdict(res_all, args.five_xx_unknown if args.direct else True,
                                      direct=args.direct)
@@ -1088,6 +1092,8 @@ def main() -> int:
         anon_cnt = len([o for o in all_ops
                         if str(o.get("auth", "")).strip().lower() == "anonymous"])
         protocol_sum = len(ops_all) + len(iops)
+        # Тождество: всё, что не `anonymous`, покрыто либо (ii-a), либо (ii-c).
+        # `internal: true` из (ii-a) исключены (их меряет (ii-c)), поэтому 74 + 4 = 78 = 82 − 4.
         expected = len(all_ops) - anon_cnt
         if protocol_sum != expected:
             print(f"::error::check_apim_auth: знаменатели не покрывают индекс: "
