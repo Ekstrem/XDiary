@@ -8,7 +8,7 @@
 //   US-05 тэги, US-06 длительность, US-07 оргазмы партнёров,
 //   US-12 подстановка и приоритизация по частоте
 const { test, expect } = require('@playwright/test');
-const { UI_WAIT, API_BASE, loginWithPin } = require('./api');
+const { UI_WAIT, API_BASE, loginWithPin, unlockIfLocked } = require('./api');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 const NOW = new Date();
@@ -192,6 +192,10 @@ test('E2E: визард подставляет последние партнёр
 
     // Перезагрузка: `recent` должен вернуть только что созданную запись, визард — подставить её поля.
     await page.reload();
+    // PIN поставлен входом (`loginWithPin`), поэтому после reload приложение показывает замок —
+    // без снятия замка `#view-journal` остаётся hidden. Ровно этот класс давал падения
+    // `wizard-record` в прогоне REF 73f59ba7 («не дождались» до утверждений).
+    await unlockIfLocked(page);
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
