@@ -11,13 +11,18 @@ public sealed class ListRecordsHandler : IRequestHandler<ListRecordsQuery, IRead
 {
     private readonly IJournalQueryRepository _repo;
     public ListRecordsHandler(IJournalQueryRepository repo) => _repo = repo;
-    public Task<IReadOnlyList<JournalReadModel>> Handle(ListRecordsQuery r, CancellationToken ct) => _repo.ListAsync(r.ClientId, r.Limit, r.Offset, ct);
+    public async Task<IReadOnlyList<JournalReadModel>> Handle(ListRecordsQuery r, CancellationToken ct)
+        => (await _repo.ListAsync(r.ClientId, r.Limit, r.Offset, ct)).Where(x => !x.Deleted).ToList(); // BE-094: список без удалённых
 }
 public sealed class GetRecordByIdHandler : IRequestHandler<GetRecordByIdQuery, JournalReadModel?>
 {
     private readonly IJournalQueryRepository _repo;
     public GetRecordByIdHandler(IJournalQueryRepository repo) => _repo = repo;
-    public Task<JournalReadModel?> Handle(GetRecordByIdQuery r, CancellationToken ct) => _repo.GetByIdAsync(r.AggregateId, ct);
+    public async Task<JournalReadModel?> Handle(GetRecordByIdQuery r, CancellationToken ct)
+    {
+        var x = await _repo.GetByIdAsync(r.AggregateId, ct);
+        return x is not null && x.Deleted ? null : x; // BE-094: удалённое → 404
+    }
 }
 public sealed class RecentDefaultsHandler : IRequestHandler<RecentDefaultsQuery, RecentDefaultsView?>
 {
