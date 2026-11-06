@@ -112,7 +112,7 @@ def ping_message(cfg, now, idle, active):
     names = " " + ", ".join("@" + r.upper() for r, _ in idle) if idle else ""
     return ("- [%s] → %s: ⚠️ команда стоит: %d/%d ролей простаивают > %d мин.%s. "
             "Следи за правилами и организуй команду."
-            % (now.strftime("%Y-%m-%d %H:%M"), cfg["to"], cfg["project"],
+            % (now.strftime("%Y-%m-%d %H:%M"), cfg["to"],
                len(idle), total, cfg["idle_minutes"], names))
 
 
