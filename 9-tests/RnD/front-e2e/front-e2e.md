@@ -24,7 +24,7 @@
 (в песочнице @TE браузер не запускается: `spawn EPERM`). Числа `passed/failed` даёт только CI, и с
 `2026-11-06` джоба `front-e2e` **подключена полностью**: `timeout-minutes: 60`, четыре флага
 (`XDIARY_BUSY`, `XDIARY_STALENOTE`, `XDIARY_READPATH_OFFLINE`, `XDIARY_READPARITY`; `XDIARY_CHANGE_PIN`
-намеренно не ставится — сценарий деструктивный), шаг `python 9-tests/scripts/check_e2e_all.py`
+(`XDIARY_CHANGE_PIN` по умолчанию не ставится: сценарий меняет ЛОКАЛЬНЫЙ PIN устройства, стенд не трогает и в `finally` возвращает исходный — предлагается включить), шаг `python 9-tests/scripts/check_e2e_all.py`
 (26 гейтов до запуска браузера) и `upload-artifact` для `test-results/` с `if: always()`.
 Осталось **одно**: получить файл вывода прогона и снять квитанцию
 `python 9-tests/scripts/e2e_receipt.py --input <файл> --ref <sha>` — она читает реальный вывод
@@ -73,7 +73,7 @@ Playwright (ANSI, CRLF, путь без `tests/`, ретраи) и печата�
 | `XDIARY_STALENOTE=1` | `stale-note.spec.js` (read-paths §5 п.2: пометка «данные могли устареть») | локальный конфиг; в `ci-front.yml` — **нет** |
 | `XDIARY_READPATH_OFFLINE=1` | `wizard-offline.spec.js` (read-paths §1: ошибка чтения отличима от «данных нет») | `front-e2e-repeat.yml`; в `ci-front.yml` — **нет** |
 | `XDIARY_READPARITY=1` | `partners-read-parity.spec.js` (`BE-071`: read-модель не пуста при живых данных) | локальный конфиг; в `ci-front.yml` — **нет** |
-| `XDIARY_CHANGE_PIN=1` | `change-pin.spec.js` (деструктивный: меняет локальный PIN, в `finally` возвращает исходный) | только вручную; до 2026-11-06 исключался **тихо** фильтром `--grep-invert "смена PIN"` в `npm test` — теперь это явный `skip` и виден в квитанции |
+| `XDIARY_CHANGE_PIN=1` | `change-pin.spec.js` (локальный PIN: `window.Pin`, без `/api` и `/privacy`; исходный возвращается в `finally`) | только вручную |
 
 `playwright.local.config.js` выставляет все флаги выше **по умолчанию** (внешняя переменная переопределяет):
 двойник API эти сценарии поддерживает, иначе локальный прогон молча повторял бы пропуски CI.

@@ -37,6 +37,8 @@ GATES = (
     ("check_e2e_mock_fields.py", "двойник API отдаёт поля, которые спеки утверждают"),
     ("check_e2e_mvp_trace.py", "каждая MVP-история связана со спекой"),
     ("check_e2e_traceability.py", "у каждой спеки TE-ссылка или LEGACY"),
+    ("check_e2e_receipt_roundtrip.py", "страж пишет квитанцию, квитанция её читает (цепочка артефакта)"),
+    ("check_e2e_clean_device.py", "спеки первого входа не получают засеянную сессию"),
     ("check_e2e_fixture_contract.py", "импорты спек соответствуют module.exports обвязки"),
     ("check_e2e_no_sleeps.py", "нет фиксированных пауз (waitForTimeout)"),
     ("check_e2e_positional.py", "нет кликов по номеру в динамических списках"),
@@ -62,6 +64,8 @@ ARGS_REQUIRED = {"e2e_receipt.py": "квитанция прогона: нуже�
 
 # JS-проверки: запускаются через node, если он есть (иначе — «не измерено»)
 JS_GATES = (
+    ("9-tests/RnD/front-e2e/login-paths.test.js",
+     "пути входа (кэш сессии / без лишнего reload / повтор при 401) — без браузера"),
     ("9-tests/RnD/front-e2e/e2e-dryrun.js",
      "исполняет тела спек на заглушках (без браузера): нет исключений в коде тестов"),
 )
