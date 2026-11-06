@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Catalog.Domain\Catalog.Domain.csproj" />
+    <ProjectReference Include="..\Catalog.Api\Catalog.Api.csproj" />
     <ProjectReference Include="..\Catalog.Application\Catalog.Application.csproj" />
     <ProjectReference Include="..\Catalog.Storage\Catalog.Storage.csproj" />
     <ProjectReference Include="..\Catalog.InternalContracts\Catalog.InternalContracts.csproj" />
