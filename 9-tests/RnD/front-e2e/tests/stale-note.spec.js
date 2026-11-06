@@ -32,17 +32,27 @@ const ENABLED = process.env.XDIARY_STALENOTE === '1';
 const KINDS = ['partners', 'catalog'];
 
 async function ageCache(page, hours) {
+  // TE-068: метка `syncAt.<kind>` может быть НЕ числом — в прогоне #770 в лог ушло
+  // `syncAt.partners: NaN -> NaN`: тогда `Number(v) - shift` даёт NaN, приложение считает свежесть
+  // неопределённой и бейдж НЕ показывает, а спека ждала бейдж и падала «не по делу».
+  // Теперь: числовое значение сдвигаем, нечисловое — заменяем корректной меткой «48 ч назад»,
+  // и в лог уходит, что именно изменилось.
   return page.evaluate(
     async ({ kinds, h }) => {
       const moved = [];
+      const target = Date.now() - h * 3600000;
       try {
-        const shift = h * 3600000;
         for (const kind of kinds) {
           const key = 'syncAt.' + kind;
           const v = await window.DB.getMeta(key);
-          if (v === null || v === undefined) continue;
-          await window.DB.setMeta(key, Number(v) - shift);
-          moved.push(key + ': ' + Number(v) + ' -> ' + (Number(v) - shift));
+          const num = Number(v);
+          if (v !== null && v !== undefined && Number.isFinite(num)) {
+            await window.DB.setMeta(key, num - h * 3600000);
+            moved.push(key + ': ' + num + ' -> ' + (num - h * 3600000));
+          } else {
+            await window.DB.setMeta(key, target);
+            moved.push(key + ': ' + String(v) + ' -> ' + target + ' (значение не число, поставлена метка 48ч)');
+          }
         }
       } catch (e) {
         return { moved, error: String(e) };
