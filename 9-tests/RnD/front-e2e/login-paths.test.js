@@ -12,7 +12,8 @@
 //   5) PIN не снимает замок → диагноз с экранами (а не пустой timeout);
 //   6) `expectScreen` несёт текст тоста и имя шага;
 //   7) сетевой сбой `POST /verify` → повтор вытягивает засев;
-//   8) сетевые сбои исчерпали попытки → падение с причиной, а не «пусто».
+//   8) сетевые сбои исчерпали попытки → падение с причиной, а не «пусто»;
+//   9) кэш принят API, но журнал не открылся → полный онбординг (иначе массовое «вход не завершился»).
 //
 // Код возврата: 0 — все пути как ожидалось; 1 — расхождение.
 
@@ -34,6 +35,7 @@ function makeEnv(opts = {}) {
     openOnGoto: !!opts.openOnGoto,
     lockVisible: !!opts.lockVisible,
     lockStuck: !!opts.lockStuck,
+    blockJournal: false,
     toast: opts.toast || '',
     netFailVerify: opts.netFailVerify || 0,
     verifyCalls: 0,
@@ -103,6 +105,7 @@ function makeEnv(opts = {}) {
         const s2 = String(sel);
         if (s2.includes('view-journal')) {
           if (state.failJournal) throw new Error('locator.waitFor: Timeout 30000ms exceeded');
+          if (state.blockJournal) throw new Error('locator.waitFor: Timeout 5000ms exceeded');
           state.journalVisible = true;
         }
         if (s2.includes('view-lock') && o.state === 'hidden') {
@@ -235,6 +238,17 @@ async function check(name, fn) {
     }
     assert.ok(/seedSession/.test(msg), 'ожидали ошибку засева, получили: ' + msg.slice(0, 120));
     assert.ok(/Failed to fetch|шаг verify|попыт/i.test(msg), 'в причине должна быть сеть, получили: ' + msg.slice(0, 160));
+  });
+
+  await check('кэш принят API, но журнал не открылся: полный онбординг', async () => {
+    const env = makeEnv({ journalVisible: false, openOnGoto: false });
+    const api = freshApi();
+    await api.seedSession(env.page);             // полный засев, кэш заполнен
+    const verifyBefore = env.state.verifyCalls;
+    env.state.blockJournal = true;               // приложение журнал не открывает
+    await api.seedSession(env.page);             // кэш-путь обязан отказаться от кэша
+    assert.ok(env.state.verifyCalls > verifyBefore,
+      'должен был пройти полный онбординг (/verify снова), вызовов: ' + env.state.verifyCalls);
   });
 
   const failed = results.filter(([, ok]) => !ok);
