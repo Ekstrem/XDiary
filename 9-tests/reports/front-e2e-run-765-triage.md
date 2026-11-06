@@ -441,3 +441,39 @@ dispatch-прогон**.
 
 **Чего я НЕ делаю:** не правлю `7-deploy/**` и `6-msa/**` (зоны @DO/@BE) и не запускаю прогоны (§5.1).
 Мой вклад — измерение и точная формулировка проверки для владельца зоны.
+
+## 11. Почему фикс в `EnsureOwns` не снял `when → 404`: **в Journal нет конвертера `IValueObject`**
+
+Раздел 10 оставлял три версии. Чтение кода сузило их до одной и она **проверяема глазами**:
+
+**Факт 1 — в Partners фикс есть, в Journal нет.** `@BE` добавил `IValueObjectJsonConverter` (`b5213f3d`),
+и в `BC-Partners` он используется при записи события (`PartnerEventConsumer.cs:47-50`:
+`jsonOptions.Converters.Add(new IValueObjectJsonConverter()); JsonSerializer.Serialize(..., jsonOptions)`).
+
+**Факт 2 — в Journal то же место осталось без конвертера.** `BC-Journal/src/Journal.Api/Events/JournalEventConsumer.cs:64`:
+
+```csharp
+ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects),
+```
+
+без `JsonSerializerOptions` и **без** конвертера. И самого файла `IValueObjectJsonConverter` в `BC-Journal`
+**нет** (проверено поиском по 100+ `.cs`: в `BC-Partners` — есть, в `BC-Journal` — ноль вхождений).
+
+**Факт 3 — чтение идёт именно через эти данные.** `Journal.Storage/JournalCommandRepository.cs:15`:
+`var list = await _repo.GetById(id, ct); return list.LastOrDefault();` — реконструкция агрегата из
+`Commands.DomainEvents`, где `ChangedValueObjectsJson` и лежит. Без `$type`-дискриминатора библиотека не знает,
+какой конкретно `IValueObject` восстанавливать, поэтому список пуст → `LastOrDefault()` = `null` →
+`EnsureOwns` fallback возвращает `NotFound` → **`404` на `/when` остаётся**.
+
+**Почему это объясняет ровно наблюдаемое:** в `smoke-front` #1638 и #1639 (оба — уже на образе
+`journal single-eae6258`, где fallback есть) падает только журнальный путь `when → 404`, а
+`add-partner` (путь Partners, конвертер есть) проходит за 5.5-6.0 с. Один и тот же класс дефекта,
+закрытый в одном сервисе и не закрытый в другом.
+
+**Что нужно (зона @BE):** портировать `IValueObjectJsonConverter` в `BC-Journal` и применить его в
+`JournalEventConsumer.Handle` при записи `ChangedValueObjectsJson` (симметрично `BC-Partners`). После этого
+`GetById` в Journal сможет реконструировать value-объекты, fallback найдёт запись, и `when` перестанет отдавать
+`404`.
+
+**Чего это объяснение не покрывает:** записи, созданные **до** правки, уже лежат без `$type` — им нужен
+бэкфилл, либо они останутся нереконструируемыми (это отдельный вопрос к @BE/@AR, как и `be-071`).
