@@ -7,13 +7,13 @@
 journal              single-2ba8f0c  6-msa/BC-Journal
 partners             single-774a939  6-msa/BC-Partners
 catalog              single-4496baf  6-msa/BC-Catalog
-somatic-series       single-acf1539  6-msa/BC-SomaticSeries
-daily-metrics        single-a8e3227  6-msa/BC-DailyMetrics
+somatic-series       single-af3de72  6-msa/BC-SomaticSeries
+daily-metrics        single-af3de72  6-msa/BC-DailyMetrics
 garmin-gateway       single-6647cdc  6-msa/BC-GarminGateway
 apple-health-gateway single-6647cdc  6-msa/BC-AppleHealthGateway
 analytics            single-a8e3227  6-msa/BC-Analytics
 privacy              single-6647cdc  6-msa/BC-Privacy
-portability          single-f4b2b19  6-msa/BC-Portability
+portability          single-af3de72  6-msa/BC-Portability
 client               single-0dd2b57  6-msa/BC-Client
 api-gateway          single-5075ab5  6-msa/ApiGateway
 front                single-6175f18  8-front
