@@ -168,7 +168,7 @@ operations:
     path: "/api/v1/clients"
     operationId: Client.Register
     auth: anonymous
-    codes: {200: "ok", 400: "validation (телефон/OTP)"}
+    codes: {200: "ok — тело: id, version, phone, otpExpiresAt, verified, delivery", 400: "validation — тело: СТРОКА сообщения (без структуры, без clientId)"}
     codes_status: verified
     verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
