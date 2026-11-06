@@ -43,6 +43,7 @@ def _orphan_gates():
 
 GATES = (
     ("check_e2e_coverage.py", "экраны фронта покрыты спеками, маркер не врёт"),
+    ("check_e2e_or_first.py", "`.or(...).first()` на экранах выбирает по DOM, а не по видимости"),
     ("check_e2e_conditional_fields.py", "поля, скрытые по условию, заполняют только когда видны"),
     ("check_e2e_selectors.py", "id/классы/тексты спек существуют во фронте"),
     ("check_e2e_interactions.py", "у click/fill есть адресат: обработчик и поле ввода"),

@@ -26,7 +26,7 @@
 // MVP-истории: US-11
 //   US-11 вход по PIN (устройство с PIN, локального нет)
 const { test, expect } = require('@playwright/test');
-const { readToken, API_BASE, PIN, loginWithPin, reportStep, expectScreen, dumpViews } = require('./api');
+const { readToken, API_BASE, PIN, loginWithPin, reportStep, expectScreen, dumpViews, waitAnyScreen } = require('./api');
 
 async function dropLocalPin(page) {
   await page.evaluate(async () => {
@@ -74,7 +74,9 @@ test('E2E: чистый профиль без локального PIN   жур�
   // В журнал или онбординг — оба допустимы; важно, что не «через замок».
   const onb = page.locator('#view-onboarding');
   const jr = page.locator('#view-journal');
-  await expect(onb.or(jr).first()).toBeVisible({ timeout: 20000 });
+  // TE-072: `.or().first()` упорядочивает по DOM, а не по видимости (см. api.js:waitAnyScreen).
+  const shown = await waitAnyScreen(page, ['view-onboarding', 'view-journal'], 20000);
+  await reportStep(page, 'без локального PIN показан экран: ' + shown);
   console.log('::notice::без локального PIN: ' + ((await onb.isVisible()) ? 'онбординг' : 'журнал') + ', замка нет');
 });
 
