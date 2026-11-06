@@ -36,7 +36,8 @@ public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAn
             jsonOptions.Converters.Add(new IValueObjectJsonConverter());
             _db.Outbox.Add(new OutboxMessage
             {
-                Id = result.Event.Id,
+                // @TL 00:17 — Id строки outbox обязан быть уникальным на событие: result.Event.Id — это
+                // id АГРЕГАТА (IHasKey), он один на все события агрегата → PK-конфликт на второй команде (500).
                 EventType = "Partners",
                 // $type-дискриминатор для реконструкции IValueObject (BE-059).
                 Payload = JsonSerializer.Serialize(result.Event.ChangedValueObjects, jsonOptions),
