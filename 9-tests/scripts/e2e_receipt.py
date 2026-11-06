@@ -28,7 +28,12 @@ MARK = {"\u2713": "passed", "\u2717": "failed", "\u2718": "failed", "\u00d7": "f
         "-": "skipped", "\u203a": "skipped", "\u00bb": "skipped"}
 # строка list-репортёра: маркер, номер, [проект] › путь:строка › название (время)
 # проект может отсутствовать, а у ретраев в названии есть «(retry #N)»
-LINE = re.compile(r"^\s*([\u2713\u2717\u2718\u00d7\-\u203a\u00bb])\s+\d+\s+(?:\[[^\]]+\]\s*\u203a\s*)?"
+LINE = re.compile(r"^\s*([\u2713\u2717\u2718\u00d7\-\u203a\u00bb])\s+\d+\s+"
+                  # TE-088: `executed-guard.js` пишет `✓  1 › path:line › title` — БЕЗ `[project]`,
+                  # но с `›` перед путём. Прежний шаблон ждал `[project] ›` и такие строки не разбирал,
+                  # из-за чего квитанция из артефакта (#775) и текущий формат стража давали `rc=2`
+                  # «вывод не разобран»: квитанцию писал страж, а прочитать её было нечем.
+                  r"(?:\[[^\]]+\]\s*\u203a\s*|\u203a\s*)?"
                   # путь в реальном выводе приходит БЕЗ префикса `tests/`
                   # (`onboarding.spec.js:9:1`), поэтому префикс необязателен.
                   r"((?:tests/)?[\w./\-\[\]() ]+?\.spec\.js)")
@@ -272,6 +277,21 @@ def selftest():
         "-  2 [chromium] \u203a no-pin.spec.js:14:1 \u203a legacy",
     )
     # «Всё пропущено» — НЕ зелёный прогон: набор ничего не проверил, значит «не измерено».
+    # TE-088: третий формат — то, что пишет `executed-guard.js` (`маркер  индекс › путь:строка › название`),
+    # БЕЗ `[project]`. Раньше он не разбирался, и квитанция из артефакта давала rc=2 «не измерено».
+    guard_ok = (
+        "\u2713  1 \u203a /repo/9-tests/RnD/front-e2e/tests/a.spec.js:10 \u203a E2E: a",
+        "\u2713  2 \u203a /repo/9-tests/RnD/front-e2e/tests/b.spec.js:42 \u203a E2E: b",
+        "-  3 \u203a /repo/9-tests/RnD/front-e2e/tests/c.spec.js:7 \u203a E2E: c",
+    )
+    case("guard: без [project], путь абсолютный", "\n".join(guard_ok), 0,
+         ["passed 2", "failed 0", "skipped 1", "спек 3"])
+
+    guard_fail = "\n".join(list(guard_ok) + [
+        "\u2717  4 \u203a /repo/9-tests/RnD/front-e2e/tests/d.spec.js:3 \u203a E2E: d",
+    ])
+    case("guard: одна упавшая видна", guard_fail, 1, ["failed 1", "d.spec.js"])
+
     case("real list: all skipped", "\n".join(real_skips), 2, ["skipped 2", "passed 0"])
 
     list_bad = list_ok + "  \u2718  4 tests/c.spec.js:7:1 › упал (5s)\n"

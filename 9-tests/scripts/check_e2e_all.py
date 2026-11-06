@@ -93,6 +93,8 @@ JS_GATES = (
      "waitAnyScreen: возвращает показанный экран, таймаут, диагностику при провале — без браузера"),
     ("9-tests/RnD/front-e2e/e2e-dryrun.js",
      "исполняет тела спек на заглушках (без браузера): нет исключений в коде тестов"),
+    ("9-tests/RnD/front-e2e/e2e-dryrun.js --all-flags",
+     "все флаги включены: исполняются ВСЕ тела спек (28 из 28), без исключений"),
 )
 
 
@@ -150,18 +152,22 @@ def main(argv=None):
     results = []
     node = shutil.which("node")
     for rel, about in JS_GATES:
-        path = ROOT / rel
+        # TE-086: в записи может быть аргумент (`e2e-dryrun.js --all-flags`) — режем как команду,
+        # иначе путь с пробелом ищется как файл и гейт честно, но бесполезно краснеет.
+        parts = rel.split()
+        path = ROOT / parts[0]
+        args = parts[1:]
         if not path.exists():
-            results.append((pathlib.Path(rel).name, 2, 2, "файла нет — не измерено"))
+            results.append((pathlib.Path(parts[0]).name + (' ' + ' '.join(args) if args else ''), 2, 2, "файла нет — не измерено"))
             continue
         if not node:
-            results.append((pathlib.Path(rel).name, 2, 2, "нет node — не измерено"))
+            results.append((pathlib.Path(parts[0]).name + (' ' + ' '.join(args) if args else ''), 2, 2, "нет node — не измерено"))
             continue
-        run = subprocess.run([node, str(path)], cwd=str(path.parent),
+        run = subprocess.run([node, str(path), *args], cwd=str(path.parent),
                              capture_output=True, text=True, encoding="utf-8", errors="replace")
         last = (run.stdout or "").strip().splitlines()
-        results.append((pathlib.Path(rel).name, 0 if run.returncode in (0, 1) else 2,
-                        run.returncode, last[-1] if last else about))
+        label = pathlib.Path(parts[0]).name + (' ' + ' '.join(args) if args else '')
+        results.append((label, 0 if run.returncode in (0, 1) else 2, run.returncode, last[-1] if last else about))
     for name, _about in GATES:
         path = ROOT / "9-tests" / "scripts" / name
         if not path.exists():

@@ -35,6 +35,12 @@ except Exception:  # noqa: BLE001
 # в скачанном логе джобы аннотаций в исходном виде НЕТ, и триаж по реальному логу
 # сначала возвращал rc=2 «нет аннотаций». Поддерживаем оба формата.
 ANNOTATION = re.compile(r"(?:::error::|##\[error\])(\{.*?\})\s*$")
+# TE-087: `404` на свежей записи и `400 «Partner not found.»` — это НЕ «клиента удалили», а
+# read-after-write: командный путь читает read-модель, которая наполняется проекцией с лагом
+# (`BE-088`, `JournalCommandRepository`/`PartnerCommandRepository`). Класс стоит ВЫШЕ `session-lost`,
+# иначе триаж указывал не тому владельцу и предлагал не то лечение.
+DATA_LAG = re.compile(r"(when.{0,20}404|step\"?\s*:\s*\"?when|partner not found|"
+                      r"link-client.{0,30}400|partners/\{[^}]*\}/(remove|name|profile).{0,30}400)", re.I)
 CLASSES = (
     ("test-timeout", re.compile(r"test timeout of \d+\s*ms exceeded", re.I)),
     ("session-lost", re.compile(r"http (401|404).*(clients/me|journal)|(clients/me|journal).*(401|404)", re.I)),
@@ -47,8 +53,10 @@ ADVICE = {
     "test-timeout": "лимит теста израсходован: смотри длительности шагов; сокращать время входа/навигации, "
                     "а не увеличивать ожидания",
     "wait-timeout": "элемент не появился: проверь вход (фазы в логе), экран и стенд; это не «продукт ответил не то»",
-    "session-lost": "сессию убили на стенде (401/404): очистка стенда или параллельный прогон; "
-                    "фикстура делает один повтор с новым телефоном",
+    "data-lag": "read-after-write: запись создана секунду назад, read-модель её ещё не видит → 404/400 "
+                "(BE-088). Владелец @BE; проверка: создать и сразу `when`/`remove` → 2xx. Это НЕ гонка прогонов",
+    "session-lost": "сессию убили на стенде (401/404 на /clients/me|/journal): очистка стенда или "
+                    "параллельный прогон; фикстура делает один повтор с новым телефоном",
     "stand": "дефект стенда: поднимать/перегрев образа, не править тесты",
     "assert": "ожидание не совпало: дефект продукта ИЛИ неверное ожидание в спеке — смотреть данные",
     "other": "не классифицировано: смотреть полный текст аннотации",
@@ -91,6 +99,8 @@ def classify_item(title, status, blobby):
         return "test-timeout"
     if re.search(r"(http|status)[^0-9]{0,6}(5\d\d)", blobby or "", re.I):
         return "stand"
+    if DATA_LAG.search(blobby or ""):
+        return "data-lag"
     if re.search(r"http (401|404).*(clients/me|journal)|(clients/me|journal).*(401|404)", blobby or "", re.I):
         return "session-lost"
     if re.search(r"expect|tobe|tohave|expected|received", blobby or "", re.I):
@@ -128,7 +138,7 @@ def report(items):
         by_class[klass].append((spec or title, err.splitlines()[0][:160] if err else "", slow))
     lines = ["| класс | сколько | примеры (спека) | самый долгий шаг | лечение |",
              "|---|---|---|---|---|"]
-    for klass, _ in (("test-timeout", None), ("wait-timeout", None), ("session-lost", None),
+    for klass, _ in (("test-timeout", None), ("wait-timeout", None), ("data-lag", None), ("session-lost", None),
                      ("stand", None), ("assert", None), ("other", None), ("browser-noise", None)):
         rows = by_class.get(klass) or []
         if not rows:
@@ -207,17 +217,20 @@ def selftest():
             "login по PIN (5.0s)", "http 401 /api/v1/clients/me"),
         ann("catalog.spec.js › E2E: каталог", "failed",
             "проверка позиции (2.0s)", "expect(received).toBe(expected) Expected: 'x' Received: 'y'"),
+        ann("wizard-record.spec.js > E2E: визард", "failed",
+            "setup: запись через API (3.0s) [FAIL]",
+            'фикстура: {"ok":false,"step":"when","status":404,"recordId":"x"}'),
     ])
 
     items = parse(LOG)
     total += 1
-    if len(items) == 4:
+    if len(items) == 5:
         ok += 1
     else:
-        print(f"  [FAIL] разбор: найдено {len(items)} из 4 аннотаций")
+        print(f"  [FAIL] разбор: найдено {len(items)} из 5 аннотаций")
 
     got = collections.Counter(k for *_rest, k, _e in [(i[0], i[1], i[2], i[3], i[4]) for i in items])
-    expect = {"test-timeout": 1, "wait-timeout": 1, "session-lost": 1, "assert": 1}
+    expect = {"test-timeout": 1, "wait-timeout": 1, "data-lag": 1, "session-lost": 1, "assert": 1}
     total += 1
     if dict(got) == expect:
         ok += 1
@@ -226,7 +239,8 @@ def selftest():
 
     total += 1
     table, by_class = report(items)
-    if "| `test-timeout` | 1 |" in table and "| `session-lost` | 1 |" in table and "лечение" in table:
+    if ("| `test-timeout` | 1 |" in table and "| `data-lag` | 1 |" in table
+            and "| `session-lost` | 1 |" in table and "лечение" in table):
         ok += 1
     else:
         print(f"  [FAIL] таблица: {table[:200]}")
@@ -255,7 +269,7 @@ def selftest():
         shutil.rmtree(tmp, ignore_errors=True)
 
     print(f"e2e_triage --selftest: {ok}/{total} "
-          f"(классы: test-timeout/wait-timeout/session-lost/stand/assert/other)")
+          f"(классы: test-timeout/wait-timeout/data-lag/session-lost/stand/assert/other)")
     return 0 if ok == total else 1
 
 
