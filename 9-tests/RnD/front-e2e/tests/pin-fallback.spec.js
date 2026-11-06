@@ -11,13 +11,12 @@
 // Поэтому исход «без локального PIN показываем PIN-экран» стал бы **дефектом**, а не нормой:
 // он означал бы, что клиент требуёт подтверждение, которого у него нет.
 //
-// ЧТО ПРОВЕРЯЕМ СЕЙЧАС (два утверждения, оба про инвариант, а не про старый UX):
-//   1. НЕТ локального PIN (при PIN на стенде) → замка НЕТ, приложение не пускает в журнал
-//      «через замок»: либо онбординг, либо журнал — но `#view-lock` обязан быть скрыт;
-//   2. ПОСЛЕ установки локального PIN (`window.Pin.setPin`) reload → замок ЕСТЬ, неверный PIN
-//      даёт `#pin-error`, верный — открывает журнал.
-// Второе — это и есть «fallback»-путь в текущей модели, и оно же негативный контроль:
-// если замок перестанет появляться при локальном PIN, тест **упадёт** (а не пропустится).
+// ЧТО ПРОВЕРЯЕМ СЕЙЧАС (два СЦЕНАРИЯ, два отдельных теста — предложение @AR 2026-11-16 02:12):
+//   (а) «чистый профиль»: локального PIN нет → замка НЕТ, приложение не пускает в журнал через
+//       замок: либо онбординг, либо журнал, но `#view-lock` обязан быть скрыт;
+//   (б) «PIN на устройстве»: `window.Pin.setPin` → reload → замок ЕСТЬ, неверный PIN даёт
+//       `#pin-error`, верный открывает журнал (это же негативный контроль: если замок перестанет
+//       появляться при локальном PIN, тест упадёт, а не пропустится).
 //
 // Применимость НЕ зависит от состояния стенда: после этапа 3 PIN живёт на устройстве, поэтому
 // «стенд имеет PIN» не является фактом. Состояние создаёт спека (`window.Pin.setPin` /
@@ -54,14 +53,12 @@ async function setLocalPin(page, pin) {
   await page.evaluate((v) => window.Pin.setPin(v), pin);
 }
 
-test('E2E: без локального PIN замка нет; с локальным PIN замок появляется и проверяется', async ({ page }) => {
-  // ADR-021 / @AR 2026-11-16: PIN — свойство УСТРОЙСТВА, поэтому «стенд имеет PIN» не существует
-  // как факт: состояние создаёт сама спека (`window.Pin.setPin` ниже) или чистый профиль.
-  // Внешний маркер и проба `/privacy/token` не нужны — это кодировало бы legacy в тестовом маркере.
+test('E2E: чистый профиль без локального PIN   журнал открыт, замка нет (ADR-021)', async ({ page }) => {
+  // Сценарий (а) из решения @AR 2026-11-16 02:12: PIN   свойство устройства, поэтому «стенд имеет PIN»
+  // не факт; состояние создаёт сама спека (dropLocalPin). Проба /privacy/token не нужна.
   await loginWithPin(page);
   await reportStep(page, 'шаг 1: сессия получена штатно');
   await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
-
   // --- утверждение 1: без локального PIN замка НЕТ (ADR-021: PIN локален) ---
   await dropLocalPin(page);
   await reportStep(page, 'шаг 2: локальный PIN удалён, токен и clientId сохранены');
@@ -76,15 +73,18 @@ test('E2E: без локального PIN замка нет; с локальн�
   const jr = page.locator('#view-journal');
   await expect(onb.or(jr).first()).toBeVisible({ timeout: 20000 });
   console.log('::notice::без локального PIN: ' + ((await onb.isVisible()) ? 'онбординг' : 'журнал') + ', замка нет');
+});
 
-  // --- утверждение 2 (негативный контроль): с локальным PIN замок появляется и работает ---
+test('E2E: локальный PIN есть   замок, неверный PIN даёт ошибку, верный открывает журнал', async ({ page }) => {
+  // Сценарий (б): вход штатный, затем PIN ставится на устройстве   reload   замок   проверка PIN.
+  await loginWithPin(page);
+  await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
   await setLocalPin(page, PIN);
   await reportStep(page, 'шаг 3: локальный PIN установлен → reload → ожидаем замок');
   await page.reload();
   await dumpViews(page, 'TE-053: reload С локальным PIN');
   await expectScreen(page, '#view-lock', 'с локальным PIN → экран PIN', 20000);
   await expect(page.locator('#pin-input')).toBeVisible({ timeout: 20000 });
-
   await reportStep(page, 'шаг 4: неверный PIN → остаёмся на экране, видна ошибка');
   await page.fill('#pin-input', '0000');
   // В разметке 0.90 отдельной кнопки «разблокировать» нет: Enter в поле повешен на keydown
@@ -93,14 +93,12 @@ test('E2E: без локального PIN замка нет; с локальн�
   await expect(page.locator('#view-lock')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('#view-journal')).toBeHidden();
   await expect(page.locator('#pin-error')).toBeVisible({ timeout: 20000 });
-
   await reportStep(page, 'шаг 5: верный PIN → журнал');
   await page.fill('#pin-input', PIN);
   // Явная кнопка «Войти» (`#pin-submit`) не проверялась: раньше вход шёл только по Enter.
   await page.click('#pin-submit');
   await expectScreen(page, '#view-journal', 'верный PIN → журнал', 20000);
   await expect(page.locator('#view-lock')).toBeHidden();
-
   // Поведенческое утверждение: после разблокировки сессия ЖИВА, а не просто «экран сменился».
   const token = await readToken(page);
   expect(token, 'client-JWT после разблокировки имеет вид header.payload.signature')
@@ -112,7 +110,6 @@ test('E2E: без локального PIN замка нет; с локальн�
   }, API_BASE);
   expect(me.status, 'GET /clients/me после разблокировки вернул ' + me.status).toBe(200);
   expect(me.body && me.body.id, '/clients/me вернул id клиента').toBeTruthy();
-
   await test.step('«Забыли PIN?» уводит в онбординг (FE-032, локальный PIN сбрасывается)', async () => {
     // `#btn-pin-forgot` не проверялся: по коду (`app.js:2465`) он сбрасывает ЛОКАЛЬНЫЙ PIN
     // и открывает онбординг. Это последний шаг спеки: состояние «PIN снят» ожидаемо,
