@@ -31,6 +31,8 @@ except Exception:  # noqa: BLE001
 
 # Поля, которые обязаны пережить `AddPartner`. Проверяем только те, что легко заполнить в одном запросе.
 WATCH_FIELDS = ("place", "tags")
+# Второе условие @TL (`21:43`): если `Deleted` не проецируется, удалённая запись остаётся в выдаче —
+# это уже приватность, а не косметика. Проверяем: после `delete` чтение по id не должно отдавать запись.
 
 
 def http(url, method="GET", token=None, payload=None, timeout=25):
@@ -95,6 +97,63 @@ def evaluate(before, after):
     return issues, stats
 
 
+def evaluate_deleted(get_status, body, in_list=None, rec_id=None):
+    """После `delete` чтение по id не должно отдавать запись. → (issues, stats)."""
+    issues = []
+    visible = False
+    if isinstance(get_status, int) and 200 <= get_status < 300:
+        visible = True
+    if in_list is True:
+        visible = True
+    if visible:
+        issues.append(f"после `delete` запись {rec_id or ''} всё ещё отдаётся "
+                      f"(GET → {get_status}, в списке: {in_list}) — `Deleted` не проецируется, "
+                      f"удалённое остаётся в выдаче (приватность, тот же класс, что BE-093)")
+    stats = {"deleted_get": get_status, "in_list": in_list}
+    return issues, stats
+
+
+def deleted_receipt(stats, issues):
+    return (f"квитанция удаления: GET после delete → {stats['deleted_get']} | в списке: {stats['in_list']} | "
+            f"нарушено: {len(issues)}")
+
+
+def stand_flow_deleted(base, token, partner_id):
+    """Создать запись → delete → прочитать. → (get_status, in_list, error)."""
+    b = base.rstrip("/")
+    st, body, err = http(b + "/api/v1/journal/records", "POST", token, {"when": "2026-11-01T12:00:00Z"})
+    if err:
+        return None, None, err
+    if st not in (200, 201):
+        return None, None, f"создание записи: status {st}"
+    rec_id = None
+    try:
+        doc = json.loads(body)
+        rec_id = doc.get("id") or (doc.get("record") or {}).get("id")
+    except (ValueError, TypeError):
+        pass
+    if not rec_id:
+        return None, None, "создание записи: в ответе нет id"
+    st2, _, err = http(f"{b}/api/v1/journal/records/{rec_id}/delete", "POST", token, {})
+    if err:
+        return None, None, err
+    if st2 not in (200, 204):
+        return None, None, f"delete: status {st2}"
+    st3, _, err = http(f"{b}/api/v1/journal/records/{rec_id}", "GET", token)
+    if err:
+        return None, None, err
+    in_list = None
+    st4, list_body, err4 = http(f"{b}/api/v1/journal/records", "GET", token)
+    if not err4 and st4 == 200:
+        try:
+            doc = json.loads(list_body)
+            items = doc.get("items") or doc.get("records") or (doc.get("data") or {}).get("items") or []
+            in_list = any((i or {}).get("id") == rec_id for i in items if isinstance(i, dict))
+        except (ValueError, TypeError):
+            in_list = None
+    return st3, in_list, None
+
+
 def receipt_line(stats, issues):
     checked = ", ".join(stats["checked"]) or "—"
     return (f"квитанция: проверено полей {len(stats['checked'])} ({checked}) | сохранились {stats['same']} | "
@@ -152,10 +211,35 @@ def main(argv=None):
     ap.add_argument("--tags", default="tag-a,tag-b")
     ap.add_argument("--before-json", help="офлайн: JSON чтения до")
     ap.add_argument("--after-json", help="офлайн: JSON чтения после")
+    ap.add_argument("--check-deleted", action="store_true",
+                    help="дополнительно проверить, что после delete запись не отдаётся (условие @TL 21:43)")
+    ap.add_argument("--deleted-get-status", type=int, help="офлайн: подставить статус GET после delete")
+    ap.add_argument("--deleted-in-list", choices=("true", "false"), help="офлайн: есть ли запись в списке")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
+
+    if a.check_deleted:
+        if a.deleted_get_status is not None:
+            in_list = {"true": True, "false": False, None: None}[
+                a.deleted_in_list if a.deleted_in_list in ("true", "false") else None]
+            issues, stats = evaluate_deleted(a.deleted_get_status, "", in_list)
+        else:
+            token = a.token or os.environ.get("XDIARY_TOKEN")
+            if not a.base or not token:
+                print("::error::check_be093_stale_fields: для --check-deleted нужны --base и --token — "
+                      "не измерено (rc=2)")
+                return 2
+            st, in_list, err = stand_flow_deleted(a.base, token, a.partner_id)
+            if err:
+                print(f"::error::check_be093_stale_fields: {err} — не измерено (rc=2)")
+                return 2
+            issues, stats = evaluate_deleted(st, "", in_list)
+        for m in issues:
+            print(f"::error::check_be093_stale_fields: {m}")
+        print(deleted_receipt(stats, issues))
+        return 1 if issues else 0
 
     if a.before_json is not None and a.after_json is not None:
         try:
@@ -217,6 +301,22 @@ def selftest():
 
     case("регистр/порядок тегов не даёт ложного красного",
          {"place": "Дом", "tags": ["B", "a"]}, {"place": " дом ", "tags": ["a", "b"]}, 0, ["затерто 0"])
+
+    def case_del(name, status, in_list, want_rc, must=()):
+        nonlocal ok, total
+        total += 1
+        issues, stats = evaluate_deleted(status, "", in_list)
+        text = "\n".join(issues) + "\n" + deleted_receipt(stats, issues)
+        rc = 1 if issues else 0
+        miss = [m for m in must if m not in text]
+        if rc == want_rc and not miss:
+            ok += 1
+        else:
+            print(f"  [FAIL] {name}: rc={rc} (ждали {want_rc}), нет {miss}; text={text[:190]}")
+
+    case_del("удаление спроецировано: GET 404", 404, False, 0, ["GET после delete → 404", "нарушено: 0"])
+    case_del("удаление не спроецировано: GET 200", 200, None, 1, ["приватность", "не проецируется"])
+    case_del("GET 404, но запись осталась в списке", 404, True, 1, ["в списке: True"])
 
     total += 1
     line = receipt_line({"checked": ["place"], "same": 1, "wiped": 0}, [])
