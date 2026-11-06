@@ -37,6 +37,7 @@ GATES = (
     ("check_e2e_mock_fields.py", "двойник API отдаёт поля, которые спеки утверждают"),
     ("check_e2e_mvp_trace.py", "каждая MVP-история связана со спекой"),
     ("check_e2e_traceability.py", "у каждой спеки TE-ссылка или LEGACY"),
+    ("check_e2e_cleanup_coverage.py", "данные набора попадают под шаблоны очистки стенда"),
     ("check_e2e_receipt_roundtrip.py", "страж пишет квитанцию, квитанция её читает (цепочка артефакта)"),
     ("check_e2e_clean_device.py", "спеки первого входа не получают засеянную сессию"),
     ("check_e2e_fixture_contract.py", "импорты спек соответствуют module.exports обвязки"),
