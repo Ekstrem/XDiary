@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.100"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.101"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -356,16 +356,27 @@
     // FE-035: версия сборки в тексте — скриншот владельца сразу говорит, какая сборка
     return (fallback ? fallback + ": " : "") + (parts.length ? parts.join(" · ") : "неизвестная ошибка") + " [v" + APP_VERSION + "]";
   }
+  // deliveryHint: превращает {channel, ok} в честный текст. Контракт на 2026-11-06
+  // дважды менялся (409 vs идемпотентный 200), поэтому читаем delivery В ОБОИХ ответах —
+  // тогда UI не зависит от того, какой вариант победит.
+  function deliveryHint(dl) {
+    if (!dl || typeof dl !== "object") return "";
+    var ch = dl.channel;
+    if (ch === "none") return " Канал доставки не настроен — код может не прийти.";
+    if (!ch) return "";
+    if (dl.ok === false) return " Канал «" + ch + "» сейчас недоступен — код может не прийти.";
+    return " Код отправлен в «" + ch + "».";
+  }
   // Запрос @TL 2026-11-06 21:18: сервер отвечает 200 даже когда код не дошёл
   // (Telegram с прода недостижим), поэтому «код отправлен» — утверждение, которого мы не знаем.
   var otpHintTimer = null;
-  function showOtpStep(phone) {
+  function showOtpStep(phone, delivery) {
     $("onb-phone").classList.add("hidden");
     $("onb-otp").classList.remove("hidden");
     $("onb-otp-phone").textContent = phone;
     $("onb-otp-input").value = "";
     // нейтральная формулировка: просим код, но доставку не подтверждаем
-    showOnbError("onb-otp-error", "Мы запросили код для этого номера. Введите его ниже. Если в течение минуты он не пришёл — проверьте Telegram и нажмите «Запросить код заново».");
+    showOnbError("onb-otp-error", "Мы запросили код для этого номера." + deliveryHint(delivery) + " Введите его ниже; если в течение минуты он не пришёл — проверьте Telegram и нажмите «Запросить код заново».");
     if (otpHintTimer) { clearTimeout(otpHintTimer); }
     otpHintTimer = setTimeout(function () {
       otpHintTimer = null;
@@ -383,7 +394,7 @@
       onbClientId = (res && (res.id || res.aggregateId || res.clientId)) || "";
       if (!onbClientId) { showOnbError("onb-phone-error", "Сервер не вернул id клиента — попробуйте ещё раз."); return; }
       try { localStorage.setItem("xdiary.clientId", onbClientId); } catch (e) {}
-      showOtpStep(phone);
+      showOtpStep(phone, res && res.delivery);
     }, function (e) {
       var text = apiErrorText(e, "Не удалось получить код");
       console.error("register error:", e);
@@ -405,17 +416,7 @@
           showOtpStep(phone);
           // 409 по контракту несёт `delivery` — если поле есть и канал известен, говорим честно,
           // какой канал; если поля нет (старая сборка сервера) — нейтральная формулировка.
-          var dl = (e && e.data && e.data.delivery) || {};
-          var ch = dl.channel;
-          var hint = "";
-          if (ch && ch !== "none") {
-            hint = dl.ok === false
-              ? " Канал «" + ch + "» сейчас недоступен — код может не прийти."
-              : " Код отправлен в «" + ch + "».";
-          } else if (ch === "none") {
-            hint = " Канал доставки не настроен — код может не прийти.";
-          }
-          showOnbError("onb-otp-error", "Номер уже зарегистрирован." + hint + " Введите код; если не пришёл — нажмите «Запросить код заново».");
+          showOnbError("onb-otp-error", "Номер уже зарегистрирован." + deliveryHint(e && e.data && e.data.delivery) + " Введите код; если не пришёл — нажмите «Запросить код заново».");
           return;
         }
       }
