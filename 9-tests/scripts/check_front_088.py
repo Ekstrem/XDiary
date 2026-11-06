@@ -93,8 +93,52 @@ def selftest_ref() -> int:
             ok += 1
         else:
             print(f"  [FAIL] ref: {name} -> {got}, ждали {want}")
-    print(f"check_front_088 --selftest-ref: {ok}/{len(cases)} (свежесть важнее имени)")
+    # TE-081: разбор аргументов — `--ref <sha>` не должен попадать в «ожидаемую версию».
+    parse_cases = [
+        (["--ref", "f5579be3"], "", "значение --ref не версия"),
+        (["f5579be3", "0.88"], "0.88", "второй позиционный — версия"),
+        (["--ref", "f5579be3", "--expect-version", "0.88"], "0.88", "--expect-version"),
+        ([], "", "ничего не задано"),
+    ]
+    parse_ok = 0
+    for args, want, name in parse_cases:
+        got = _parse_version(args)
+        if got == want:
+            parse_ok += 1
+        else:
+            print(f"  [FAIL] parse: {name} -> {got!r}, ждали {want!r}")
+    print(f"check_front_088 --selftest-ref: {ok}/{len(cases)} (свежесть важнее имени) | "
+          f"разбор аргументов: {parse_ok}/{len(parse_cases)}")
+    if parse_ok != len(parse_cases):
+        return 1
     return 0 if ok == len(cases) else 1
+
+
+def _parse_version(args):
+    """Ожидаемая версия из аргументов: `--expect-version <v>` или второй позиционный.
+
+    Выделено отдельной функцией, чтобы дефект разбора ловился `--selftest`, а не на живом вызове
+    (реальный ложный красный: `--ref f5579be3` давал «APP_VERSION = 0.88, ожидалось f5579be3»).
+    """
+    positional, expect_flag = [], ""
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--expect-version" and i + 1 < len(args):
+            expect_flag = args[i + 1]
+            i += 2
+            continue
+        if a.startswith("--expect-version="):
+            expect_flag = a.split("=", 1)[1]
+        elif a == "--ref" and i + 1 < len(args):
+            i += 2
+            continue
+        elif a.startswith("--ref="):
+            pass
+        elif not a.startswith("--"):
+            positional.append(a)
+        i += 1
+    return (expect_flag or (positional[1] if len(positional) > 1 else "")).strip()
 
 
 def main() -> int:
@@ -105,9 +149,10 @@ def main() -> int:
 
     # @DO `chat/do.md` `[2026-11-05 17:50]`: `--ref`/`--pre` не парсились — обёртка передавала
     # `--ref HEAD`, а инструмент читал это как имя ревизии.
-    known = ("--ref", "--pre", "--post")
+    known = ("--ref", "--pre", "--post", "--expect-version")
     positional = []
     ref_flag = ""
+    expect_flag = ""
     i = 0
     while i < len(args):
         a = args[i]
@@ -122,7 +167,16 @@ def main() -> int:
                 continue
             print("::error::check_front_088: --ref без значения — rc=2")
             return 2
-        if a.startswith("--ref="):
+        if a == "--expect-version":
+            if i + 1 < len(args):
+                expect_flag = args[i + 1]
+                i += 2
+                continue
+            print("::error::check_front_088: --expect-version без значения → rc=2")
+            return 2
+        if a.startswith("--expect-version="):
+            expect_flag = a.split("=", 1)[1]
+        elif a.startswith("--ref="):
             ref_flag = a.split("=", 1)[1]
         elif a not in ("--pre", "--post"):
             positional.append(a)
@@ -131,7 +185,12 @@ def main() -> int:
     explicit = (ref_flag or (positional[0] if positional else os.environ.get("REF") or "")).strip()
     ref = explicit or newest_ref()
     print(f"   REF={describe_ref(ref)}" + (" (задан явно)" if explicit else " (выбран как самый свежий)"))
-    expect_ver = (sys.argv[2] if len(sys.argv) > 2 else os.environ.get("EXPECT_VERSION") or "").strip()
+    # TE-081: ожидаемая версия НЕ берётся из `sys.argv[2]`: при вызове `--ref <sha>` там оказывается
+    # сам <sha>, и инструмент сообщал «APP_VERSION = 0.88, ожидалось f5579be3» — ложный красный
+    # (проверено на вызове `--ref f5579be3`: 2 «нарушения», которых нет). Теперь версия — это
+    # `--expect-version <v>` или ПЕРВЫЙ ПОЗИЦИОННЫЙ аргумент после ref (`<ref> <ver>`), как в docstring.
+    expect_ver = (expect_flag or (positional[1] if len(positional) > 1 else "") or
+                  os.environ.get("EXPECT_VERSION") or "").strip()
     worktree = ref.upper() in ("WORKTREE", ".")
     if not worktree and not git("rev-parse", "--verify", f"{ref}^{{commit}}"):
         print(f"REF={ref} | FAIL: ревизия не резолвится")

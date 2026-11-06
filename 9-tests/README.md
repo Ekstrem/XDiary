@@ -333,6 +333,22 @@ PIN **отмечается как введённый** (`xdiary.pin.lastSuccess`
 `*-save`/`*-apply`/`*-delete`/`*-submit`/`*-create`/`*-register`/`*-finish` обязан содержать `timeout:`
 не больше 25 с; навигация (`btn-wizard-next`/`prev`, табы) не считается. `--selftest` **6/6**.
 
+**`check_e2e_eventsourcing_contract.py` — писатель событий обязан уметь их читать.** Реальный дефект
+(`2026-11-06`): в `BC-Partners` есть `IValueObjectJsonConverter` (`PartnerEventConsumer.cs:47-50`),
+а в `BC-Journal` то же место писалось голым `JsonSerializer.Serialize(domainEvent.ChangedValueObjects)`
+(`JournalEventConsumer.cs:64`). Без `$type`-дискриминанта `JournalCommandRepository.GetById`
+(`:15` → `LastOrDefault()`) не восстанавливает `IValueObject`, поэтому `POST /when` отдаёт `404`,
+хотя read-модель (список) работает. Правило: файл с `ChangedValueObjectsJson = Serialize(...)`
+обязан упоминать конвертер; исключения — только через `KNOWN_GAPS` с причиной и **печатаются в
+квитанции отдельным числом**. `--selftest` **4/4**; на `origin` квитанция
+`писателей 2 | без конвертера: 0 | известных исключений: 1` (исключение — журнал, фикс @BE в работе).
+
+**`check_e2e_gate_hygiene.py` — у каждого гейта есть самопроверка.** Гейт без `--selftest` — это
+«зелено, потому что ничего не проверялось»: правило проекта требует прогона на дефекте и на норме.
+Проверка машинная: в каждом `check_e2e_*.py` обязаны быть разбор `--selftest`, функция `selftest()`,
+печать `квитанция` и подключение к `check_e2e_all.py`. `--selftest` **5/5**; на `origin` —
+«гейтов 37 | с самопроверкой 37 | нарушено: 0».
+
 **Агрегатор сам следит за своим списком.** Гейт, который не запускается, не существует (класс
 `DO-099`: часть тестовых гейтов не была подключена). Поэтому `check_e2e_all.py` перед прогоном сверяет
 свой список с файлами в `scripts/`: **осиротевший** `check_e2e_*.py` (есть файл, нет в списке) и
