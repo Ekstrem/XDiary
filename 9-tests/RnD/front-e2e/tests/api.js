@@ -448,6 +448,26 @@ async function seedSession(page) {
 //      продукта: параллельный прогон мог удалить клиента (`Очистить E2E-данные` убирает `+7999…`).
 //      В этом случае засеваем сессию заново с НОВЫМ телефоном и повторяем вход ОДИН раз;
 //   3) фазы входа печатаются в `::notice::login`, чтобы лог сам отвечал «где время».
+// TE-061: быстрый путь входа ставит PIN, но НЕ разблокирует через UI, поэтому приложение не знает,
+// что PIN «реально вводился» (`app.js:464` пишет `xdiary.pin.lastSuccess` только в `unlock()`).
+// Без этой отметки следующий `page.reload()` ВНУТРИ спеки показал бы замок (PIN нового формата, не
+// legacy), и спеки, которые после входа перезагружают страницу (`settings`, `wizard-record`,
+// `edit-delete-record`, `stale-note`, `somatic-detail`), падали бы на ожидании журнала.
+// Отмечаем так же, как это делает приложение: verifyPin → lastSuccess.
+async function markPinVerified(page, pin) {
+  try {
+    return await page.evaluate(async (v) => {
+      const ok = await window.Pin.verifyPin(v);
+      if (ok) {
+        try { localStorage.setItem('xdiary.pin.lastSuccess', '1'); } catch (e) {}
+      }
+      return !!ok;
+    }, pin);
+  } catch (e) {
+    return false;
+  }
+}
+
 async function loginWithPin(page, pin) {
   const t0 = Date.now();
   const p = pin || PIN;
@@ -498,6 +518,8 @@ async function loginWithPin(page, pin) {
     if (openAfterSeed) {
       const tSet = Date.now();
       try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+      // и отметка «PIN вводился», иначе следующий reload внутри спеки покажет замок
+      phases.pinVerified = await markPinVerified(page, p);
       phases.pinMs += Date.now() - tSet;
       phases.fastPath = true;
       console.log('::notice::' + JSON.stringify({

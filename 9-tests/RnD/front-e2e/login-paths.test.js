@@ -13,7 +13,8 @@
 //   6) `expectScreen` несёт текст тоста и имя шага;
 //   7) сетевой сбой `POST /verify` → повтор вытягивает засев;
 //   8) сетевые сбои исчерпали попытки → падение с причиной, а не «пусто»;
-//   9) кэш принят API, но журнал не открылся → полный онбординг (иначе массовое «вход не завершился»).
+//   9) кэш принят API, но журнал не открылся → полный онбординг (иначе массовое «вход не завершился»);
+//  10) после быстрого пути PIN отмечен как введённый — иначе reload внутри спеки показал бы замок.
 //
 // Код возврата: 0 — все пути как ожидалось; 1 — расхождение.
 
@@ -249,6 +250,16 @@ async function check(name, fn) {
     await api.seedSession(env.page);             // кэш-путь обязан отказаться от кэша
     assert.ok(env.state.verifyCalls > verifyBefore,
       'должен был пройти полный онбординг (/verify снова), вызовов: ' + env.state.verifyCalls);
+  });
+
+  await check('после быстрого пути PIN отмечен как введённый (иначе reload покажет замок)', async () => {
+    const env = makeEnv({ journalVisible: false, openOnGoto: false });
+    const api = freshApi();
+    await api.seedSession(env.page);            // журнал ещё закрыт
+    env.state.openOnGoto = true;                 // приложение откроет журнал при следующем goto
+    await api.loginWithPin(env.page);            // вход должен пойти быстрым путём ПОСЛЕ засева
+    assert.strictEqual(env.state.storage['xdiary.pin.lastSuccess'], '1',
+      'флаг xdiary.pin.lastSuccess обязателен: иначе reload внутри спеки покажет замок');
   });
 
   const failed = results.filter(([, ok]) => !ok);
