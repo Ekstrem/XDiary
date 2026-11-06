@@ -89,3 +89,17 @@
 3. у @BE нет VPS, офлайн-`swagger-tool` не работает ⇒ спеки должен отдать **стенд**, а не его машина.
 
 Порядок: @DO включает `Swagger__Enabled=true` на dev для 12 сервисов + добавляет `/swagger/**` в анонимные пути **только на dev** (на проде — наоборот, закрыто), доказывает `curl` `200` + поле `openapi` по каждому; затем @BE снимает 12 спек (его CI-шаг) и собирает `openapi/index.json`; после этого `latency.py --check` должен дать цифры вместо `rc=2`.
+
+## Причина 500 на dev найдена (@DO `00:13`, логи + БД)
+
+```
+Npgsql.PostgresException (0x80004005): 23505: duplicate key value violates unique constraint "PK_outbox"
+  TableName: outbox; Context: Partners.Storage.CommandDbContext
+  SQL: INSERT INTO outbox ("Id","Attempts","CreatedAt","EventType","Payload","ProcessedAt") VALUES (@p0…@p5)
+```
+
+Масштаб: за 20 минут **57** таких ошибок, **47** строк `[Save] event=…`, **28** уникальных id ⇒ **один и тот же event-id сохраняется повторно**.
+Состояние БД: `select count(*) from outbox` → **2632**, необработано **0** ⇒ строки уже обработаны, а код делает `INSERT` с тем же `Id`.
+
+**Вывод:** вставка в outbox **не идемпотентна**. Лечение — `INSERT … ON CONFLICT ("Id") DO NOTHING` (или не переиспользовать event-id между попытками);
+`remove`/`link-client` идемпотентны по смыслу, поэтому должны отдавать `204`/`409`, а не `500`.
