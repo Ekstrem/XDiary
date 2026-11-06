@@ -4,16 +4,16 @@
 # деплой читает только этот файл, откат = revert коммита, изменившего строку.
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
-journal              single-6294b08  6-msa/BC-Journal
-partners             single-6294b08  6-msa/BC-Partners
-catalog              single-6294b08  6-msa/BC-Catalog
-somatic-series       single-6294b08  6-msa/BC-SomaticSeries
-daily-metrics        single-6294b08  6-msa/BC-DailyMetrics
-garmin-gateway       single-6294b08  6-msa/BC-GarminGateway
-apple-health-gateway single-6294b08  6-msa/BC-AppleHealthGateway
-analytics            single-6294b08  6-msa/BC-Analytics
-privacy              single-6294b08  6-msa/BC-Privacy
-portability          single-6294b08  6-msa/BC-Portability
-client               single-6294b08  6-msa/BC-Client
-api-gateway          single-6294b08  6-msa/ApiGateway
-front                single-6294b08  8-front
+journal              single-b999139  6-msa/BC-Journal
+partners             single-b999139  6-msa/BC-Partners
+catalog              single-b999139  6-msa/BC-Catalog
+somatic-series       single-b999139  6-msa/BC-SomaticSeries
+daily-metrics        single-b999139  6-msa/BC-DailyMetrics
+garmin-gateway       single-b999139  6-msa/BC-GarminGateway
+apple-health-gateway single-b999139  6-msa/BC-AppleHealthGateway
+analytics            single-b999139  6-msa/BC-Analytics
+privacy              single-b999139  6-msa/BC-Privacy
+portability          single-b999139  6-msa/BC-Portability
+client               single-b999139  6-msa/BC-Client
+api-gateway          single-b999139  6-msa/ApiGateway
+front                single-b999139  8-front
