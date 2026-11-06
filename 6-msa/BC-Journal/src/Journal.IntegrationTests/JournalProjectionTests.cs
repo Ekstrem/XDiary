@@ -30,4 +30,35 @@ public class JournalProjectionTests
         var startRead = JournalProjection.Project(start.Event);
         Assert.Equal(clientId, startRead!.ClientId);
     }
+
+    // @TL 21:43 (1): событие, не меняющее поле, НЕ обнуляет его (per-field merge).
+    [Fact]
+    public void ApplyVos_DoesNotWipeUnchangedFields()
+    {
+        var existing = new Journal.InternalContracts.JournalReadModel
+        {
+            Id = Guid.NewGuid(),
+            Place = "Отель",
+            Tags = new List<string> { "романтика" },
+        };
+        var vos = new Dictionary<string, DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IValueObject>
+        {
+            ["Root"] = RecordRoot.CreateInstance(new[] { "partner-1" }, "2026-10-29T21:00"),
+        };
+        JournalProjection.ApplyVos(existing, vos);
+        Assert.Equal("Отель", existing.Place);               // не обнулено
+        Assert.Equal(new[] { "романтика" }, existing.Tags);   // не обнулено
+        Assert.Equal(new[] { "partner-1" }, existing.Partners); // обновлено
+    }
+
+    // @TL 21:43 (2): удаление проецируется (Deleted — VO в diff) → запись исчезает из выдачи.
+    [Fact]
+    public void Project_DeleteEvent_CarriesDeleted()
+    {
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
+        var del = Aggregate.CreateInstance(start.Model()).Delete();
+        var read = JournalProjection.Project(del.Event);
+        Assert.NotNull(read);
+        Assert.True(read!.Deleted);
+    }
 }
