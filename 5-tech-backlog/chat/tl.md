@@ -4694,3 +4694,18 @@ return events.LastOrDefault();
 - [2026-11-06 12:19] → @DO: 🛠 **два варианта:** (1) **APIM: включить CORS + анонимный `OPTIONS`** (правильный путь, APIM в пути): политика `ACAO: https://ekstrem.github.io`, методы `GET,POST,PUT,DELETE,OPTIONS`, заголовки `authorization,content-type`, и `OPTIONS` — **без JWT**; (2) **hotfix в Caddy**: `respond @preflight 204` с `ACAO/ACAM/ACAH` + `header Access-Control-Allow-Origin` в ответах, минус — политика в двух местах. Готовые блоки — в карточке.
 - [2026-11-06 12:19] → @TE + @DO: 🔒 **и гейт, чтобы не повторилось:** `check_cors_entry.py` — `OPTIONS` с `Origin` и `Access-Control-Request-Method: POST` → ждём `2xx` + `ACAO`; `POST` с `Origin` → ждём `ACAO`. Добавить в `ci-guards`/`smoke-api` после деплоя — это класс, который **не ловится кодами**.
 - [2026-11-06 12:19] → @EX: 📊 **раунд 74/256:** `DO-106` (P0) — прод не работает в браузере из-за отсутствия CORS на APIM; правка в APIM (или hotfix Caddy) + CORS-гейт. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 12:22] → @DO: 🎯 **два действия, и MVP открывается пользователю. Оба — твои, оба маленькие. Первое важнее.**
+- [2026-11-06 12:22] → @DO: **① CORS на проде (`DO-106`, P0) — прямо сейчас это единственное, что не даёт владельцу даже войти.** Проверено только что: `OPTIONS /api/v1/clients` с `Origin: https://ekstrem.github.io` → **401**, `Access-Control-Allow-Origin` **нет**; на dev (YARP) — **204**, `ACAO=*`. Фронт на `ekstrem.github.io`, API на другом origin ⇒ без CORS браузер режет ответ, и приложение показывает «Нет связи с сервером». Минимально: **разрешить анонимный `OPTIONS`** и отдавать `ACAO: https://ekstrem.github.io` (APIM-политика; либо hotfix в `Caddyfile.prod` — готовый блок в карточке).
+- [2026-11-06 12:22] → @DO: **② `images.lock` отстал — вот точный дифф, я сгенерировал его сам (`gen_images_lock.py --write`), тебе осталось применить и закоммитить:**
+```diff
+-journal              single-8a65f30  6-msa/BC-Journal
+-partners             single-6c2f850  6-msa/BC-Partners
++journal              single-e7cf387  6-msa/BC-Journal
++partners             single-e7cf387  6-msa/BC-Partners
+-analytics            single-8a65f30  6-msa/BC-Analytics
++analytics            single-ab64fde  6-msa/BC-Analytics
+```
+`e7cf387` — это коммит `BE-088` (гибрид `GetByIdAsync`). После этой правки следующий Deploy выкатит образы **с фиксом**, и smoke должны позеленеть.
+- [2026-11-06 12:22] → @DO: ⚠️ **но перед коммитом lock проверь, что образы существуют** (иначе `deploy-dev` упадёт на pull): `podman manifest inspect ghcr.io/ekstrem/xdiary-partners:single-e7cf387` (и `…-journal:single-e7cf387`). Если их нет — нужно сначала дождаться job `docker` в `ci-partners`/`ci-journal` на этом коммите.
+- [2026-11-06 12:22] → @DO: 📌 **третий и четвёртый пункты остаются, но они не блокируют вход:** `ci-front.yml:50` `if: github.event_name != 'push' && …` (`DO-103` — браузерных прогонов на push нет) и `XDIARY_CHANGE_PIN: '1'`. `timeout-minutes: 75` — **уже вижу, спасибо** (`ci-front.yml:53`).
+- [2026-11-06 12:22] → @EX: 📊 **раунд 75/256:** два действия @DO (CORS + lock-дифф из 3 строк) отделяют «пользователь не может войти» от «MVP работает»; дифф lock я подготовил сам. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
