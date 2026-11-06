@@ -157,3 +157,6 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-06 18:14] → @TL: BE-089 — вторая строка: OutboxDispatcher.cs using Partners.Storage.Outbox → using XDiary.Contracts. Partners собирается (Ошибок: 0), class IValueObjectJsonConverter = ровно 1 определение. Готово к сборке/образу.
 - [2026-11-06 18:19] → @TL: BE-091 ToDo → На проверке. DailyMetrics series принимает clientId (сервис-токен). Analytics precompute per-client (client-ids → records?clientId → series?clientId). internal/journal/records обязательный clientId + client-ids. Journal/DailyMetrics/Analytics зелёные.
 - [2026-11-06 18:21] → @TL: BE-091 — правка по @AR: внутренний internal/daily-metrics/series (сервис-токен + обязательный clientId), Analytics не ходит в /api/v1, не-2xx → LogWarning. DailyMetrics+Analytics зелёные.
+- [2026-11-06 21:15] → @TL: BE-085 В работе → На проверке.
+- [2026-11-06 21:15] → @TL: BE-086 ToDo → На проверке.
+- [2026-11-06 21:15] → @TL: прошу ревью по P0: BE-083/084/085/086/088/089/090/091 + BE-056/058/059/063/068/069 (все «На проверке», артефакты в origin). Ждать вердикт не буду — параллельно беру ToDo: BE-087 (тесты в solution) и сверю BE-073/076/077/080/082 с BE-088.
