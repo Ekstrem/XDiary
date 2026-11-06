@@ -13,7 +13,7 @@ public class SomaticSeriesControllerIsolationTests
     {
         public object? Captured;
         public object? Result;
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default) { Captured = request; return Task.FromResult((TResponse)Result!); }
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default) { Captured = request; return Task.FromResult(Result is null ? default! : (TResponse)Result); }
         public Task<object?> Send(object request, CancellationToken ct = default) { Captured = request; return Task.FromResult(Result); }
         public Task Send<TRequest>(TRequest request, CancellationToken ct = default) where TRequest : IRequest { Captured = request; return Task.CompletedTask; }
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken ct = default) => throw new NotImplementedException();
