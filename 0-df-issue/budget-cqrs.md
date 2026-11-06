@@ -63,6 +63,11 @@ Read ──IMediator.Send(query)──> Handler → IQueryRepository.GetByIdAsyn
 7. **Ручные миграции — с `[Migration]`/`[DbContext]`.** Без атрибутов EF не видит файл —
    `migrations list` его не покажет и `Migrate()` не применит.
 
+8. **`Id` строки read-модели = `AggregateId`, никогда не `EventId` (@AR 23:05).** Событий у
+   агрегата много, `EventId` у каждого свой. Если проекция пишет по `EventId` — «одна запись»
+   распадается на N строк, и `GET по id из ответа` не работает никогда. Агрегат обязан хранить
+   стабильный `Id` на первом шаге (`StartManualEntry`/`StartFromGarmin` — `Id = Model.Id`, как `Clone`).
+
 ## Порядок сборки сервиса (с нуля)
 
 1. Домен: `IContext`/`IAnemicModel`/`IValueObject` + `Aggregate` (методы → `AggregateResult`).
