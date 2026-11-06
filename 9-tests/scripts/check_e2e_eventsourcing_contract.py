@@ -32,12 +32,64 @@ CONVERTER = re.compile(r"IValueObjectJsonConverter|Converters\.Add")
 # где лежат сервисы (читаем только, ничего не правим)
 SRC_ROOT = ("6-msa",)
 
+# TE-089: тип может быть «используется, но не определён» — это ошибка компиляции (CS0246), из-за которой
+# сборка сервиса красная, job `docker` = skipped и образы не публикуются (а значит `images.lock` не двигается
+# и `deploy-prod` не запускается). Проверяется статически: если есть ссылки на `IValueObjectJsonConverter`,
+# где-то в `6-msa` должно быть `class IValueObjectJsonConverter`.
+CONVERTER_TYPE = "IValueObjectJsonConverter"
+# Исключение: владелец зоны уже правит (BE-089: конвертер вынесен в Shared, файл ещё не закоммичен).
+KNOWN_UNDEFINED = {
+    CONVERTER_TYPE: "BE-089: файл 6-msa/Shared/XDiary.Contracts/IValueObjectJsonConverter.cs ещё не в origin "
+                    "(CS0246 в ci-partners/ci-journal → docker skipped → образы не публикуются)",
+}
+
 # Известные исключения: асимметрия признана и исправляется владельцем зоны.
 # Исключение НЕ скрывает проблему: оно печатается в квитанции отдельным числом, и запись удаляется,
 # когда фикс попал в `origin`.
 # Список пуст: 2026-11-06 конвертер добавлен в `BC-Journal` (`JournalEventConsumer` пишет с `jsonOptions`),
 # поэтому исключение снято — гейт снова краснеет на любой новой асимметрии без исключений.
 KNOWN_GAPS = {}
+
+
+def collect_definitions(root):
+    """{тип: [файлы с определением]} по всем .cs в `6-msa`."""
+    base = root / "6-msa"
+    defs = {}
+    if not base.is_dir():
+        return defs
+    for f in base.rglob("*.cs"):
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if "class " + CONVERTER_TYPE in text:
+            defs.setdefault(CONVERTER_TYPE, []).append(str(f.relative_to(root)).replace("\\", "/"))
+    return defs
+
+
+def check_definitions(root):
+    """(issues, known). Ссылки без определения = ошибка компиляции."""
+    base = root / "6-msa"
+    if not base.is_dir():
+        return [], []
+    refs = []
+    for f in base.rglob("*.cs"):
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if CONVERTER_TYPE in text and "class " + CONVERTER_TYPE not in text:
+            refs.append(str(f.relative_to(root)).replace("\\", "/"))
+    if not refs:
+        return [], []
+    if collect_definitions(root).get(CONVERTER_TYPE):
+        return [], []
+    msg = (f"`{CONVERTER_TYPE}` используется в {len(refs)} файле(ах) "
+           f"({', '.join(sorted(r.split('/')[-1] for r in refs))}), но НИГДЕ не определён — "
+           f"это ошибка компиляции CS0246: сборка сервиса красная, образы не публикуются")
+    if CONVERTER_TYPE in KNOWN_UNDEFINED:
+        return [], [msg]
+    return [msg], []
 
 
 def evaluate(files, root_hint=""):
@@ -98,6 +150,11 @@ def main(argv=None):
         print(f"::error::check_e2e_eventsourcing_contract: {err} (rc=2)")
         return 2
     issues, stats = evaluate(files)
+    def_issues, def_known = check_definitions(pathlib.Path(a.root))
+    issues = issues + def_issues
+    stats["known"] = stats.get("known", 0) + len(def_known)
+    for m in def_known:
+        print(f"::warning::check_e2e_eventsourcing_contract: {m} (известное исключение, владелец зоны в курсе)")
     for m in issues:
         print(f"::error::check_e2e_eventsourcing_contract: {m}")
     print(receipt_line(stats, issues))
@@ -149,6 +206,40 @@ def selftest():
         ok += 1
     else:
         print(f"  [FAIL] текст квитанции: {line}")
+
+    # TE-089: контроль детектора «используется, но не определено» (класс CS0246).
+    import os as _os
+    import shutil as _sh
+    root = pathlib.Path(_os.environ.get("TEMP", ".")) / ("esdef-" + str(_os.getpid()))
+    _sh.rmtree(root, ignore_errors=True)
+    (root / "6-msa" / "BC-X").mkdir(parents=True)
+    (root / "6-msa" / "BC-X" / "Consumer.cs").write_text(
+        "jsonOptions.Converters.Add(new IValueObjectJsonConverter());", encoding="utf-8")
+    saved = dict(KNOWN_UNDEFINED)
+    KNOWN_UNDEFINED.clear()
+    total += 1
+    d_issues, d_known = check_definitions(root)
+    if d_issues and not d_known and "CS0246" in d_issues[0]:
+        ok += 1
+    else:
+        print(f"  [FAIL] определение: без `class` должен быть issue с CS0246, а вышло {d_issues} / {d_known}")
+
+    total += 1
+    (root / "6-msa" / "BC-X" / "Conv.cs").write_text(
+        "public sealed class IValueObjectJsonConverter {}", encoding="utf-8")
+    d_issues2, _k2 = check_definitions(root)
+    if not d_issues2:
+        ok += 1
+    else:
+        print(f"  [FAIL] определение: с `class` проверка должна молчать, а вышло {d_issues2}")
+
+    total += 1
+    KNOWN_UNDEFINED.update(saved)
+    d_issues3, d_known3 = check_definitions(root.parent / "nonexistent")
+    if not d_issues3 and not d_known3:
+        ok += 1
+    else:
+        print(f"  [FAIL] без 6-msa проверка должна молчать")
 
     print(f"check_e2e_eventsourcing_contract --selftest: {ok}/{total} "
           f"(писатель событий без `IValueObjectJsonConverter` = rc=1: иначе модифицирующие ручки дают 404)")
