@@ -39,6 +39,29 @@ KNOWN_GAPS = {
 }
 
 
+def _skip_nested_repos(paths, root):
+    """Пропустить файлы внутри вложенных worktree/клонов.
+
+    Причина (@AR `2026-11-16 07:00` про `check_canon`): обход `glob`/`rglob` видит **вложенный worktree**
+    как обычные файлы, и вердикт гейта начинает зависеть от того, кто где сделал `git worktree add`.
+    «У автора зелено, у соседа красно» — это дефект гейта, а не кода. Файлы внутри любого каталога,
+    где есть `.git`, кроме самого корня, не считаем.
+    """
+    root = pathlib.Path(root).resolve()
+    out = []
+    for p in paths:
+        try:
+            rel = pathlib.Path(p).resolve().relative_to(root)
+        except ValueError:
+            out.append(p)
+            continue
+        if any((root / part / ".git").exists() for part in [pathlib.Path(*rel.parts[:i + 1])
+                                                            for i in range(len(rel.parts) - 1)]):
+            continue
+        out.append(p)
+    return out
+
+
 def _method_body(lines, start):
     """Тело метода начиная со строки start: до закрывающей `}` на том же уровне (грубо, по отступу)."""
     depth = 0
@@ -79,7 +102,7 @@ def collect(root):
     if not base.is_dir():
         return None, "нет папки 6-msa — не измерено"
     files = {}
-    for p in base.rglob("*CommandRepository.cs"):
+    for p in _skip_nested_repos(base.rglob("*CommandRepository.cs"), root):
         try:
             files[str(p.relative_to(root)).replace("\\", "/")] = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
