@@ -203,9 +203,8 @@ async function seedSessionOnce(page) {
     if (alive) {
       console.log('::notice::' + JSON.stringify({ title: 'seedSession', cached: true }));
       return {
-      token,
-      refreshToken,
         ok: true, cached: true, clientId: cached.clientId,
+        token: cached.token, refreshToken: cached.refreshToken,
         profileMode: cached.profileMode || 'profile', shimUsed: false,
         partnerId: SEED_PARTNER && SEED_PARTNER.id, partnerCreated: false,
         hasRefresh: !!cached.refreshToken, partnersStatus: 200, anonStatus: 401,
@@ -290,6 +289,8 @@ async function seedSessionOnce(page) {
     return {
       ok: true,
       clientId,
+      token,
+      refreshToken,
       profileMode,
       shimUsed,
       partnerId: p.data && p.data.id,
@@ -506,8 +507,18 @@ async function loginWithPin(page, pin) {
       title: 'login: сессия потеряна, повтор с новым телефоном',
       reason: errs.filter((x) => /http (401|404)/.test(x)).slice(-2),
     }));
-    await seed();
-    await unlock();
+    try {
+      await seed();
+      await unlock();
+    } catch (e2) {
+      const views2 = await dumpViews(page, 'повтор входа тоже не удался').catch(() => null);
+      const errs2 = (page.__xdiaryErrors || []).slice(-8);
+      throw new Error(
+        'Вход не завершился даже после одного повтора (' + Math.round((Date.now() - t0) / 1000) +
+        ' с, повторов ' + phases.retries + '). views=' + JSON.stringify(views2) +
+        ' ошибки=' + JSON.stringify(errs2) + ' причина=' + String((e2 && e2.message) || e2).slice(0, 300)
+      );
+    }
   }
 
   console.log('::notice::' + JSON.stringify({
