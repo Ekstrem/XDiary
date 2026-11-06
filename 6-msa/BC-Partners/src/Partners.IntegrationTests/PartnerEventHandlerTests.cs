@@ -45,7 +45,7 @@ public class PartnerEventHandlerTests
         var readStore = new FakeReadStore();
         var handler = new PartnerEventHandler(store, readStore);
 
-        handler.Handle(reg.Event!);
+        handler.HandleAsync(reg.Event!).GetAwaiter().GetResult();
 
         Assert.Equal(1, store.SavedEvents);          // событие в event store
         Assert.NotNull(readStore.Upserted);          // MV материализована
@@ -65,7 +65,7 @@ public class PartnerEventHandlerTests
         var readStore = new FakeReadStore();
         var handler = new PartnerEventHandler(store, readStore);
 
-        handler.Handle(removed.Event!);
+        handler.HandleAsync(removed.Event!).GetAwaiter().GetResult();
 
         Assert.NotNull(readStore.Upserted);
         Assert.NotNull(readStore.Upserted!.DeletedAt); // soft-delete доехал в MV

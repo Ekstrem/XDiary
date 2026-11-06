@@ -9,6 +9,7 @@ using Partners.Domain;
 using Partners.Domain.Abstraction;
 using Partners.Domain.Implementation;
 using Partners.InternalContracts;
+using XDiary.Contracts;
 
 /// <summary>
 /// E1: консьюмер событий Partners (по конвейеру Journal).
@@ -41,13 +42,13 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
         _readStore = readStore;
     }
 
-    public void Handle(IDomainEvent<IPartners> domainEvent)
+    public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
     {
         Console.WriteLine("[handle] entered");
         // @TE 04:32 — ChangedValueObjectsJson пишется с $type-дискриминатором, иначе
         // event-sourced GetById (IAnemicModelRepository) не может реконструировать IValueObject.
         var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new Partners.Storage.Outbox.IValueObjectJsonConverter());
+        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
@@ -60,16 +61,17 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        _store.SaveEventAsync(entry).GetAwaiter().GetResult();
+        await _store.SaveEventAsync(entry);
 
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
-            _readStore.UpsertAsync(read).GetAwaiter().GetResult();
+            await _readStore.UpsertAsync(read);
     }
 
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) —
     // без этого Handle не вызывается (InvalidCastException глушится). Адаптер:
-    public void OnNext(IDomainEvent<IPartners> e) => Handle(e);
+    // @TE 05:04 — fire-and-forget, чтобы синхронный consumer не держал запрос (504).
+    public void OnNext(IDomainEvent<IPartners> e) => _ = HandleAsync(e);
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }

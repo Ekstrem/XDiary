@@ -9,6 +9,7 @@ using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
 using Journal.InternalContracts;
+using XDiary.Contracts;
 
 /// <summary>
 /// E1: консьюмер событий Journal. Подписывает хендлер на in-memory шину;
@@ -49,10 +50,13 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         _defaultsRead = defaultsRead;
     }
 
-    public void Handle(IDomainEvent<IJournal> domainEvent)
+    public async Task HandleAsync(IDomainEvent<IJournal> domainEvent)
     {
         Console.WriteLine("[handle] entered");
         // 1) персист события в store (идемпотентно по Id на уровне DF-репозитория).
+        // @TE 04:32 — $type-дискриминатор, иначе event-sourced GetById не реконструирует IValueObject.
+        var jsonOptions = new JsonSerializerOptions();
+        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
@@ -61,29 +65,29 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
             BoundedContext = domainEvent.ContextName,
             CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
             SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects),
+            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        _store.SaveEventAsync(entry).GetAwaiter().GetResult();
+        await _store.SaveEventAsync(entry);
 
         // 2) проекция MV (UpsertAsync) из changed-VO.
         var read = JournalProjection.Project(domainEvent);
         if (read is not null)
-            _readStore.UpsertAsync(read).GetAwaiter().GetResult();
+            await _readStore.UpsertAsync(read);
 
         // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
-        MergeDefaults(domainEvent);
+        await MergeDefaultsAsync(domainEvent);
     }
 
-    private void MergeDefaults(IDomainEvent<IJournal> domainEvent)
+    private async Task MergeDefaultsAsync(IDomainEvent<IJournal> domainEvent)
     {
         var vos = domainEvent.ChangedValueObjects;
         if (vos is null) return;
         var clientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv ? cv.Value : null;
         if (clientId is null) return;
 
-        var current = _defaultsRead.GetByIdAsync(clientId.Value, default).GetAwaiter().GetResult();
+        var current = await _defaultsRead.GetByIdAsync(clientId.Value, default);
         var place = vos.TryGetValue("Place", out var p) && p is StringValueObject sv ? sv.Value : string.Empty;
         var fantasies = vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fl ? fl.Value : Array.Empty<string>();
         var positions = vos.TryGetValue("Positions", out var pp) && pp is StringListValueObject pl ? pl.Value : Array.Empty<string>();
@@ -98,11 +102,12 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         defaults.Tags = (defaults.Tags ?? Array.Empty<string>()).Concat(tags).Distinct().ToList();
         defaults.Contraceptives = (defaults.Contraceptives ?? Array.Empty<string>()).Concat(contraceptives).Distinct().ToList();
 
-        _defaultsStore.UpsertAsync(defaults).GetAwaiter().GetResult();
+        await _defaultsStore.UpsertAsync(defaults);
     }
 
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.
-    public void OnNext(IDomainEvent<IJournal> e) => Handle(e);
+    // @TE 05:04 — fire-and-forget, чтобы синхронный consumer не держал запрос (504).
+    public void OnNext(IDomainEvent<IJournal> e) => _ = HandleAsync(e);
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }
