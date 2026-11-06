@@ -110,7 +110,8 @@ def idle_roles(cfg, now):
 def ping_message(cfg, now, idle, active):
     total = len(idle) + len(active)
     names = " " + ", ".join("@" + r.upper() for r, _ in idle) if idle else ""
-    return ("- [%s] → %s: ⚠️ Кнут (%s): %d/%d ролей простаивают > %d мин.%s"
+    return ("- [%s] → %s: ⚠️ команда стоит: %d/%d ролей простаивают > %d мин.%s. "
+            "Следи за правилами и организуй команду."
             % (now.strftime("%Y-%m-%d %H:%M"), cfg["to"], cfg["project"],
                len(idle), total, cfg["idle_minutes"], names))
 
@@ -122,9 +123,9 @@ def selftest():
     ok &= cfg["idle_minutes"] == 15 and cfg["interval_min"] == 15
     # last_commit_ts на реальном git-файле (сам whip.py) — не None
     ok &= last_commit_ts("tools/whip.py") is not None
-    # ping_message: 1/2 = 50% (< 80%), но текст несёт Кнут + адресата + счёт
+    # ping_message: 1/2 = 50% (< 80%), но текст несёт «команда стоит» + адресата + счёт
     msg = ping_message(cfg, datetime.datetime(2026, 11, 4, 10, 0), [("be", None)], [("do", None)])
-    ok &= "Кнут" in msg and "1/2" in msg and "→ @TL:" in msg
+    ok &= "команда стоит" in msg and "организуй команду" in msg and "1/2" in msg and "→ @TL:" in msg
     print("selftest:", "OK" if ok else "FAIL")
     return 0 if ok else 1
 
