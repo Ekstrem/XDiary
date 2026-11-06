@@ -11,12 +11,12 @@ public sealed class DailyMetricsCommandRepository : IDailyMetricsRepository
     public DailyMetricsCommandRepository(CommandDbContext db) => _db = db;
     public async Task<IDailyMetricsAnemicModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
     { var e = await _db.Daily.FirstOrDefaultAsync(x => x.Id == id, ct); return e is null ? null : DailyMetricsMapper.MapToModel(e); }
-    public async Task<IDailyMetricsAnemicModel?> GetByDateAsync(string date, CancellationToken ct = default)
-    { var e = await _db.Daily.FirstOrDefaultAsync(x => x.Date == date, ct); return e is null ? null : DailyMetricsMapper.MapToModel(e); }
+    public async Task<IDailyMetricsAnemicModel?> GetByDateAsync(string date, Guid clientId, CancellationToken ct = default)
+    { var e = await _db.Daily.FirstOrDefaultAsync(x => x.Date == date && x.ClientId == clientId, ct); return e is null ? null : DailyMetricsMapper.MapToModel(e); }
     public async Task SaveAsync(AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> result, CancellationToken ct = default)
     {
         var m = result.Model();
-        var e = await _db.Daily.FirstOrDefaultAsync(x => x.Date == m.Root.Date, ct);
+        var e = await _db.Daily.FirstOrDefaultAsync(x => x.Date == m.Root.Date && x.ClientId == m.ClientId, ct);
         if (e is null) { e = new DailyMetricsEntity { Id = m.Id }; _db.Daily.Add(e); }
         DailyMetricsMapper.MapToEntity(m, e);
         await _db.SaveChangesAsync(ct);

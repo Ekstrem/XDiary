@@ -7,4 +7,5 @@ public interface IDailyMetricsAnemicModel : IAnemicModel<IDailyMetrics>
     int RestingHr { get; }
     int Hrv { get; }
     ISleep Sleep { get; }
+    Guid? ClientId { get; }
 }
