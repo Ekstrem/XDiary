@@ -183,15 +183,29 @@ def stand_flow(base, token, partner_id, place, tags):
     if err:
         return None, None, err
     if st not in (200, 201):
-        # Создано (200 + id), но прочитать нельзя → это НЕ «не измерено», это дефект чтения (BE-088):
-        # запись не появляется в read-модели. Такой исход надо называть, а не прятать в rc=2.
-        return None, None, f"READ_PATH: запись создана (id {rec_id}), но `GET /journal/records/{{id}}` → status {st}"
+        # Создано (200 + id), но прочитать нельзя → это НЕ «не измерено», это дефект чтения. Прежде чем
+        # вернуть ошибку, пробуем ручки `when` и `place`: именно `when` краснит `smoke-front`, и вызывающему
+        # полезно видеть его статус, а не только «GET 404».
+        stw, _, _ = http(f"{b}/api/v1/journal/records/{rec_id}/when", "POST", token,
+                         {"when": "2026-11-08T10:00:00Z"})
+        stpl, _, _ = http(f"{b}/api/v1/journal/records/{rec_id}/place", "POST", token, {"place": place})
+        return None, None, (f"READ_PATH: запись создана (id {rec_id}), но `GET /journal/records/{{id}}` → {st}; "
+                            f"`POST …/when` → {stw}; `POST …/place` → {stpl} — записи нет в read-модели")
 
     st2, _, err = http(f"{b}/api/v1/journal/records/{rec_id}/partners", "POST", token, {"partnerId": partner_id})
     if err:
         return None, None, err
     if st2 not in (200, 201, 204):
         return None, None, f"AddPartner: status {st2}"
+
+    # `when` — та самая ручка, что давала 404 в smoke-front (`/records/{id}/when`).
+    stw, _, errw = http(f"{b}/api/v1/journal/records/{rec_id}/when", "POST", token,
+                        {"when": "2026-11-08T10:00:00Z"})
+    if errw:
+        return None, None, errw
+    if stw not in (200, 201, 204):
+        return None, None, (f"READ_PATH: `POST …/when` → status {stw} (запись не найдена в read-модели) — "
+                            f"это та самая ручка, что краснит smoke-front")
 
     # `POST /records` НЕ принимает place/tags (проверено на стенде: в ответе place='' и tags=[]),
     # поэтому место ставим отдельной операцией; ошибку чтения она тоже покажет.
