@@ -17,6 +17,9 @@ const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, меньше коллизий с накопленными клиентами
 
 test('E2E: онбординг E7 — телефон → OTP → «Кто вы?» (имя + пол) → журнал', async ({ page }) => {
+  test.setTimeout(95_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
+  // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
 
   await test.step('чистое устройство → экран онбординга', async () => {
     await reportStep(page, 'шаг 0: чистое устройство → онбординг');
@@ -45,30 +48,30 @@ test('E2E: онбординг E7 — телефон → OTP → «Кто вы?»
     await page.fill('#onb-phone-input', '');
     await page.click('#btn-onb-phone');
     await expect(page.locator('#onb-phone-error'), 'пустой телефон → видимая ошибка')
-      .toBeVisible({ timeout: 20000 });
+      .toBeVisible({ timeout: 10000 });
     await expect(page.locator('#onb-phone-error')).toContainText(/введите номер телефона/i);
 
     await page.fill('#onb-phone-input', PHONE);
     await page.click('#btn-onb-phone');
-    await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#onb-otp')).toBeVisible({ timeout: 10000 });
     // «Запросить код заново» (`#btn-onb-resend`) не проверялась: она повторно отправляет тот же
     // телефон. После клика экран OTP обязан остаться рабочим.
     await page.click('#btn-onb-resend');
-    await expect(page.locator('#onb-otp'), 'после повторного запроса поле кода на месте').toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#onb-otp'), 'после повторного запроса поле кода на месте').toBeVisible({ timeout: 10000 });
   });
 
   await test.step('шаг 2: OTP → «Кто вы?» (имя + пол), без шага привязки', async () => {
     await reportStep(page, 'шаг 2: OTP → «Кто вы?»');
     await page.fill('#onb-otp-input', TEST_OTP);
     await page.click('#btn-onb-otp');
-    await expect(page.locator('#onb-otp-error')).toBeHidden({ timeout: 20000 });
+    await expect(page.locator('#onb-otp-error')).toBeHidden({ timeout: 10000 });
     // E7: после OTP остаёмся в онбординге, но уже на шаге профиля — журнала ещё нет.
     await dumpViews(page, 'onboarding E7: после OTP');
-    await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-onboarding')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#view-journal')).toBeHidden();
     // TE-049: id профильного шага зафиксированы @FE (`@TL 2026-11-15 05:13`):
     // `#onb-name`, `#onb-gender-male`, `#onb-gender-female`, `#btn-onb-profile`, `#onb-profile-error`.
-    await expect(page.locator('#onb-name'), 'шаг «Кто вы?»: поле имени').toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#onb-name'), 'шаг «Кто вы?»: поле имени').toBeVisible({ timeout: 10000 });
     await expect(page.locator('#btn-onb-profile'), 'шаг «Кто вы?»: кнопка «Продолжить»').toBeVisible({ timeout: 10000 });
   });
 

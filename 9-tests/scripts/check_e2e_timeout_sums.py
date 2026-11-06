@@ -24,6 +24,9 @@ except Exception:  # noqa: BLE001
     pass
 
 TIMEOUT = re.compile(r"timeout:\s*(\d[\d_]*)")
+# TE-062: спека может объявить СВОЙ бюджет теста (`test.setTimeout(140_000)`), если сумма её
+# объявленных ожиданий больше общего лимита. Тогда лимит для неё — этот бюджет, а не общий.
+SPEC_BUDGET = re.compile(r"test\.setTimeout\(\s*(\d[\d_]*)\s*\)")
 UI_WAIT_REF = re.compile(r"timeout:\s*UI_WAIT\b")
 UI_WAIT_DEFAULT = re.compile(r"XDIARY_E2E_UI_WAIT\s*\|\|\s*(\d+)")
 
@@ -41,17 +44,36 @@ def ui_wait_default(api_text, override=None):
     return (int(m.group(1)) / 1000.0) if m else 30.0
 
 
+def split_tests(text):
+    """Разбить файл на блоки по `test(` — сумма ожиданий считается НА ТЕСТ (иначе файл с тремя
+    тестами выглядел как один и превышение получалось ложным)."""
+    parts, cur = [], []
+    for line in text.splitlines():
+        if re.match(r"^\s*test\(", line) and cur:
+            parts.append("\n".join(cur))
+            cur = []
+        cur.append(line)
+    if cur:
+        parts.append("\n".join(cur))
+    return parts or [text]
+
+
 def evaluate(specs, limit_sec, ui_wait=30.0):
     """(issues, stats). `ui_wait` — цена одного `timeout: UI_WAIT` в секундах."""
     per_spec = {}
     over = []
     for name, text in sorted(specs.items()):
-        vals = [int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(text)]
-        vals += [ui_wait] * len(UI_WAIT_REF.findall(text))
-        total = round(sum(vals), 1)
-        per_spec[name] = total
-        if total > limit_sec:
-            over.append((name, total, round(total / limit_sec, 2)))
+        own = SPEC_BUDGET.search(text)
+        spec_limit = (int(own.group(1).replace("_", "")) / 1000.0) if own else limit_sec
+        worst = 0.0
+        for block in split_tests(text):
+            vals = [int(v.replace("_", "")) / 1000.0 for v in TIMEOUT.findall(block)]
+            vals += [ui_wait] * len(UI_WAIT_REF.findall(block))
+            block_total = round(sum(vals), 1)
+            worst = max(worst, block_total)
+            if block_total > spec_limit:
+                over.append((name, block_total, round(block_total / spec_limit, 2)))
+        per_spec[name] = worst
     issues = []
     for name, total, ratio in over:
         issues.append(f"{name}: объявленных ожиданий на {total:.0f} с при лимите теста "

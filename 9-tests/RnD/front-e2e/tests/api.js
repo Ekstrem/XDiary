@@ -298,7 +298,10 @@ async function seedSessionOnce(page) {
     // TE-047 (P0, @TL 18:45): явная проверка auth-контура — «200 с токеном / 401 без».
     // Запрос БЕЗ Authorization: после BE-048 должен быть 401, и это видно по числу,
     // а не по `hidden`-экрану.
-    const anon = await j(await fetch(base + '/api/v1/partners'));
+    // TE-064: пробу «без токена  401» делаем из Node (ниже, после evaluate): проба из страницы
+    // давала `console.error: Failed to load resource: 401`, и спека `trends` (требует «ошибок консоли нет»)
+    // падала из-за самой фикстуры. Контракт проверяется там же, шума в консоли нет.
+    const anon = { status: null };
     return {
       ok: true,
       clientId,
@@ -317,6 +320,15 @@ async function seedSessionOnce(page) {
         : null,
     };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName, needPartner, expectedPartnerId });
+  // TE-064: проба «без токена -> 401» из Node: контракт проверяем, консоль страницы не засоряем.
+  let anonStatus = null;
+  try {
+    const anonRes = await fetch(API_BASE + '/api/v1/partners', { method: 'GET' });
+    anonStatus = anonRes.status;
+  } catch (e) {
+    anonStatus = 'error';
+  }
+  if (seeded && typeof seeded === 'object') seeded.anonStatus = anonStatus;
   if (needPartner && seeded && seeded.partnerId) {
     SEED_PARTNER = { id: seeded.partnerId, name: partnerName };
   }
@@ -448,6 +460,26 @@ async function seedSession(page) {
 //      продукта: параллельный прогон мог удалить клиента (`Очистить E2E-данные` убирает `+7999…`).
 //      В этом случае засеваем сессию заново с НОВЫМ телефоном и повторяем вход ОДИН раз;
 //   3) фазы входа печатаются в `::notice::login`, чтобы лог сам отвечал «где время».
+// TE-061: быстрый путь входа ставит PIN, но НЕ разблокирует через UI, поэтому приложение не знает,
+// что PIN «реально вводился» (`app.js:464` пишет `xdiary.pin.lastSuccess` только в `unlock()`).
+// Без этой отметки следующий `page.reload()` ВНУТРИ спеки показал бы замок (PIN нового формата, не
+// legacy), и спеки, которые после входа перезагружают страницу (`settings`, `wizard-record`,
+// `edit-delete-record`, `stale-note`, `somatic-detail`), падали бы на ожидании журнала.
+// Отмечаем так же, как это делает приложение: verifyPin → lastSuccess.
+async function markPinVerified(page, pin) {
+  try {
+    return await page.evaluate(async (v) => {
+      const ok = await window.Pin.verifyPin(v);
+      if (ok) {
+        try { localStorage.setItem('xdiary.pin.lastSuccess', '1'); } catch (e) {}
+      }
+      return !!ok;
+    }, pin);
+  } catch (e) {
+    return false;
+  }
+}
+
 async function loginWithPin(page, pin) {
   const t0 = Date.now();
   const p = pin || PIN;
@@ -498,6 +530,8 @@ async function loginWithPin(page, pin) {
     if (openAfterSeed) {
       const tSet = Date.now();
       try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+      // и отметка «PIN вводился», иначе следующий reload внутри спеки покажет замок
+      phases.pinVerified = await markPinVerified(page, p);
       phases.pinMs += Date.now() - tSet;
       phases.fastPath = true;
       console.log('::notice::' + JSON.stringify({

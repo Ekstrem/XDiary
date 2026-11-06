@@ -8,7 +8,7 @@
 //   US-05 тэги, US-06 длительность, US-07 оргазмы партнёров,
 //   US-12 подстановка и приоритизация по частоте
 const { test, expect } = require('@playwright/test');
-const { UI_WAIT, API_BASE, loginWithPin } = require('./api');
+const { UI_WAIT, API_BASE, loginWithPin, unlockIfLocked } = require('./api');
 
 function pad(n) { return String(n).padStart(2, '0'); }
 const NOW = new Date();
@@ -44,6 +44,9 @@ async function deleteRecord(page, id) {
 }
 
 test('E2E: запись через визард — создаётся и видна через API', async ({ page }) => {
+  test.setTimeout(80_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
+  // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   const apiLog = [];
   page.on('response', (r) => {
     const u = r.url();
@@ -64,7 +67,7 @@ test('E2E: запись через визард — создаётся и вид
     const before = apiLog.length;
     await page.click('#btn-new');
     // 5с по умолчанию не хватало: на нагруженном dev открытие визарда иногда дольше
-    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
 
     const openedMs = Date.now() - t0;
     const wizardCalls = apiLog.slice(before);
@@ -90,7 +93,7 @@ test('E2E: запись через визард — создаётся и вид
     // `#btn-wizard-prev` не трогала ни одна спека: возврат на шаг назад не был проверен.
   // Проверяем на первом переходе: назад с шага 1 обязан вернуть на шаг 0 (дата).
   await page.click('#btn-wizard-prev');
-  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
   await page.click('#btn-wizard-next');  // вернулись и снова 0 -> 1
   await page.click('#btn-wizard-next');  // 0 -> 1
     await page.click('#btn-wizard-next');  // 1 -> 2
@@ -98,7 +101,7 @@ test('E2E: запись через визард — создаётся и вид
     // партнёра и перерисовывает шаг. Проверяем, что шаг остаётся рабочим и мастер не ломается.
     if (await page.locator('#w-partner-none').isVisible()) {
       await page.click('#w-partner-none');
-      await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+      await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
     }
     await page.click('#btn-wizard-next');  // 2 -> 3
     await page.click('#btn-wizard-next');  // 3 -> 4
@@ -152,6 +155,9 @@ test('E2E: запись через визард — создаётся и вид
 // открываем визард и утверждаем именно подстановку. Проверка «8 × /partners при открытии» осталась
 // в первом тесте (FE-015); здесь — только дефолты, чтобы падение говорило, что сломалось.
 test('E2E: визард подставляет последние партнёра и место (FE-014)', async ({ page }) => {
+  test.setTimeout(80_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
+  // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   const partnerName = 'def-partner-' + Date.now();
   const place = 'def-place-' + Date.now();
   let recId = null;
@@ -192,6 +198,10 @@ test('E2E: визард подставляет последние партнёр
 
     // Перезагрузка: `recent` должен вернуть только что созданную запись, визард — подставить её поля.
     await page.reload();
+    // PIN поставлен входом (`loginWithPin`), поэтому после reload приложение показывает замок —
+    // без снятия замка `#view-journal` остаётся hidden. Ровно этот класс давал падения
+    // `wizard-record` в прогоне REF 73f59ba7 («не дождались» до утверждений).
+    await unlockIfLocked(page);
     await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
@@ -203,8 +213,8 @@ test('E2E: визард подставляет последние партнёр
 
     // Шаг 1 — место: `draft.place` подставляется в поле значения (app.js: `input.value = draft.place`).
     await page.click('#btn-wizard-next');
-    await expect(page.locator('#w-place')).toBeVisible({ timeout: 20000 });
-    await expect(page.locator('#w-place'), 'последнее место должно быть подставлено').toHaveValue(place, { timeout: 20000 });
+    await expect(page.locator('#w-place')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#w-place'), 'последнее место должно быть подставлено').toHaveValue(place, { timeout: 10000 });
 
     console.log('::notice::FE-014 дефолты подтверждены: партнёр «' + partnerName + '», место «' + place + '»');
   } finally {
@@ -230,6 +240,9 @@ test('E2E: визард подставляет последние партнёр
 // `recent` и `places`. Подсказки шагов берутся из `recent.lastPositions/lastTags/lastContraceptives`
 // (`app.js:769/859/888`) — то есть сканов массива записей больше нет.
 test('E2E: открытие визарда не грузит полный журнал (FE-016)', async ({ page }) => {
+  test.setTimeout(80_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
+  // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   const calls = [];
   page.on('request', (r) => {
     const u = r.url();
@@ -237,11 +250,11 @@ test('E2E: открытие визарда не грузит полный жур
   });
 
   await loginWithPin(page);
-  await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('#view-journal')).toBeVisible({ timeout: 10000 });
 
   const before = calls.length;
   await page.click('#btn-new');
-  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
   // Ждём, пока сеть успокоится (детерминированно): спека проверяет ОТСУТСТВИЕ
   // полного `/journal/records`, поэтому «догоняющие» ленивые запросы должны успеть уйти.
   await page.waitForLoadState('networkidle');

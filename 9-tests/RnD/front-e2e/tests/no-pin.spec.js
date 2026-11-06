@@ -12,9 +12,11 @@ const { test, expect } = require('@playwright/test');
 const { API_BASE, installBase, waitToken } = require('./api');
 
 test.describe.skip('legacy: PIN больше не выдаёт токен (FE-025/026) — переписать', () => {
-  test('E2E: без PIN приложение получает device-токен и открывает журнал', async ({ page, request }) => {
-  const probe = await request.post(API_BASE + '/api/v1/privacy/token', { data: { pin: '' } });
-  test.skip(probe.status() !== 200, 'на стенде задан PIN — сценарий «без PIN» требует чистого стенда (без PIN)');
+  test('E2E: без PIN приложение получает device-токен и открывает журнал', async ({ page }) => {
+  // ADR-021 этап 2 (@AR 2026-11-16): в `9-tests` не должно быть `fetch`/`request` в `/privacy/*`,
+  // даже в skipped-блоке — только описания и ссылки на историю задач.
+  // История: проба требовала `POST /api/v1/privacy/token {pin:""}` = 200 (стенд без PIN);
+  // контракт отменён FE-025/026, а регресс-защита живёт в этой записи, не в исполняемом коде.
 
   await installBase(page);
   await page.goto('/');

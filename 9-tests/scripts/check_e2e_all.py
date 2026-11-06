@@ -59,6 +59,8 @@ GATES = (
     ("check_e2e_skips.py", "каждый skip объяснён, флаги видны"),
     ("check_e2e_assertions.py", "у каждой спеки есть поведенческое утверждение"),
     ("check_e2e_ui_coverage.py", "карта: какие элементы фронта не трогает ни одна спека"),
+    ("check_e2e_reload_lock.py", "после reload замок снимают или проверяют, а не ждут журнал вслепую"),
+    ("check_e2e_privacy_calls.py", "в спеках нет вызовов `/privacy/*` (ADR-021 этап 2)"),
     ("check_e2e_negative_pairs.py", "негативный код без парной позитивной проверки — не приёмка (ADR-026)"),
     ("check_e2e_error_paths.py", "негативные пути: элементы ошибок утверждаются спеками"),
     ("check_e2e_api_contract.py", "эндпоинты спек есть в api-index.yaml"),

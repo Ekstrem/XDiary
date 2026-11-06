@@ -31,7 +31,10 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
-ANNOTATION = re.compile(r"::error::(\{.*?\})\s*$")
+# GitHub переписывает `::error::`-команды в `##[error]` (то же для warning/notice):
+# в скачанном логе джобы аннотаций в исходном виде НЕТ, и триаж по реальному логу
+# сначала возвращал rc=2 «нет аннотаций». Поддерживаем оба формата.
+ANNOTATION = re.compile(r"(?:::error::|##\[error\])(\{.*?\})\s*$")
 CLASSES = (
     ("test-timeout", re.compile(r"test timeout of \d+\s*ms exceeded", re.I)),
     ("session-lost", re.compile(r"http (401|404).*(clients/me|journal)|(clients/me|journal).*(401|404)", re.I)),
@@ -40,6 +43,7 @@ CLASSES = (
     ("assert", re.compile(r"expect|tobe|tohave|expected|received", re.I)),
 )
 ADVICE = {
+    "browser-noise": "шум диагностики браузера/фикстуры, а не отдельное падение — смотреть, к какому тесту относится",
     "test-timeout": "лимит теста израсходован: смотри длительности шагов; сокращать время входа/навигации, "
                     "а не увеличивать ожидания",
     "wait-timeout": "элемент не появился: проверь вход (фазы в логе), экран и стенд; это не «продукт ответил не то»",
@@ -51,11 +55,48 @@ ADVICE = {
 }
 
 
+STEP_DUR = re.compile(r"([^>]+?)\s*\((\d+(?:\.\d+)?)s\)")
+
+
+def slowest_step(steps_text):
+    """Самый долгий шаг из аннотации: `login по PIN (12.0s) > открыть (30.5s) [FAIL]` → ('открыть', 30.5)."""
+    if not steps_text:
+        return None
+    found = [(m.group(1).strip(), float(m.group(2))) for m in STEP_DUR.finditer(steps_text)]
+    found = [f for f in found if f[1] > 0]
+    if not found:
+        return None
+    return max(found, key=lambda x: x[1])
+
+
 def classify(text):
     low = text or ""
     for name, rx in CLASSES:
         if rx.search(low):
             return name
+    return "other"
+
+
+def classify_item(title, status, blobby):
+    """Класс падения с приоритетом того, что реально мешает разбору.
+
+    `browser http error` / `browser console.error`   это шум диагностики фикстуры, а не отдельное
+    падение: в живом логе такого шума 90 записей против 19 падений тестов, и без разделения таблица
+    нечитаема. Сами падения классифицируем по статусу и тексту ошибки.
+    """
+    t = (title or "").strip()
+    if t.startswith("browser ") or t.startswith("storage snapshot") or t.startswith("views "):
+        return "browser-noise"
+    if (status or "").lower() in ("timedout", "interrupted") or "test timeout of" in (blobby or "").lower():
+        return "test-timeout"
+    if re.search(r"(http|status)[^0-9]{0,6}(5\d\d)", blobby or "", re.I):
+        return "stand"
+    if re.search(r"http (401|404).*(clients/me|journal)|(clients/me|journal).*(401|404)", blobby or "", re.I):
+        return "session-lost"
+    if re.search(r"expect|tobe|tohave|expected|received", blobby or "", re.I):
+        return "assert"
+    if re.search(r"timeout \d+\s*ms exceeded|locator\.\w+.*timeout|waitfor", blobby or "", re.I):
+        return "wait-timeout"
     return "other"
 
 
@@ -75,21 +116,28 @@ def parse(log_text):
         steps = str(payload.get("steps") or "")
         spec = title.split(" › ")[0].strip() if " › " in title else title
         blobby = " ".join((title, steps, err))
-        items.append((spec, title, payload.get("status") or "?", classify(blobby), err[:300]))
+        items.append((spec, title, payload.get("status") or "?", classify_item(title, payload.get("status"), blobby), err[:300], slowest_step(steps)))
     return items
 
 
 def report(items):
     by_class = collections.defaultdict(list)
-    for spec, title, status, klass, err in items:
-        by_class[klass].append((spec or title, err.splitlines()[0][:160] if err else ""))
-    lines = ["| класс | сколько | примеры (спека) | лечение |", "|---|---|---|---|"]
-    for klass, _ in CLASSES + (("other", None),):
+    for item in items:
+        spec, title, status, klass, err = item[:5]
+        slow = item[5] if len(item) > 5 else None
+        by_class[klass].append((spec or title, err.splitlines()[0][:160] if err else "", slow))
+    lines = ["| класс | сколько | примеры (спека) | самый долгий шаг | лечение |",
+             "|---|---|---|---|---|"]
+    for klass, _ in (("test-timeout", None), ("wait-timeout", None), ("session-lost", None),
+                     ("stand", None), ("assert", None), ("other", None), ("browser-noise", None)):
         rows = by_class.get(klass) or []
         if not rows:
             continue
         specs = sorted({r[0] for r in rows if r[0]})[:4]
-        lines.append(f"| `{klass}` | {len(rows)} | {', '.join(specs)} | {ADVICE[klass]} |")
+        # самый долгий шаг среди всех падений этого класса — где именно ушло время
+        slow = [r[2] for r in rows if r[2]]
+        slow_txt = f"{slow[0][0]} ({slow[0][1]:.1f}s)" if slow else "—"
+        lines.append(f"| `{klass}` | {len(rows)} | {', '.join(specs)} | {slow_txt} | {ADVICE[klass]} |")
     return "\n".join(lines), by_class
 
 
