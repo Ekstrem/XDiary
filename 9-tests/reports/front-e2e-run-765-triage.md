@@ -477,3 +477,28 @@ ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjec
 
 **Чего это объяснение не покрывает:** записи, созданные **до** правки, уже лежат без `$type` — им нужен
 бэкфилл, либо они останутся нереконструируемыми (это отдельный вопрос к @BE/@AR, как и `be-071`).
+
+## 12. Поправка к разделу 11: конвертер уже добавлен, а `when → 404` остался — причина в командных путях (`BE-088`)
+
+Раздел 11 называл причиной отсутствие `IValueObjectJsonConverter` в `BC-Journal`. Проверил `origin` заново:
+**конвертер там уже есть** (`JournalEventConsumer` пишет `ChangedValueObjectsJson` с `jsonOptions`), то есть та
+часть исправлена. Мой гейт `check_e2e_eventsourcing_contract.py` поэтому снова без исключений
+(`известных исключений: 0`), а запись `KNOWN_GAPS` снята — иначе она стала бы мёртвой и врала бы о состоянии.
+
+**Но `when → 404` в прогонах остался, и `@BE` нашёл настоящий механизм (`BE-088`).** Проверил по коду `origin`:
+
+| Файл | Что видно |
+|---|---|
+`Journal.Storage/JournalCommandRepository.cs:12-19` | поле `IJournalQueryRepository _readRepo`; `GetByIdAsync` = `_readRepo.GetByIdAsync(id)` → при промахе `null`. `CommandDbContext` в классе **нет** |
+`Partners.Storage/PartnerCommandRepository.cs:19-24` | то же: `_readRepo.GetByIdAsync` → `null` (есть `CommandDbContext`, но в `GetByIdAsync` не используется) |
+`Journal.Api/Controllers/JournalController.cs:32-39` | `EnsureOwns`: сначала `GetRecordByIdQuery`, затем fallback `_anemic.GetById` — **это тот же командный репозиторий**, значит fallback упирается в read-модель |
+
+**Механизм:** read-модель наполняется проекцией асинхронно; запись создана секунду назад — в `journal_read`/
+`partners_read` её ещё нет. Командный путь читает read-модель → `null` → `EnsureOwns` отдаёт **404** (`when` и все
+мутации записи), а обработчики Partners — `Fail("Partner not found.")` → **400** (`remove`, `link-client`).
+Один лаг объясняет оба симптома сразу, и `smoke-api`/`smoke-front` краснеют именно из-за него.
+
+**Что это меняет для меня:** моя часть (измерение, спеки, гейты) закрыта — падения `when → 404` и
+`link-client → 400` **не дефект тестов**; они позеленеют, когда `BE-088` будет исправлен и выкачен.
+Проверка на будущее: `[handle] entered` в логе Journal + рост `events`/`records`; и тест «создать → сразу
+`when`/`remove` = 2xx», который @BE уже сформулировал.
