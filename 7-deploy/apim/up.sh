@@ -24,6 +24,7 @@ cd "$(dirname "$0")"
 NET=apim
 MONGO=xdiary-apim-mongo
 UI=xdiary-apim-ui
+PORTAL=xdiary-apim-portal-ui
 MGMT=xdiary-apim-management
 GW=xdiary-apim-gateway
 URI_TMPL='mongodb://%s:27017/gravitee?serverSelectionTimeoutMS=5000&connectTimeoutMS=5000'
@@ -114,6 +115,19 @@ run_ui() {
     -p 127.0.0.1:18084:8080 \
     docker.io/graviteeio/apim-management-ui:4.4 >/dev/null
   say "management-ui запущен: http://127.0.0.1:18084 (только loopback)"
+
+# DO-075 (2026-11-06): портал для пользователей API — ОПЦИОНАЛЬНО, только loopback.
+# Включается флагом --with-portal: без него контур поднимается как раньше (меньше памяти).
+if printf '%s\n' "${ARGS:-$*}" | grep -q -- "--with-portal"; then
+  podman rm -f "$PORTAL" >/dev/null 2>&1 || true
+  podman run -d --name "$PORTAL" --network "$NET" --memory=256m --restart unless-stopped \
+    -p 127.0.0.1:18085:8080 \
+    -e MANAGEMENT_API_URL="http://$MGMT:8083" \
+    -e MGMT_API_URL="http://localhost:8083/management" \
+    -e PORTAL_BASE_HREF=/ \
+    docker.io/graviteeio/apim-portal-ui:4.4 >/dev/null
+  say "portal-ui запущен: http://127.0.0.1:18085 (только loopback)"
+fi
 }
 
 health() {
