@@ -1,5 +1,6 @@
 namespace Journal.Api.Controllers;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Application.Commands;
 using Journal.Application.Queries;
 using Journal.Domain;
@@ -15,7 +16,8 @@ using XDiary.Contracts;
 public sealed class JournalController : ControllerBase
 {
     private readonly IMediator _mediator;
-    public JournalController(IMediator mediator) => _mediator = mediator;
+    private readonly IAnemicModelRepository<IJournal, IJournalAnemicModel> _anemic;
+    public JournalController(IMediator mediator, IAnemicModelRepository<IJournal, IJournalAnemicModel> anemic) { _mediator = mediator; _anemic = anemic; }
 
     private IActionResult Respond(AggregateResult<IJournal, IJournalAnemicModel> r)
         => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
@@ -30,8 +32,11 @@ public sealed class JournalController : ControllerBase
     private async Task<IActionResult?> EnsureOwns(Guid id, Guid clientId)
     {
         var rec = await _mediator.Send(new GetRecordByIdQuery(id));
-        if (rec is null) return NotFound();
-        return rec.ClientId == clientId ? null : Forbid();
+        if (rec is not null) return rec.ClientId == clientId ? null : Forbid();
+        // @TE 04:32 — fallback: read-модель материализуется с лагом (404 на свежей записи).
+        var agg = (await _anemic.GetById(id, CancellationToken.None)).LastOrDefault();
+        if (agg is null) return NotFound();
+        return agg.ClientId == clientId ? null : Forbid();
     }
 
     private async Task<IActionResult> WithOwner(Guid id, Func<Task<IActionResult>> action)
