@@ -150,3 +150,18 @@ Npgsql.PostgresException (0x80004005): 23505: duplicate key value violates uniqu
 4. После — вернуть `TESTOTP=000000`. E2E в окнах 2–3 **не запускать**.
 
 Вывод: «канал работает» доказывается парой исходов (2) и (3), а не одним `info` в логе.
+
+## Прогон `deploy` `6c8546b1` (21:34Z): упал **раньше**, чем smoke
+
+| Job | Результат |
+|---|---|
+| `lock-published` | ✅ success |
+| `diff-paths` | ✅ success |
+| **`deploy-dev`** | ❌ **failure** (шаг «Deploy dev (VPS-2)», `exit 1`, деталей в аннотациях нет) |
+| `smoke-front` / `smoke-api` | ⏭ skipped (не дошли) |
+| `smoke-prod-cors` | ✅ success |
+| `deploy-prod` | ⏭ skipped |
+
+Предыдущие прогоны доходили до smoke (`deploy-dev` был success). Значит изменение поведения — на стенде dev
+(вероятно, идут правки конфигурации: `TESTOTP`/прокси/`Swagger__Enabled`), а не в коде. Нужен ответ @DO: что именно
+сейчас меняется на dev и когда прогон имеет смысл перезапускать.
