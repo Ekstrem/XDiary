@@ -89,6 +89,8 @@ ARGS_REQUIRED = {"e2e_receipt.py": "квитанция прогона: нуже�
 JS_GATES = (
     ("9-tests/RnD/front-e2e/login-paths.test.js",
      "пути входа (кэш сессии / без лишнего reload / повтор при 401) — без браузера"),
+    ("9-tests/RnD/front-e2e/helpers.test.js",
+     "waitAnyScreen: возвращает показанный экран, таймаут, диагностику при провале — без браузера"),
     ("9-tests/RnD/front-e2e/e2e-dryrun.js",
      "исполняет тела спек на заглушках (без браузера): нет исключений в коде тестов"),
 )
