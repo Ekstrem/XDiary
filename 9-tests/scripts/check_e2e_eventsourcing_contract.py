@@ -37,11 +37,9 @@ SRC_ROOT = ("6-msa",)
 # и `deploy-prod` не запускается). Проверяется статически: если есть ссылки на `IValueObjectJsonConverter`,
 # где-то в `6-msa` должно быть `class IValueObjectJsonConverter`.
 CONVERTER_TYPE = "IValueObjectJsonConverter"
-# Исключение: владелец зоны уже правит (BE-089: конвертер вынесен в Shared, файл ещё не закоммичен).
-KNOWN_UNDEFINED = {
-    CONVERTER_TYPE: "BE-089: файл 6-msa/Shared/XDiary.Contracts/IValueObjectJsonConverter.cs ещё не в origin "
-                    "(CS0246 в ci-partners/ci-journal → docker skipped → образы не публикуются)",
-}
+# Исключений нет: файл `6-msa/Shared/XDiary.Contracts/IValueObjectJsonConverter.cs` уже в `origin`
+# (определение — строка 11), поэтому проверка снова строгая: ссылка без определения = `rc=1`.
+KNOWN_UNDEFINED = {}
 
 # Известные исключения: асимметрия признана и исправляется владельцем зоны.
 # Исключение НЕ скрывает проблему: оно печатается в квитанции отдельным числом, и запись удаляется,
