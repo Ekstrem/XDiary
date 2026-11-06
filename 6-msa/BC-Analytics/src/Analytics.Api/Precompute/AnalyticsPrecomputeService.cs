@@ -48,13 +48,15 @@ public sealed class AnalyticsPrecomputeService : BackgroundService
     private async Task<List<JournalRecord>> GetRecordsAsync(HttpClient client, Guid cid, CancellationToken ct)
     {
         var resp = await client.SendAsync(WithAuth(HttpMethod.Get, $"{_journalUrl}/internal/journal/records?clientId={cid}"), ct);
-        return resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<List<JournalRecord>>(ct) ?? new() : new();
+        if (!resp.IsSuccessStatusCode) { _logger.LogWarning("Journal records {clientId}: {status}", cid, resp.StatusCode); return new(); }
+        return await resp.Content.ReadFromJsonAsync<List<JournalRecord>>(ct) ?? new();
     }
 
     private async Task<List<MetricInput>> GetMetricsAsync(HttpClient client, Guid cid, CancellationToken ct)
     {
-        var resp = await client.SendAsync(WithAuth(HttpMethod.Get, $"{_metricsUrl}/api/v1/daily-metrics/series?clientId={cid}"), ct);
-        var metrics = resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<List<DailyMetricDto>>(ct) ?? new() : new();
+        var resp = await client.SendAsync(WithAuth(HttpMethod.Get, $"{_metricsUrl}/internal/daily-metrics/series?clientId={cid}"), ct);
+        if (!resp.IsSuccessStatusCode) { _logger.LogWarning("DailyMetrics series {clientId}: {status}", cid, resp.StatusCode); return new(); }
+        var metrics = await resp.Content.ReadFromJsonAsync<List<DailyMetricDto>>(ct) ?? new();
         return metrics.Select(m => new MetricInput { Date = m.Date, RestingHr = m.RestingHr, SleepScore = m.SleepScore }).ToList();
     }
 
