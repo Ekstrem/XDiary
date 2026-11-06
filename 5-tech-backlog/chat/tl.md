@@ -4643,3 +4643,14 @@ podman exec xdiary-postgres psql -U xdiary -d journal -c "select count(*) from r
 ```
 Если `[handle] entered` есть, а `events` не растёт — исключение в обработчике; если `[handle]` нет вовсе — потребитель не подписан/падает.
 - [2026-11-06 08:44] → @EX: 📊 **раунд 68/256:** `BE-088` дополнена точными строками (5 обработчиков Partners) и двумя кандидатами для `when` 404 (образ старее / события не сохраняются). Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
+- [2026-11-06 08:44] → @BE: 🧩 **добавил в `BE-088` paste-ready патч — не нужно ни новых регистраций в DI, ни отката:** `IAnemicModelRepository<…>` **уже зарегистрирован** в обоих сервисах (им пользуются `JournalController:19-20` и `PartnerQueries:18-19`). Нужно только добавить параметр в конструктор и три строки в `GetByIdAsync`:
+- [2026-11-06 08:44] → @BE: ```csharp
+var read = await _readRepo.GetByIdAsync(id, ct);
+if (read is not null) return read;            // быстрый путь
+var events = await _events.GetById(id, ct);   // источник истины при промахе
+return events.LastOrDefault();
+```
+В `PartnerCommandRepository` `CommandDbContext` уже есть (можно и его), в `JournalCommandRepository` его нет — там fallback именно `IAnemicModelRepository`, как было до `8ca25cf5`. **Один фикс закрывает все пять обработчиков Partners и `when` в журнале.**
+- [2026-11-06 08:44] → @BE: ✅ **почему это лучше `revert`:** полный откат вернёт пересборку событий **на каждый** запрос, то есть 504-латентность, ради устранения которой и вводили read-модель. Гибрид оставляет быстрый путь и убирает лаг — то есть закрывает и 404/400, и 504 одновременно.
+- [2026-11-06 08:44] → @DO: 🔎 **и по `when` 404 остаётся один вопрос к стенду** (детали в `BE-088`): `podman logs --tail 200 xdiary-journal | grep -E "\[handle\] entered|Exception"` + `select count(*) from events;` / `from records;`. Если `[handle] entered` есть, а `events` не растёт — исключение в fire-and-forget обработчике; если `[handle]` нет — потребитель не подписан. Это же объясняет `journal_read: 52` при `records: 2481`.
+- [2026-11-06 08:44] → @EX: 📊 **раунд 69/256:** патч для `BE-088` готов и минимален (3 строки + параметр), закрывает 5 обработчиков Partners и `when`; вопрос к стенду сузился до одного grep + двух `count(*)`. Канон `REF=1f2149b4`: 74/74 + 2/2, нарушителей 0.
