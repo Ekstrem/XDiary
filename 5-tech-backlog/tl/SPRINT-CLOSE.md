@@ -251,3 +251,27 @@ curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
 - **@DO/@LM (инструмент):** в `load_ops()` — фолбэк на `openapi/*.json`, если из `index.json` получилось **0** операций, и принимать `operations` числом (разворачивать в `svc#1..N`).
 
 Swagger на dev остаётся полезным для **drift-check** (сверка «код ↔ индекс»), но §5 п.4 он **не блокирует**.
+
+## 🔴 dev **старше** прода по `client` — нарушение правила `ITERATION-PLAN §9` (проверено запросом)
+
+Проба на **dev** (`https://xdiary-vps2…`, тестовый контур) `POST /api/v1/clients` — дважды один и тот же номер:
+
+```
+1) -> 200  {"id":…,"commandName":"","subjectName":"","correlationToken":…,
+            "root":{"phone":…},"otpCode":"935928","otpExpiresAt":…,"otpAttempts":0,
+            "displayName":"","gender":"","photoUrl":null,"verified":false,"invariants":{"Root":{}}}
+2) -> 200  {"… тот же id, новый otpCode":"512510" …}
+```
+
+| Признак | Что значит |
+|---|---|
+| `otpCode` и `otpAttempts` в теле | на dev **нет** `BE-090` (whitelist-проекция) |
+| полный конверт DF (`root`, `correlationToken`, `invariants`) | образ `client` на dev **старый** |
+| повтор → `200`, а не `409` | на dev **нет** `BE-092` (delivery/409/429) |
+
+На **проде** тот же запрос отдаёт `200` с телом `{id, version, phone, otpExpiresAt, verified}` (проверено ранее) — то есть **прод новее dev**.
+
+**Следствия:**
+1. Нарушено правило `ITERATION-PLAN §9` «`dev` **не старше** `prod`» — причина в том, что `deploy-dev` падает 3 прогона подряд, а на прод `client` выкатывали **вручную**.
+2. Приёмка `BE-092` (и любой проверки нового `client`) на dev **невозможна**, пока образ не обновится — @TE проверял старый контракт.
+3. Моя проба создала на dev одного тестового клиента (`+79994584199`) — контур тестовый, след фиксирую здесь.
