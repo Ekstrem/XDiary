@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("internal/journal")]
-[AllowAnonymous]
+[Authorize]
 public sealed class InternalJournalController : ControllerBase
 {
     private readonly IJournalQueryRepository _repo;
