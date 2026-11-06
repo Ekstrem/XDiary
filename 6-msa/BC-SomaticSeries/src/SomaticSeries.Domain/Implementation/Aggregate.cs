@@ -17,13 +17,13 @@ public sealed class Aggregate
     private AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> Fail(string e)
     { var d = BusinessOperationData<ISomaticSeries, ISomaticSeriesAnemicModel>.Commit<ISomaticSeries, ISomaticSeriesAnemicModel>(Model, Model); return new AggregateResultException<ISomaticSeries, ISomaticSeriesAnemicModel>(d, new FailedSpecification<ISomaticSeries, ISomaticSeriesAnemicModel>(e)); }
 
-    public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery)
+    public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId)
     {
         var mv = new MinuteGranularityValidator();
         if (!mv.IsSatisfiedBy(t)) return Fail(mv.Reason);
         var nv = new NonNegativeValidator();
         if (!nv.IsSatisfiedBy(hr, bodyBattery)) return Fail(nv.Reason);
-        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = SomaticPointRoot.CreateInstance(t), Hr = hr, BodyBattery = bodyBattery };
+        var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = SomaticPointRoot.CreateInstance(t), Hr = hr, BodyBattery = bodyBattery, ClientId = clientId };
         return Success(m);
     }
 }

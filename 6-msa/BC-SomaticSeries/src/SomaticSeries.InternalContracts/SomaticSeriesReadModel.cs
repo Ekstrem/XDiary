@@ -7,4 +7,5 @@ public sealed class SomaticSeriesReadModel : IReadModel<SomaticSeries.Domain.ISo
     public string T { get; set; } = string.Empty;
     public int Hr { get; set; }
     public int BodyBattery { get; set; }
+    public Guid? ClientId { get; set; }
 }

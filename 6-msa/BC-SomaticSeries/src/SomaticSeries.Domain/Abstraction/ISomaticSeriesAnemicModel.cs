@@ -5,4 +5,5 @@ public interface ISomaticSeriesAnemicModel : IAnemicModel<ISomaticSeries>
     ISomaticPointRoot Root { get; }
     int Hr { get; }
     int BodyBattery { get; }
+    Guid? ClientId { get; }
 }
