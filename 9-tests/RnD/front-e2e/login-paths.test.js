@@ -8,7 +8,9 @@
 //   1) сессия закэширована, стенд её принял, журнал отрисован → вход БЕЗ `reload`, PIN поставлен;
 //   2) кэш не принят (401) → полный онбординг и `reload` (старый путь не сломан);
 //   3) журнал уже открыт и токен на месте → ни засева, ни `reload` (fast path до засева);
-//   4) сессию убили посреди входа (401 на /clients/me) → ровно один повтор, затем падение с диагнозом.
+//   4) сессию убили посреди входа (401 на /clients/me) → ровно один повтор, затем падение с диагнозом;
+//   5) PIN не снимает замок → диагноз с экранами (а не пустой timeout);
+//   6) `expectScreen` несёт текст тоста и имя шага.
 //
 // Код возврата: 0 — все пути как ожидалось; 1 — расхождение.
 
@@ -28,6 +30,9 @@ function makeEnv(opts = {}) {
     meStatus: opts.meStatus || 200,
     failJournal: !!opts.failJournal,
     openOnGoto: !!opts.openOnGoto,
+    lockVisible: !!opts.lockVisible,
+    lockStuck: !!opts.lockStuck,
+    toast: opts.toast || '',
     errors: opts.errors || [],
   };
   const ls = {
@@ -79,16 +84,26 @@ function makeEnv(opts = {}) {
     click: async () => {},
     evaluate: async (fn, arg) => await fn(arg),
     locator: (sel) => ({
-      isVisible: async () => (String(sel).includes('view-journal') ? state.journalVisible : false),
-      waitFor: async () => {
-        if (String(sel).includes('view-journal')) {
+      isVisible: async () => {
+        const s2 = String(sel);
+        if (s2.includes('view-journal')) return state.journalVisible;
+        if (s2.includes('view-lock')) return state.lockVisible;
+        return false;
+      },
+      waitFor: async (o = {}) => {
+        const s2 = String(sel);
+        if (s2.includes('view-journal')) {
           if (state.failJournal) throw new Error('locator.waitFor: Timeout 30000ms exceeded');
           state.journalVisible = true;
+        }
+        if (s2.includes('view-lock') && o.state === 'hidden') {
+          if (state.lockStuck) throw new Error('locator.waitFor: Timeout 15000ms exceeded');
+          state.lockVisible = false;
         }
       },
       filter: () => ({ count: async () => 0 }),
       count: async () => 0,
-      innerText: async () => '',
+      innerText: async () => state.toast,
       fill: async () => {},
       click: async () => {},
       first: () => ({ click: async () => {}, isVisible: async () => false }),
@@ -164,6 +179,32 @@ async function check(name, fn) {
       assert.ok(/повторов 1/.test(String(e.message)), 'в диагнозе должно быть число повторов');
     }
     assert.ok(failed, 'при двух неудачах вход обязан падать');
+  });
+
+  await check('замок не уходит после PIN: диагноз с экранами', async () => {
+    const env = makeEnv({ journalVisible: false, lockVisible: true, lockStuck: true });
+    const api = freshApi();
+    let msg = '';
+    try {
+      await api.unlockIfLocked(env.page, '1234');
+    } catch (e) {
+      msg = String(e && e.message);
+    }
+    assert.ok(/PIN введён, но #view-lock не скрылся/.test(msg), 'ожидали диагноз про замок, получили: ' + msg.slice(0, 120));
+    assert.ok(/views=/.test(msg), 'в диагнозе должен быть снимок экранов');
+  });
+
+  await check('expectScreen несёт текст тоста в ошибке', async () => {
+    const env = makeEnv({ journalVisible: false, failJournal: true, toast: 'Ошибка: сервер недоступен' });
+    const api = freshApi();
+    let msg = '';
+    try {
+      await api.expectScreen(env.page, '#view-journal', 'проверка экрана', 100);
+    } catch (e) {
+      msg = String(e && e.message);
+    }
+    assert.ok(/Шаг не пройден: проверка экрана/.test(msg), 'ожидали «Шаг не пройден», получили: ' + msg.slice(0, 120));
+    assert.ok(/сервер недоступен/.test(msg), 'в ошибке должен быть текст тоста');
   });
 
   const failed = results.filter(([, ok]) => !ok);
