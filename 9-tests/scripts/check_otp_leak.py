@@ -159,13 +159,44 @@ def main(argv=None):
     ap.add_argument("--body", help="офлайн-проверка: подставить тело ответа")
     ap.add_argument("--status", type=int, help="офлайн-проверка: подставить код ответа")
     ap.add_argument("--contract", default=CONTRACT, help="путь к api-index.yaml (источник правды по форме)")
+    ap.add_argument("--compare", nargs=2, metavar=("BASE_A", "BASE_B"),
+                    help="сравнить два стенда и назвать асимметрию (например «dev отстаёт от прода»)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
 
+    allowed_fields, contract_where = contract_allowed_fields(a.contract)
+    if allowed_fields is None:
+        print(f"::warning::check_otp_leak: контракт не прочитан ({contract_where}) — проверка «поле вне "
+              f"контракта» не выполняется, проверяются только секретные ключи")
+    else:
+        print(f"::notice::check_otp_leak: разрешённые поля взяты из контракта — {contract_where}")
+
+    if a.compare:
+        rows = []
+        for label, base in (("A", a.compare[0]), ("B", a.compare[1])):
+            st, body, err = probe(base, a.phone)
+            if err:
+                print(f"::error::check_otp_leak: {label} ({base}) — {err} — не измерено (rc=2)")
+                return 2
+            iss, stt = evaluate(st, body, allowed_fields=allowed_fields)
+            rows.append((label, base, st, stt, iss))
+            print(f"   {label} {base}: HTTP {st} | OTP-полей {len(stt['leaked'])} {stt['leaked'] or ''} | "
+                  f"вне контракта {len(stt.get('unexpected') or [])} | rc={1 if iss else 0}")
+        (la, _ba, _sa, ta, ia), (lb, _bb, _sb, tb, ib) = rows
+        if bool(ia) != bool(ib):
+            behind, ahead = (la, lb) if ia else (lb, la)
+            behind_leaks = len(ta["leaked"]) if ia else len(tb["leaked"])
+            print(f"квитанция сравнения: {behind} отстаёт от {ahead} по `client` "
+                  f"(у {behind} OTP-полей {behind_leaks}, у {ahead} — 0)")
+            return 1
+        print(f"квитанция сравнения: стенды одинаковы по форме ответа "
+              f"(OTP-полей {len(ta['leaked'])} / {len(tb['leaked'])})")
+        return 0
+
     if a.body is not None:
-        status, body, err = a.status, a.body, None
+        status, body = a.status, a.body
     else:
         if not a.base:
             print("::error::check_otp_leak: нет --base — не измерено (rc=2)")
@@ -175,12 +206,6 @@ def main(argv=None):
             print(f"::error::check_otp_leak: {err} — не измерено (rc=2)")
             return 2
 
-    allowed_fields, contract_where = contract_allowed_fields(a.contract)
-    if allowed_fields is None:
-        print(f"::warning::check_otp_leak: контракт не прочитан ({contract_where}) — проверка «поле вне "
-              f"контракта» не выполняется, проверяются только секретные ключи")
-    else:
-        print(f"::notice::check_otp_leak: разрешённые поля взяты из контракта — {contract_where}")
     issues, stats = evaluate(status, body, allowed_fields=allowed_fields)
     for m in issues:
         print(f"::error::check_otp_leak: {m}")

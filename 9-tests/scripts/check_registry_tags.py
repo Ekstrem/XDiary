@@ -16,6 +16,7 @@ import argparse
 import json
 import pathlib
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -87,9 +88,54 @@ def registry_tags(service, timeout=25):
         raise
 
 
+def git_commit_dates(root=".", ref=None):
+    """{short7: ts} по коммитам, достижимым из ref. Имя удалённой ветки различается между клонами
+    (`origin/main` vs `gh/main`), поэтому пробуем по порядку, а не падаем на первом."""
+    refs = [ref] if ref else ["origin/main", "gh/main", "HEAD"]
+    for r in refs:
+        if not r:
+            continue
+        out = subprocess.run(["git", "-C", root, "log", r, "--format=%h %ct"],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace")
+        rows = {}
+        for line in (out.stdout or "").splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                # git отдаёт `%h` переменной длины (в этом репозитории — 8 символов из-за коллизий),
+                # а тег в реестре несёт 7-символьный префикс: кладём оба ключа, иначе «доступно 0».
+                rows[parts[0]] = int(parts[1])
+                rows[parts[0][:7]] = int(parts[1])
+        if rows:
+            return rows, r
+    return {}, None
+
+
+def available_by_service(rows, tags_by_service, dates):
+    """Для каждого сервиса — самый свежий ОПУБЛИКОВАННЫЙ тег, чей коммит есть в истории origin/main."""
+    result = {}
+    for svc, _tag in rows:
+        tags = tags_by_service.get(svc) or []
+        cands = []
+        for t in tags:
+            m = re.match(r"single-([0-9a-f]{7,40})", t)
+            if not m:
+                continue
+            key = m.group(1)[:7]
+            if key in dates:
+                cands.append((dates[key], t))
+        cands.sort(reverse=True)
+        result[svc] = cands[0][1] if cands else None
+    return result
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--lock", default=LOCK)
+    ap.add_argument("--available", action="store_true",
+                    help="показать, что реестр реально может дать: самый свежий опубликованный тег "
+                         "с коммитом из origin/main (то, что запишет gen_images_lock.py --from-registry)")
+    ap.add_argument("--repo-root", default=".")
+    ap.add_argument("--ref", help="ветка для истории (по умолчанию origin/main, затем gh/main, HEAD)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -115,6 +161,22 @@ def main(argv=None):
         print("::error::check_registry_tags: реестр недоступен целиком — не измерено (rc=2): "
               + "; ".join(errors[:3]))
         return 2
+
+    if a.available:
+        dates, used_ref = git_commit_dates(a.repo_root, a.ref)
+        if not dates:
+            print("::error::check_registry_tags: не удалось прочитать историю git — не измерено (rc=2)")
+            return 2
+        print(f"::notice::check_registry_tags: история из {used_ref}")
+        avail = available_by_service(rows, tags_by_service, dates)
+        have = [s for s, t in avail.items() if t]
+        for svc, tag in avail.items():
+            lock_tag = dict(rows).get(svc)
+            mark = "совпадает с lock" if tag == lock_tag else ("—" if tag else "НЕТ опубликованных предков")
+            print(f"   {svc:22} последний доступный: {tag or '—':16} (в lock {lock_tag}) {mark}")
+        print(f"квитанция (from-registry): сервисов {len(avail)} | доступно {len(have)} | "
+              f"без образа {len(avail) - len(have)}")
+        return 0 if len(have) == len(avail) else 1
 
     present, missing, unknown, stats = evaluate(rows, tags_by_service)
     for svc, tag in missing:
