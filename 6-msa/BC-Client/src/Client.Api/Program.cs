@@ -33,6 +33,8 @@ switch (otpChannel)
     case "telegram": builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.TelegramOtpSender>(); break;
     default: builder.Services.AddSingleton<Client.Application.Abstraction.IOtpSender, Client.Application.Security.LogOtpSender>(); break;
 }
+// BE-092: лимит переотправки OTP (singleton — in-memory, per-service).
+builder.Services.AddSingleton<Client.Application.Abstraction.IOtpRateLimiter, Client.Application.Security.OtpRateLimiter>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)

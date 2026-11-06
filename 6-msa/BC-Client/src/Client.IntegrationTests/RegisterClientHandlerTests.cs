@@ -1,4 +1,5 @@
 using Client.Application.Commands;
+using Client.Application.Abstraction;
 using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.Domain.Implementation;
@@ -26,9 +27,15 @@ public class RegisterClientHandlerTests
         public Task<IReadOnlyList<ClientReadModel>> ListAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ClientReadModel>>(Array.Empty<ClientReadModel>());
         public Task<ClientReadModel?> GetByPhoneAsync(string phone, CancellationToken ct = default) => Task.FromResult<ClientReadModel?>(ExistingId is Guid g ? new ClientReadModel { Id = g, Phone = phone } : null);
     }
-    private sealed class FakeSender : Client.Application.Abstraction.IOtpSender
+    private sealed class FakeSender : IOtpSender
     {
-        public Task SendAsync(string phone, string otp, CancellationToken ct = default) => Task.CompletedTask;
+        public bool Ok { get; set; } = true;
+        public Task<bool> SendAsync(string phone, string otp, CancellationToken ct = default) => Task.FromResult(Ok);
+    }
+    private sealed class FakeRateLimiter : IOtpRateLimiter
+    {
+        public bool Allow { get; set; } = true;
+        public bool TryAcquire(string phone, DateTime nowUtc) => Allow;
     }
     private sealed class FakeConfig : IConfiguration
     {
@@ -38,24 +45,45 @@ public class RegisterClientHandlerTests
         public IConfigurationSection GetSection(string key) => null!;
     }
 
+    private static RegisterClientHandler MakeHandler(FakeRepo repo, FakeQuery query, FakeSender sender, FakeRateLimiter limiter)
+        => new(repo, query, sender, limiter, new FakeConfig(), Microsoft.Extensions.Logging.Abstractions.NullLogger<RegisterClientHandler>.Instance);
+
     [Fact]
-    public async Task Register_ExistingPhone_ReissuesOtp()
+    public async Task Register_ExistingPhone_ReissuesOtp_And_MarksExisting()
     {
         var id = Guid.NewGuid();
         var repo = new FakeRepo { Existing = new AnemicModel { Id = id, Root = ClientRoot.CreateInstance("+79990000000"), OtpCode = "old" } };
-        var handler = new RegisterClientHandler(repo, new FakeQuery { ExistingId = id }, new FakeSender(), new FakeConfig(), Microsoft.Extensions.Logging.Abstractions.NullLogger<RegisterClientHandler>.Instance);
+        var handler = MakeHandler(repo, new FakeQuery { ExistingId = id }, new FakeSender(), new FakeRateLimiter());
         var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
-        Assert.True(res.IsSuccess());
-        Assert.NotEqual("old", res.Model().OtpCode);
+        Assert.True(res.Result.IsSuccess());
+        Assert.True(res.Existing);               // BE-092: контроллер отдаст 409
+        Assert.NotEqual("old", res.Result.Model().OtpCode);
     }
 
     [Fact]
     public async Task Register_Race_DuplicatePhone_ReturnsPhoneTaken()
     {
         var repo = new FakeRepo { ThrowDuplicateOnSave = true };
-        var handler = new RegisterClientHandler(repo, new FakeQuery { ExistingId = null }, new FakeSender(), new FakeConfig(), Microsoft.Extensions.Logging.Abstractions.NullLogger<RegisterClientHandler>.Instance);
+        var handler = MakeHandler(repo, new FakeQuery { ExistingId = null }, new FakeSender(), new FakeRateLimiter());
         var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
-        Assert.False(res.IsSuccess());
-        Assert.Contains("phone_taken", res.ErrorMessage());
+        Assert.False(res.Result.IsSuccess());
+        Assert.Contains("phone_taken", res.Result.ErrorMessage());
+    }
+
+    [Fact]
+    public async Task Register_ChannelUnavailable_DeliveryOkFalse_But_Succeeds()
+    {
+        var handler = MakeHandler(new FakeRepo(), new FakeQuery { ExistingId = null }, new FakeSender { Ok = false }, new FakeRateLimiter());
+        var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
+        Assert.True(res.Result.IsSuccess());     // BE-092: недоступный канал — не отказ регистрации
+        Assert.False(res.DeliveryOk);
+    }
+
+    [Fact]
+    public async Task Register_RateLimited_Signals429()
+    {
+        var handler = MakeHandler(new FakeRepo(), new FakeQuery { ExistingId = null }, new FakeSender(), new FakeRateLimiter { Allow = false });
+        var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
+        Assert.True(res.RateLimited);
     }
 }

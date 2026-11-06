@@ -25,11 +25,23 @@ public sealed class ClientsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterClientCommand c, CancellationToken ct)
     {
-        var result = await _mediator.Send(c, ct);
-        if (!result.IsSuccess()) return BadRequest(result.ErrorMessage());
-        var m = result.Model();
+        var r = await _mediator.Send(c, ct);
+        if (r.RateLimited) return StatusCode(429, "Слишком много запросов, попробуйте позже.");
+        if (!r.Result.IsSuccess()) return BadRequest(r.Result.ErrorMessage());
+        var m = r.Result.Model();
         // BE-090: whitelist-проекция — otpCode/otpAttempts НЕ отдаются (иначе перехват аккаунта по номеру).
-        return Ok(new { id = m.Id, version = m.Version, phone = m.Root.Phone, otpExpiresAt = m.OtpExpiresAt, verified = m.Verified });
+        // BE-092: delivery — только в реальном режиме (не в тестовом, чтобы не врать «отправлено»).
+        object? delivery = r.DeliveryOk is bool ok ? new { channel = r.Channel, ok } : null;
+        if (r.Existing)
+        {
+            // 409: номер уже зарегистрирован, код переотправлен — клиенту нужен реальный clientId.
+            return Conflict(delivery is null
+                ? new { error = "Номер уже зарегистрирован", clientId = m.Id }
+                : new { error = "Номер уже зарегистрирован", clientId = m.Id, delivery });
+        }
+        return Ok(delivery is null
+            ? new { id = m.Id, version = m.Version, phone = m.Root.Phone, otpExpiresAt = m.OtpExpiresAt, verified = m.Verified }
+            : new { id = m.Id, version = m.Version, phone = m.Root.Phone, otpExpiresAt = m.OtpExpiresAt, verified = m.Verified, delivery });
     }
     [HttpPost("{id:guid}/verify")]
     [AllowAnonymous]

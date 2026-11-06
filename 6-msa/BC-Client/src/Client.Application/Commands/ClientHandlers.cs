@@ -10,15 +10,58 @@ using Client.Application.Abstraction;
 using Client.InternalContracts;
 using XDiary.Contracts;
 
-public sealed class RegisterClientHandler : IRequestHandler<RegisterClientCommand, AggregateResult<IClients, IClientAnemicModel>>
+public sealed class RegisterClientHandler : IRequestHandler<RegisterClientCommand, RegisterClientResult>
 {
     private readonly IRepository<IClients, IClientAnemicModel> _repo;
     private readonly IClientQueryRepository _query;
     private readonly IOtpSender _sender;
+    private readonly IOtpRateLimiter _rateLimiter;
+    private readonly IConfiguration _config;
+    private readonly ILogger<RegisterClientHandler> _log;
     private readonly string? _testOtp;
-    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IClientQueryRepository query, IOtpSender sender, IConfiguration config, Microsoft.Extensions.Logging.ILogger<RegisterClientHandler> logger) { _repo = repo; _query = query; _sender = sender; _testOtp = TestOtpPolicy.Resolve(config, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), out var warn); if (warn) logger.LogWarning("Включён тестовый OTP на проде (Clients:AllowTestOtpOutsideDev=true) — временная мера"); }
-    public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(RegisterClientCommand r, CancellationToken ct)
-    { var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString(); if (_testOtp is null) { try { await _sender.SendAsync(r.Phone, otp, ct); } catch (Exception ex) { return ClientResults.Fail(ex.Message); } } var existing = await _query.GetByPhoneAsync(r.Phone, ct); if (existing is not null) { var agg = await _repo.GetByIdAsync(existing.Id, ct); if (agg is not null) { var rr = Aggregate.CreateInstance(agg).ReissueOtp(otp); if (rr.IsSuccess()) { try { await _repo.SaveAsync(rr, ct); } catch (DuplicatePhoneException ex) { return ClientResults.Fail(ex.Message); } } return rr; } } var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp); if (res.IsSuccess()) { try { await _repo.SaveAsync(res, ct); } catch (DuplicatePhoneException ex) { return ClientResults.Fail(ex.Message); } } return res; }
+    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IClientQueryRepository query, IOtpSender sender, IOtpRateLimiter rateLimiter, IConfiguration config, ILogger<RegisterClientHandler> logger) { _repo = repo; _query = query; _sender = sender; _rateLimiter = rateLimiter; _config = config; _log = logger; _testOtp = TestOtpPolicy.Resolve(config, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), out var warn); if (warn) logger.LogWarning("Включён тестовый OTP на проде (Clients:AllowTestOtpOutsideDev=true) — временная мера"); }
+
+    public async Task<RegisterClientResult> Handle(RegisterClientCommand r, CancellationToken ct)
+    {
+        var channel = _config["Otp:Channel"] ?? "log";
+
+        // BE-092: лимит переотправки — до отправки, иначе OTP-бомбинг.
+        if (!_rateLimiter.TryAcquire(r.Phone, DateTime.UtcNow))
+            return new RegisterClientResult(ClientResults.Fail("Слишком много запросов, попробуйте позже."), false, null, channel, true);
+
+        var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString();
+        bool? deliveryOk = null;
+        if (_testOtp is null)
+        {
+            // BE-092: недоступный канал — штатное delivery.ok=false, а не отказ регистрации.
+            try { deliveryOk = await _sender.SendAsync(r.Phone, otp, ct); }
+            catch (Exception ex) { _log.LogWarning(ex, "OTP send failed for {Phone} (delivery.ok=false).", r.Phone); deliveryOk = false; }
+        }
+
+        var existing = await _query.GetByPhoneAsync(r.Phone, ct);
+        if (existing is not null)
+        {
+            var agg = await _repo.GetByIdAsync(existing.Id, ct);
+            if (agg is not null)
+            {
+                var rr = Aggregate.CreateInstance(agg).ReissueOtp(otp);
+                if (rr.IsSuccess())
+                {
+                    try { await _repo.SaveAsync(rr, ct); }
+                    catch (DuplicatePhoneException ex) { return new RegisterClientResult(ClientResults.Fail(ex.Message), false, deliveryOk, channel, false); }
+                }
+                return new RegisterClientResult(rr, true, deliveryOk, channel, false);
+            }
+        }
+
+        var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp);
+        if (res.IsSuccess())
+        {
+            try { await _repo.SaveAsync(res, ct); }
+            catch (DuplicatePhoneException ex) { return new RegisterClientResult(ClientResults.Fail(ex.Message), false, deliveryOk, channel, false); }
+        }
+        return new RegisterClientResult(res, false, deliveryOk, channel, false);
+    }
 }
 public sealed class VerifyClientOtpHandler : IRequestHandler<VerifyClientOtpCommand, AggregateResult<IClients, IClientAnemicModel>>
 {

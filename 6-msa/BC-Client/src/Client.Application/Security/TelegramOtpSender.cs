@@ -18,17 +18,18 @@ public sealed class TelegramOtpSender : IOtpSender
         }
         return null;
     }
-    public async Task SendAsync(string phone, string otp, CancellationToken ct = default)
+    public async Task<bool> SendAsync(string phone, string otp, CancellationToken ct = default)
     {
         var token = _config["Otp:Telegram:BotToken"];
         var chatId = FindChatId(_config["Otp:Telegram:ChatIdMap"] ?? string.Empty, phone);
         if (string.IsNullOrWhiteSpace(chatId)) chatId = _config["Otp:Telegram:AdminChatId"] ?? _config["Otp:Telegram:ChatId"];
-        if (string.IsNullOrWhiteSpace(token)) throw new InvalidOperationException("Otp:Telegram:BotToken не задан.");
-        if (string.IsNullOrWhiteSpace(chatId)) throw new InvalidOperationException($"Номер {phone} не в Otp:Telegram:ChatIdMap и нет Otp:Telegram:AdminChatId — OTP не отправлен.");
+        if (string.IsNullOrWhiteSpace(token)) { _log.LogWarning("Otp:Telegram:BotToken не задан — OTP не отправлен (delivery.ok=false)."); return false; }
+        if (string.IsNullOrWhiteSpace(chatId)) { _log.LogWarning("Номер {Phone} не в Otp:Telegram:ChatIdMap и нет AdminChatId — OTP не отправлен (delivery.ok=false).", phone); return false; }
         var text = $"Код для {phone}: {otp}";
         using var http = new HttpClient();
         var resp = await http.GetAsync($"https://api.telegram.org/bot{token}/sendMessage?chat_id={chatId}&text=" + Uri.EscapeDataString(text), ct);
-        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"Telegram {(int)resp.StatusCode}: {await resp.Content.ReadAsStringAsync(ct)}");
+        if (!resp.IsSuccessStatusCode) { _log.LogWarning("Telegram OTP не доставлен на {Phone}: HTTP {Code} (delivery.ok=false).", phone, (int)resp.StatusCode); return false; }
         _log.LogInformation("Telegram OTP отправлен на {Phone}.", phone);
+        return true;
     }
 }
