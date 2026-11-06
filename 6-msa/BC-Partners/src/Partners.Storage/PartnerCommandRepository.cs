@@ -6,17 +6,22 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Microsoft.EntityFrameworkCore;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
-using Partners.Storage.Outbox;
+using Partners.Domain.Implementation;
+using Partners.InternalContracts;
 using XDiary.Contracts;
 public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAnemicModel>
 {
     private readonly CommandDbContext _db;
-    private readonly IAnemicModelRepository<IPartners, IPartnerAnemicModel> _repo;
+    private readonly IPartnersQueryRepository _readRepo;
     private readonly IEventBusProducer _bus;
-    public PartnerCommandRepository(CommandDbContext db, IAnemicModelRepository<IPartners, IPartnerAnemicModel> repo, IEventBusProducer bus) { _db = db; _repo = repo; _bus = bus; }
-    // BE-056 (E1): агрегат читается из DF-репозитория (event-sourced), а не из EF-state CommandDbContext.Partners.
+    public PartnerCommandRepository(CommandDbContext db, IPartnersQueryRepository readRepo, IEventBusProducer bus) { _db = db; _readRepo = readRepo; _bus = bus; }
+    // @DO 00:30 — командная таблица (EF/StateOnly) пуста по дизайну E1; агрегат для UPDATE читается из read-модели.
     public async Task<IPartnerAnemicModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    { var list = await _repo.GetById(id, ct); return list.LastOrDefault(); }
+    {
+        var read = await _readRepo.GetByIdAsync(id, ct);
+        if (read is null) return null;
+        return new AnemicModel { Id = read.Id, Root = PartnerRoot.CreateInstance(read.Name), ClientId = read.ClientId, DeletedAt = read.DeletedAt, Photo = read.Photo, Gender = read.Gender, Notes = read.Notes };
+    }
     public async Task SaveAsync(AggregateResult<IPartners, IPartnerAnemicModel> result, CancellationToken ct = default)
     {
         // BE-073 диагностика (@TL 15:02): null-событие = причина «200 без схемы».
