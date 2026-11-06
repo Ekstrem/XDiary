@@ -174,8 +174,15 @@ def main(argv=None):
             lock_tag = dict(rows).get(svc)
             mark = "совпадает с lock" if tag == lock_tag else ("—" if tag else "НЕТ опубликованных предков")
             print(f"   {svc:22} последний доступный: {tag or '—':16} (в lock {lock_tag}) {mark}")
+        missing_svcs = [svc for svc, tag in avail.items() if not tag]
+        note = ""
+        if missing_svcs == ["front"]:
+            # @AR 23:22: 12/13 не должно читаться как недоделка — у фронта архитектурное отличие.
+            note = " | 1 без образа: front — пакет 403 на анонимный pull-token, фронт идёт через Pages, а не GHCR"
+        elif missing_svcs:
+            note = f" | без образа: {', '.join(missing_svcs)}"
         print(f"квитанция (from-registry): сервисов {len(avail)} | доступно {len(have)} | "
-              f"без образа {len(avail) - len(have)}")
+              f"без образа {len(avail) - len(have)}{note}")
         return 0 if len(have) == len(avail) else 1
 
     present, missing, unknown, stats = evaluate(rows, tags_by_service)

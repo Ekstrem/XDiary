@@ -18,6 +18,10 @@
 
 import argparse
 import pathlib
+import sys as _sys
+_sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from filelist_source import tracked_or_walk  # норма @AR 23:30: список из git ls-files, walk — фолбэк
+
 import re
 import sys
 
@@ -72,13 +76,24 @@ def _skip_nested_repos(paths, root):
     return out
 
 
+FILES_SOURCE = ""
+
+
+def _cs_files(root):
+    """Все .cs из git ls-files (или walk как фолбэк). Печатается в квитанции."""
+    global FILES_SOURCE
+    paths, src = tracked_or_walk(root, "6-msa/**/*.cs")
+    FILES_SOURCE = src
+    return paths
+
+
 def collect_definitions(root):
     """{тип: [файлы с определением]} по всем .cs в `6-msa`."""
     base = root / "6-msa"
     defs = {}
     if not base.is_dir():
         return defs
-    for f in _skip_nested_repos(base.rglob("*.cs"), root):
+    for f in _cs_files(root):
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -94,7 +109,7 @@ def check_definitions(root):
     if not base.is_dir():
         return [], []
     refs = []
-    for f in _skip_nested_repos(base.rglob("*.cs"), root):
+    for f in _cs_files(root):
         try:
             text = f.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -141,7 +156,7 @@ def collect(root):
     if not base.is_dir():
         return None, "нет папки 6-msa — не измерено"
     files = {}
-    for p in _skip_nested_repos(base.rglob("*.cs"), root):
+    for p in _cs_files(root):
         try:
             text = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -156,7 +171,8 @@ def collect(root):
 def receipt_line(stats, issues):
     known = stats.get("known", 0)
     return (f"квитанция: файлов с событиями {stats['files']} | писателей {stats['writers']} | "
-            f"без конвертера: {len(issues)} | известных исключений: {known}")
+            f"без конвертера: {len(issues)} | известных исключений: {known} | "
+            f"источник: {FILES_SOURCE}")
 
 
 def main(argv=None):
