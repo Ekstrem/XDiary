@@ -30,6 +30,16 @@ jobs:
       - name: Режим без токена (спеки против индекса)
         run: python3 tools/check_apim_drift.py --specs-only
 
+      # 2026-11-06 (@DO): рабочий способ — Basic на v2 (v3 token даёт 500, json-логин 401).
+      # Поэтому основной секрет — GRAVITEE_BASIC (формат user:password); GRAVITEE_TOKEN
+      # остаётся как резерв на случай смены схемы APIM.
+      - name: Есть ли секрет GRAVITEE_BASIC или GRAVITEE_TOKEN
+        id: basic
+        env:
+          B: ${{ secrets.GRAVITEE_BASIC }}
+        run: |
+          if [ -n "${B}" ]; then echo "have=yes" >> "$GITHUB_OUTPUT"; else echo "have=no" >> "$GITHUB_OUTPUT"; fi
+
       - name: Есть ли секрет GRAVITEE_TOKEN
         id: token
         env:
