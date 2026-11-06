@@ -59,6 +59,9 @@ class ExecutedGuardReporter {
   onEnd(result) {
     const executed = this.passed + this.failed + this.flaky;
     const summary = `passed ${this.passed}, failed ${this.failed}, flaky ${this.flaky}, skipped ${this.skipped}`;
+    // Квитанцию пишем ВСЕГДА, в том числе когда исполненных тестов ноль: именно этот случай
+    // и нужно разбирать по артефакту (без файла триаж скажет «не измерено»).
+    this._writeReceipt(summary);
     if (executed === 0) {
       // Не бросаем исключение (оно испортит понятный отчёт), а печатаем аннотацию и код возврата.
       console.log('::error::front-e2e: ни один тест не исполнялся (' + summary + ') — '
@@ -66,7 +69,6 @@ class ExecutedGuardReporter {
       process.exitCode = 1;
       return;
     }
-    this._writeReceipt(summary);
     if (this.skipped > 0) {
       console.log('::notice::front-e2e: исполнено ' + executed + ', пропущено ' + this.skipped
         + ' (' + summary + ', статус ' + result.status + ')');
