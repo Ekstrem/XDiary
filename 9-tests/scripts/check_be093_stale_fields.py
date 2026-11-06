@@ -188,8 +188,10 @@ def stand_flow(base, token, partner_id, place, tags):
 
     # ВАЖНО (дефект, найденный @DO 23:07): читать «до» надо ПОСЛЕ заполнения полей, иначе сравнивать нечего
     # и гейт даёт «rc=0 при проверено полей 0» — холостой проход, а не измерение.
+    # Контракт `SpecifyWhen`: тело `{ startedAt }` (см. `JournalController` + `8-front/js/api.js:159`).
+    # С `{ when }` сервер отвечает `400` — это был мой дефект инструмента, а не продукта.
     stw0, _, errw0 = http(f"{b}/api/v1/journal/records/{rec_id}/when", "POST", token,
-                          {"when": "2026-11-08T10:00:00Z"})
+                          {"startedAt": "2026-11-08T10:00:00Z"})
     if errw0:
         return None, None, errw0
     stpl0, _, errp0 = http(f"{b}/api/v1/journal/records/{rec_id}/place", "POST", token, {"place": place})
