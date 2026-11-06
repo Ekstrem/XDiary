@@ -32,3 +32,7 @@ xray-client.json
 # авто-сводка чата: генерируется workflow, в git не живёт
 
 5-tech-backlog/chat/_dialogue.md
+
+# Доступы и креды DevOps-зоны (2026-11-06, указание владельца):
+# каталог существует локально, в публичный репозиторий НЕ попадает.
+5-tech-backlog/devops/secrets/

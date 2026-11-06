@@ -30,6 +30,16 @@ jobs:
       - name: Режим без токена (спеки против индекса)
         run: python3 tools/check_apim_drift.py --specs-only
 
+      # 2026-11-06 (@DO): рабочий способ — Basic на v2 (v3 token даёт 500, json-логин 401).
+      # Поэтому основной секрет — GRAVITEE_BASIC (формат user:password); GRAVITEE_TOKEN
+      # остаётся как резерв на случай смены схемы APIM.
+      - name: Есть ли секрет GRAVITEE_BASIC или GRAVITEE_TOKEN
+        id: basic
+        env:
+          B: ${{ secrets.GRAVITEE_BASIC }}
+        run: |
+          if [ -n "${B}" ]; then echo "have=yes" >> "$GITHUB_OUTPUT"; else echo "have=no" >> "$GITHUB_OUTPUT"; fi
+
       - name: Есть ли секрет GRAVITEE_TOKEN
         id: token
         env:
@@ -43,7 +53,7 @@ jobs:
           fi
 
       - name: Копировать инструмент и реестр на прод
-        if: steps.token.outputs.have == 'yes'
+        if: steps.basic.outputs.have == 'yes' || steps.token.outputs.have == 'yes'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
@@ -53,15 +63,16 @@ jobs:
           target: "/home/deploy/apim-drift"
 
       - name: Сверка с APIM (токен не печатается)
-        if: steps.token.outputs.have == 'yes'
+        if: steps.basic.outputs.have == 'yes' || steps.token.outputs.have == 'yes'
         uses: appleboy/ssh-action@v1.2.0
         env:
           GRAVITEE_TOKEN: ${{ secrets.GRAVITEE_TOKEN }}
+          GRAVITEE_BASIC: ${{ secrets.GRAVITEE_BASIC }}
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: GRAVITEE_TOKEN
+          envs: GRAVITEE_TOKEN,GRAVITEE_BASIC
           script_stop: true
           script: |
             set -u
