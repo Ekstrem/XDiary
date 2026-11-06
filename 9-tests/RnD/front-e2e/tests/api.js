@@ -65,6 +65,7 @@ function installDiagnostics(page) {
       if (errors.length <= 3) console.log('::error::' + JSON.stringify({ title: 'browser requestfailed', error: line }));
     } catch (e) {}
   });
+  page.__xdiaryErrors = errors;
   return errors;
 }
 
@@ -162,16 +163,66 @@ async function snapshotStorage(page, where) {
   }
 }
 
+// TE-058: `seedSessionOnce` создавал ПАРТНЁРА на каждый вход, то есть ~29 партнёров за прогон
+// (`TE-SEED-<ts>`), а шаг очистки в CI удаляет только клиентов `+7999…`. Список партнёров рос от
+// прогона к прогону; при 2 600+ карточках `#partners-list` доходил до 588 КБ (см. `DO-044`), то есть
+// это прямое топливо для «не дождались» в хуках. Теперь партнёр создаётся ОДИН раз на процесс
+// (workers: 1 — процесс один), дальше переиспользуется; создание партнёра как функции проверяют
+// спеки `add-partner` / `partner-edit` / `wizard-record`, а не фикстура.
+let SEED_PARTNER = null;
+
+// TE-059: сессию (clientId + токены) кэшируем на процесс. Раньше каждый тест проходил полный
+// онбординг (`POST /clients` → `verify` → `profile` → `partners` → `goto/`), это 2 загрузки
+// страницы и 5 запросов НА КАЖДЫЙ из 29 тестов. Именно время входа тратило лимит теста на
+// прогоне `18 failed` (REF 73f59ba7). Кэш переиспользуется, пока стенд принимает токен; при
+// `401/404` он сбрасывается и сессия засевается заново — «удалили клиента» по-прежнему лечится.
+let SEED_SESSION = null;
+
 async function seedSessionOnce(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
   await installBase(page);
+  // TE-059: сессия уже засеяна в этом процессе — не проходить онбординг заново.
+  if (SEED_SESSION) {
+    const cached = SEED_SESSION;
+    await page.addInitScript((s) => {
+      try {
+        localStorage.setItem('xdiary.clientId', s.clientId);
+        localStorage.setItem('xdiary.accessToken', s.token);
+        if (s.refreshToken) localStorage.setItem('xdiary.refreshToken', s.refreshToken);
+        localStorage.setItem('xdiary.apiBase', s.apiBase);
+      } catch (e) {}
+    }, cached);
+    await page.goto('/');
+    const alive = await page.evaluate(async (base) => {
+      const t = localStorage.getItem('xdiary.accessToken') || '';
+      if (!t) return false;
+      const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });
+      return r.status === 200;
+    }, cached.apiBase).catch(() => false);
+    if (alive) {
+      console.log('::notice::' + JSON.stringify({ title: 'seedSession', cached: true }));
+      return {
+      token,
+      refreshToken,
+        ok: true, cached: true, clientId: cached.clientId,
+        profileMode: cached.profileMode || 'profile', shimUsed: false,
+        partnerId: SEED_PARTNER && SEED_PARTNER.id, partnerCreated: false,
+        hasRefresh: !!cached.refreshToken, partnersStatus: 200, anonStatus: 401,
+        partnersCount: null, partnersOwn: null,
+      };
+    }
+    console.log('::warning::' + JSON.stringify({ title: 'seedSession: кэш не принят, полный онбординг' }));
+    SEED_SESSION = null;
+  }
   await page.goto('/');
 
   const phone = '+7999' + String(Date.now()).slice(-7);
-  const partnerName = 'TE-SEED-' + Date.now();
+  const partnerName = (SEED_PARTNER && SEED_PARTNER.name) || 'TE-SEED-' + Date.now();
+  const needPartner = !SEED_PARTNER;
 
-  const seeded = await page.evaluate(async ({ base, phone, otp, partnerName }) => {
+  const expectedPartnerId = (SEED_PARTNER && SEED_PARTNER.id) || null;
+  const seeded = await page.evaluate(async ({ base, phone, otp, partnerName, needPartner, expectedPartnerId }) => {
     const j = async (r) => ({ status: r.status, data: await r.json().catch(() => null) });
     // клиент
     const c = await j(await fetch(base + '/api/v1/clients', {
@@ -205,10 +256,12 @@ async function seedSessionOnce(page) {
     // Партнёра создаём всегда: это функция спек add-partner/wizard-record, а не путь онбординга.
     // Шим `link-partner` зовём ТОЛЬКО на старом образе (profileMode !== "profile"):
     // на 0.88+ он не нужен, и `grep -rn "linkPartner" 8-front` в сдаче @FE = 0.
-    const p = await j(await fetch(base + '/api/v1/partners', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ name: partnerName }),
-    }));
+    const p = needPartner
+      ? await j(await fetch(base + '/api/v1/partners', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ name: partnerName }),
+      }))
+      : { status: 0, data: null, reused: true };
     const shimUsed = profileMode !== "profile";
     if (shimUsed && p.data && p.data.id) {
       await fetch(base + '/api/v1/clients/' + clientId + '/link-partner', {
@@ -245,9 +298,14 @@ async function seedSessionOnce(page) {
       partnersStatus: lp.status,
       anonStatus: anon.status,
       partnersCount: Array.isArray(lp.data) ? lp.data.length : null,
-      partnersOwn: Array.isArray(lp.data) ? lp.data.some((x) => x && x.id === (p.data && p.data.id)) : null,
+      partnersOwn: Array.isArray(lp.data)
+        ? lp.data.some((x) => x && x.id === ((p.data && p.data.id) || expectedPartnerId))
+        : null,
     };
-  }, { base: API_BASE, phone, otp: TEST_OTP, partnerName });
+  }, { base: API_BASE, phone, otp: TEST_OTP, partnerName, needPartner, expectedPartnerId });
+  if (needPartner && seeded && seeded.partnerId) {
+    SEED_PARTNER = { id: seeded.partnerId, name: partnerName };
+  }
 
   if (!seeded.ok) {
     throw new Error('seedSession: шаг ' + seeded.step + ' вернул ' + seeded.status);
@@ -317,6 +375,13 @@ async function seedSessionOnce(page) {
   }
   await page.goto('/');
   await page.waitForFunction(() => !!localStorage.getItem('xdiary.accessToken'), null, { timeout: 20000 });
+  SEED_SESSION = {
+    clientId: seeded.clientId,
+    token: seeded.token,
+    refreshToken: seeded.refreshToken,
+    apiBase: API_BASE,
+    profileMode: seeded.profileMode,
+  };
   await snapshotStorage(page, 'после seedSession');
   await dumpViews(page, 'после seedSession');
   return seeded;
@@ -352,32 +417,108 @@ async function seedSession(page) {
   throw lastErr;
 }
 
+// TE-056 (@DO 2026-11-06 02:34): прогон `18 failed, 3 skipped, 8 passed` — падения в
+// `Before Hooks` со `status: "timedOut"`, то есть «не дождались», а не «продукт ответил не то».
+// Чтобы следующий прогон сам ответил, ГДЕ время, логируем длительность каждой фазы входа
+// (`::notice::` видно в логе джобы) и при провале входа прикладываем экран/токен/ошибки.
+// TE-057 (@DO 2026-11-06 02:34): прогон дал `18 failed / 8 passed`, падения — `timedOut`
+// в хуках, то есть время входа прямо влияло на результат. Поэтому:
+//   1) быстрый путь: если журнал уже открыт и токен на месте — `reload` и ожидание замка не нужны
+//      (экономит 3–5 с на каждом тесте);
+//   2) если сессию убили на стороне стенда (`401/404` на `/clients/me` или `/journal`), это НЕ дефект
+//      продукта: параллельный прогон мог удалить клиента (`Очистить E2E-данные` убирает `+7999…`).
+//      В этом случае засеваем сессию заново с НОВЫМ телефоном и повторяем вход ОДИН раз;
+//   3) фазы входа печатаются в `::notice::login`, чтобы лог сам отвечал «где время».
 async function loginWithPin(page, pin) {
-  // TE-032: основной путь — seedSession (client-JWT). Локальный PIN остаётся вторым слоем
-  // для спеков, которые проверяют PIN-экран (remove-pin, change-pin, pin-first-login).
-  await seedSession(page);
+  const t0 = Date.now();
   const p = pin || PIN;
-  // TE-036: ставим локальный PIN ВСЕГДА, а не только когда передан аргумент.
-  // Было `if (pin) { setPin(pin) }` — а спеки зовут `loginWithPin(page)` без аргумента,
-  // поэтому PIN не создавался, `unlockIfLocked` вводил 1234 в пустой замок,
-  // `Pin.verifyPin` возвращал false → `showPinError()` → приложение оставалось на `#view-lock`.
-  // Именно это давало `{"view-lock":true,…}` и `hasPinLocal = false`.
-  try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
-  // TE-036 (@TL 20:25): setPin идёт ПОСЛЕ goto('/') из seedSession, поэтому приложение
-  // уже показало #view-lock без PIN, а потом «сломалось» логикой загрузки — отсюда
-  // 90-секундное залипание в #976. Правильный порядок:
-  //   setPin → reload (init() видит PIN корректно) → дождаться ЛЮБОГО из двух состояний
-  //   (#view-lock или #view-journal) → и только потом unlockIfLocked снимает замок.
-  await page.reload();
-  await Promise.race([
-    page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
-    page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
-  ]);
-  // TE-036: `seedSession` + локальный PIN = законный замок при загрузке. Спеки, которые
-  // не проверяют сам замок, обязаны его снять, иначе `#view-journal`/`#view-catalog` hidden
-  // 20–90 с. Делаем это здесь, а не в каждом спеке: забыть вызов — типовая ошибка
-  // (именно так падали `catalog`, `csv`, `remove-pin`, `wizard-record`).
-  await unlockIfLocked(page, p);
+  const phases = { seedMs: 0, pinMs: 0, reloadMs: 0, waitMs: 0, retries: 0, fastPath: false };
+
+  // Быстрый путь: сессия уже жива и журнал открыт.
+  const journalOpen = await page.locator('#view-journal').isVisible().catch(() => false);
+  const tokenAlive = await page
+    .evaluate((k) => !!localStorage.getItem(k), ACCESS_KEY)
+    .catch(() => false);
+  if (journalOpen && tokenAlive) {
+    phases.fastPath = true;
+    console.log('::notice::' + JSON.stringify({ title: 'login', elapsedMs: Date.now() - t0, fastPath: true }));
+    return;
+  }
+
+  const seed = async () => {
+    const t = Date.now();
+    await seedSession(page);
+    phases.seedMs += Date.now() - t;
+  };
+
+  const unlock = async () => {
+    const t = Date.now();
+    // TE-036: локальный PIN ставим ВСЕГДА (спеки зовут `loginWithPin(page)` без аргумента),
+    // затем reload → init() видит PIN корректно → снимаем замок.
+    try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+    phases.pinMs += Date.now() - t;
+    const t2 = Date.now();
+    await page.reload();
+    phases.reloadMs += Date.now() - t2;
+    const t3 = Date.now();
+    await Promise.race([
+      page.locator('#view-lock').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+      page.locator('#view-journal').waitFor({ state: 'visible', timeout: 15000 }).catch(() => {}),
+    ]);
+    await unlockIfLocked(page, p);
+    await expectScreen(page, '#view-journal', 'после входа по PIN', UI_WAIT);
+    phases.waitMs += Date.now() - t3;
+  };
+
+  try {
+    await seed();
+    // TE-060: если после засева журнал уже открыт (кэш сессии — токен приняли, замка нет),
+    // `reload` + ожидание замка (до 15 с) не нужны. PIN всё равно ставим: спеки PIN-контура
+    // (change-pin/remove-pin/pin-first-login) делают свой `reload` и должны увидеть замок.
+    const openAfterSeed = await page.locator('#view-journal').isVisible().catch(() => false);
+    if (openAfterSeed) {
+      const tSet = Date.now();
+      try { await page.evaluate((v) => window.Pin.setPin(v), p); } catch (e) {}
+      phases.pinMs += Date.now() - tSet;
+      phases.fastPath = true;
+      console.log('::notice::' + JSON.stringify({
+        title: 'login', fastPath: 'after-seed', elapsedMs: Date.now() - t0, pinMs: phases.pinMs,
+      }));
+      return;
+    }
+    await unlock();
+  } catch (e) {
+    const errs = (page.__xdiaryErrors || []).slice(-8);
+    const killed = errs.some((x) => /http (401|404)/.test(x) && /clients\/me|journal/.test(x));
+    if (!killed || phases.retries > 0) {
+      const views = await dumpViews(page, 'вход не завершился').catch(() => null);
+      throw new Error(
+        'Вход не завершился (' + Math.round((Date.now() - t0) / 1000) + ' с: seed ' +
+        Math.round(phases.seedMs / 1000) + ' c, PIN ' + Math.round(phases.pinMs / 1000) +
+        ' c, reload ' + Math.round(phases.reloadMs / 1000) + ' c, ожидание ' +
+        Math.round(phases.waitMs / 1000) + ' c, повторов ' + phases.retries + '). ' +
+        'views=' + JSON.stringify(views) + ' ошибки=' + JSON.stringify(errs) +
+        ' причина=' + String((e && e.message) || e).slice(0, 300)
+      );
+    }
+    phases.retries += 1;
+    console.log('::warning::' + JSON.stringify({
+      title: 'login: сессия потеряна, повтор с новым телефоном',
+      reason: errs.filter((x) => /http (401|404)/.test(x)).slice(-2),
+    }));
+    await seed();
+    await unlock();
+  }
+
+  console.log('::notice::' + JSON.stringify({
+    title: 'login',
+    elapsedMs: Date.now() - t0,
+    seedMs: phases.seedMs,
+    pinMs: phases.pinMs,
+    reloadMs: phases.reloadMs,
+    waitMs: phases.waitMs,
+    retries: phases.retries,
+  }));
 }
 
 // После reload локальный PIN уже стоит → приложение показывает экран блокировки.

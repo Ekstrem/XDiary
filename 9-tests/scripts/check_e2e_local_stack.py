@@ -111,8 +111,8 @@ const test = { title: 'E2E: пример', expectedStatus: 'passed' };
 const failed = {
   status: 'failed',
   steps: [
-    { title: 'login по PIN', error: null },
-    { title: 'открыть журнал', error: 'Timeout 20000ms' },
+    { title: 'login по PIN', duration: 12000, error: null },
+    { title: 'открыть журнал', duration: 30500, error: 'Timeout 20000ms' },
   ],
   errors: [{ message: 'TimeoutError: locator("#view-journal")' }],
 };
@@ -143,6 +143,10 @@ def check_notice(base):
     checked += 1
     if "login по PIN" not in out or "открыть журнал" not in out:
         issues.append("reporters/notice.js не печатает шаги падения — непонятно, на каком шаге упало")
+    checked += 1
+    if "12.0s" not in out and "30.5s" not in out:
+        issues.append("reporters/notice.js не печатает длительность шагов — в логе не видно, "
+                      "где ушло время (нужно после прогона с timedOut)")
     checked += 1
     errors = [l for l in out.splitlines() if "::error::" in l]
     checked += 1
