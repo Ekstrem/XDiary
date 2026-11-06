@@ -56,11 +56,13 @@ jobs:
         run: |
           set -uo pipefail
           python tools/gen_images_lock.py --selftest
-          python tools/gen_images_lock.py --verify-registry
-          rc=$?
+          # NB: shell у GitHub — `bash -e`, поэтому `rc=1` от проверки обрывал шаг
+          # («информационный» шаг падал — так и было в #83/#84). Берём код явно и НЕ падаем.
+          rc=0
+          python tools/gen_images_lock.py --verify-registry || rc=$?
           echo "verify-registry rc=$rc"
           if [ "$rc" = "2" ]; then
-            echo "::warning::registry недоступен — НЕ ИЗМЕРЕНО (lock всё равно будет перезаписан из git)"
+            echo "::warning::registry недоступен — НЕ ИЗМЕРЕНО (lock всё равно перезапишется из git)"
           elif [ "$rc" != "0" ]; then
             echo "::notice::часть тегов этого коммита ещё не в GHCR — lock запишется, деплой заблокирует lock-published"
           fi
