@@ -607,6 +607,44 @@ async function waitAppReady(page, timeout = 20000) {
   );
 }
 
+/**
+ * TE-072: дождаться ЛЮБОГО из экранов, который виден.
+ *
+ * Почему не `page.locator('#view-lock').or(locator('#view-onboarding')).first()`: `.first()` упорядочивает
+ * по DOM, а не по видимости. `#view-lock` в `index.html` идёт раньше остальных, поэтому `.first()` всегда
+ * возвращал скрытый `#view-lock` и проверка падала, **хотя приложение уже показало журнал** — именно так
+ * упали `pin-first-login` («новое устройство») и `pin-fallback` («чистый профиль») в прогоне #775:
+ * снимок показывал журнал, а ошибка — `locator resolved to <section id="view-lock" class="view hidden">`.
+ *
+ * Здесь ждём через `waitForFunction` по фактической видимости и возвращаем id экрана — удобно для лога.
+ */
+async function waitAnyScreen(page, ids, timeout = 20000) {
+  try {
+    return await page.waitForFunction(
+      (screenIds) => {
+        for (const id of screenIds) {
+          const el = document.getElementById(id);
+          if (!el) continue;
+          const st = window.getComputedStyle(el);
+          if (st.display !== 'none' && st.visibility !== 'hidden' && el.offsetHeight > 0) return id;
+        }
+        return false;
+      },
+      ids,
+      { timeout }
+    ).then((h) => h.jsonValue());
+  } catch (e) {
+    const visible = await page.evaluate((screenIds) => screenIds.filter((id) => {
+      const el = document.getElementById(id);
+      if (!el) return false;
+      const st = window.getComputedStyle(el);
+      return st.display !== 'none' && st.visibility !== 'hidden' && el.offsetHeight > 0;
+    }), ids).catch(() => []);
+    throw new Error('ни один из экранов не показан за ' + timeout + ' мс: ' + ids.join(', ') +
+      ' | видимые: ' + JSON.stringify(visible));
+  }
+}
+
 async function unlockIfLocked(page, pin) {
   const p = pin || PIN;
   const lock = page.locator('#view-lock');
@@ -764,4 +802,5 @@ function watchLinkPartner(page) {
   };
 }
 
-module.exports = { UI_WAIT, waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+module.exports = {
+  waitAnyScreen, UI_WAIT, waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };

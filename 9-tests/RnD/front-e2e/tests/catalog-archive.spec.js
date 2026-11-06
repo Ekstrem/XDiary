@@ -98,7 +98,7 @@ test('E2E: каталог — archive и restore через UI, проверка
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 10000 });
 
       await openItem(page);
-      await page.click('#btn-catalog-delete');
+      await page.click('#btn-catalog-delete', { timeout: 15000 });
       // TE-069: диагностика вместо 110-секундного зависания. В прогонах #766/#774 шаг
       // «удалить позицию» висел до лимита, а снимок показывал форму БЕЗ модалки подтверждения.
       // Не угадываем: после клика ждём ЛИБО модалку, ЛИБО тост, и пишем в лог, что появилось.

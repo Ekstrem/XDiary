@@ -11,7 +11,7 @@
 // MVP-истории: US-11
 //   US-11 вход по PIN (первый вход на устройстве)
 const { test, expect } = require('@playwright/test');
-const { readToken, API_BASE, PIN, uniquePhone, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews } = require('./api');
+const { readToken, API_BASE, PIN, uniquePhone, installBase, waitToken, unlockIfLocked, reportStep, expectScreen, dumpViews, waitAnyScreen } = require('./api');
 
 const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
 const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс. — иначе коллизия с накопленными клиентами (~16%)
@@ -76,7 +76,10 @@ test('E2E: новое устройство → онбординг (без PIN-э
     const lock = page.locator('#view-lock');
     const onb = page.locator('#view-onboarding');
     const jr = page.locator('#view-journal');
-    await expect(lock.or(onb).or(jr).first()).toBeVisible({ timeout: 20000 });
+    // TE-072: `.or().first()` берёт первый элемент ПО DOM (#view-lock), а не видимый — проверка
+    // падала на скрытом замке, хотя журнал уже показан. Ждём фактически видимый экран.
+    const shownScreen = await waitAnyScreen(page, ['view-lock', 'view-onboarding', 'view-journal'], 20000);
+    await reportStep(page, 'после reload показан экран: ' + shownScreen);
     if (await lock.isVisible()) {
       // TE-036 (@TL 03:30): unlockIfLocked ждёт ИСЧЕЗНОВЕНИЯ #view-lock; раньше waitToken
       // возвращался мгновенно (токен не удалялся), и expect(jr) стартовал при видимом замке.
