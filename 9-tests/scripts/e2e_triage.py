@@ -19,6 +19,9 @@
 import argparse
 import collections
 import json
+import os
+import shutil
+import tempfile
 import pathlib
 import re
 import sys
@@ -92,7 +95,7 @@ def report(items):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", help="файл лога джобы или test-results/receipt.txt")
+    ap.add_argument("--input", help="файл лога джобы, test-results/receipt.txt ИЛИ каталог артефакта")
     ap.add_argument("--text", help="лог строкой (для проверки)")
     ap.add_argument("--json", action="store_true", help="вывести классы как JSON")
     ap.add_argument("--selftest", action="store_true")
@@ -102,10 +105,23 @@ def main(argv=None):
     if a.text is not None:
         text = a.text
     elif a.input:
+        path = pathlib.Path(a.input)
+        # Удобство для CI/артефакта: можно передать каталог артефакта (`front-e2e-results`
+        # или распакованный `test-results/`) — файл квитанции найдётся сам.
+        if path.is_dir():
+            for cand in (path / "test-results" / "receipt.txt", path / "receipt.txt"):
+                if cand.exists():
+                    path = cand
+                    break
+            else:
+                print(f"::error::e2e_triage: в каталоге {a.input} нет test-results/receipt.txt — "
+                      f"не измерено (rc=2)")
+                return 2
+            print(f"::notice::e2e_triage: читаю {path}")
         try:
-            text = open(a.input, encoding="utf-8", errors="replace").read()
+            text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as e:
-            print(f"::error::e2e_triage: не читается {a.input}: {e} — не измерено (rc=2)")
+            print(f"::error::e2e_triage: не читается {path}: {e} — не измерено (rc=2)")
             return 2
     else:
         print("::error::e2e_triage: не передан --input/--text — не измерено (rc=2)")
@@ -172,6 +188,23 @@ def selftest():
         ok += 1
     else:
         print("  [FAIL] лог без аннотаций должен давать пустой список")
+
+    # Каталог артефакта: файл квитанции находится автоматически
+    total += 1
+    tmp = pathlib.Path(tempfile.gettempdir()) / f"triage-art-{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    (tmp / "test-results").mkdir(parents=True)
+    (tmp / "test-results" / "receipt.txt").write_text(
+        ann("a.spec.js \u203a x", "failed", "login (12.0s)", "locator.waitFor: Timeout 30000ms exceeded"),
+        encoding="utf-8",
+    )
+    try:
+        if main(["--input", str(tmp)]) == 0:
+            ok += 1
+        else:
+            print("  [FAIL] каталог артефакта не разобран")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
     print(f"e2e_triage --selftest: {ok}/{total} "
           f"(классы: test-timeout/wait-timeout/session-lost/stand/assert/other)")
