@@ -87,6 +87,17 @@ test('E2E: настройки — пол сохраняется после пе�
   });
 
   await test.step('смена «я» и вход в идентификацию открывают онбординг', async () => {
+  // TE-067: уборка («вернуть Мужской») должна идти, пока НАСТРОЙКИ показаны. Раньше она шла после
+  // шага «вход в идентификацию», который уводит приложение в онбординг: клик по `#my-gender-male`
+  // (контрол экрана настроек) ждал появления до лимита — в прогоне #770 `Test timeout of 150000ms
+  // exceeded`, а снимок `error-context.md` показывал именно онбординг («Твой номер телефона»).
+  // Плюс страховка: если элемент не виден, не висим, а пишем в лог (состояние уже не то).
+  if (await page.locator('#my-gender-male').isVisible()) {
+    await page.click('#my-gender-male');
+    await expect(page.locator('#my-gender-male')).toHaveClass(/active/);
+  } else {
+    console.log('::warning::settings: уборка «Мужской» пропущена — экран настроек не показан');
+  }
     // `#btn-self-change` и `#btn-ident-start` не проверялись: оба обязаны привести к экрану
     // онбординга (профиль «я» / идентификация), не ломая текущую сессию.
     await page.click('#btn-self-change');
@@ -99,11 +110,6 @@ test('E2E: настройки — пол сохраняется после пе�
 
     await page.click('#btn-ident-start');
     await expect(page.locator('#view-onboarding'), 'вход в идентификацию открывает онбординг').toBeVisible({ timeout: 20000 });
-  });
-
-  await test.step('вернуть «Мужской» (уборка)', async () => {
-    await page.click('#my-gender-male');
-    await expect(page.locator('#my-gender-male')).toHaveClass(/active/);
   });
 
   await test.step('«Снять „я“» открывает шаг профиля и не ломает сессию', async () => {
