@@ -154,7 +154,12 @@ def stand_flow_deleted(base, token, partner_id):
     if not err4 and st4 == 200:
         try:
             doc = json.loads(list_body)
-            items = doc.get("items") or doc.get("records") or (doc.get("data") or {}).get("items") or []
+            # Список приходит и массивом, и конвертом — поддерживаем оба вида (иначе AttributeError
+            # выглядел как «красный гейт» с пустым выводом; поймано 2026-11-07).
+            if isinstance(doc, list):
+                items = doc
+            else:
+                items = doc.get("items") or doc.get("records") or (doc.get("data") or {}).get("items") or []
             in_list = any((i or {}).get("id") == rec_id for i in items if isinstance(i, dict))
         except (ValueError, TypeError):
             in_list = None
