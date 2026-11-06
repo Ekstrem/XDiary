@@ -4,6 +4,7 @@ using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -74,23 +75,18 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         };
         await _store.SaveEventAsync(entry);
 
-        // 2) проекция MV (UpsertAsync) из changed-VO.
-        // BE-077/@TL 21:37 — Project отдаёт частичную модель (только Root+ClientId из diff); upsert без merge затирает Place/Tags/etc.
-        var read = JournalProjection.Project(domainEvent);
-        if (read is not null)
+        // 2) проекция MV (UpsertAsync) из changed-VO — per-field merge (BE-077/@TL 21:37, @AR 22:05 §15):
+        // отсутствие ключа ≠ пропуск; применяем только имеющиеся поля, null — только при пустом diff.
+        var vos = domainEvent.ChangedValueObjects;
+        if (vos is null || vos.Count == 0)
         {
-            var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default);
-            if (existing is not null)
-            {
-                existing.Partners = read.Partners;
-                existing.StartedAt = read.StartedAt;
-                if (read.ClientId is not null) existing.ClientId = read.ClientId;
-                await _readStore.UpsertAsync(existing);
-            }
-            else
-            {
-                await _readStore.UpsertAsync(read);
-            }
+            Console.WriteLine("[handle] no applicable fields (skip projection)");
+        }
+        else
+        {
+            var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new JournalReadModel { Id = domainEvent.Id };
+            JournalProjection.ApplyVos(existing, vos);
+            await _readStore.UpsertAsync(existing);
         }
 
         // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
@@ -134,17 +130,28 @@ public static class JournalProjection
     public static JournalReadModel? Project(IDomainEvent<IJournal> domainEvent)
     {
         var vos = domainEvent.ChangedValueObjects;
-        if (vos is null) return null;
+        if (vos is null || vos.Count == 0) return null; // нечего применять (пустой diff)
+        var m = new JournalReadModel { Id = domainEvent.Id };
+        ApplyVos(m, vos);
+        return m;
+    }
 
-        var root = vos.TryGetValue("Root", out var r) ? r as IRecordRoot : null;
-        if (root is null) return null;
-
-        return new JournalReadModel
+    // per-field: применяет только поля, которые реально есть в diff (@AR 22:05 §15 п.2).
+    public static void ApplyVos(JournalReadModel m, IDictionary<string, IValueObject> vos)
+    {
+        if (vos.TryGetValue("Root", out var r) && r is IRecordRoot root)
         {
-            Id = domainEvent.Id,
-            ClientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv ? cv.Value : null,
-            Partners = root.Partners.ToList(),
-            StartedAt = root.StartedAt,
-        };
+            m.Partners = root.Partners.ToList();
+            m.StartedAt = root.StartedAt;
+        }
+        if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) m.ClientId = cv.Value;
+        if (vos.TryGetValue("Place", out var p) && p is StringValueObject pv) m.Place = pv.Value;
+        if (vos.TryGetValue("Tags", out var t) && t is StringListValueObject tv) m.Tags = tv.Value.ToList();
+        if (vos.TryGetValue("Positions", out var po) && po is StringListValueObject pov) m.Positions = pov.Value.ToList();
+        if (vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fv) m.Fantasies = fv.Value.ToList();
+        if (vos.TryGetValue("Costumes", out var co) && co is StringListValueObject cov) m.Costumes = cov.Value.ToList();
+        if (vos.TryGetValue("Toys", out var to) && to is StringListValueObject tov) m.Toys = tov.Value.ToList();
+        if (vos.TryGetValue("Contraceptives", out var cn) && cn is StringListValueObject cnv) m.Contraceptives = cnv.Value.ToList();
+        if (vos.TryGetValue("DurationMin", out var d) && d is IntValueObject dv) m.DurationMin = dv.Value;
     }
 }
