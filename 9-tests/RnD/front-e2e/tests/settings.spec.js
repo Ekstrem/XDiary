@@ -6,6 +6,10 @@ const { test, expect } = require('@playwright/test');
 const { loginWithPin, unlockIfLocked, reportStep } = require('./api');
 
 test('E2E: настройки — пол сохраняется после перезагрузки', async ({ page }) => {
+  test.setTimeout(190_000);
+  // TE-062: бюджет теста = сумма объявленных ожиданий. При общем лимите 90 с такая спека
+  // на медленном стенде падает по общему таймауту («не дождались»), хотя поведение верное.
+  // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   await test.step('login по PIN', async () => {
     await loginWithPin(page);
   });

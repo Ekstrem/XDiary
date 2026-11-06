@@ -23,6 +23,7 @@ try:
 except Exception:  # noqa: BLE001
     pass
 
+SPEC_BUDGET = re.compile(r"test\.setTimeout\(\s*(\d[\d_]*)\s*\)")  # TE-062
 MARGIN = 0.8  # доля таймаута джобы, после которой считаем «впритык»
 
 
@@ -67,10 +68,30 @@ def count_tests(base: pathlib.Path, tests_dir: pathlib.Path):
     return total, "test()"
 
 
-def evaluate(tests, timeout_sec, workers, job_minutes):
+def budget_sum(tests_dir: pathlib.Path, timeout_sec):
+    """Сумма лимитов по тестам с учётом `test.setTimeout` (TE-062). (sum_sec, overrides)."""
+    total, overrides = 0.0, 0
+    try:
+        for p in sorted(tests_dir.glob("*.spec.js")):
+            text = p.read_text(encoding="utf-8", errors="replace")
+            own = SPEC_BUDGET.search(text)
+            limit = (int(own.group(1).replace("_", "")) / 1000.0) if own else timeout_sec
+            n = len(re.findall(r"^\s*test\(", text, re.M))
+            if own:
+                overrides += n
+            total += limit * max(n, 1)
+    except OSError:
+        return None, 0
+    return total, overrides
+
+
+def evaluate(tests, timeout_sec, workers, job_minutes, sum_sec=None):
     """(issues, stats)."""
     smallest = -(-tests // workers)  # ceil
-    worst_min = smallest * timeout_sec / 60.0
+    # sum_sec уже учитывает свои бюджеты спек; при его отсутствии считаем как раньше:
+    # ceil(tests/workers) * timeout (воркеры делят время)
+    total_sec = sum_sec if sum_sec else smallest * timeout_sec * max(workers, 1)
+    worst_min = total_sec / 60.0 / max(workers, 1)
     stats = {"tests": tests, "timeout": timeout_sec, "workers": workers,
              "job": job_minutes, "worst": round(worst_min, 1)}
     issues = []
@@ -93,8 +114,10 @@ def receipt_line(stats, issues):
     job = stats["job"] if stats["job"] is not None else "—"
     margin = stats.get("margin_pct")
     tail = f" | запас {margin}%" if margin is not None else ""
+    extra = (f" | своих бюджетов {stats.get('per_test_budgets', 0)}"
+             if stats.get("per_test_budgets") else "")
     return (f"квитанция: тестов {stats['tests']} | timeout {stats['timeout']:.0f} с | "
-            f"workers {stats['workers']} | худший случай {stats['worst']} мин | "
+            f"workers {stats['workers']} | худший случай {stats['worst']} мин{extra} | "
             f"таймаут джобы {job} мин{tail} | нарушено: {len(issues)}")
 
 
@@ -126,7 +149,12 @@ def main(argv=None):
     if tests is None:
         print(f"::error::check_e2e_time_budget: {source} — не измерено (rc=2)")
         return 2
-    issues, stats = evaluate(tests, timeout_sec, workers, job_minutes)
+    sum_sec, overrides = budget_sum(tests_dir, timeout_sec)
+    if sum_sec is None:
+        print("::error::check_e2e_time_budget: не читаются спеки — не измерено (rc=2)")
+        return 2
+    issues, stats = evaluate(tests, timeout_sec, workers, job_minutes, sum_sec)
+    stats["per_test_budgets"] = overrides
     # Таймаут джобы — в зоне @DO (`ci-front.yml`), поэтому по умолчанию это ПРЕДУПРЕЖДЕНИЕ:
     # гейт не должен блокировать мою зону из-за чужого файла, но обязан быть видимым в выводе.
     # Строгий режим — `--strict` (его и надо включать в CI после правки workflow).
