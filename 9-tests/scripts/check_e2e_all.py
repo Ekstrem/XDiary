@@ -29,6 +29,18 @@ except Exception:  # noqa: BLE001
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # (файл, короткое назначение) — порядок от «структуры» к «исполнению»
+
+# Мета-проверка: гейт, который не запускается, не существует (класс `DO-099`). Поэтому агрегатор
+# сам сверяет свой список с файлами в `scripts/`: осиротевший `check_e2e_*.py` — красный, а
+# выдуманное имя в списке (файла нет) — тоже красный.
+def _orphan_gates():
+    scripts = pathlib.Path(__file__).resolve().parent
+    listed = {name for name, _ in GATES}
+    present = {p.name for p in scripts.glob("check_e2e_*.py")} - {"check_e2e_all.py"}
+    orphans = sorted(present - listed)
+    ghosts = sorted(listed - present)
+    return orphans, ghosts
+
 GATES = (
     ("check_e2e_coverage.py", "экраны фронта покрыты спеками, маркер не врёт"),
     ("check_e2e_selectors.py", "id/классы/тексты спек существуют во фронте"),
@@ -102,6 +114,14 @@ def summarize(results):
 
 
 def main(argv=None):
+    # Мета-проверка списка гейтов: осиротевший файл или выдуманное имя = красный (класс DO-099).
+    orphans, ghosts = _orphan_gates()
+    if orphans or ghosts:
+        for o in orphans:
+            print(f"::error::check_e2e_all: гейт {o} есть в scripts/, но не подключён к агрегатору")
+        for g in ghosts:
+            print(f"::error::check_e2e_all: в списке гейтов {g}, но файла нет")
+        return 1
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--selftest", action="store_true")
