@@ -174,6 +174,9 @@ operations:
     request:
       required: [phone]
       optional: []
+    response:
+      always: [aggregateId, version, result, reasons]
+      delivery: "BE-092 (контракт @AR 2026-11-06): { channel: telegram|sms|log|none, ok: bool } — признак ДОСТАВКИ кода, а не сам код; otpCode в ответе не отдаётся вовсе (BE-090). semantics: ok=true только если провайдер канала подтвердил приём; ok=false — попытка была или канала нет; channel=none — канал не сконфигурирован (на проде log запрещён, ADR-021)."
   - bc: Client
     method: GET
     path: "/api/v1/clients/me"
@@ -687,3 +690,21 @@ operations:
     codes_status: verified
     verification: "код: Journal.Api/Controllers/PartnersEventsController.cs ([Route(internal/partners)], [AllowAnonymous], UpsertAsync), 2026-11-14 @AR"
     contract_note: "E1-срез: конверт НЕ соответствует приёмке E1 (edm-debt-plan §1.2) — в DTO нет eventId/type/schemaVersion/aggregateId/version/occurredAt/correlationToken. Без eventId нет идемпотентности, без version — защиты от устаревшего события. Требуется @BE до закрытия E1."
+  - bc: DailyMetrics
+    method: GET
+    path: "/internal/daily-metrics/series"
+    operationId: DailyMetrics.InternalSeries
+    auth: jwt-service
+    internal: true
+    codes: {200: "ok — серия по clientId", 401: "нет сервисного токена / снаружи", 403: "токен без требуемой роли"}
+    codes_status: verified
+    verification: "код: InternalDailyMetricsController.cs ([Route(internal/daily-metrics)], [Authorize], [HttpGet(series)]) — BE-091: метрики per-client, клиентский /api/v1/daily-metrics/series не используется межсервисно, 2026-11-06 @AR"
+  - bc: Journal
+    method: GET
+    path: "/internal/journal/client-ids"
+    operationId: Journal.ClientIds
+    auth: jwt-service
+    internal: true
+    codes: {200: "ok — список clientId, у которых есть записи", 401: "нет сервисного токена / снаружи"}
+    codes_status: verified
+    verification: "код: InternalJournalController.cs ([HttpGet(client-ids)]) — BE-091: Analytics получает арендаторов явно, а не читает все записи; 2026-11-06 @AR"
