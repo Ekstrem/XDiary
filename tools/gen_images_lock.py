@@ -62,22 +62,21 @@ def git(*args):
                           errors="replace").stdout.strip()
 
 
-HEAD_SHA = None
+def short_sha(path):
+    """Тег сервиса: `single-<short sha последнего коммита, тронувшего путь>`.
 
+    Решение @AR 2026-11-06 21:17 — вариант ① (посервисные теги), потому что ровно такой тег
+    публикует CI в прогоне, где сервис собирался. Вариант ② («весь стенд на HEAD», 13 образов
+    на одном коммите) — отдельный релизный механизм, и как блокер деплоя он отклонён: он требует
+    зелёной сборки ВСЕХ сервисов, тогда как деплою нужен образ только изменённого.
 
-def short_sha(path=None):
-    """Тег релиза: `single-<short HEAD>`, одинаковый для всех сервисов.
-
-    `path` оставлен в сигнатуре для совместимости вызовов, но больше не влияет:
-    один релизный коммит — один набор образов (см. docstring модуля).
+    Условия @AR к ①: (1) `--verify-registry` ДО записи lock (в `lock-sync.yml` это уже шаг);
+    (2) lock фиксируется после зелёных сборок и до следующего релиза не двигается.
     """
-    global HEAD_SHA
-    if HEAD_SHA is None:
-        sha = git("rev-parse", "--short=7", "HEAD") or ""
-        if not sha:
-            raise SystemExit("gen_images_lock: не могу определить HEAD")
-        HEAD_SHA = sha[:7]
-    return HEAD_SHA
+    sha = git("log", "-1", "--format=%h", "--", path)
+    if not sha:
+        sha = git("rev-parse", "--short=7", "HEAD")
+    return sha[:7] if len(sha) >= 7 else sha
 
 
 def render():
