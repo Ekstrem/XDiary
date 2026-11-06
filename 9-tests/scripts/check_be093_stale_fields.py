@@ -91,6 +91,9 @@ def evaluate(before, after):
         if not same:
             issues.append(f"поле `{f}` было {b!r}, после `AddPartner` стало {a!r} — "
                           f"событие затирает чужие поля (полная замена строки вместо патча, BE-093)")
+    if not rows:
+        issues.append("нечего сравнивать: поля не заполнились (`place`/`tags` пусты до `AddPartner`) — "
+                      "это НЕ «в порядке», это не измерено")
     stats = {"checked": [r[0] for r in rows],
              "same": sum(1 for r in rows if r[3]),
              "wiped": sum(1 for r in rows if not r[3])}
@@ -179,6 +182,23 @@ def stand_flow(base, token, partner_id, place, tags):
     if not rec_id:
         return None, None, f"создание записи: в ответе нет id ({body[:160]})"
 
+    # ВАЖНО (дефект, найденный @DO 23:07): читать «до» надо ПОСЛЕ заполнения полей, иначе сравнивать нечего
+    # и гейт даёт «rc=0 при проверено полей 0» — холостой проход, а не измерение.
+    stw0, _, errw0 = http(f"{b}/api/v1/journal/records/{rec_id}/when", "POST", token,
+                          {"when": "2026-11-08T10:00:00Z"})
+    if errw0:
+        return None, None, errw0
+    stpl0, _, errp0 = http(f"{b}/api/v1/journal/records/{rec_id}/place", "POST", token, {"place": place})
+    if errp0:
+        return None, None, errp0
+    # теги ставятся операцией `AddAccessories` (в индексе нет отдельного `/tags`).
+    # Форма тела найдена на стенде: все четыре массива обязательны, иначе `400 validation`
+    # (проверено: `{"tags":[…],"costumes":[],"toys":[],"fantasies":[]}` → 200, `tags` читаются обратно).
+    stac, _, errac = http(f"{b}/api/v1/journal/records/{rec_id}/accessories", "POST", token,
+                          {"tags": list(tags), "costumes": [], "toys": [], "fantasies": []})
+    if errac:
+        return None, None, errac
+
     st, before_body, err = http(f"{b}/api/v1/journal/records/{rec_id}", "GET", token)
     if err:
         return None, None, err
@@ -197,23 +217,6 @@ def stand_flow(base, token, partner_id, place, tags):
         return None, None, err
     if st2 not in (200, 201, 204):
         return None, None, f"AddPartner: status {st2}"
-
-    # `when` — та самая ручка, что давала 404 в smoke-front (`/records/{id}/when`).
-    stw, _, errw = http(f"{b}/api/v1/journal/records/{rec_id}/when", "POST", token,
-                        {"when": "2026-11-08T10:00:00Z"})
-    if errw:
-        return None, None, errw
-    if stw not in (200, 201, 204):
-        return None, None, (f"READ_PATH: `POST …/when` → status {stw} (запись не найдена в read-модели) — "
-                            f"это та самая ручка, что краснит smoke-front")
-
-    # `POST /records` НЕ принимает place/tags (проверено на стенде: в ответе place='' и tags=[]),
-    # поэтому место ставим отдельной операцией; ошибку чтения она тоже покажет.
-    stp, _, errp = http(f"{b}/api/v1/journal/records/{rec_id}/place", "POST", token, {"place": place})
-    if errp:
-        return None, None, errp
-    if stp not in (200, 201, 204):
-        return None, None, f"READ_PATH: `POST …/place` → status {stp} (запись не найдена в read-модели)"
 
     st3, after_body, err = http(f"{b}/api/v1/journal/records/{rec_id}", "GET", token)
     if err:
@@ -290,6 +293,13 @@ def main(argv=None):
             return 2
 
     issues, stats = evaluate(before, after)
+    if not stats["checked"]:
+        # Холостой проход: сравнивать нечего. Это «не измерено» (rc=2), а не «в порядке» —
+        # ровно тот дефект, который @DO поймал в моём же гейте 23:07.
+        for m in issues:
+            print(f"::error::check_be093_stale_fields: {m}")
+        print(receipt_line(stats, issues))
+        return 2
     for m in issues:
         print(f"::error::check_be093_stale_fields: {m}")
     print(receipt_line(stats, issues))
@@ -304,7 +314,7 @@ def selftest():
         total += 1
         issues, stats = evaluate(before, after)
         text = "\n".join(issues) + "\n" + receipt_line(stats, issues)
-        rc = 1 if issues else 0
+        rc = 2 if not stats["checked"] else (1 if issues else 0)
         miss = [m for m in must if m not in text]
         if rc == want_rc and not miss:
             ok += 1
@@ -326,7 +336,8 @@ def selftest():
     case("вложенный вид ответа (record/…)", nested_before, nested_after, 1, ["place", "tags"])
 
     nothing = {"id": "r1", "durationMin": 5}
-    case("поля не были заполнены — проверять нечего", nothing, nothing, 0, ["проверено полей 0"])
+    case("поля не были заполнены — это НЕ измерено", nothing, nothing, 2,
+         ["проверено полей 0", "нечего сравнивать"])
 
     case("регистр/порядок тегов не даёт ложного красного",
          {"place": "Дом", "tags": ["B", "a"]}, {"place": " дом ", "tags": ["a", "b"]}, 0, ["затерто 0"])
