@@ -30,7 +30,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # @AR 2026-11-06 21:30: без полной истории гейты ADR не могут быть зелёными ПРИ ЛЮБОМ коде.
+      # `check_adr_status.py` определяет «старый/новый» ADR через `git log --diff-filter=A`, а на
+      # shallow-клоне (depth=1) истории нет → падает на mtime файла → дата создания = время чекаута
+      # → грандфазеринг не срабатывает → 17 ложных «Принято без даты» в adr-001…012, 014…020.
+      # Замер: полный клон → «проверено 5, старых пропущено 29, нарушений 0»; shallow → «проверено 34,
+      # нарушений 17». Это свойство клона, а не документов. Так же уже сделано у `guard-secrets`.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
