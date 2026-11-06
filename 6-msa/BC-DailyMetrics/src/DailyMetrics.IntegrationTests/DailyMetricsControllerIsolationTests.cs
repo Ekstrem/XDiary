@@ -33,7 +33,7 @@ public class DailyMetricsControllerIsolationTests
     public async Task Series_PassesClientIdFromSub()
     {
         var sub = Guid.NewGuid();
-        var mediator = new StubMediator { Result = new List<object>() };
+        var mediator = new StubMediator { Result = null };
         await MakeController(sub, mediator).Series("2026-01-01", "2026-01-02", CancellationToken.None);
         var q = Assert.IsType<GetDailySeriesQuery>(mediator.Captured);
         Assert.Equal(sub, q.ClientId);
