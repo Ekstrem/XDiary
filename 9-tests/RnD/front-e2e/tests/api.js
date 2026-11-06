@@ -200,7 +200,20 @@ async function seedSessionOnce(page) {
       const r = await fetch(base + '/api/v1/clients/me', { headers: { Authorization: 'Bearer ' + t } });
       return r.status === 200;
     }, cached.apiBase).catch(() => false);
-    if (alive) {
+    // Кэш принят API — но приложение могло НЕ открыть журнал (например, онбординг ждёт профиль
+    // в localStorage, а не только токен). Тогда «кэш жив» ещё не значит «вход состоялся»: без этой
+    // проверки систематический дефект кэша давал бы массовое «Вход не завершился», а повтор входа
+    // не срабатывал (он ждёт 401/404). Поэтому даём приложению 5 с и при неудаче честно засеваем заново.
+    const opened = alive
+      ? await page.locator('#view-journal').waitFor({ state: 'visible', timeout: 5000 })
+        .then(() => true).catch(() => false)
+      : false;
+    if (alive && !opened) {
+      console.log('::warning::' + JSON.stringify({
+        title: 'seedSession: кэш принят API, но журнал не открылся — полный онбординг',
+      }));
+      SEED_SESSION = null;
+    } else if (alive) {
       console.log('::notice::' + JSON.stringify({ title: 'seedSession', cached: true }));
       return {
         ok: true, cached: true, clientId: cached.clientId,

@@ -138,6 +138,16 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
         [404, 403].includes(after.status),
         'GET /partners/{id} после удаления: ' + after.status + ' (ожидали 404/403)'
       ).toBe(true);
+
+      // ADR-026: негативный код без парной позитивной проверки — не приёмка. Тот же путь ДО удаления
+      // обязан отдавать 200 с токеном: иначе «404 после» зеленело бы и на эндпоинте, который не
+      // отдаёт ничего никому.
+      const beforePair = await page.evaluate(async ({ base, id }) => {
+        const t = localStorage.getItem('xdiary.accessToken');
+        const r = await fetch(base + '/api/v1/partners/' + id, { headers: { Authorization: 'Bearer ' + t } });
+        return { status: r.status };
+      }, { base: API_BASE, id });
+      expect(beforePair.status, 'контроль: GET /partners/{id} с токеном ДО удаления').toBe(200);
       id = null;
     });
   } finally {

@@ -29,6 +29,18 @@ except Exception:  # noqa: BLE001
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 # (файл, короткое назначение) — порядок от «структуры» к «исполнению»
+
+# Мета-проверка: гейт, который не запускается, не существует (класс `DO-099`). Поэтому агрегатор
+# сам сверяет свой список с файлами в `scripts/`: осиротевший `check_e2e_*.py` — красный, а
+# выдуманное имя в списке (файла нет) — тоже красный.
+def _orphan_gates():
+    scripts = pathlib.Path(__file__).resolve().parent
+    listed = {name for name, _ in GATES}
+    present = {p.name for p in scripts.glob("check_e2e_*.py")} - {"check_e2e_all.py"}
+    orphans = sorted(present - listed)
+    ghosts = sorted(listed - present)
+    return orphans, ghosts
+
 GATES = (
     ("check_e2e_coverage.py", "экраны фронта покрыты спеками, маркер не врёт"),
     ("check_e2e_selectors.py", "id/классы/тексты спек существуют во фронте"),
@@ -37,6 +49,7 @@ GATES = (
     ("check_e2e_mock_fields.py", "двойник API отдаёт поля, которые спеки утверждают"),
     ("check_e2e_mvp_trace.py", "каждая MVP-история связана со спекой"),
     ("check_e2e_traceability.py", "у каждой спеки TE-ссылка или LEGACY"),
+    ("check_e2e_cleanup_coverage.py", "данные набора попадают под шаблоны очистки стенда"),
     ("check_e2e_receipt_roundtrip.py", "страж пишет квитанцию, квитанция её читает (цепочка артефакта)"),
     ("check_e2e_clean_device.py", "спеки первого входа не получают засеянную сессию"),
     ("check_e2e_fixture_contract.py", "импорты спек соответствуют module.exports обвязки"),
@@ -46,6 +59,7 @@ GATES = (
     ("check_e2e_skips.py", "каждый skip объяснён, флаги видны"),
     ("check_e2e_assertions.py", "у каждой спеки есть поведенческое утверждение"),
     ("check_e2e_ui_coverage.py", "карта: какие элементы фронта не трогает ни одна спека"),
+    ("check_e2e_negative_pairs.py", "негативный код без парной позитивной проверки — не приёмка (ADR-026)"),
     ("check_e2e_error_paths.py", "негативные пути: элементы ошибок утверждаются спеками"),
     ("check_e2e_api_contract.py", "эндпоинты спек есть в api-index.yaml"),
     ("check_e2e_globalsetup_behaviour.py", "global-setup проверяется поведением, не текстом"),
@@ -101,6 +115,14 @@ def summarize(results):
 
 
 def main(argv=None):
+    # Мета-проверка списка гейтов: осиротевший файл или выдуманное имя = красный (класс DO-099).
+    orphans, ghosts = _orphan_gates()
+    if orphans or ghosts:
+        for o in orphans:
+            print(f"::error::check_e2e_all: гейт {o} есть в scripts/, но не подключён к агрегатору")
+        for g in ghosts:
+            print(f"::error::check_e2e_all: в списке гейтов {g}, но файла нет")
+        return 1
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--selftest", action="store_true")
