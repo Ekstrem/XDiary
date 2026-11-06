@@ -15,6 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DailyMetrics.Domain\DailyMetrics.Domain.csproj" />
+    <ProjectReference Include="..\DailyMetrics.Api\DailyMetrics.Api.csproj" />
+    <ProjectReference Include="..\DailyMetrics.Application\DailyMetrics.Application.csproj" />
     <ProjectReference Include="..\DailyMetrics.Storage\DailyMetrics.Storage.csproj" />
     <ProjectReference Include="..\DailyMetrics.InternalContracts\DailyMetrics.InternalContracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />

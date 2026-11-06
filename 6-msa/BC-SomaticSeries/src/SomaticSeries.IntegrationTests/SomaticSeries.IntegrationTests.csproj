@@ -15,6 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SomaticSeries.Domain\SomaticSeries.Domain.csproj" />
+    <ProjectReference Include="..\SomaticSeries.Api\SomaticSeries.Api.csproj" />
+    <ProjectReference Include="..\SomaticSeries.Application\SomaticSeries.Application.csproj" />
     <ProjectReference Include="..\SomaticSeries.Storage\SomaticSeries.Storage.csproj" />
     <ProjectReference Include="..\SomaticSeries.InternalContracts\SomaticSeries.InternalContracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
