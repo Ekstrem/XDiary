@@ -12,7 +12,7 @@ const { test, expect } = require('@playwright/test');
 const { loginWithPin, reportStep } = require('./api');
 
 test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(100_000);
   // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   await test.step('кнопка «Импорт CSV» в настройках открывает выбор файла (#btn-import)', async () => {
@@ -21,7 +21,7 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     // Проверяем саму связку — по клику обязан открыться выбор файла.
     await loginWithPin(page);
     await page.click('#tab-settings');
-    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 10000 });
     const [chooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 10000 }),
       page.click('#btn-import'),
@@ -41,7 +41,7 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
 
   await test.step('экспорт: скачивается валидный CSV журнала', async () => {
     const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 12000 }),
+      page.waitForEvent('download', { timeout: 10000 }),
       page.click('#btn-export'),
     ]);
     expect(download.suggestedFilename(), 'имя файла').toMatch(/^xdiary-\d{4}-\d{2}-\d{2}\.csv$/);
@@ -55,7 +55,7 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     // #import-file (импорт журнала) идёт напрямую через importCsvFile и НЕ открывает
     // #view-import. Экран импорта — это Garmin-путь: #btn-import-open → #import-any-file.
     await page.click('#btn-import-open');
-    await expect(page.locator('#view-import')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#view-import')).toBeVisible({ timeout: 10000 });
   });
 
   await test.step('импорт: Garmin-подобный CSV (somatic_minute) принимается', async () => {
@@ -75,7 +75,7 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     });
     // Назад с экрана импорта (`#btn-import-back`) — не была покрыта: обязана вернуть в настройки.
     await page.click('#btn-import-back');
-    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 10000 });
 
     await page.click('#btn-import-open');
     await page.setInputFiles('#import-any-file', {
@@ -83,9 +83,9 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
       mimeType: 'text/csv',
       buffer: Buffer.from(csv, 'utf8'),
     });
-    await expect(page.locator('#btn-import-apply')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#btn-import-apply')).toBeVisible({ timeout: 10000 });
     await page.click('#btn-import-apply');
-    await expect(page.locator('#import-result')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#import-result')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#import-result')).not.toHaveText(/^\s*$/);
     // Диагностика для разбора в CI: печатает тост, если импорт что-то сказал пользователю.
     await reportStep(page, 'csv: импорт Garmin');
@@ -93,13 +93,13 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     // Импорт журнала через кнопку «Импорт CSV» в настройках (`#import-file`): это ЛОКАЛЬНЫЙ
     // путь (пишет в IndexedDB контекста), на стенд ничего не уходит. Ни одна спека его не трогала.
     await page.click('#tab-settings');
-    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 10000 });
     await page.setInputFiles('#import-file', {
       name: 'journal.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from('started_at,duration_min,partner,place\n2026-01-01T10:00,15,SMOKE,SMOKE\n', 'utf8'),
     });
     // Результат импорта показывается тостом/сообщением; главное — не падаем и остаёмся в настройках.
-    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 10000 });
   });
 });

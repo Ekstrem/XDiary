@@ -41,7 +41,7 @@ async function openItem(page) {
 }
 
 test('E2E: каталог — archive и restore через UI, проверка API', async ({ page }) => {
-  test.setTimeout(115_000);
+  test.setTimeout(110_000);
   // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   let id = null;
@@ -95,14 +95,14 @@ test('E2E: каталог — archive и restore через UI, проверка
       // Навигация назад из правки позиции (`#btn-catalog-edit-back`) — тоже не была покрыта.
       await openItem(page);
       await page.click('#btn-catalog-edit-back');
-      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 12000 });
+      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 10000 });
 
       await openItem(page);
       await page.click('#btn-catalog-delete');
       await expect(page.locator('#confirm-modal')).toBeVisible();
       // негативный контроль: «Нет» обязано оставить позицию на месте
       await page.click('#confirm-no');
-      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 12000 });
+      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 10000 });
       const kept = await getItem(page, id);
       expect(kept, 'после отмены позиция каталога на месте (API)').toBeTruthy();
 

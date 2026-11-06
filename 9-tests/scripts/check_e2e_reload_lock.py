@@ -25,6 +25,10 @@ except Exception:  # noqa: BLE001
 
 RELOAD = re.compile(r"page\.(reload\(\)|goto\(\s*['\"]/['\"]\s*\))")
 HANDLES_LOCK = re.compile(r"unlockIfLocked|view-lock|waitAppReady")
+# TE-063: ожидание СРАЗУ ПОСЛЕ reload — это межстендовый случай (перезагрузка приложения), а не
+# локальный переход. 10-12 с здесь — ложная экономия: первый прогон падал именно на этом ожидании.
+TIMEOUT_AFTER = re.compile(r"timeout:\s*(\d{4,5})")
+MIN_AFTER_RELOAD_MS = 15000
 
 # Спеки, где «слепой» reload допустим по смыслу, с причиной.
 EXEMPT = {
@@ -45,6 +49,11 @@ def evaluate(specs):
             if not RELOAD.search(line):
                 continue
             window = " ".join(lines[i + 1:i + 13])
+            for m2 in TIMEOUT_AFTER.finditer(window):
+                if int(m2.group(1)) < MIN_AFTER_RELOAD_MS:
+                    issues.append(f"{name}:{i + 1}: ожидание {m2.group(1)} мс сразу после reload — это "
+                                  f"перезагрузка приложения; меньше {MIN_AFTER_RELOAD_MS} мс здесь даёт "
+                                  f"ложные падения на медленном стенде")
             if HANDLES_LOCK.search(window):
                 continue
             local_hits += 1
@@ -115,6 +124,10 @@ def selftest():
     case("чистый профиль в исключении",
          {"onboarding.spec.js": "await page.reload();\nawait expect(page.locator('#view-journal')).toBeVisible();"},
          0, ["исключений 1"])
+
+    case("слишком короткое ожидание после reload",
+         {"e.spec.js": "await page.reload();\nawait expect(page.locator('#view-journal')).toBeVisible({ timeout: 10000 });\nawait unlockIfLocked(page);"},
+         1, ["e.spec.js", "перезагрузка приложения"])
 
     case("goto('/') тоже проверяется",
          {"d.spec.js": "await page.goto('/');\nawait expect(page.locator('#view-journal')).toBeVisible();"},

@@ -54,7 +54,7 @@ async function ageCache(page, hours) {
 }
 
 test('E2E: stale-note — нет на свежих данных, есть на устаревшем кэше (read-paths §5 п.2)', async ({ page }) => {
-  test.setTimeout(65_000);
+  test.setTimeout(85_000);
   // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   test.skip(
@@ -64,9 +64,9 @@ test('E2E: stale-note — нет на свежих данных, есть на �
 
   // 1. Живой ответ: сначала нормальная загрузка визарда, чтобы кэш и `syncAt.*` появились.
   await loginWithPin(page);
-  await expect(page.locator('#view-journal')).toBeVisible({ timeout: 12000 });
+  await expect(page.locator('#view-journal')).toBeVisible({ timeout: 10000 });
   await page.click('#btn-new');
-  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 12000 });
+  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
   await reportStep(page, 'шаг 1: визард открыт на живом API');
 
   // Критерий 1: свежие данные — бейджа быть не должно.
@@ -85,9 +85,11 @@ test('E2E: stale-note — нет на свежих данных, есть на �
     // После reload приложение может показать замок (PIN) — снимаем его, а не ждём журнал вслепую.
     // Именно на этом упал первый прогон (@TL 09:14): «#view-journal hidden после reload».
     await unlockIfLocked(page);
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 10000 });
+    // Восстановлено: это ожидание ПОСЛЕ reload (перезагрузка приложения), а не локальный переход;
+    // на нём падал первый прогон (@TL 09:14), поэтому 10 с здесь — ложная экономия.
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 25000 });
     await page.click('#btn-new');
-    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
 
     // Критерий 2: данные пришли из кэша — бейдж обязан быть.
     const note = page.locator('#view-wizard #stale-note');
