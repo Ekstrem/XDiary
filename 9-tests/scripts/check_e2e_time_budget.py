@@ -68,6 +68,30 @@ def count_tests(base: pathlib.Path, tests_dir: pathlib.Path):
     return total, "test()"
 
 
+LOOP = re.compile(r"for \(const \w+ of (\w+)\)")
+ARRAY = re.compile(r"(?:const|let|var)\s+(\w+)\s*=\s*\[([^\]]*)\]")
+
+
+def tests_per_file(text):
+    """Сколько тестов даёт файл: объявленные `test(` + размножение циклами по массивам-константам.
+
+    Без этого файл вида `const KINDS = [...4]; for (const k of KINDS) test(...)` считался одним
+    тестом, и худший случай в бюджете занижался на три теста (4 × 90 с = 6 мин).
+    """
+    declared = len(re.findall(r"^\s*test\(", text, re.M))
+    loops = LOOP.findall(text)
+    arrays = {m.group(1): m.group(2) for m in ARRAY.finditer(text)}
+    total = declared
+    for name in loops:
+        body = arrays.get(name)
+        if body is None:
+            continue
+        items = [x for x in body.split(",") if x.strip()]
+        if items:
+            total = max(total, len(items))
+    return max(total, 1)
+
+
 def budget_sum(tests_dir: pathlib.Path, timeout_sec):
     """Сумма лимитов по тестам с учётом `test.setTimeout` (TE-062). (sum_sec, overrides)."""
     total, overrides = 0.0, 0
@@ -76,7 +100,7 @@ def budget_sum(tests_dir: pathlib.Path, timeout_sec):
             text = p.read_text(encoding="utf-8", errors="replace")
             own = SPEC_BUDGET.search(text)
             limit = (int(own.group(1).replace("_", "")) / 1000.0) if own else timeout_sec
-            n = len(re.findall(r"^\s*test\(", text, re.M))
+            n = tests_per_file(text)
             if own:
                 overrides += n
             total += limit * max(n, 1)

@@ -6,9 +6,8 @@ const { test, expect } = require('@playwright/test');
 const { loginWithPin, unlockIfLocked, reportStep } = require('./api');
 
 test('E2E: настройки — пол сохраняется после перезагрузки', async ({ page }) => {
-  test.setTimeout(190_000);
-  // TE-062: бюджет теста = сумма объявленных ожиданий. При общем лимите 90 с такая спека
-  // на медленном стенде падает по общему таймауту («не дождались»), хотя поведение верное.
+  test.setTimeout(115_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   await test.step('login по PIN', async () => {
     await loginWithPin(page);
@@ -56,17 +55,17 @@ test('E2E: настройки — пол сохраняется после пе�
     await page.click('#btn-wipe');
     await expect(page.locator('#confirm-modal'), 'подтверждение стирания').toBeVisible();
     await page.click('#confirm-no');
-    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 10000 });
     await expect(page.locator('#view-settings')).toBeVisible();
 
     await page.click('#btn-ident-logout');
     await expect(page.locator('#confirm-modal'), 'подтверждение сброса устройства').toBeVisible();
     await page.click('#confirm-no');
-    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 10000 });
     // устройство не сброшено: после reload вход сохранён и журнал доступен
     await page.reload();
     await unlockIfLocked(page);
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 12000 });
     await page.click('#tab-settings');
     await expect(page.locator('#view-settings')).toBeVisible();
   });
@@ -91,15 +90,15 @@ test('E2E: настройки — пол сохраняется после пе�
     // `#btn-self-change` и `#btn-ident-start` не проверялись: оба обязаны привести к экрану
     // онбординга (профиль «я» / идентификация), не ломая текущую сессию.
     await page.click('#btn-self-change');
-    await expect(page.locator('#view-onboarding'), 'смена «я» открывает онбординг').toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-onboarding'), 'смена «я» открывает онбординг').toBeVisible({ timeout: 12000 });
     await page.reload();
     await unlockIfLocked(page);
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 12000 });
     await page.click('#tab-settings');
     await expect(page.locator('#view-settings')).toBeVisible();
 
     await page.click('#btn-ident-start');
-    await expect(page.locator('#view-onboarding'), 'вход в идентификацию открывает онбординг').toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-onboarding'), 'вход в идентификацию открывает онбординг').toBeVisible({ timeout: 12000 });
   });
 
   await test.step('вернуть «Мужской» (уборка)', async () => {
@@ -112,10 +111,10 @@ test('E2E: настройки — пол сохраняется после пе�
     // После проверки возвращаемся reload'ом — сессия обязана остаться рабочей.
     await page.click('#btn-self-clear');
     await expect(page.locator('#view-onboarding'), '«Снять я» открывает онбординг')
-      .toBeVisible({ timeout: 20000 });
-    await expect(page.locator('#onb-profile'), 'виден шаг профиля «Кто вы?»').toBeVisible({ timeout: 20000 });
+      .toBeVisible({ timeout: 12000 });
+    await expect(page.locator('#onb-profile'), 'виден шаг профиля «Кто вы?»').toBeVisible({ timeout: 12000 });
     await page.reload();
     await unlockIfLocked(page);
-    await expect(page.locator('#view-journal'), 'после возврата журнал открывается').toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal'), 'после возврата журнал открывается').toBeVisible({ timeout: 12000 });
   });
 });

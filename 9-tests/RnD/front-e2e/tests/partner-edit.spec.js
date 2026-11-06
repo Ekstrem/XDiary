@@ -30,9 +30,8 @@ async function getPartner(page, id) {
 }
 
 test('E2E: partner-edit — rename и profile через UI, проверка API', async ({ page }) => {
-  test.setTimeout(110_000);
-  // TE-062: бюджет теста = сумма объявленных ожиданий. При общем лимите 90 с такая спека
-  // на медленном стенде падает по общему таймауту («не дождались»), хотя поведение верное.
+  test.setTimeout(85_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   let id = null;
   // @BE просил точное тело POST /partners/{id}/profile — фиксируем его для диагностики
@@ -109,13 +108,13 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
       // Навигация назад (`#btn-partner-edit-back`) — не была покрыта ни одной спекой.
       await open();
       await page.click('#btn-partner-edit-back');
-      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 20000 });
+      await expect(page.locator('#view-partners')).toBeVisible({ timeout: 12000 });
 
       await open();
       await page.click('#btn-partner-delete');
       await expect(page.locator('#confirm-modal')).toBeVisible();
       await page.click('#confirm-no');
-      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+      await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 12000 });
       await expect(
         page.locator('#partners-list .partner-row').filter({ hasText: NEW }),
         'после отмены партнёр остался в списке'

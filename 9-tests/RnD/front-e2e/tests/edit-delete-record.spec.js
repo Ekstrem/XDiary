@@ -65,13 +65,11 @@ async function apiDelete(page, id) {
 }
 
 test('E2E: запись журнала — редактирование и удаление через UI', async ({ page }) => {
-  test.setTimeout(160_000);
-  // TE-062: бюджет теста = сумма объявленных ожиданий. При общем лимите 90 с такая спека
-  // на медленном стенде падает по общему таймауту («не дождались»), хотя поведение верное.
+  test.setTimeout(105_000);
+  // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   // В сценарии 4 ожидания по 20с (журнал/визард) + setup через API — это не влезает в
   // дефолтные 90с теста, и тест падал «Test timeout of 90000ms exceeded» на последней проверке.
-  test.setTimeout(180_000);
   const apiLog = [];
   page.on('response', (r) => {
     const u = r.url();
@@ -93,7 +91,7 @@ test('E2E: запись журнала — редактирование и уд�
     // перезагрузка → экран блокировки → разблокируем → журнал со свежими данными
     await page.reload();
     await unlockIfLocked(page);
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 12000 });
 
     const card = page.locator('#journal-list .record-card').filter({ hasText: MARK });
     await expect(card, 'карточка записи с местом ' + MARK + ' ;; API: ' + apiLog.slice(-6).join(' | ')).toHaveCount(1);
@@ -103,7 +101,7 @@ test('E2E: запись журнала — редактирование и уд�
     // Навигация назад — не проверялась ни одной спекой (`#btn-detail-back` в карте непокрытых):
     // из карточки записи кнопка «назад» обязана вернуть в журнал, не меняя запись.
     await page.click('#btn-detail-back');
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 12000 });
     const untouched = await apiRecord(page, id);
     expect(untouched.ok, 'после возврата из карточки запись на месте').toBe(true);
     await card.click();
@@ -111,7 +109,7 @@ test('E2E: запись журнала — редактирование и уд�
 
     // редактирование: длительность 15 -> 45
     await page.click('#btn-detail-edit');
-    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 12000 });
     // Шаг берём ПО ИМЕНИ (title кнопки прогресса = `STEPS[i]`, `app.js:8`), а не по индексу:
     // `nth(6)` ломается молча, если в мастере поменяется порядок/число шагов — клик уедет
     // на другой экран, и падение будет выглядеть как дефект продукта.
@@ -133,7 +131,7 @@ test('E2E: запись журнала — редактирование и уд�
     await card2.click();
     await expect(page.locator('#view-detail')).toBeVisible();
     await page.click('#btn-detail-edit');
-    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 12000 });
     await page.locator('#wizard-progress button[title="Итог"]').click();
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();
@@ -142,7 +140,7 @@ test('E2E: запись журнала — редактирование и уд�
     // Без этой проверки отмена подтверждения не покрыта ничем, а `#confirm-no` — единственный
     // способ передумать (до 2026-11-05 спеки его не трогали вовсе).
     await page.click('#confirm-no');
-    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 20000 });
+    await expect(page.locator('#confirm-modal')).toBeHidden({ timeout: 12000 });
     const afterCancel = await apiRecord(page, id);
     expect(afterCancel.ok, 'запись остаётся после отмены подтверждения').toBe(true);
 
@@ -151,7 +149,7 @@ test('E2E: запись журнала — редактирование и уд�
     await page.click('#btn-wizard-delete');
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.click('#confirm-yes');
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
+    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 12000 });
 
     // Удаление в журнале — состояние агрегата (soft delete), отдельного поля в read-модели
     // нет, поэтому GET /records/{id} может отдавать 200. Проверяем наблюдаемое: запись
