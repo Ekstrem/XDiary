@@ -1,148 +1,101 @@
 name: Front E2E (8-front + 9-tests/RnD)
 
 # PDR-16 шаг (b): фронтовый гейт отдельно от бэкендового.
-# DO-100 п.3 (@DO 2026-11-06): job-level `concurrency` УБРАН. С `cancel-in-progress: false`
-# GitHub отменял PENDING прогон при каждом новом пуше в `9-tests/**`: браузер не запускался
-# вообще, и чисел passed/failed/skipped не было (9 отмен подряд). Теперь прогоны встают в
-# очередь GitHub и доходят до конца. Цена — минуты CI; ценность — квитанция вместо «пропал».
-# Гонку со стендом по-прежнему ловит шаг «Ждать здоровый dev-стенд (DO-041)» ниже.
 #
-# DO-041: группы `front-e2e` (здесь) и `deploy-dev-prod` (deploy.yml) РАЗНЫЕ — они
-# не вытесняют друг друга, но и не сериализуются, поэтому `front-e2e` мог стартовать
-# по стенду, который в этот момент пересоздавался деплоем. Инцидент: deploy #732
-# (deploy-dev 18:45:00–18:46:08, smoke-api упал 18:47:10), front-e2e #20 стартовал
-# 18:47:23 → `POST /api/v1/clients` вернул 500, и прогон дал ложные продуктовые падения.
-# Лечение: перед тестами ждём зелёный `/health` с ретраями; если стенд не поднялся —
-# прогон падает с `[infra] stand-unhealthy`, и его результат НЕ читается как дефект продукта.
+# DO-032 (@DO 2026-11-06 05:0x, решение по запросу @TE): браузер больше НЕ бежит на каждый push.
+# Причина из измерений: прогоны шли по 3–4 одновременно (после снятия `concurrency` в DO-100 п.3),
+# каждый мутирует ЖИВОЙ стенд (создаёт и удаляет партнёров, записи, каталог), и очистка одного
+# прогона удаляла данные другого — отсюда 404 на `/when`, пустой `#view-partners`, `link-client` 400,
+# которые выглядели как продуктовые дефекты.
+#
+# Разделение:
+#   * `spec-gates` — на push/pull_request: только СТАТИЧЕСКИЕ гейты по спекам (`check_e2e_all`),
+#     секунды, ничего не создаёт, очередь не занимает;
+#   * `front-e2e` — только `workflow_dispatch` и ночное расписание (04:00 UTC): там живой стенд,
+#     очистка данных и 15–20 минут браузера. `concurrency` возвращён (сталкивать два ручных
+#     прогона нельзя), `cancel-in-progress: false` — прерывать прогон запрещено (§5.1).
 
 on:
   push:
     branches: ["main"]
-    # DO-031: правки задач и чата ролей не триггерят тяжёлые test/front-e2e (иначе
-    # каждый пуш в переписку отменяет идущий E2E). Guard'ы — в chat-guards.yml,
-    # который теперь слушает и `5-tech-backlog/**` (DO-032: секреты в задачах).
     paths-ignore:
       - '5-tech-backlog/**'
-      - '0*/**'
       - '01-user-stories/**'
       - '02-cjm/**'
       - '03-ddd/**'
       - '04-architecture/**'
+      - '0*/**'
+      - 'docs/**'
+      - '*.md'
       - '**/*.md'
   pull_request:
+    branches: ["main"]
   workflow_dispatch:
-
-# Политика отмены (DO-023, решение владельца 2026-11-05): прогоны НЕ отменяются новым
-# пушем — оба джоба идут в очередь. «test не трогать первые 5 минут» GitHub не умеет,
-# поэтому эквивалент — не отменять вовсе. Очередь не раздувается: чат-пуши отфильтрованы
-# paths-ignore, code-пуши редкие. Отменённый прогон не считается доказательством (TL).
+  schedule:
+    - cron: '0 4 * * *'
 
 jobs:
+  spec-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: E2E-гейты по спекам (check_e2e_all)
+      run: python 9-tests/scripts/check_e2e_all.py
   front-e2e:
+    needs: spec-gates
+    if: github.event_name != 'push' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    concurrency:
+      group: front-e2e-stand
+      cancel-in-progress: false
     env:
-      # Живые E2E (change-pin и т.п.) гоняем против тестового стенда VPS-2 (ADR-019),
-      # чтобы деструктивные PIN-сценарии не трогали прод VPS-1.
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
-      XDIARY_E2E_PIN: "1234"
-      # @TE 2026-11-06 01:07: без этих четырёх флагов 4 сценария (5 тестов) ПРОПУСКАЮТСЯ,
-      # и «зелено» значит меньше, чем записано в маркере. Все — "1".
-      # XDIARY_CHANGE_PIN намеренно НЕ ставим: сценарий деструктивный (меняет PIN).
-      XDIARY_BUSY: "1"
-      XDIARY_STALENOTE: "1"
-      XDIARY_READPATH_OFFLINE: "1"
-      XDIARY_READPARITY: "1"
+      XDIARY_E2E_PIN: '1234'
+      XDIARY_BUSY: '1'
+      XDIARY_STALENOTE: '1'
+      XDIARY_READPATH_OFFLINE: '1'
+      XDIARY_READPARITY: '1'
     steps:
-      - name: Ждать здоровый dev-стенд (DO-041)
-        # Стенд пересоздаётся деплоем, а `front-e2e` и `deploy-dev` не сериализованы.
-        # Ждём `/health` = 200 до 5 минут; не дождались — это ИНФРАСТРУКТУРА, не продукт.
-        run: |
-          set -uo pipefail
-          base="${XDIARY_E2E_BASE_URL}"
-          code=000
-          for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$base/health" || echo 000)
-            echo "попытка $i: GET $base/health -> $code"
-            if [ "$code" = "200" ]; then
-              echo "стенд здоров (попыток: $i)"
-              echo "### стенд: /health -> 200 (попыток: $i)" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "[infra] stand-unhealthy: /health не отдал 200 за 20 попыток, последний код $code"
-          echo "::error title=[infra] stand-unhealthy::dev-стенд не поднялся за 5 минут (последний код $code). Это дефект инфраструктуры, а не продукта: падения E2E в этом прогоне не считать регрессией."
-          {
-            echo "### [infra] stand-unhealthy"
-            echo ""
-            echo "Последний код ответа: \`$code\`. Падения E2E в этом прогоне не считать регрессией продукта."
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
-      # `Reset dev PIN to 1234` убран (@TL 20:50): он дёргал legacy-контур `/privacy/pin/set`,
-      # хотя спеки используют ЛОКАЛЬНЫЙ PIN (`setPin` в localStorage, api.js) — серверный PIN
-      # им не нужен. Доказательство безопасности: front-e2e-repeat #10 (success, 11 шагов,
-      # шага PIN нет). Гейт больше не зависит от `/privacy/*`.
-      - name: Очистить накопленные E2E-данные на dev (DO-044)
-        # Каждый прогон создаёт клиента и партнёра и не удаляет их: к 02.11 накопилось
-        # 2639 partners / 1751 clients, `#onboarding-list` доходил до 2607 узлов (588 КБ),
-        # `.first()` выбирал произвольную старую карточку → флейк «Список партнёров пуст».
-        # Чистка перед прогоном возвращает список к 0 и снимает этот класс падений.
-        # Клиенты тоже чистим: телефон в спеке = +7999777 + 4 цифры Date.now() → всего 10 000
-        # вариантов, и при 1751 существующих клиентах коллизия ~16% за прогон. Дубликат телефона
-        # на POST /clients сейчас отдаёт 500 (duplicate key 23505) — это отдельный дефект @BE.
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEV_SSH_HOST }}
-          username: ${{ secrets.DEV_SSH_USER }}
-          key: ${{ secrets.DEV_SSH_KEY }}
-          script: |
-            SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
-            if [ ! -f "$SCRIPT" ]; then
-              echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
-              exit 0
-            fi
-            # @TL 17:57: удаляем ТОЛЬКО тестовые телефоны (+7999…) и печатаем отчёт
-            # «до/после», чтобы было видно, что и сколько удалено (журнал/аналитика не задеты).
-            echo "=== DRY-RUN (что будет удалено) ==="
-            bash "$SCRIPT" | tee /tmp/cleanup-dry.txt
-            echo "=== APPLY (--clients: только +7999…) ==="
-            bash "$SCRIPT" --apply --clients | tee /tmp/cleanup-apply.txt
-            {
-              echo "### Очистка dev перед прогоном (DO-044)"
-              echo
-              echo '```'
-              echo "--- dry-run ---"
-              cat /tmp/cleanup-dry.txt
-              echo "--- apply ---"
-              cat /tmp/cleanup-apply.txt
-              echo '```'
-            } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install deps
-        working-directory: 9-tests/RnD/front-e2e
-        run: npm ci || npm install
-      - name: Install Playwright browsers
-        working-directory: 9-tests/RnD/front-e2e
-        run: npx playwright install --with-deps chromium
-      # @TE 2026-11-06: 20 статических гейтов по спекам одной командой (набор, позиционные
-      # проверки, сон-тесты, селекторы, контракт фикстур и т.д.) — до запуска браузера.
-      - name: E2E-гейты по спекам (check_e2e_all)
-        run: python 9-tests/scripts/check_e2e_all.py
-      - name: Front E2E
-        working-directory: 9-tests/RnD/front-e2e
-        run: npm test
-
-      # @TE 2026-11-06: артефакт прогона (скриншоты/трейсы Playwright). `if: always()`,
-      # иначе при падении артефакта нет — а именно он отличает «тест упал» от «стенд не ответил».
-      - name: Сохранить артефакты Playwright
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: front-e2e-results
-          path: 9-tests/RnD/front-e2e/test-results/
-          if-no-files-found: warn
-          retention-days: 7
+    - name: Ждать здоровый dev-стенд (DO-041)
+      run: "set -uo pipefail\nbase=\"${XDIARY_E2E_BASE_URL}\"\ncode=000\nfor i in $(seq 1 20); do\n  code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' \"$base/health\" || echo 000)\n  echo \"попытка $i:\
+        \ GET $base/health -> $code\"\n  if [ \"$code\" = \"200\" ]; then\n    echo \"стенд здоров (попыток: $i)\"\n    echo \"### стенд: /health -> 200 (попыток: $i)\" >> \"$GITHUB_STEP_SUMMARY\"\n   \
+        \ exit 0\n  fi\n  sleep 15\ndone\necho \"[infra] stand-unhealthy: /health не отдал 200 за 20 попыток, последний код $code\"\necho \"::error title=[infra] stand-unhealthy::dev-стенд не поднялся за\
+        \ 5 минут (последний код $code). Это дефект инфраструктуры, а не продукта: падения E2E в этом прогоне не считать регрессией.\"\n{\n  echo \"### [infra] stand-unhealthy\"\n  echo \"\"\n  echo \"\
+        Последний код ответа: \\`$code\\`. Падения E2E в этом прогоне не считать регрессией продукта.\"\n} >> \"$GITHUB_STEP_SUMMARY\"\nexit 1\n"
+    - name: Очистить накопленные E2E-данные на dev (DO-044)
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.DEV_SSH_HOST }}
+        username: ${{ secrets.DEV_SSH_USER }}
+        key: ${{ secrets.DEV_SSH_KEY }}
+        script: "SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh\nif [ ! -f \"$SCRIPT\" ]; then\n  echo \"::warning::скрипт очистки не найден на стенде — прогон без очистки\"\n  exit 0\nfi\n# @TL 17:57:\
+          \ удаляем ТОЛЬКО тестовые телефоны (+7999…) и печатаем отчёт\n# «до/после», чтобы было видно, что и сколько удалено (журнал/аналитика не задеты).\necho \"=== DRY-RUN (что будет удалено) ===\"\n\
+          bash \"$SCRIPT\" | tee /tmp/cleanup-dry.txt\necho \"=== APPLY (--clients: только +7999…) ===\"\nbash \"$SCRIPT\" --apply --clients | tee /tmp/cleanup-apply.txt\n{\n  echo \"### Очистка dev перед\
+          \ прогоном (DO-044)\"\n  echo\n  echo '```'\n  echo \"--- dry-run ---\"\n  cat /tmp/cleanup-dry.txt\n  echo \"--- apply ---\"\n  cat /tmp/cleanup-apply.txt\n  echo '```'\n} >> \"${GITHUB_STEP_SUMMARY:-/dev/null}\"\
+          \n"
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install deps
+      working-directory: 9-tests/RnD/front-e2e
+      run: npm ci || npm install
+    - name: Install Playwright browsers
+      working-directory: 9-tests/RnD/front-e2e
+      run: npx playwright install --with-deps chromium
+    - name: Front E2E
+      working-directory: 9-tests/RnD/front-e2e
+      run: npm test
+    - name: Сохранить артефакты Playwright
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: front-e2e-results
+        path: 9-tests/RnD/front-e2e/test-results/
+        if-no-files-found: warn
+        retention-days: 7
