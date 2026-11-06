@@ -62,12 +62,18 @@ public class JournalProjectionTests
         Assert.True(read!.Deleted);
     }
 
-    // @TL 22:21/22:43: id агрегата — инвариант; StartManualEntry не должен менять его (when-404).
+    // @TL 22:21/22:43 + @AR 00:30: id агрегата — инвариант на КАЖДОМ шаге визарда (when-404).
     [Fact]
-    public void StartManualEntry_PreservesAggregateId()
+    public void Wizard_PreservesAggregateId_AtEveryStep()
     {
         var blank = new AnemicModel();
-        var result = Aggregate.CreateInstance(blank).StartManualEntry(Guid.NewGuid());
-        Assert.Equal(blank.Id, result.Model().Id);
+        var start = Aggregate.CreateInstance(blank).StartManualEntry(Guid.NewGuid());
+        Assert.Equal(blank.Id, start.Model().Id);
+        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
+        Assert.Equal(blank.Id, when.Model().Id);
+        var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1");
+        Assert.Equal(blank.Id, partner.Model().Id);
+        var complete = Aggregate.CreateInstance(partner.Model()).Complete();
+        Assert.Equal(blank.Id, complete.Model().Id);
     }
 }
