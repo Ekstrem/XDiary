@@ -99,6 +99,25 @@ test('E2E: каталог — archive и restore через UI, проверка
 
       await openItem(page);
       await page.click('#btn-catalog-delete');
+      // TE-069: диагностика вместо 110-секундного зависания. В прогонах #766/#774 шаг
+      // «удалить позицию» висел до лимита, а снимок показывал форму БЕЗ модалки подтверждения.
+      // Не угадываем: после клика ждём ЛИБО модалку, ЛИБО тост, и пишем в лог, что появилось.
+      const afterDelete = await Promise.race([
+        page.waitForSelector('#confirm-modal:not(.hidden)', { timeout: 15000 })
+          .then(() => 'modal').catch(() => null),
+        page.waitForFunction(() => {
+          const t = document.getElementById('toast');
+          return !!t && !t.classList.contains('hidden') && t.textContent.trim().length > 0;
+        }, null, { timeout: 15000 }).then(() => 'toast').catch(() => null),
+      ]).catch(() => null);
+      const toastText = await page.evaluate(() => {
+        const t = document.getElementById('toast');
+        return t ? t.textContent.trim() : '';
+      }).catch(() => '');
+      const editId = await page.evaluate(() => document.getElementById('ce-name')?.value || '');
+      console.log('::notice::catalog-delete: после клика=' + String(afterDelete) +
+        ' | тост=' + JSON.stringify(String(toastText).slice(0, 120)) +
+        ' | поле имени=' + JSON.stringify(String(editId).slice(0, 60)));
       await expect(page.locator('#confirm-modal')).toBeVisible();
       // негативный контроль: «Нет» обязано оставить позицию на месте
       await page.click('#confirm-no');
