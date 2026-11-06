@@ -20,12 +20,19 @@ for (const kind of KINDS) {
       await page.click('#btn-catalog-add');
       await expect(page.locator('#view-catalog-edit')).toBeVisible();
       await page.fill('#ce-name', name);
-      // Поля «Бренд» и «Партнёр» позиции каталога не заполняла ни одна спека.
-      await page.fill('#ce-brand', 'TE-BRAND');
-      await expect(page.locator('#ce-brand')).toHaveValue('TE-BRAND');
-      const partnerOptions = await page.locator('#ce-partner option').count();
-      if (partnerOptions > 0) {
-        await page.locator('#ce-partner').selectOption({ index: 0 });
+      // TE-065: поля показаны НЕ для всех видов — `app.js:1404/1407`: `ce-brand-wrap` виден только при
+      // `kind === "toy"`, `ce-partner-wrap` — только при `kind === "fantasy"`. Раньше спека заполняла
+      // `#ce-brand` для всех четырёх видов: у costume/fantasy/contraception поле лежит в скрытой обёртке,
+      // `page.fill` ждёт видимости и падает по общему лимиту («не дождались», три падения в CI).
+      if (await page.locator('#ce-brand-wrap').isVisible()) {
+        await page.fill('#ce-brand', 'TE-BRAND');
+        await expect(page.locator('#ce-brand')).toHaveValue('TE-BRAND');
+      }
+      if (await page.locator('#ce-partner-wrap').isVisible()) {
+        const partnerOptions = await page.locator('#ce-partner option').count();
+        if (partnerOptions > 0) {
+          await page.locator('#ce-partner').selectOption({ index: 0 });
+        }
       }
       await page.click('#btn-catalog-save');
 
