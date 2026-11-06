@@ -53,11 +53,11 @@
 
 > Состояние по этому критерию с артефактами (обновлено `2026-11-07`): `SPRINT-CLOSE.md`, ретро-материал — `RETRO-DRAFT.md`; прежняя ссылка: `5-tech-backlog/tl/SPRINT-CLOSE.md` (обновляется @TL).
 
-- [ ] Прод: `GET /api/v1/clients` анонимно → **401**; `POST /clients` пусто → **400**.
-- [ ] Прод: свой журнал — 5 строк зелёные (T2), `clientId` не null.
-- [ ] Владелец прошёл вход → онбординг «имя + пол» → журнал (ручная проверка).
-- [ ] `openapi/index.json` есть; `tools/latency.py --check` даёт цифры (не `rc=2`).
-- [ ] Гейты зелёные: `check_nul`, `chat_lint --strict-times`, `status_lint --strict`, `check_secrets`, `stats --check`.
+- [x] Прод: `GET /api/v1/clients` анонимно → **401**; `POST /clients` пусто → **400**. — **выполнено** `2026-11-07` (@TL проба `21:07Z` + @TE `00:14`, квитанции в `SPRINT-CLOSE.md`).
+- [ ] Прод: свой журнал — 5 строк зелёные (T2), `clientId` не null. — **на dev 5/5** (@TE `00:14`); на проде **не измеримо** без входа владельца (второй фактор — Telegram).
+- [ ] Владелец прошёл вход → онбординг «имя + пол» → журнал (ручная проверка). — **ждёт @EX**.
+- [ ] `openapi/index.json` есть; `tools/latency.py --check` даёт цифры (не `rc=2`). — файл есть, но устаревший (2 сервиса без `operations`); доказано: без него `load_ops` даёт **80** операций. Правка одной командой — @BE.
+- [x] Гейты зелёные: `check_nul`, `chat_lint --strict-times`, `status_lint --strict`, `check_secrets`, `stats --check`. — **выполнено** `2026-11-07`: все `rc=0` (плюс `check_canon`, `check_docs_size`); `check_secrets` закрыт критерием @LM (`ea24147d`, `7ab8b4a9`), история не тронута.
 
 ## 6. Факт выкатки T1/T2 (2026-11-11 17:00–17:40)
 
