@@ -15,6 +15,8 @@ public class PartnersControllerIsolationTests
             => Task.FromResult((TResponse)Result!);
         public Task<object?> Send(object request, CancellationToken ct = default)
             => Task.FromResult(Result);
+        public Task Send<TRequest>(TRequest request, CancellationToken ct = default) where TRequest : notnull
+            => Task.CompletedTask;
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken ct = default)
             => throw new NotImplementedException();
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken ct = default)
