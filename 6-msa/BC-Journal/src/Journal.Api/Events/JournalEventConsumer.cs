@@ -35,17 +35,20 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
 {
     private readonly IEventStoreRepository<IJournal, IJournalAnemicModel> _store;
     private readonly IReadModelStore<IJournal, JournalReadModel> _readStore;
+    private readonly IReadRepository<IJournal, JournalReadModel> _readRepo;
     private readonly IReadModelStore<IJournal, JournalDefaultsReadModel> _defaultsStore;
     private readonly IReadRepository<IJournal, JournalDefaultsReadModel> _defaultsRead;
 
     public JournalEventHandler(
         IEventStoreRepository<IJournal, IJournalAnemicModel> store,
         IReadModelStore<IJournal, JournalReadModel> readStore,
+        IReadRepository<IJournal, JournalReadModel> readRepo,
         IReadModelStore<IJournal, JournalDefaultsReadModel> defaultsStore,
         IReadRepository<IJournal, JournalDefaultsReadModel> defaultsRead)
     {
         _store = store;
         _readStore = readStore;
+        _readRepo = readRepo;
         _defaultsStore = defaultsStore;
         _defaultsRead = defaultsRead;
     }
@@ -72,9 +75,23 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         await _store.SaveEventAsync(entry);
 
         // 2) проекция MV (UpsertAsync) из changed-VO.
+        // BE-077/@TL 21:37 — Project отдаёт частичную модель (только Root+ClientId из diff); upsert без merge затирает Place/Tags/etc.
         var read = JournalProjection.Project(domainEvent);
         if (read is not null)
-            await _readStore.UpsertAsync(read);
+        {
+            var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default);
+            if (existing is not null)
+            {
+                existing.Partners = read.Partners;
+                existing.StartedAt = read.StartedAt;
+                if (read.ClientId is not null) existing.ClientId = read.ClientId;
+                await _readStore.UpsertAsync(existing);
+            }
+            else
+            {
+                await _readStore.UpsertAsync(read);
+            }
+        }
 
         // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
         await MergeDefaultsAsync(domainEvent);
