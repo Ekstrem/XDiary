@@ -5,7 +5,7 @@ using Partners.Domain;
 using Partners.Domain.Abstraction;
 using Partners.InternalContracts;
 public sealed record ListPartnersQuery(Guid ClientId) : IRequest<IReadOnlyList<PartnersReadModel>>;
-public sealed record GetPartnerByIdQuery(Guid AggregateId) : IRequest<PartnersReadModel?>;
+public sealed record GetPartnerByIdQuery(Guid AggregateId, Guid ClientId) : IRequest<PartnersReadModel?>;
 public sealed class ListPartnersHandler : IRequestHandler<ListPartnersQuery, IReadOnlyList<PartnersReadModel>>
 {
     private readonly IPartnersQueryRepository _repo;
@@ -19,11 +19,11 @@ public sealed class GetPartnerByIdHandler : IRequestHandler<GetPartnerByIdQuery,
     public GetPartnerByIdHandler(IPartnersQueryRepository repo, IAnemicModelRepository<IPartners, IPartnerAnemicModel> anemic) { _repo = repo; _anemic = anemic; }
     public async Task<PartnersReadModel?> Handle(GetPartnerByIdQuery r, CancellationToken ct)
     {
-        var x = await _repo.GetByIdAsync(r.AggregateId, ct);
+        var x = await _repo.GetByIdAsync(r.AggregateId, r.ClientId, ct);
         if (x is not null && x.DeletedAt is null) return x;
         // @TL 23:37 — fallback в command-store: read-модель материализуется с лагом (IObserver.OnNext fire-and-forget).
         var agg = (await _anemic.GetById(r.AggregateId, ct)).LastOrDefault();
-        if (agg is null || agg.DeletedAt is not null) return null;
+        if (agg is null || agg.DeletedAt is not null || agg.ClientId != r.ClientId) return null; // BE-085: чужой → null → 404
         return new PartnersReadModel { Id = agg.Id, Name = agg.Root.Name, Photo = agg.Photo, Gender = agg.Gender, Notes = agg.Notes, ClientId = agg.ClientId, DeletedAt = agg.DeletedAt };
     }
 }

@@ -22,9 +22,9 @@ public sealed class CatalogController : ControllerBase
     private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
     private async Task<IActionResult?> EnsureOwns(Guid id, Guid clientId, CancellationToken ct)
     {
-        var item = await _mediator.Send(new GetCatalogItemByIdQuery(id), ct);
-        if (item is null) return NotFound();
-        return item.ClientId != clientId ? Forbid() : null;
+        // BE-084/085: чужой id → 404 (не 403) — фильтр по clientId, не подтверждаем существование.
+        var item = await _mediator.Send(new GetCatalogItemByIdQuery(id, clientId), ct);
+        return item is null ? NotFound() : null;
     }
 
     [HttpPost]
@@ -60,8 +60,7 @@ public sealed class CatalogController : ControllerBase
     {
         var clientId = ClientId();
         if (clientId is null) return Unauthorized();
-        var r = await _mediator.Send(new GetCatalogItemByIdQuery(id), ct);
-        if (r is null) return NotFound();
-        return r.ClientId != clientId.Value ? Forbid() : Ok(r);
+        var r = await _mediator.Send(new GetCatalogItemByIdQuery(id, clientId.Value), ct);
+        return r is null ? NotFound() : Ok(r);
     }
 }

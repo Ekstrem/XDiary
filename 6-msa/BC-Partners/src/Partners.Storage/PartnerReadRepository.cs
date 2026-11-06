@@ -10,7 +10,13 @@ public sealed class PartnerReadRepository : IPartnersQueryRepository
     private readonly IReadRepository<IPartners, PartnersReadModel> _read;
     public PartnerReadRepository(IReadRepository<IPartners, PartnersReadModel> read) => _read = read;
 
-    public async Task<PartnersReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<PartnersReadModel?> GetByIdAsync(Guid id, Guid clientId, CancellationToken ct = default)
+    {
+        var x = await _read.GetByIdAsync(id, ct);
+        return x is not null && x.ClientId == clientId ? x : null; // BE-085: чужой → null → 404
+    }
+
+    public async Task<PartnersReadModel?> GetByIdUnscopedAsync(Guid id, CancellationToken ct = default)
         => await _read.GetByIdAsync(id, ct);
 
     public async Task<IReadOnlyList<PartnersReadModel>> ListAsync(Guid clientId, CancellationToken ct = default)

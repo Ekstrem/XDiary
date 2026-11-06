@@ -19,7 +19,7 @@ public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAn
     // BE-088: быстрый путь — read-модель; при промахе (свежая запись, лаг проекции) — пересборка из событий.
     public async Task<IPartnerAnemicModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        var read = await _readRepo.GetByIdAsync(id, ct);
+        var read = await _readRepo.GetByIdUnscopedAsync(id, ct);
         if (read is not null)
             return new AnemicModel { Id = read.Id, Root = PartnerRoot.CreateInstance(read.Name), ClientId = read.ClientId, DeletedAt = read.DeletedAt, Photo = read.Photo, Gender = read.Gender, Notes = read.Notes };
         var events = await _events.GetById(id, ct);

@@ -21,9 +21,9 @@ public sealed class PartnersController : ControllerBase
     private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
     private async Task<IActionResult?> OwnerGuardAsync(Guid id, Guid clientId, CancellationToken ct)
     {
-        var existing = await _mediator.Send(new GetPartnerByIdQuery(id), ct);
-        if (existing is null) return NotFound();
-        return existing.ClientId != clientId ? Forbid() : null;
+        // BE-085: чужой id → 404 (не 403) — фильтр по clientId, не подтверждаем существование.
+        var existing = await _mediator.Send(new GetPartnerByIdQuery(id, clientId), ct);
+        return existing is null ? NotFound() : null;
     }
 
     [HttpPost]
@@ -106,9 +106,7 @@ public sealed class PartnersController : ControllerBase
     {
         var clientId = ClientId();
         if (clientId is null) return Unauthorized();
-        var r = await _mediator.Send(new GetPartnerByIdQuery(id), ct);
-        if (r is null) return NotFound();
-        if (r.ClientId != clientId.Value) return Forbid();
-        return Ok(r);
+        var r = await _mediator.Send(new GetPartnerByIdQuery(id, clientId.Value), ct);
+        return r is null ? NotFound() : Ok(r);
     }
 }

@@ -33,4 +33,15 @@ public class PartnerReadRepositoryTests
         Assert.Single(list);
         Assert.Equal("Mine", list[0].Name);
     }
+
+    // BE-085: два клиента — B запрашивает партнёра A ⇒ null (404), не 403.
+    [Fact]
+    public async Task GetByIdAsync_OtherClientsPartner_ReturnsNull()
+    {
+        var a = Guid.NewGuid(); var b = Guid.NewGuid();
+        var id = Guid.NewGuid();
+        var repo = CreateRepo(new PartnersReadModel { Id = id, Name = "A", ClientId = a });
+        Assert.Null(await repo.GetByIdAsync(id, b));     // чужой → null → 404
+        Assert.NotNull(await repo.GetByIdAsync(id, a));  // свой → есть
+    }
 }

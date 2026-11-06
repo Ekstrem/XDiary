@@ -2,7 +2,7 @@ namespace Catalog.Application.Queries;
 using MediatR;
 using Catalog.InternalContracts;
 public sealed record ListCatalogItemsQuery(Guid ClientId) : IRequest<IReadOnlyList<CatalogReadModel>>;
-public sealed record GetCatalogItemByIdQuery(Guid AggregateId) : IRequest<CatalogReadModel?>;
+public sealed record GetCatalogItemByIdQuery(Guid AggregateId, Guid ClientId) : IRequest<CatalogReadModel?>;
 public sealed class ListCatalogItemsHandler : IRequestHandler<ListCatalogItemsQuery, IReadOnlyList<CatalogReadModel>>
 {
     private readonly ICatalogQueryRepository _repo;
@@ -13,5 +13,5 @@ public sealed class GetCatalogItemByIdHandler : IRequestHandler<GetCatalogItemBy
 {
     private readonly ICatalogQueryRepository _repo;
     public GetCatalogItemByIdHandler(ICatalogQueryRepository repo) => _repo = repo;
-    public Task<CatalogReadModel?> Handle(GetCatalogItemByIdQuery r, CancellationToken ct) => _repo.GetByIdAsync(r.AggregateId, ct);
+    public Task<CatalogReadModel?> Handle(GetCatalogItemByIdQuery r, CancellationToken ct) => _repo.GetByIdAsync(r.AggregateId, r.ClientId, ct);
 }
