@@ -404,6 +404,45 @@ def render_registry(rows):
         lines.append(line)
     return "\n".join(lines) + "\n"
 
+def receipt(path, registry="ghcr.io", owner="ekstrem", echo=print):
+    """Три числа для квитанции деплоя (@AR 2026-11-06 23:22).
+
+    «смешанный набор» — это слова, пока не напечатано:
+      1) сколько сервисов в lock;
+      2) у скольких тег НЕ совпадает с последним опубликованным предком HEAD (то есть отстали);
+      3) сколько не выкачено вовсе (нет тега в реестре / помечено `unverified`).
+    """
+    if not os.path.exists(path):
+        echo("check_images_lock --receipt: нет файла %s" % path)
+        return 2
+    entries = parse_lock(open(path, encoding="utf-8").read())
+    if not entries:
+        echo("check_images_lock --receipt: в %s нет строк" % path)
+        return 2
+    rows = registry_rows(registry, owner, echo=lambda *_a, **_k: None)
+    newest = {svc: tag for svc, tag, _p, _c, _u in rows}
+    lagging, absent, unverified = [], [], []
+    for service, tag, _path, unv in entries:
+        if unv or tag == "НЕТ-ОБРАЗА":
+            unverified.append((service, tag))
+            continue
+        last = newest.get(service)
+        if last and last != tag and last != "НЕТ-ОБРАЗА":
+            lagging.append((service, tag, last))
+    total = len(entries)
+    echo("квитанция деплоя: сервисов в lock %d | НЕ совпадает с последним опубликованным %d | "
+         "не выкачено (нет образа/unverified) %d" % (total, len(lagging), len(unverified)))
+    for service, tag, last in lagging:
+        echo("  отстаёт: %-20s в lock %-18s последний опубликованный %s" % (service, tag, last))
+    for service, tag in unverified:
+        reason = "403 на анонимный pull-token; front идёт через Pages, не контейнером" \
+            if service == "front" else "нет опубликованного образа"
+        echo("  не выкачено: %-16s %-18s (%s)" % (service, tag, reason))
+    # rc=0: квитанция информационная. «не выкачено» уже печатается списком,
+    # а жёсткий вердикт даёт `--verify-registry` (он для этого и существует).
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
@@ -415,12 +454,17 @@ def main():
                     help="проверить, что теги опубликованы (rc=1 нет образа, rc=2 не измерено)")
     ap.add_argument("--registry", default="ghcr.io", help="хост registry (по умолчанию ghcr.io)")
     ap.add_argument("--owner", default="ekstrem", help="владелец пакетов (по умолчанию ekstrem)")
+    ap.add_argument("--receipt", action="store_true",
+                    help="три числа для квитанции деплоя (@AR 23:22)")
     ap.add_argument("--selftest", action="store_true",
                     help="самопроверка: детерминизм рендера + обнаружение дрейфа")
     a = ap.parse_args()
 
     if a.selftest:
         return selftest()
+
+    if a.receipt:
+        return receipt(a.file, registry=a.registry, owner=a.owner)
 
     if a.verify_registry:
         return verify_registry(a.file, registry=a.registry, owner=a.owner)
