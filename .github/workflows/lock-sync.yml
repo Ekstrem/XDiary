@@ -38,10 +38,40 @@ jobs:
         with:
           python-version: "3.12"
 
+      # @TL 18:35 (принято @DO): lock пишется ТОЛЬКО если теги этого релизного коммита
+      # реально опубликованы. Иначе бот снова поставит тег, которого нет в GHCR, и
+      # `deploy-dev` упадёт на `lock-published` — зелёный CI при невыкатываемом lock
+      # хуже красного. Проверка идёт ДО записи, а не после.
+      - name: Проверить, что теги опубликованы (до записи)
+        id: registry
+        run: |
+          set -uo pipefail
+          python tools/gen_images_lock.py --selftest
+          python tools/gen_images_lock.py --verify-registry
+          rc=$?
+          echo "verify-registry rc=$rc"
+          if [ "$rc" = "2" ]; then
+            echo "::error::registry недоступен — НЕ ИЗМЕРЕНО, lock не трогаю"
+            echo "write=no" >> "$GITHUB_OUTPUT"
+          elif [ "$rc" != "0" ]; then
+            echo "::warning::есть неопубликованные теги — lock НЕ перезаписываю (иначе бот запишет невыкатываемый тег)"
+            echo "write=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "write=yes" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Перегенерировать lock
+        if: steps.registry.outputs.write == 'yes'
         run: python tools/gen_images_lock.py --write
 
+      - name: Итог, если lock не тронут
+        if: steps.registry.outputs.write != 'yes'
+        run: |
+          echo "::notice::images.lock не изменён: теги релизного коммита ещё не в GHCR (см. вывод verify-registry выше)"
+          echo "Когда образы опубликуются — запусти workflow_dispatch вручную."
+
       - name: Проверить, что после записи гейт зелёный
+        if: steps.registry.outputs.write == 'yes'
         run: python tools/gen_images_lock.py --check
 
       - name: Закоммитить, если изменилось
