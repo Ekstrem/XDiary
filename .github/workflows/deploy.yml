@@ -27,7 +27,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # DO-102 (2026-11-06): до деплоя проверяем, что теги из `images.lock` РЕАЛЬНО опубликованы.
+  # Без этого класса проверки деплой падал на `podman pull` уже внутри `deploy.sh` (или, хуже,
+  # молча поднимал старый `:single`), а «lock отстал от registry» никто не видел.
+  # `rc=1` — есть отсутствующие (печатается список), `rc=2` — registry недоступен (не измерено).
+  lock-published:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Самопроверка гейта
+        run: python3 tools/gen_images_lock.py --selftest
+
+      - name: Все теги из images.lock опубликованы
+        run: python3 tools/gen_images_lock.py --verify-registry
+
   deploy-dev:
+    needs: [lock-published]
     runs-on: ubuntu-latest
     environment: dev
     steps:
