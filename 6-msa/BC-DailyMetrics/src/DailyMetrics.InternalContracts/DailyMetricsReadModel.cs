@@ -14,4 +14,5 @@ public sealed class DailyMetricsReadModel : IReadModel<DailyMetrics.Domain.IDail
     public int SleepLightMin { get; set; }
     public int SleepRemMin { get; set; }
     public int SleepAwakeMin { get; set; }
+    public Guid? ClientId { get; set; }
 }

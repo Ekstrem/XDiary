@@ -13,6 +13,7 @@ public sealed class AnemicModel : IDailyMetricsAnemicModel
     public int RestingHr { get; set; }
     public int Hrv { get; set; }
     public ISleep Sleep { get; set; } = Implementation.Sleep.CreateInstance(0, 0, 0, 0, 0, 0);
+    public Guid? ClientId { get; set; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root, ["Sleep"] = Sleep };
 }

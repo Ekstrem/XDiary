@@ -14,21 +14,21 @@ public sealed class RecordStressHandler : IRequestHandler<RecordStressCommand, A
     private readonly IDailyMetricsEventPublisher _publisher;
     public RecordStressHandler(IDailyMetricsRepository repo, IDailyMetricsEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> Handle(RecordStressCommand r, CancellationToken ct)
-    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordStress(r.Date, r.Stress); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishStressAsync(r.Date, r.Stress, ct); } return res; }
+    { var m = await _repo.GetByDateAsync(r.Date, r.ClientId, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordStress(r.Date, r.Stress, r.ClientId); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishStressAsync(r.Date, r.Stress, ct); } return res; }
 }
 public sealed class RecordRestingHrHandler : IRequestHandler<RecordRestingHrCommand, AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>
 {
     private readonly IDailyMetricsRepository _repo;
     public RecordRestingHrHandler(IDailyMetricsRepository repo) => _repo = repo;
     public async Task<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> Handle(RecordRestingHrCommand r, CancellationToken ct)
-    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordRestingHr(r.Date, r.RestingHr); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByDateAsync(r.Date, r.ClientId, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordRestingHr(r.Date, r.RestingHr, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class RecordHrvHandler : IRequestHandler<RecordHrvCommand, AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>
 {
     private readonly IDailyMetricsRepository _repo;
     public RecordHrvHandler(IDailyMetricsRepository repo) => _repo = repo;
     public async Task<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> Handle(RecordHrvCommand r, CancellationToken ct)
-    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordHrv(r.Date, r.Hrv); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var m = await _repo.GetByDateAsync(r.Date, r.ClientId, ct) ?? new AnemicModel(); var res = Aggregate.CreateInstance(m).RecordHrv(r.Date, r.Hrv, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class RecordSleepHandler : IRequestHandler<RecordSleepCommand, AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>
 {
@@ -36,5 +36,5 @@ public sealed class RecordSleepHandler : IRequestHandler<RecordSleepCommand, Agg
     private readonly IDailyMetricsEventPublisher _publisher;
     public RecordSleepHandler(IDailyMetricsRepository repo, IDailyMetricsEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> Handle(RecordSleepCommand r, CancellationToken ct)
-    { var m = await _repo.GetByDateAsync(r.Date, ct) ?? new AnemicModel(); var sleep = Sleep.CreateInstance(r.Sleep.Score, r.Sleep.DurationMin, r.Sleep.DeepMin, r.Sleep.LightMin, r.Sleep.RemMin, r.Sleep.AwakeMin); var res = Aggregate.CreateInstance(m).RecordSleep(r.Date, sleep); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishSleepAsync(r.Date, r.Sleep.Score, ct); } return res; }
+    { var m = await _repo.GetByDateAsync(r.Date, r.ClientId, ct) ?? new AnemicModel(); var sleep = Sleep.CreateInstance(r.Sleep.Score, r.Sleep.DurationMin, r.Sleep.DeepMin, r.Sleep.LightMin, r.Sleep.RemMin, r.Sleep.AwakeMin); var res = Aggregate.CreateInstance(m).RecordSleep(r.Date, sleep, r.ClientId); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); await _publisher.PublishSleepAsync(r.Date, r.Sleep.Score, ct); } return res; }
 }

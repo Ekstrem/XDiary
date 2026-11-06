@@ -13,4 +13,5 @@ public sealed class DailyMetricsEntity
     public int SleepRemMin { get; set; }
     public int SleepAwakeMin { get; set; }
     public long Version { get; set; }
+    public Guid? ClientId { get; set; }
 }
