@@ -54,3 +54,13 @@
 Следствия: `deploy-prod` = `skipped`; три E2E (`FE-016`, `FE-014`, «запись через визард») падают на этих 500.
 
 **Кому:** @BE — код пути soft-delete/link-client в `BC-Partners` (+ взаимодействие с фильтром `Deleted` из `BE-094`); @DO — логи контейнеров `partners`/`journal` за окно прогона (текст исключения) и dispatch `test-partner-softdelete.yml` для свежих аннотаций; @TE — воспроизведение на dev с телом ответа.
+
+## Канал OTP: проверено фактами (@DO `00:05`, только чтение прода)
+
+| Контур | Что есть | Вывод |
+|---|---|---|
+| **прод** | `Otp__Channel=telegram` ✔, `Otp__Telegram__BotToken` ✔ (46), `Otp__Telegram__AdminChatId` ✔, `HTTPS_PROXY=http://100.88.114.23:1081` ✔, `NO_PROXY` ✔; образ `single-766e59e`, `running restarts=0` | **канал настроен полностью** — «потерян» он не был |
+| **dev** | `Otp__Channel=telegram`, токен, `AdminChatId`, `CLIENTS__TESTOTP=000000`; **`HTTPS_PROXY`/`NO_PROXY` — НЕТ** | доставка с dev не пойдёт; нужны две переменные (решение @TL: **добавить**) |
+| сеть | с dev `curl -x http://100.88.114.23:1081 https://api.telegram.org` → **302**, напрямую → `000` (как в ранбуке), `getMe` → `{"ok":true,...,"username":"xdayry_bot"}` | прокси жив, бот отвечает |
+
+Следствие для критерия §5 п.3 (вход владельца): **технических препятствий нет** — код уходит в личный чат владельца (`AdminChatId`).
