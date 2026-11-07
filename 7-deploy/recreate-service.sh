@@ -36,6 +36,11 @@ tag_of() {
   awk -v s="$1" '!/^#/ && NF>=2 && $1==s {print $2; exit}' "$LOCK_FILE"
 }
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/xdiary/7-deploy}"
+# DO-111: строка запуска из deploy.sh содержит ${DB_PASSWORD}; значение берём из secrets/.env,
+# иначе при пересоздании одного сервиса переменная окажется пустой и сервис упадёт с 28P01.
+if [ -f "$DEPLOY_DIR/secrets/.env" ]; then
+  set -a; . "$DEPLOY_DIR/secrets/.env"; set +a
+fi
 SVCS_ALL="journal partners catalog somatic-series daily-metrics garmin-gateway apple-health-gateway analytics privacy portability client api-gateway"
 
 say() { printf '%s\n' "$*"; }
