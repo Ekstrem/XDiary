@@ -58,7 +58,9 @@
 - **Оценка:** узкий scope для PAT (только issues).
 
 ### 11. BE-035 — публикация события fire-and-forget без ретраев
-- **Суть:** `RecordPointHandler` публикует событие fire-and-forget (`_ = PublishAsync`), ретраев нет — при сбое доставки событие теряется: из стора его никто не доставит, Outbound Handler отсутствует.
+- **Суть (уточнено @AR 2026-11-07 по коду):** `RecordPointHandler` публикует событие fire-and-forget (`SomaticSeriesHandlers.cs:16` — `_ = _publisher.PublishPointAsync(..., CancellationToken.None)`), ретраев нет — при сбое доставки событие теряется: из стора его никто не доставит, Outbound Handler отсутствует.
+  **Механизм сменился, риск остался и стал тише:** публикация идёт **не через шину**, а по HTTP — `HttpSomaticSeriesEventPublisher.PublishPointAsync` (`SomaticSeries.Api/Events/HttpSomaticSeriesEventPublisher.cs:12-15`): POST в Analytics с `client.Timeout = 2 с` и **пустым `catch { }`**.
+  Следствие: сбой доставки **не оставляет следа** — ни исключения наружу, ни строки в логе, ни счётчика. Ранее здесь стояло «`_ = PublishAsync`» (in-memory шина) — эта формулировка устарела: `git grep '_ = PublishAsync'` по `6-msa` даёт **0** вхождений.
 - **Риск:** средний (потеря события = рассинхрон MV).
 - **Приоритет:** P2.
 - **Оценка:** Outbound Handler + ретраи при эволюции шины — это **требования приёмки долга** (`edm-debt-plan.md:35` — E1, `:71` — E5), а не принятое решение: `ADR-029` **отклонён** 2026-11-14.
