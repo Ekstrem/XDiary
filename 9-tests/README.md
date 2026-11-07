@@ -451,6 +451,8 @@ job `docker` = skipped). Проверка отвечает числом: ско�
 python 9-tests/scripts/ci_be092_delivery_step.py --base https://xdiary-vps2.taile0b6ee.ts.net
 ```
 
+**Предусловие стенда: `000000` принимается не по факту переменной, а по политике (`@DO 11:06`, проверено `@TE`).** `TestOtpPolicy.Resolve` возвращает тестовый код только если `ASPNETCORE_ENVIRONMENT=Development` **или** `Clients:AllowTestOtpOutsideDev=true`; при любом другом окружении `CLIENTS__TESTOTP` **игнорируется** — `POST /clients/{id}/verify` с `000000` даёт `400 «Неверный код.»`, а в теле `POST /clients` появляется `delivery` (признак реального канала; в тестовом режиме поля `delivery` нет). Проверка одной командой: `POST /clients` → есть `delivery` ⇒ тестовый OTP **не** активен. На 2026-11-07 на dev это именно так: `verify 000000` → `400`, `verify 111111` → `400`, `delivery: {channel: telegram, ok: true}`.
+
 **Ожидание на dev при включённом `TESTOTP`:** `delivery` в теле не бывает по замыслу (`ClientsController.cs:33-34`), поэтому шаг даёт `rc=1` по этой строке — это «ожидаемый красный с условием снятия», а не авария; шаг ставится либо туда, где канал реальный, либо с `continue-on-error: true`.
 
 **`check_be092_delivery.py` — приёмка `BE-092` тремя строками (критерий @TL `01:14`).** Одна команда
