@@ -46,7 +46,7 @@ def map_rc(inner_rc, require_measured, inner_out=""):
     return 0, "::warning::приёмка BE-092: не измерено (стенд недоступен / нет --base) — шаг НЕ валится: это конфигурация или сеть, а не продукт"
 
 
-def run(base, require_measured, expect_no_delivery=False):
+def run(base, require_measured, expect_no_delivery=False, mode="strict"):
     if not base:
         rc, head = map_rc(2, require_measured)
         print("::warning::ci_be092_delivery_step: не задан --base — не измерено (это конфигурация шага, а не продукт)")
@@ -54,7 +54,7 @@ def run(base, require_measured, expect_no_delivery=False):
         print("квитанция шага: измерено: нет | контур не задан | rc=%d" % rc)
         return rc
 
-    cmd = [sys.executable, INNER, "--base", base]
+    cmd = [sys.executable, INNER, "--base", base, "--mode", mode]
     if expect_no_delivery:
         cmd.append("--expect-no-delivery")
     proc = subprocess.run(
@@ -110,13 +110,15 @@ def main():
     ap.add_argument("--base", help="адрес API (dev/prod), напр. https://xdiary-vps2.taile0b6ee.ts.net")
     ap.add_argument("--require-measured", action="store_true",
                     help="делать «не измерено» (2) красным: для контура, который обязан быть доступен")
+    ap.add_argument("--mode", choices=["strict", "test-otp"], default="strict",
+                    help="проброс в приёмку: `test-otp` == `--expect-no-delivery` (имя из @DO 08:48)")
     ap.add_argument("--expect-no-delivery", action="store_true",
                     help="тестовый режим (TESTOTP): пробрасывается в приёмку — `delivery` в теле нет по замыслу")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
     if args.selftest:
         return selftest()
-    return run(args.base, args.require_measured, args.expect_no_delivery)
+    return run(args.base, args.require_measured, args.expect_no_delivery, args.mode)
 
 
 if __name__ == "__main__":

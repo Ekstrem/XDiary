@@ -28,6 +28,19 @@ except Exception:  # noqa: BLE001
 PROBE_PATH = "/api/v1/clients"
 
 
+def needs_limit_wait(status, auto_wait=True):
+    """`409` (занятый номер) в коде проверяется ПОСЛЕ лимитера (`TryAcquire` → `GetByPhoneAsync`),
+    поэтому второй вызов сразу после первого даёт `429`, а не `409`. Если это произошло — ждём окно
+    лимитера и повторяем пробу дубля; иначе строка `409` «не измерена» по причине порядка в коде,
+    а не по дефекту контракта (`@TE 08:52`, найдено прогоном на dev)."""
+    return int(status or 0) == 429 and bool(auto_wait)
+
+
+def mode_implies_no_delivery(mode, flag):
+    """`--mode test-otp` и `--expect-no-delivery` — одно и то же требование к телу (`@DO 08:48`)."""
+    return bool(flag) or (mode or "strict") == "test-otp"
+
+
 def post(base, payload, timeout=25):
     headers = {"Content-Type": "application/json", "User-Agent": "xdiary-be092",
                "Origin": "https://ekstrem.github.io", "Accept": "application/json"}
@@ -134,6 +147,13 @@ def main(argv=None):
     ap.add_argument("--expect-no-delivery", action="store_true",
                     help="тестовый режим (TESTOTP): `delivery` в теле нет по замыслу — строка 1 проверяет "
                          "`200` без `delivery`, строка 2 — `409`+`clientId` без требования `delivery`")
+    ap.add_argument("--mode", choices=["strict", "test-otp"], default="strict",
+                    help="то же самое именем, которое просил @DO: `test-otp` == `--expect-no-delivery` "
+                         "(для шага CI в deploy.yml, где вызывается `--mode test-otp`)")
+    ap.add_argument("--limit-wait", type=float, default=62.0,
+                    help="сколько ждать окно лимитера (60 с в коде), если `409` перекрыт `429`; по умолчанию 62")
+    ap.add_argument("--no-wait", action="store_true",
+                    help="не ждать окно лимитера: тогда строка `409` будет «не измерена», а не проверена")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -143,16 +163,36 @@ def main(argv=None):
         return 2
 
     phone = a.phone or f"+7999{int(time.time()) % 10000000:07d}"
-    results = []
-    for _ in range(3):
+
+    def one(label):
         st, body, err = post(a.base, {"phone": phone})
         if err:
             print(f"::warning::check_be092_delivery: {err} — не измерено (rc=2)")
-            return 2
-        results.append((st, parse(body)))
-        print(f"   POST /clients {{phone: {phone[:4]}…{phone[-2:]}}} → {st}")
+            return None
+        print(f"   POST /clients {{phone: {phone[:4]}…{phone[-2:]}}} → {st}   ({label})")
+        return (st, parse(body))
 
-    issues, stats = evaluate(results[0], results[1], results[2], a.expect_no_delivery)
+    first = one("новый номер")
+    if first is None:
+        return 2
+    dup = one("занятый номер")
+    if dup is None:
+        return 2
+    if needs_limit_wait(dup[0], not a.no_wait):
+        print("::notice::check_be092_delivery: повтор дал `429` раньше проверки дубля "
+              "(лимитер в коде стоит до `GetByPhoneAsync`) — ждём %.0f с и повторяем пробу `409`"
+              % a.limit_wait)
+        time.sleep(a.limit_wait)
+        dup = one("занятый номер, после окна лимитера")
+        if dup is None:
+            return 2
+    third = one("третий вызов подряд")
+    if third is None:
+        return 2
+    results = [first, dup, third]
+
+    issues, stats = evaluate(results[0], results[1], results[2],
+                             mode_implies_no_delivery(a.mode, a.expect_no_delivery))
     for m in issues:
         print(f"::error::check_be092_delivery: {m}")
     print(receipt(stats, issues))
@@ -206,6 +246,23 @@ def selftest():
 
     case("тестовый режим: повтор всё равно 200 — расхождение", ((200, {"id": "c1"}), (200, {"id": "c1"}), (429, {})), 1,
          ["ожидали `409` + `clientId`"], expect_no_delivery=True)
+
+    # Порядок «лимитер до дубля»: второй вызов сразу = 429 → нужно дождаться окна и повторить.
+    total += 1
+    if (needs_limit_wait(429) is True and needs_limit_wait(200) is False
+            and needs_limit_wait(429, auto_wait=False) is False):
+        ok += 1
+    else:
+        print("  [FAIL] needs_limit_wait: 429 должен требовать ожидания окна, 200 — нет, --no-wait отключает")
+
+    # Имя режима, которое просил @DO (08:48): `--mode test-otp`.
+    total += 1
+    if (mode_implies_no_delivery("test-otp", False) is True
+            and mode_implies_no_delivery("strict", False) is False
+            and mode_implies_no_delivery("strict", True) is True):
+        ok += 1
+    else:
+        print("  [FAIL] --mode test-otp не сводится к --expect-no-delivery")
 
     total += 1
     line = receipt({"lines": {"200+delivery": True, "409+clientId+delivery": True, "429": True}, "leaks": []}, [])
