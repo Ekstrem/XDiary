@@ -193,6 +193,14 @@ jobs:
   # Владелец условия — @DO; проверка — `check_be092_delivery.py --mode test-otp` (просит у @TE
   # `chat/do.md` 2026-11-07 08:49). До этого — отчёт: видно квитанцию, но зелёный/красный
   # этого job'а не влияет на выкатку.
+  # @TE 2026-11-07 09:05: бери обёртку — она сама даёт `0`/`1`/`2` → код шага
+  # (`2` не валит, `--require-measured` делает `2` красным). `--mode test-otp`: на dev
+  # при `TESTOTP` поля `delivery` нет по замыслу, ожидание — `200` без `delivery` +
+  # `409`+`clientId` + `429`. Обёртка выдерживает окно лимитера (`--limit-wait` 62 с),
+  # поэтому прогон ~65 с — норма.
+  #
+  # Условие промоушена в блокирующие (снять `continue-on-error` и добавить этот job в
+  # `needs` `deploy-prod`) — первый прогон, где контракт dev выполнен целиком (0), см. `DO-112`.
   receipt-be092:
     needs: deploy-dev
     runs-on: ubuntu-latest
@@ -201,19 +209,10 @@ jobs:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
     steps:
       - uses: actions/checkout@v4
-      - name: "Квитанция BE-092 на dev (отчётная, не блокирует выкатку)"
+      - name: "Квитанция BE-092 на dev (тестовый OTP: 200 без delivery + 409+clientId + 429)"
         run: |
-          set +e
-          python 9-tests/scripts/check_be092_delivery.py --base "$XDIARY_E2E_BASE_URL"
-          rc=$?
-          set -e
-          case "$rc" in
-            0) echo "BE-092: контракт на dev выполнен" ;;
-            1) echo "::warning::BE-092: контракт нарушен (rc=1) — отчётный job, выкатку не блокирует" ;;
-            2) echo "::warning::BE-092: НЕ ИЗМЕРЕНО (rc=2) — стенд не ответил" ;;
-            *) echo "::warning::BE-092: неожиданный код $rc" ;;
-          esac
-          exit 0
+          python 9-tests/scripts/ci_be092_delivery_step.py \
+            --base "$XDIARY_E2E_BASE_URL" --mode test-otp
 
   smoke-front:
     needs: deploy-dev

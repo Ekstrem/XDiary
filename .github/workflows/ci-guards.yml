@@ -256,6 +256,10 @@ jobs:
         run: |
           python tools/check_nul.py --selftest
           python tools/check_nul.py
+          # @AR 2026-11-07 09:01: `check_canon` НЕ вызывался в CI (0 совпадений). Теперь он
+          # на `git ls-files` (вложенный worktree больше не меняет вердикт), поэтому зовём.
+          python tools/check_canon.py --selftest
+          python tools/check_canon.py
       - name: Тесты самого сканера секретов (PDR-20)
         # Гейт должен проверяться гейтом: фейковый ключ -> красный,
         # описание маскирования -> зелёный. Иначе правка сканера не проверяется.
