@@ -8,7 +8,9 @@
 «посмотрел глазами». Здесь они проверяются одной командой и печатаются списком с квитанцией.
 
 Коды: `0` — все три строки совпали; `1` — есть расхождение (с указанием, какое); `2` — не измерено (нет `--base`,
-стенд недоступен, ответ не JSON).
+стенд недоступен, ответ не JSON). Уровень аннотации соответствует коду (`@TL 08:26`): расхождения печатаются
+`::error::`, «не измерено» — `::warning::`, чтобы транзиентная сеть не выглядела как дефект продукта и шаг CI
+не приходилось обходить.
 """
 
 import argparse
@@ -137,7 +139,7 @@ def main(argv=None):
     if a.selftest:
         return selftest()
     if not a.base:
-        print("::error::check_be092_delivery: нет --base — не измерено (rc=2)")
+        print("::warning::check_be092_delivery: нет --base — не измерено (rc=2)")
         return 2
 
     phone = a.phone or f"+7999{int(time.time()) % 10000000:07d}"
@@ -145,7 +147,7 @@ def main(argv=None):
     for _ in range(3):
         st, body, err = post(a.base, {"phone": phone})
         if err:
-            print(f"::error::check_be092_delivery: {err} — не измерено (rc=2)")
+            print(f"::warning::check_be092_delivery: {err} — не измерено (rc=2)")
             return 2
         results.append((st, parse(body)))
         print(f"   POST /clients {{phone: {phone[:4]}…{phone[-2:]}}} → {st}")
