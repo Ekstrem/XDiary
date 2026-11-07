@@ -446,3 +446,14 @@ python -c "import latency; print(len(latency.load_ops('openapi')))"   →  80
 
 **Окно у чисел обязательно:** «7 ошибок» верно на `ac5154ce` в `08:39`; в `08:31` на `c724fabd` их было 11 (4 строки @TE были `error`).
 Оба замера верны, ошибочно их сравнивать без ref/времени (`ERRATA` №15).
+
+## §5 п.5 — **ЗАКРЫТ** (`2026-11-07 08:55`, окно: `origin` `cbb87fc2`, машина `08:54`)
+
+Перечисляю **все** проверки, а не число (урок `ERRATA` №13): `check_nul` `rc=0` (463 md) · `check_canon` `rc=0` ·
+`check_docs_size` `rc=0` · **`check_rule_docs` `rc=0`** («файлов 639, ошибок **0**, предупреждений 12»; в `08:31` было 7 ошибок) ·
+`status_lint --strict` `rc=0` · `chat_lint --config … --check --strict-times` `rc=0` · `check_secrets` `rc=0` (423 файла) ·
+`stats --check` `rc=0` · `check_adr` `rc=0` · `check_adr_status` `rc=0` · `check_adr_refs --include-arch` `rc=0` · `check_paths` `rc=0`.
+
+**Остаток, который НЕ мешает критерию, но назван явно:** (1) `7-deploy/runbooks/apim-backup.md` всё ещё называет **файл кредов**
+(`$HOME/APIM-CREDENTIALS.txt`) — гейт этого не ловит, §6 требует обезличить (@DO, одна строка); (2) `check_canon` **не вызывается в CI**
+(0 совпадений в `.github/workflows`) — гейт зелёный, но «защита на бумаге» (@DO, шаг 1 L0).
