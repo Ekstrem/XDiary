@@ -149,11 +149,7 @@ jobs:
     needs: deploy-dev
     runs-on: ubuntu-latest
     env:
-      # 2026-11-07: раннер GitHub НЕ в tailnet — `https://xdiary-vps2.taile0b6ee.ts.net`
-      # из браузера давал `Failed to fetch` (DNS/маршрута нет), из-за чего падали
-      # partner-edit/csv/wizard, а «проходили» только те спеки, что не ходят в реальный API.
-      # Транспорт заменён на SSH-туннель к dev: браузер видит http://127.0.0.1:8080.
-      XDIARY_E2E_BASE_URL: http://127.0.0.1:8080
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`
       # (APIM не в пути) и канон честно даёт rc=2, то есть гейт был бы «не измерен» всегда.
       XDIARY_PROD_BASE_URL: https://xdiary-vps1.taile0b6ee.ts.net
@@ -240,6 +236,8 @@ jobs:
         working-directory: 9-tests/RnD/front-e2e
         run: npm ci || npm install
       - name: Install Playwright browsers
+        working-directory: 9-tests/RnD/front-e2e
+        run: npx playwright install --with-deps chromium
 
       # 2026-11-07: транспорт до dev без tailnet — SSH-туннель 127.0.0.1:8080 -> VPS-2.
       # Раннер GitHub не в tailnet: браузер получал `Failed to fetch` на /clients/me,
@@ -262,8 +260,6 @@ jobs:
             sleep 2
           done
           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
-        working-directory: 9-tests/RnD/front-e2e
-        run: npx playwright install --with-deps chromium
       - name: UI smoke (add-partner, wizard-record, change-pin)
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright test add-partner wizard-record change-pin
