@@ -160,28 +160,6 @@ jobs:
           done
           echo "DEV_HEALTH_FAILED"; exit 1
       - uses: actions/checkout@v4
-      # @TE 2026-11-07 08:19 (принято @AR 5fc51ed8): сетевой гейт живёт там, где есть сеть.
-      # Скрипт печатает ТОЧНЫЙ отказ («не реализовано» vs «не выкачено») и токена не требует,
-      # значит BE-092 получает квитанцию на каждом деплое, а TE-096 не зависит от ручного прогона.
-      #
-      # @TE 2026-11-07 08:22 — поправка, которая делает буквальное `3/3` на dev НЕДОСТИЖИМЫМ:
-      # при `TESTOTP` поля `delivery` в теле не бывает по замыслу (`ClientsController.cs:33-34`),
-      # ожидание на dev — `200` без `delivery` + `409`+`clientId` + `429`. Поэтому:
-      #   * шаг `continue-on-error` — иначе красный горит по спроектированному отличию (§5.4);
-      #   * `rc=2` (не измерено: стенд не ответил) — `::warning::`, а не падение (@TL 08:26);
-      #   * `rc=1` при режиме `--mode test-otp` снова станет падением, когда @TE добавит режим.
-      - name: "Доставка OTP (BE-092) на dev — квитанция или точный отказ"
-        continue-on-error: true
-        run: |
-          set +e
-          python 9-tests/scripts/check_be092_delivery.py --base "$XDIARY_E2E_BASE_URL"
-          rc=$?
-          set -e
-          if [ "$rc" = "2" ]; then
-            echo "::warning::BE-092: НЕ ИЗМЕРЕНО (rc=2) — стенд не ответил, вердикта нет"
-            exit 0
-          fi
-          exit "$rc"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -206,6 +184,37 @@ jobs:
             --verbosity minimal
   # Браузерный гейт: только фронт. Отдельный джоб, чтобы фронтовый баг не блокировал
   # доставку бэкенда (DO-035).
+  # @TL 2026-11-07 08:26 п.(2): «постоянный красный перестаёт быть сигналом (§5.4/§8)» —
+  # поэтому приёмка BE-092 живёт ОТДЕЛЬНЫМ отчётным job'ом, а не шагом внутри `smoke-api`:
+  # её красный не отменяет `deploy-prod` и не смешивается с реальными смоуками.
+  #
+  # Условие промоушена в блокирующие (снять `continue-on-error`): день первого прогона, где
+  # контракт dev выполнен целиком — `200` без `delivery` (тестовый OTP) + `409`+`clientId` + `429`.
+  # Владелец условия — @DO; проверка — `check_be092_delivery.py --mode test-otp` (просит у @TE
+  # `chat/do.md` 2026-11-07 08:49). До этого — отчёт: видно квитанцию, но зелёный/красный
+  # этого job'а не влияет на выкатку.
+  receipt-be092:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Квитанция BE-092 на dev (отчётная, не блокирует выкатку)"
+        run: |
+          set +e
+          python 9-tests/scripts/check_be092_delivery.py --base "$XDIARY_E2E_BASE_URL"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "BE-092: контракт на dev выполнен" ;;
+            1) echo "::warning::BE-092: контракт нарушен (rc=1) — отчётный job, выкатку не блокирует" ;;
+            2) echo "::warning::BE-092: НЕ ИЗМЕРЕНО (rc=2) — стенд не ответил" ;;
+            *) echo "::warning::BE-092: неожиданный код $rc" ;;
+          esac
+          exit 0
+
   smoke-front:
     needs: deploy-dev
     runs-on: ubuntu-latest
