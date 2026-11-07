@@ -140,3 +140,12 @@ L0 по гейтам — 🟢, **но слой не закрыт целиком*
 и печатал `82 = 82`, `rc=0`. @AR закавычил 18 значений в 14 блоках `types:`; сейчас `yaml.safe_load` → ok (12 ключей, 82 операции).
 **Правка парсера (задача @DO) теперь включает:** `yaml.safe_load` **первой** проверкой (не парсится → `rc=1`), `request` в allow-list `parse_index`,
 три selftest-кейса, и только потом `--require-request` в default. Мой урок — `ERRATA` №16: зелёный гейт доказывает лишь то, что он проверяет.
+
+## `2026-11-07 09:17`: `AR-022` закрыт по инструменту; `receipt-be092` блокирующий; новый красный — окно гейта
+
+| Что | Факт | Чем |
+|---|---|---|
+| `AR-022` | правило блокирующее, `parse_index` читает `request`, канон **54/54**, `selftest` 6/6 | `origin` `91ca70fb` (в `HEAD`), `check_api_index` |
+| `receipt-be092` | **блокирующий**: без `continue-on-error`, в `deploy-prod.needs` (`[smoke-api, smoke-front, diff-paths, receipt-be092]`), успех в прогоне `#1756` | `.github/workflows/deploy.yml` |
+| красный `check_api_index` | **не** про `request`: анонимность — `POST /api/v1/clients` выпал из списка, потому что в `ClientsController.cs` `[HttpPost]`→`public ` = **355** символов, а окно гейта **300** | замер позиций (878 → 1233); `[AllowAnonymous]` внутри окна |
+| вывод | код @BE верный (добавил `[ProducesResponseType]` — BE-095), **дефект гейта**: заменить окно на чтение до `public ` + selftest «атрибуты между ними» | @DO |
