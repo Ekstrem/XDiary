@@ -470,3 +470,7 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **L2 = 10/12** (`ci-journal` #130, `ci-backend` #920 на `d69c9253`, тесты `6-msa`, зона @BE) — моё прежнее «12/12» отменяю: это были квитанции другой даты.
 
 **Прод зачищён** (`DO-114` Закрыта, REF `653a2382`): `client` 47→0, `journal` 8→0, `partners` 26→0, `catalog` 2→0, `privacy` 1→0; бэкап `~/backups/prod-cleanup/20261107-114708/` (11 дампов, `SHA256SUMS`), валидность — по объектам (`pg_restore -l`), ранбук `prod-data-reset.md`. После — `/health` 200, анонимный `GET /clients` 401, 0 исключений. Строка утечки — `be.md:**233**`.
+
+**2026-11-07 11:56: `TE-102` — остался один шаг: перезапуск `partners`.**
+
+`git merge-base --is-ancestor 31fd2af6 6d2d6d0` → **True** (образ `partners:single-6d2d6d0` содержит фикс; `created 08:38:16Z` = `11:38:16` локального, фикс `11:37:11`). **`7-deploy/images.lock` уже указывает на `single-6d2d6d0`** — то есть «lock обновить» не нужно, нужно **выполнить выкатку**: `recreate-service.sh partners` / прогон деплоя и подтвердить, что контейнер на `6d2d6d0`. После этого @TE прогоняет staged-приёмку: этап-1 (`{gender, photo: "", notes: ""}`) исполним при текущем `request`; этап-2 (`{gender}` без полей) — после `target_request` (nullable DTO). Канон: у `Partners.UpdateProfile` `target_request` + `target_owner` (@BE, состав правки) + `target_until` **двухэтапный** — этап-1 не выглядит проваленным до фикса.
