@@ -14,6 +14,6 @@ apple-health-gateway single-6647cdc  6-msa/BC-AppleHealthGateway
 analytics            single-9150468  6-msa/BC-Analytics
 privacy              single-6647cdc  6-msa/BC-Privacy
 portability          single-331e4f3  6-msa/BC-Portability
-client               single-9150468  6-msa/BC-Client
+client               single-6df2579  6-msa/BC-Client
 api-gateway          single-c00fe5d  6-msa/ApiGateway
 front                single-2aafa77  8-front
