@@ -100,7 +100,10 @@ def parse_code(root):
                 suffix = mm.group(2) or ""
                 path = norm_path("/" + base_path.strip("/") + ("/" + suffix.strip("/") if suffix else ""))
                 tail = text[mm.end():mm.end() + 300]
-                anon = "[AllowAnonymous]" in tail.split("public ")[0] if "public " in tail else False
+                # было `... if "public " in tail else False`: при длинном наборе атрибутов
+                # окно 300 символов не доходило до `public `, и маршрут молча считался
+                # НЕ анонимным — так `POST /api/v1/clients` давал ложный red на всём main.
+                anon = "[AllowAnonymous]" in tail.split("public ")[0]
                 found.append((verb, path, anon, os.path.relpath(f, root)))
     return found
 
@@ -198,7 +201,22 @@ def selftest():
     else:
         print("  [FAIL] request: {required: []} или GET дали ложное нарушение")
 
-    total = 6
+    # кейс: длинный набор атрибутов — окно 300 символов не доходит до `public `,
+    # анонимность всё равно обязана определиться (иначе `POST /api/v1/clients` даёт ложный red)
+    many = "[HttpPost]\n[AllowAnonymous]\n" + "[ProducesResponseType(200)]\n" * 12 + \
+           "public Task<IActionResult> X() => Ok();"
+    if "[AllowAnonymous]" in many[len("[HttpPost]"):].split("public ")[0]:
+        ok += 1
+    else:
+        print("  [FAIL] [AllowAnonymous] не найден при длинном наборе атрибутов")
+
+    # кейс: `Partners.Storage` — имя проекта, а не операция (@TL 09:37)
+    if "Storage" in NAMESPACE_TAILS and "List" not in NAMESPACE_TAILS:
+        ok += 1
+    else:
+        print("  [FAIL] пространство имён не исключено из ddd-ссылок")
+
+    total = 8
     print("check_api_index --selftest: %d/%d" % (ok, total))
     # 2026-11-05: было `ok == 3` при четырёх кейсах — текст печатал 4/4, а rc был 1.
     # Класс «верно считает, врёт кодом возврата»; теперь сравнение с total.
@@ -206,6 +224,13 @@ def selftest():
 
 
 READ_PATHS = "04-architecture/read-paths.md"
+
+# Пространства имён проектов (`BC-*.Storage`, `*.Api`, `*.Domain`, `*.Application`,
+# `*.InternalContracts`) — не operationId, ссылками на API не являются (@TL 09:37).
+NAMESPACE_TAILS = {
+    "Storage", "Api", "Domain", "Application", "InternalContracts",
+    "Infrastructure", "Persistence", "Migrations", "Tests",
+}
 
 
 def operation_ids(index_path):
@@ -302,6 +327,8 @@ def check_ddd_refs(root, ids):
                         continue
                     grp, tail = parts
                     if grp not in groups:
+                        continue
+                    if tail.split("/")[0] in NAMESPACE_TAILS:
                         continue
                     for meth in tail.split("/"):
                         tok = "%s.%s" % (grp, meth)
