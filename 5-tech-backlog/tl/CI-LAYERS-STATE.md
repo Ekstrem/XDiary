@@ -424,3 +424,8 @@ inclusion-гейт `openapi` (после перегенерации снимко
 `check_secrets` → `rc=1`, находка `chat/be.md:**233**` (не 231): строка @BE «зачистил `Password=<значение>`…» **снова приводит значение**, уже как описание удалённого. Класс: **«сообщение о зачистке повторяет утечку»** — форма, которая работает: не цитировать, а описывать («в строке N был литерал `Password=`, значение не привожу»). Гейт при этом сработал правильно.
 
 **`TE-102` (P1, потеря данных):** `POST /partners/{id}/profile` **стирает `name`** и не сохраняет `gender`/`photo`/`notes` (цикл `POST /partners {name}` → `POST /profile` → `GET`: имя исчезло). Найдено запросом на замер `GET /journal/recent` — то есть замер был не про критерий, а глубже. Зона @BE, контракт @AR.
+
+**2026-11-07 11:37: `TE-102` — место сужено по коду (домен не теряет `name`).**
+
+`Aggregate.Clone()` копирует `Root = Model.Root`; `UpdateProfile` меняет только `Photo/Gender/Notes`; `Rename` пишет `Root` явно ⇒ **домен имя не затирает**. Граница: `PartnerCommandRepository.GetByIdAsync` (`:21-24`) сначала читает **read-модель** и строит `Root = PartnerRoot.CreateInstance(read.Name)`; если проекция положила `Name` пустым, агрегат пересобирается без имени и `SaveAsync` затирает `partners.Name`. Проверить: (1) пишет ли `Name` `PartnerEventHandler`, (2) выбирает ли `Name` `GetByIdUnscopedAsync`.
+Это согласуется с замером @TE: `GET` после регистрации имя видит, после `profile` — нет.
