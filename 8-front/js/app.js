@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.101"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.102"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -2566,16 +2566,11 @@
     if ($("onb-gender-female")) $("onb-gender-female").addEventListener("click", function () { selectOnbGender("female"); });
     if ($("onb-name")) $("onb-name").addEventListener("input", onbProfileReady);
     // P0: перезапрос кода из шага OTP (по тому же номеру)
-    // contract_gap (api-index.yaml, @AR 2026-11-06): операции переотправки кода в API НЕТ —
-    // POST /clients на известном номере отдаёт 400 и код не переотправляет. Поэтому кнопка
-    // не обещает действие: disabled + подсказка, пока не появится POST /clients/{id}/otp/resend.
-    if ($("btn-onb-resend")) {
-      $("btn-onb-resend").disabled = true;
-      $("btn-onb-resend").setAttribute("aria-disabled", "true");
-      $("btn-onb-resend").addEventListener("click", function () {
-        showOnbError("onb-otp-error", "Повторная отправка кода пока недоступна: операция ещё не реализована на сервере. Если код не пришёл — попробуйте войти позже или сообщите об этом.");
-      });
-    }
+    // FE-047 (0.102): BE-092 выкачен на dev — «номер уже зарегистрирован» отдаёт 409
+    // со структурированным телом {error, clientId, delivery}, код переотправляется,
+    // лимит отвечает 429. Значит повторный POST /clients И ЕСТЬ переотправка кода:
+    // disabled снят, кнопка снова вызывает submitOnbPhone().
+    $("btn-onb-resend").addEventListener("click", submitOnbPhone);
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
     $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
     // FE-026 (вариант A): «Пропустить» убран — онбординг обязателен, иначе журнал без токена
