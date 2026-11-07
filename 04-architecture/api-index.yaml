@@ -657,9 +657,9 @@ operations:
     codes_status: verified
     verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
     request:
-      required: []
-      optional: [photo, gender, notes]
-      note: "все поля опциональны; gender канонизируется (male/female)"
+      required: [gender]
+      optional: [photo, notes]
+      note: "gender ОБЯЗАТЕЛЕН: `Aggregate.UpdateProfile` (`Partners.Domain/Implementation/Aggregate.cs:41-45`) нормализует `(gender ?? \"\").Trim().ToLowerInvariant()` и при не-`male|female` возвращает `Fail` → 400. `photo`/`notes` валидации не имеют (сохраняются как есть, могут быть пустыми) → опциональны. Исправлено @AR 2026-11-07: было `required: []` + «все поля опциональны» — это давало 400 на пропуск gender"
   - bc: Partners
     method: POST
     path: "/api/v1/partners/{id}/remove"
