@@ -76,6 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
+          echo "DEV_E2E_B64=$(base64 -w0 7-deploy/env/dev.e2e.env)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
       - name: Deploy dev (VPS-2)
@@ -97,6 +98,9 @@ jobs:
             echo "$UPDATE_B64" | base64 -d > update.sh
             echo "$RECREATE_B64" | base64 -d > recreate-service.sh
             chmod +x update.sh recreate-service.sh
+            # dev-оверлей E2E: идемпотентно влить в secrets/.env (без дублей ключей)
+            echo "$DEV_E2E_B64" | base64 -d > /tmp/dev.e2e.env
+            python3 -c "import pathlib;env=pathlib.Path('secrets/.env');ov=pathlib.Path('/tmp/dev.e2e.env');lines=env.read_text(encoding='utf-8').splitlines() if env.exists() else [];keys={l.split('=',1)[0] for l in lines if '=' in l and not l.startswith('#')};add=[r for r in ov.read_text(encoding='utf-8').splitlines() if r.strip() and not r.lstrip().startswith('#') and r.split('=',1)[0] not in keys];env.write_text(chr(10).join(lines+add)+chr(10),encoding='utf-8') if add else None;env.chmod(0o600);print('dev-оверлей: добавлено ключей %d' % len(add))"
             echo "lock на VPS-2:"
             awk '!/^#/ && NF>=2 {printf "  %-20s %s\n", $1, $2}' images.lock | head -13
             grep -q 'tag_of' update.sh || { echo "::error::update.sh без tag_of"; exit 1; }
