@@ -110,3 +110,9 @@ L0 по гейтам — 🟢, **но слой не закрыт целиком*
 
 **L1 — следующий, и в нём два пункта:** `AR-022` (снять `--require-request` в default — правило и selftest 6/6 готовы)
 и `DO-109` (`check_readstore_ddl` → `rc=2`). После них шаг 3 (L2/L3): `DO-107` + перезапуск `ci-api-gateway`.
+
+**Найдено `2026-11-07 09:09` (L1, `AR-022`) — дефект **парсера**, а не канона:** `check_api_index.py:57` `parse_index` читает только
+`method|path|operationId|auth|codes|codes_status|internal`, поля `request` в словаре нет ⇒ `check_post_request` флагует **все** POST,
+`--require-request` даёт `rc=1` на заполненном индексе. Эксперимент: с `request` в регулярке → **POST 54 / без request 0**.
+Правка (задача @DO): добавить поле в парсер, **selftest через парсер** (сейчас 6/6 зелёные потому, что кейсы подают dict с `request` напрямую),
+затем снять `--require-request` в default.
