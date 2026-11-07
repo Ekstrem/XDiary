@@ -24,10 +24,10 @@ JSON берутся из базы (`mongoexport`), а не из HTTP.
 ## Запуск
 
 ```bash
-# на проде, от deploy; скрипт уже лежит в /home/deploy/apimtools/backup.sh
-bash /home/deploy/apimtools/backup.sh              # снимок + архив + sha256, хранение 7 дней
-bash /home/deploy/apimtools/backup.sh --keep 14    # другой срок хранения
-bash /home/deploy/apimtools/backup.sh --out /data/apim-backups   # другое место
+# на проде, от deploy; скрипт уже лежит в $HOME/apimtools/backup.sh
+bash $HOME/apimtools/backup.sh              # снимок + архив + sha256, хранение 7 дней
+bash $HOME/apimtools/backup.sh --keep 14    # другой срок хранения
+bash $HOME/apimtools/backup.sh --out /data/apim-backups   # другое место
 ```
 
 Раскладка:
@@ -82,7 +82,7 @@ podman rm -f apim-restore
 Скрипт можно ставить в cron на проде (ежедневно, 04:30):
 
 ```cron
-30 4 * * * /bin/bash /home/deploy/apimtools/backup.sh --keep 14 >> /home/deploy/apim-backup.log 2>&1
+30 4 * * * /bin/bash $HOME/apimtools/backup.sh --keep 14 >> $HOME/apim-backup.log 2>&1
 ```
 
 Альтернатива без cron — GitHub Actions (`workflow_dispatch`), как у `apim-drift`: тот же скрипт
@@ -100,5 +100,5 @@ podman rm -f apim-restore
 ## Связанное
 
 - Ранбук APIM: [`apim.md`](apim.md) — контур, доступы, импорт, drift.
-- Доступы: `5-tech-backlog/devops/secrets/APIM-credentials.md` (gitignored) и `/home/deploy/APIM-CREDENTIALS.txt` (600).
+- Доступы: `5-tech-backlog/devops/secrets/APIM-credentials.md` (gitignored) и `$HOME/APIM-CREDENTIALS.txt` (600).
 - Карточка: `5-tech-backlog/devops/DO-075.md`.

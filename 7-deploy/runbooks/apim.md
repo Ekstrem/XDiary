@@ -424,7 +424,7 @@ ssh -L 18084:127.0.0.1:18084 deploy@31.192.111.168
 Поднимается тем же `up.sh` с флагом `--with-portal`, **только на loopback**:
 
 ```bash
-bash /home/deploy/apimtools/up.sh --with-portal
+bash $HOME/apimtools/up.sh --with-portal
 # portal-ui: 127.0.0.1:18085  (образ graviteeio/apim-portal-ui:4.4, лимит 256 МБ)
 ```
 
