@@ -23,6 +23,11 @@ public sealed class ClientsController : ControllerBase
 
     [HttpPost]
     [AllowAnonymous]
+    // BE-095: коды ответов в реестре должны совпадать с каноном (200/409/400/429).
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Register([FromBody] RegisterClientCommand c, CancellationToken ct)
     {
         var r = await _mediator.Send(c, ct);
