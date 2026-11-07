@@ -6,8 +6,8 @@
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "35507ee576784c00c96e9e9302eec3cf1657eddb82dfce6de22517eeb5f94637",
-      "synced_at": "2026-11-03",
+      "sha256": "7f445484f4a321131e59319b73c09f1a461e991934e6890dd26ad3331428f936",
+      "synced_at": "2026-11-07",
       "upstream": "tools/chat_lint.py"
     },
     "chat_rotate.py": {
@@ -16,18 +16,18 @@
       "upstream": "tools/chat_rotate.py"
     },
     "check_adr.py": {
-      "sha256": "803c711a0ee2ff11aaa01e959480a398a4d6a26fe4d8b295ab38a1f6c9c5fc39",
-      "synced_at": "2026-11-03",
+      "sha256": "a1eddfe88927418e9ed76bb5d2fe1a4a76b7872efe5a7ffd561ddab4c59da2de",
+      "synced_at": "2026-11-07",
       "upstream": "tools/check_adr.py"
     },
     "check_docs_size.py": {
-      "sha256": "e2b39f3837855f590bf4f8f495227b1f4e9016b01d66dde78bc50cbd4641a0be",
-      "synced_at": "2026-11-03",
+      "sha256": "1b62432080dfa6448736ebc2608369159d854df61a41801f7e1646936eb585d5",
+      "synced_at": "2026-11-07",
       "upstream": "tools/check_docs_size.py"
     },
     "check_nul.py": {
-      "sha256": "ad5666f7f255a1f1c7d033b877afc7064a1221af3ad7ca1adb91846ac2322ccd",
-      "synced_at": "2026-11-03",
+      "sha256": "e8ae894c2edeaf742dc6022eaab40843dc9c6ece7f7841c1ea600e8a6ebd121d",
+      "synced_at": "2026-11-07",
       "upstream": "tools/check_nul.py"
     },
     "check_openapi.py": {
@@ -51,13 +51,13 @@
       "upstream": "tools/check_pdr.py"
     },
     "check_rule_docs.py": {
-      "sha256": "51b85579c3f1c1909ec8c32889b24fee5791ccb9968259c049dab593e791ccad",
-      "synced_at": "2026-11-03",
+      "sha256": "2c9ae26dab18b0e7f2d2ba56a7e5934d8ba325711eb049a91d5ed7332712d6de",
+      "synced_at": "2026-11-07",
       "upstream": "tools/check_rule_docs.py"
     },
     "check_secrets.py": {
-      "sha256": "3509098e05d214713d18cf6110f6ffc76a225a568c1037041aa4ad8b5cbd5f28",
-      "synced_at": "2026-11-03",
+      "sha256": "0aada1154f7b236ad3c859805d646a04e66c76bc461ae82c25fe06108877c922",
+      "synced_at": "2026-11-07",
       "upstream": "tools/check_secrets.py"
     },
     "check_test_map.py": {
@@ -96,8 +96,8 @@
       "upstream": "tools/garmin_sync.py"
     },
     "gen-hosts.py": {
-      "sha256": "071ff47ee61119c41a06d2783fec9e0c5bf77d71ecf7dbb40399b918eed2cba3",
-      "synced_at": "2026-11-03",
+      "sha256": "3f3c34b524f613293f065137605b82d1e989bf44f3f636baf7d171b42a3cb7c7",
+      "synced_at": "2026-11-07",
       "upstream": "tools/gen-hosts.py"
     },
     "gen_icons.py": {
@@ -151,8 +151,8 @@
       "upstream": "tools/stats.py"
     },
     "status_lint.py": {
-      "sha256": "96eefc968e85c92887a8c02f865fdee1c6f857e7d94e1ebfe0f1bfa15f63a8b5",
-      "synced_at": "2026-11-03",
+      "sha256": "6c163c1b274bcf4578428c0bb39edffa7902fa3b252504a4420a8f83842ad1c8",
+      "synced_at": "2026-11-07",
       "upstream": "tools/status_lint.py"
     },
     "sweep.py": {
@@ -161,8 +161,8 @@
       "upstream": "tools/sweep.py"
     },
     "sync_board.py": {
-      "sha256": "63c8399fc8514033901d0cb2f3f24e481f1a8740644ae687c6e7c79370c7367a",
-      "synced_at": "2026-11-03",
+      "sha256": "b3fbe73cd9e1bfb771621eeac47dd26ca5c763392791d4605f75fdbdcf668fc4",
+      "synced_at": "2026-11-07",
       "upstream": "tools/sync_board.py"
     },
     "sync_tools.py": {
