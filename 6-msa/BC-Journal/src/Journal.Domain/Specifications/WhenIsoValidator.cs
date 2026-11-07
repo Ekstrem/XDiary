@@ -15,7 +15,8 @@ internal sealed class WhenIsoValidator
         if (t.Length > 0
             && DateTimeOffset.TryParse(t, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
         {
-            normalized = dt.ToString("o");
+            // TE-101: канонизируем к UTC, чтобы равные моменты давали ОДНУ строку (09:00+03:00 == 06:00Z).
+            normalized = dt.ToUniversalTime().ToString("o");
             return true;
         }
         normalized = string.Empty;

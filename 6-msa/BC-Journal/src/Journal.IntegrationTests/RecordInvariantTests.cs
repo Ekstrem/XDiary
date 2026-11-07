@@ -60,6 +60,15 @@ public class RecordInvariantTests
         Assert.True(System.DateTimeOffset.TryParse(stored, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out _));
     }
 
+    [Fact]
+    public void SpecifyWhen_EqualMoments_NormalizeToOneString()
+    {
+        // TE-101: равные моменты (разные offset) обязаны давать ОДНУ строку (канонизация к UTC).
+        var a = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-11-07T09:00:00+03:00").Model().Root.StartedAt;
+        var b = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-11-07T06:00:00Z").Model().Root.StartedAt;
+        Assert.Equal(a, b);
+    }
+
     // ---- DurationPositive: durationMin >= 1 ----
     [Theory]
     [InlineData(0, false)]
