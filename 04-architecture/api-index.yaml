@@ -51,6 +51,10 @@ operations:
     method: POST
     path: "/api/v1/analytics/events"
     operationId: Analytics.Events
+    request:
+      required: [eventType, id, date, stress, sleepScore, t, hr, bodyBattery]
+      types: {eventType: string, id: guid, date: string, stress: int, sleepScore: int, t: string, hr: int, bodyBattery: int}
+      note: "AnalyticsEvent (свойства класса; record — nullable, не обязателен)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -101,6 +105,10 @@ operations:
     method: POST
     path: "/api/v1/apple-health/configure"
     operationId: AppleHealthGateway.Configure
+    request:
+      required: [metrics]
+      types: {metrics: [string]}
+      note: "ConfigureCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -108,6 +116,10 @@ operations:
     method: POST
     path: "/api/v1/apple-health/import"
     operationId: AppleHealthGateway.ImportFile
+    request:
+      required: [fileName]
+      types: {fileName: string}
+      note: "ImportFileCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -129,6 +141,10 @@ operations:
     method: POST
     path: "/api/v1/catalog"
     operationId: Catalog.Add
+    request:
+      required: [kind, name]
+      types: {kind: string, name: string}
+      note: "AddCatalogItemCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -143,6 +159,9 @@ operations:
     method: POST
     path: "/api/v1/catalog/{id}/archive"
     operationId: Catalog.Archive
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
     codes_status: derived
@@ -150,6 +169,10 @@ operations:
     method: POST
     path: "/api/v1/catalog/{id}/details"
     operationId: Catalog.UpdateDetails
+    request:
+      required: [photo, notes, brand, fantasyPartner]
+      types: {photo: string, notes: string, brand: string, fantasyPartner: string}
+      note: "UpdateCatalogItemDetailsCommand (из токена/route: aggregateId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
     codes_status: derived
@@ -157,6 +180,10 @@ operations:
     method: POST
     path: "/api/v1/catalog/{id}/name"
     operationId: Catalog.Rename
+    request:
+      required: [name]
+      types: {name: string}
+      note: "RenameCatalogItemCommand (из токена/route: aggregateId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
     codes_status: derived
@@ -164,6 +191,9 @@ operations:
     method: POST
     path: "/api/v1/catalog/{id}/remove"
     operationId: Catalog.Remove
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
     codes_status: derived
@@ -171,6 +201,9 @@ operations:
     method: POST
     path: "/api/v1/catalog/{id}/restore"
     operationId: Catalog.Restore
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
     codes_status: derived
@@ -237,6 +270,9 @@ operations:
     method: POST
     path: "/api/v1/clients/{id}/link-partner"
     operationId: Client.LinkPartnerDeprecated
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     deprecated: "ADR-024: deprecated no-op (200 {deprecated:true}, Deprecation: true); удаляется после 0.88"
     codes: {200: "ok {deprecated:true} — no-op", 401: "no-token"}
@@ -246,6 +282,9 @@ operations:
     method: POST
     path: "/api/v1/clients/{id}/unlink-partner"
     operationId: Client.UnlinkPartnerDeprecated
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     deprecated: "ADR-024: deprecated no-op (то же)"
     codes: {200: "ok {deprecated:true} — no-op", 401: "no-token"}
@@ -266,6 +305,10 @@ operations:
     method: POST
     path: "/api/v1/daily-metrics/hrv"
     operationId: DailyMetrics.Hrv
+    request:
+      required: [date, hrv]
+      types: {date: string, hrv: int}
+      note: "RecordHrvCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -273,6 +316,10 @@ operations:
     method: POST
     path: "/api/v1/daily-metrics/resting-hr"
     operationId: DailyMetrics.RestingHr
+    request:
+      required: [date, restingHr]
+      types: {date: string, restingHr: int}
+      note: "RecordRestingHrCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -287,6 +334,10 @@ operations:
     method: POST
     path: "/api/v1/daily-metrics/sleep"
     operationId: DailyMetrics.Sleep
+    request:
+      required: [date, sleep]
+      types: {date: string, sleep: sleepdto}
+      note: "RecordSleepCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -294,6 +345,10 @@ operations:
     method: POST
     path: "/api/v1/daily-metrics/stress"
     operationId: DailyMetrics.Stress
+    request:
+      required: [date, stress]
+      types: {date: string, stress: int}
+      note: "RecordStressCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -301,6 +356,10 @@ operations:
     method: POST
     path: "/api/v1/garmin/connect"
     operationId: GarminGateway.Connect
+    request:
+      required: [credentials]
+      types: {credentials: credentialsdto}
+      note: "ConnectCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -308,6 +367,9 @@ operations:
     method: POST
     path: "/api/v1/garmin/fetch-activities"
     operationId: GarminGateway.FetchActivities
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -322,6 +384,10 @@ operations:
     method: POST
     path: "/api/v1/garmin/sync"
     operationId: GarminGateway.Sync
+    request:
+      required: [config]
+      types: {config: syncconfigdto}
+      note: "SyncCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -559,6 +625,9 @@ operations:
     method: POST
     path: "/api/v1/partners/{id}/link-client"
     operationId: Partners.LinkClient
+    request:
+      required: []
+      note: "LinkPartnerClientCommand (из токена/route: aggregateId, clientId)"
     auth: jwt
     codes: {200: "ok (в т.ч. чужой — дефект)", 400: "validation", 401: "no-token"}
     codes_status: verified
@@ -596,6 +665,9 @@ operations:
     method: POST
     path: "/api/v1/partners/{id}/remove"
     operationId: Partners.Remove
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     codes: {200: "ok (в т.ч. чужой — дефект)", 400: "доменная ошибка", 401: "no-token"}
     codes_status: verified
@@ -607,6 +679,9 @@ operations:
     method: POST
     path: "/api/v1/partners/{id}/unlink-client"
     operationId: Partners.UnlinkClient
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     codes: {200: "ok (в т.ч. чужой — дефект)", 400: "validation", 401: "no-token"}
     codes_status: verified
@@ -625,6 +700,10 @@ operations:
     method: POST
     path: "/api/v1/portability/export"
     operationId: Portability.Export
+    request:
+      required: [rows]
+      types: {rows: [string]}
+      note: "ExportRecordsCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -632,6 +711,10 @@ operations:
     method: POST
     path: "/api/v1/portability/import/records"
     operationId: Portability.ImportRecords
+    request:
+      required: [rows]
+      types: {rows: [string]}
+      note: "ImportRecordsCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -639,6 +722,10 @@ operations:
     method: POST
     path: "/api/v1/portability/import/somatic"
     operationId: Portability.ImportSomatic
+    request:
+      required: [rows]
+      types: {rows: [string]}
+      note: "ImportSomaticCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
@@ -646,6 +733,10 @@ operations:
     method: POST
     path: "/api/v1/privacy/pin/change"
     operationId: Privacy.ChangePin
+    request:
+      required: [pin, currentPin]
+      types: {pin: string, currentPin: string|null}
+      note: "ChangePinCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -662,6 +753,9 @@ operations:
     method: POST
     path: "/api/v1/privacy/pin/lock"
     operationId: Privacy.Lock
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -670,6 +764,10 @@ operations:
     method: POST
     path: "/api/v1/privacy/pin/remove"
     operationId: Privacy.Remove
+    request:
+      required: [currentPin]
+      types: {currentPin: string|null}
+      note: "RemovePinCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -678,6 +776,10 @@ operations:
     method: POST
     path: "/api/v1/privacy/pin/set"
     operationId: Privacy.SetPin
+    request:
+      required: [pin, currentPin]
+      types: {pin: string, currentPin: string|null}
+      note: "SetPinCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -686,6 +788,9 @@ operations:
     method: POST
     path: "/api/v1/privacy/pin/unlock"
     operationId: Privacy.Unlock
+    request:
+      required: []
+      note: "тела нет"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -694,6 +799,10 @@ operations:
     method: POST
     path: "/api/v1/privacy/pin/verify"
     operationId: Privacy.VerifyPin
+    request:
+      required: [pin]
+      types: {pin: string}
+      note: "VerifyPinQuery (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -702,6 +811,10 @@ operations:
     method: POST
     path: "/api/v1/privacy/token"
     operationId: Privacy.Token
+    request:
+      required: [pin]
+      types: {pin: string}
+      note: "IssueTokenCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -710,6 +823,10 @@ operations:
     method: POST
     path: "/api/v1/privacy/verify-token"
     operationId: Privacy.VerifyToken
+    request:
+      required: [token]
+      types: {token: string}
+      note: "VerifyTokenQuery"
     auth: anonymous
     codes: {200: "ok", 401: "bad-token"}
     codes_status: verified
@@ -717,6 +834,10 @@ operations:
     method: POST
     path: "/api/v1/somatic-series/points"
     operationId: SomaticSeries.RecordPoint
+    request:
+      required: [t, hr, bodyBattery]
+      types: {t: string, hr: int, bodyBattery: int}
+      note: "RecordPointCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
     codes_status: derived
