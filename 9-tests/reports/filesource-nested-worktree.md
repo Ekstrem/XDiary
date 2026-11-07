@@ -7,9 +7,9 @@
 
 ```
 git worktree list
-  C:/Users/About/Documents/GitHub/XDiary                       d8874edd [main]
+  <repo>                       d8874edd [main]
   ...
-  C:/Users/About/Documents/GitHub/XDiary/origin/main           7b4569c3 (detached HEAD)   ← ВНУТРИ репозитория
+  <repo>/origin/main           7b4569c3 (detached HEAD)   ← ВНУТРИ репозитория
 ```
 
 `XDiary/origin/main` — полноценный worktree (`.git` содержит `gitdir: …/.git/worktrees/main`), при этом для
