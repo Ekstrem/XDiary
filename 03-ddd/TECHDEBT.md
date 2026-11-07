@@ -82,11 +82,17 @@
 - **Приоритет:** P2 → **P3** (остаток закрывается в `DO-113`).
 - **Оценка:** ~~теги образов + версионирование~~ → сделано; остаток — `digest=` и выкатка по нему (`DO-113`).
 
-### 13. EDM-несоответствие BE (Event Sourcing / IEventBus / MV)
-- **Суть:** код `6-msa` не использует инфраструктуру DigiTFactory — вместо Event Store/Event Bus/Read Store сделан **свой слой**: EF Core `SaveChangesAsync` + ручной HTTP-паблишер. Нет Event Sourcing, `IEventBus`, Event Consumer (`IHostedService`), проекции MV (`UpsertAsync`); свои `IRepository`/`IReadRepository`/`IBusAdapter` (запрещено скиллом). Полный разбор — `04-architecture/edm-verification.md`.
-- **Риск:** **высокий** (ядро CEQRS не реализовано: «событие = источник истины» отсутствует, query считает на лету).
+### 13. EDM-несоответствие BE (Event Sourcing / IEventBus / MV) — **в эталонном BC реализовано, в остальных нет**
+- **Суть (было):** код `6-msa` не использует инфраструктуру DigiTFactory — вместо Event Store/Event Bus/Read Store сделан **свой слой**: EF Core `SaveChangesAsync` + ручной HTTP-паблишер. Нет Event Sourcing, `IEventBus`, Event Consumer (`IHostedService`), проекции MV (`UpsertAsync`); свои `IRepository`/`IReadRepository`/`IBusAdapter` (запрещено скиллом). Полный разбор — `04-architecture/edm-verification.md`.
+- **Факт 2026-11-07 (проверено @AR по коду), цепочка E1 в `BC-Journal` СОБРАНА:**
+  1. запись публикует событие, а не пишет модель: `Journal.Storage/JournalCommandRepository.cs:48-52` — `await _bus.PublishAsync(result.Event)` (`IEventBusProducer`);
+  2. консьюмер подписан на шину: `Journal.Api/Events/JournalEventConsumer.cs:19-33` — `BackgroundService`, `_consumer.Subscribe(handler)`; регистрация `Program.cs:47`;
+  3. хендлер пишет **event store** и **проекцию MV**: `JournalEventHandler` (`:35-45`, `IEventStoreRepository` + `IReadModelStore`/`UpsertAsync`);
+  4. `SaveChangesAsync` в `BC-Journal` встречается **только в комментарии** `:50` — прямых записей в command-path нет.
+- **Что осталось (и это и есть долг п.13):** `IEventStoreRepository` есть только в **двух** BC (`BC-Journal` — 2 файла, `BC-Partners` — 3), а `SaveChangesAsync` — в **десяти**: `Partners` (2: `PartnerCommandRepository.cs:48` + `OutboxDispatcher.cs:60`), и по одному в `AppleHealthGateway`, `Catalog`, `Client`, `DailyMetrics`, `GarminGateway`, `Journal`, `Portability`, `Privacy`, `SomaticSeries`. То есть **8 BC пишут модель напрямую**, `Partners` — гибрид (прямая запись + outbox, см. п.2).
+- **Риск:** **высокий, но другой**: не «ядро отсутствует», а «ядро есть в одном BC и не растиражировано» — расхождение поведения между BC (где-то источник истины событие, где-то модель), а не полное отсутствие механизма.
 - **Приоритет:** P1 (отложено: решение владельца 2026-11-06 п.8 = C — после устойчивой работы приложения).
-- **Оценка:** системная переделка всех BC (вернуть `AddEventStorePostgres` + `AddEventBus` + `AddReadStore`, Event Consumer, проекции MV).
+- **Оценка:** перенос цепочки `BC-Journal` на остальные 8 BC (`AddEventStorePostgres` + `AddEventBus` + `AddReadStore`, Event Consumer, проекции `UpsertAsync`) — теперь это **тиражирование эталона**, а не изобретение с нуля.
 
 ### 14. ADR-008: ссылка «контекст Приватность» — ✅ **закрыто целиком 2026-11-07**
 - **Суть (было):** после ответов владельца (2026-11-09) Privacy входит в `Client`, и в ADR-008 нужна правка **одной ссылки** («на бэке контекст Приватность» → «в `Client`»). Правка не сделана, потому что `check_adr.py --range` считает ADR «изменённым» при **любой** правке, а старые 23 ADR полному шаблону (3 варианта / протокол / комплаенс) не соответствуют → любое касание = красный гейт. Итог: документ **нельзя обновить**, не переписав его целиком.
