@@ -20,5 +20,10 @@ public sealed class AnemicModel : IPartnerAnemicModel
         ["Root"] = Root,
         ["ClientId"] = new ClientIdValueObject(ClientId),
         ["DeletedAt"] = new DeletedAtValueObject(DeletedAt),
+        // TE-102: Photo/Gender/Notes обязаны быть в VOs — иначе UpdateProfile даёт пустой DIFF
+        // и проекция не видит поля профиля (а Name затирается пустым).
+        ["Photo"] = new StringValueObject(Photo),
+        ["Gender"] = new StringValueObject(Gender),
+        ["Notes"] = new StringValueObject(Notes),
     };
 }

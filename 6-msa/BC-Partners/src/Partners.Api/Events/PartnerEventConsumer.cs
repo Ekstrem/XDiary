@@ -69,18 +69,30 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
         {
-            // BE-077/@TL 21:37 — Project отдаёт частичную модель; upsert без merge затирает Photo/Gender/Notes.
+            // TE-102: Project отдаёт только изменённые поля (nullable); upsert без merge затирает остальное.
             var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default);
             if (existing is not null)
             {
-                existing.Name = read.Name;
+                if (read.Name is not null) existing.Name = read.Name;
+                if (read.Photo is not null) existing.Photo = read.Photo;
+                if (read.Gender is not null) existing.Gender = read.Gender;
+                if (read.Notes is not null) existing.Notes = read.Notes;
                 if (read.ClientId is not null) existing.ClientId = read.ClientId;
                 if (read.DeletedAt is not null) existing.DeletedAt = read.DeletedAt;
                 await _readStore.UpsertAsync(existing);
             }
             else
             {
-                await _readStore.UpsertAsync(read);
+                await _readStore.UpsertAsync(new PartnersReadModel
+                {
+                    Id = domainEvent.Id,
+                    Name = read.Name ?? string.Empty,
+                    Photo = read.Photo ?? string.Empty,
+                    Gender = read.Gender ?? string.Empty,
+                    Notes = read.Notes ?? string.Empty,
+                    ClientId = read.ClientId,
+                    DeletedAt = read.DeletedAt,
+                });
             }
         }
     }
@@ -95,20 +107,23 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
 
 public static class PartnerProjection
 {
-    public static PartnersReadModel? Project(IDomainEvent<IPartners> domainEvent)
+    /// <summary>DIFF проекции: null в поле = «не менялось» (TE-102 — не затираем пустым).</summary>
+    public sealed record Diff(string? Name, string? Photo, string? Gender, string? Notes, Guid? ClientId, DateTime? DeletedAt);
+
+    public static Diff? Project(IDomainEvent<IPartners> domainEvent)
     {
         var vos = domainEvent.ChangedValueObjects;
-        if (vos is null) return null;
-        var root = vos.TryGetValue("Root", out var r) ? r as IPartnerRoot : null;
-        var clientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv ? cv.Value : null;
-        var deletedAt = vos.TryGetValue("DeletedAt", out var d) && d is DeletedAtValueObject dv ? dv.Value : null;
+        if (vos is null || vos.Count == 0) return null;
+        string? name = null, photo = null, gender = null, notes = null;
+        Guid? clientId = null; DateTime? deletedAt = null;
 
-        return new PartnersReadModel
-        {
-            Id = domainEvent.Id,
-            Name = root?.Name ?? string.Empty,
-            ClientId = clientId,
-            DeletedAt = deletedAt,
-        };
+        if (vos.TryGetValue("Root", out var r) && r is IPartnerRoot root) name = root.Name;
+        if (vos.TryGetValue("Photo", out var p) && p is StringValueObject pv) photo = pv.Value;
+        if (vos.TryGetValue("Gender", out var g) && g is StringValueObject gv) gender = gv.Value;
+        if (vos.TryGetValue("Notes", out var n) && n is StringValueObject nv) notes = nv.Value;
+        if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) clientId = cv.Value;
+        if (vos.TryGetValue("DeletedAt", out var d) && d is DeletedAtValueObject dv) deletedAt = dv.Value;
+
+        return new Diff(name, photo, gender, notes, clientId, deletedAt);
     }
 }
