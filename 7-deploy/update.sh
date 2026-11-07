@@ -31,6 +31,12 @@ if [ "${#ARGS[@]}" -gt 0 ] && [ -n "${ARGS[0]:-}" ]; then
 fi
 LOCK_FILE="${LOCK_FILE:-$(dirname "$0")/images.lock}"
 TAG="single"
+# @AR 2026-11-06 21:17 + @TL: lock посервисный (`<service> <tag> <path> [commit=…]`),
+# поэтому тег берём ДЛЯ КАЖДОГО сервиса, а не один на всех: смешанный набор — норма,
+# и один общий тег ломал pull (`xdiary-client:single-240bfba` — тег журнала).
+tag_of() {
+  awk -v s="$1" '!/^#/ && NF>=2 && $1==s {print $2; exit}' "$LOCK_FILE"
+}
 if [ -f "$LOCK_FILE" ]; then
   first="$(awk '!/^#/ && NF>=2 {print $2; exit}' "$LOCK_FILE")"
   [ -n "$first" ] && TAG="$first"
@@ -93,7 +99,7 @@ if [ "${1:-}" = "--rollback" ]; then
   [ -n "$svc" ] && [ -n "$img" ] || die "нужно: --rollback <service> <image-id>"
   [ -x "$RECREATE" ] || die "нет $RECREATE"
   say "ОТКАТ $svc на $img"
-  bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
+  sudo -n bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
   exit 0
 fi
 
@@ -142,6 +148,28 @@ if [ "$SELF_TEST_AGE" = "1" ]; then
   say "OK: проверка возраста покраснела как должна"
   exit 0
 fi
+
+# ---------- перетегировать образы по lock (посервисно) ----------
+RETAGGED=""
+for img in $IMAGES; do
+  svc="${img#ghcr.io/ekstrem/xdiary-}"
+  svc="${svc%%:*}"
+  name="xdiary-$svc"
+  t="$(tag_of "$svc" 2>/dev/null || true)"
+  # compose зовёт сервис `clients`, а образ — `xdiary-client` (единственное число):
+  # без этого маппинга pull падал на несуществующем `xdiary-clients`, и деплой не ехал.
+  if [ -z "$t" ]; then
+    s2="${svc%s}"
+    t="$(tag_of "$s2" 2>/dev/null || true)"
+    [ -n "$t" ] && name="xdiary-$s2"
+  fi
+  if [ -n "$t" ] && [ "$t" != "$img" ]; then
+    say "тег из lock: ${name#xdiary-} → ${t}"
+    img="ghcr.io/ekstrem/${name}:${t}"
+  fi
+  RETAGGED="$RETAGGED $img"
+done
+IMAGES="$RETAGGED"
 
 # ---------- pull (обязателен) ----------
 PULL_FAILED=0
@@ -208,7 +236,11 @@ FAILED=""
 for svc in $ORDER; do
   case " $CHANGED " in *" $svc "*) ;; *) continue ;; esac
   say "  пересоздаю $svc"
-  if ! bash "$RECREATE" "$svc"; then
+  # 2026-11-07: файлы /tmp/recreate-<svc>.* могли остаться от sudo-прогона и быть root-owned —
+  # тогда запись тела падает (PermissionError), тело пустое, сервис «не поднимается».
+  # Чистим заранее; пишем те же файлы тоже через sudo, чтобы владелец был один.
+  sudo -n rm -f "/tmp/recreate-$svc.body" "/tmp/recreate-$svc.sh" 2>/dev/null || true
+  if ! sudo -n bash "$RECREATE" "$svc"; then
     say "  $svc не поднялся — прекращаю и откатываю остальные"
     FAILED="$svc"
     break
@@ -223,7 +255,7 @@ if [ -n "$FAILED" ]; then
     old_id="$(printf '%s' "$OLD_STATE" | awk -v s="$svc" '$1==s {print $2}')"
     [ -n "$old_id" ] || continue
     say "  откат $svc → $old_id"
-    bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
+    sudo -n bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
   done
   exit 1
 fi
