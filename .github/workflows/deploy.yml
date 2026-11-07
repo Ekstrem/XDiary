@@ -226,7 +226,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_BASE_URL: http://127.0.0.1:8080
       # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`
       # (APIM не в пути) и канон честно даёт rc=2, то есть гейт был бы «не измерен» всегда.
       XDIARY_PROD_BASE_URL: https://xdiary-vps1.taile0b6ee.ts.net
@@ -240,6 +240,28 @@ jobs:
         working-directory: 9-tests/RnD/front-e2e
         run: npm ci || npm install
       - name: Install Playwright browsers
+
+      # 2026-11-07: транспорт до dev без tailnet — SSH-туннель 127.0.0.1:8080 -> VPS-2.
+      # Раннер GitHub не в tailnet: браузер получал `Failed to fetch` на /clients/me,
+      # из-за чего падали partner-edit/csv/wizard (и это выглядело дефектом фронта).
+      - name: Туннель к dev (127.0.0.1:8080)
+        env:
+          DEV_KEY: ${{ secrets.DEV_SSH_KEY }}
+          DEV_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_USER: ${{ secrets.DEV_SSH_USER }}
+        run: |
+          set -euo pipefail
+          install -m 600 /dev/null /tmp/dev_key
+          printf '%s\n' "$DEV_KEY" > /tmp/dev_key
+          ssh -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              -o ExitOnForwardFailure=yes -f -N -L 8080:127.0.0.1:8080 "$DEV_USER@$DEV_HOST"
+          for i in $(seq 1 30); do
+            if curl -fsS -m 3 http://127.0.0.1:8080/health >/dev/null; then
+              echo "туннель поднят, /health отвечает (попытка $i)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright install --with-deps chromium
       - name: UI smoke (add-partner, wizard-record, change-pin)
