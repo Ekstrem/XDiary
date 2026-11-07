@@ -190,6 +190,11 @@ fi
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
 
 podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+# 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
+# `podman run` падает с "error configuring network namespace". В `update.sh` это
+# выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
+# откатывало весь набор. Даём сети освободить адрес перед запуском.
+sleep 2
 attempt=1
 while [ "$attempt" -le 3 ]; do
   if bash "$RUNNER" >/dev/null 2>&1; then
