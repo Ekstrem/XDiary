@@ -131,7 +131,7 @@ operations:
     path: "/api/v1/apple-health/state"
     operationId: AppleHealthGateway.State
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
+    codes: {200: "ok", 401: "no-token", 404: "нет состояния импорта для клиента"}
     codes_status: derived
   - bc: Catalog
     method: GET
@@ -382,7 +382,7 @@ operations:
     path: "/api/v1/garmin/state"
     operationId: GarminGateway.State
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
+    codes: {200: "ok", 401: "no-token", 404: "нет состояния синхронизации для клиента"}
     codes_status: derived
   - bc: GarminGateway
     method: POST
@@ -702,7 +702,7 @@ operations:
     path: "/api/v1/portability/document"
     operationId: Portability.Document
     auth: jwt
-    codes: {200: "ok", 401: "no-token"}
+    codes: {200: "ok", 401: "no-token", 404: "нет документа для клиента"}
     codes_status: derived
   - bc: Portability
     method: POST
