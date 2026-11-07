@@ -187,7 +187,7 @@ Npgsql.PostgresException (0x80004005): 23505: duplicate key value violates uniqu
 
 ```bash
 set -eu
-for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
+for f in ~/deploy.sh ~/update.sh; do
   grep -q 'запрещено: тег задаётся только images.lock' "$f" || { echo "на VPS $f без DO-066 — поставь шим из 7-deploy/legacy-shims.sh"; exit 1; }
 done
 cd /opt/xdiary/7-deploy
@@ -196,11 +196,11 @@ sleep 20
 curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
 ```
 
-Проверено в репозитории: маркер DO-066 **есть** в `7-deploy/update.sh` и `7-deploy/deploy.sh`; шим-скрипт `7-deploy/legacy-shims.sh` **есть** и ставит `/home/deploy/*.sh` с этим маркером (сохраняя прежние в `/home/deploy/legacy-<ts>/`).
+Проверено в репозитории: маркер DO-066 **есть** в `7-deploy/update.sh` и `7-deploy/deploy.sh`; шим-скрипт `7-deploy/legacy-shims.sh` **есть** и ставит `~/*.sh` с этим маркером (сохраняя прежние в `~/legacy-<ts>/`).
 
-⇒ Наиболее вероятная причина: после уборки «двух копий `7-deploy`» (`DO-110`) файлы `/home/deploy/deploy.sh` / `update.sh` на VPS-2 отсутствуют или без маркера ⇒ `grep` не находит строку ⇒ `exit 1` **до** `update.sh`. Это объясняет и «no annotations»: сообщение печатается в лог job, а не в аннотацию.
+⇒ Наиболее вероятная причина: после уборки «двух копий `7-deploy`» (`DO-110`) файлы `~/deploy.sh` / `update.sh` на VPS-2 отсутствуют или без маркера ⇒ `grep` не находит строку ⇒ `exit 1` **до** `update.sh`. Это объясняет и «no annotations»: сообщение печатается в лог job, а не в аннотацию.
 
-**Проверка одной командой на VPS-2:** `grep -c 'запрещено: тег задаётся только images.lock' /home/deploy/deploy.sh /home/deploy/update.sh`
+**Проверка одной командой на VPS-2:** `grep -c 'запрещено: тег задаётся только images.lock' ~/deploy.sh ~/update.sh`
 **Починка:** `sudo -n bash /opt/xdiary/7-deploy/legacy-shims.sh` — затем перезапуск прогона.
 Альтернативы (менее вероятны, проверяются тем же stderr): `cd /opt/xdiary/7-deploy` не существует; `update.sh` падает на pull/`podman`; `curl /health` не отвечает за 20 с.
 
@@ -308,7 +308,7 @@ Swagger на dev остаётся полезным для **drift-check** (св�
 
 **Три внешних действия, без которых §5 не закрывается:**
 
-1. **@DO:** шим на VPS-2 (`grep -c 'запрещено: тег задаётся только images.lock' /home/deploy/*.sh` → если 0, `sudo -n bash /opt/xdiary/7-deploy/legacy-shims.sh`) + перезапуск `deploy` — снимает блокер проверок и восстанавливает правило §9 («dev не старше prod»).
+1. **@DO:** шим на VPS-2 (`grep -c 'запрещено: тег задаётся только images.lock' ~/*.sh` → если 0, `sudo -n bash /opt/xdiary/7-deploy/legacy-shims.sh`) + перезапуск `deploy` — снимает блокер проверок и восстанавливает правило §9 («dev не старше prod»).
 2. **@BE:** `git rm openapi/index.json` (или перегенерация на 12 сервисов с `operations` списком) — §5 п.4; доказано замером: 0 операций с файлом против **80** без него.
 3. **@EX:** один вход (второй фактор — Telegram) — §5 п.2 на проде и п.3.
 
@@ -396,12 +396,26 @@ python -c "import latency; print(len(latency.load_ops('openapi')))"   →  80
 | `deploy-dev` | ✅ **впервые за 6 раундов** | VPS-2: **12 из 12** контейнеров = `images.lock` посервисно, `/health` **200**, REF `df736701` |
 | §9 «dev не старше prod» | ✅ восстановлен по `client` | `client=single-766e59e`; на dev `otpCode` в теле **0** (есть `BE-090`), `verify(000000)` → **200** |
 | Приёмочный канал на dev | ✅ | `verify` с тестовым кодом проходит, токен 236 симв.; `GET /journal/records` → 200, `GET /partners` → 200 |
-| Причина падения | **три, не шим** | (1) `recreate-service.sh` отсутствовал; (2) читал шим `/home/deploy/deploy.sh` вместо тела → пустая строка запуска; (3) пересоздание без `sudo` (root-owned `/tmp/recreate-*`); плюс один тег всем образам |
+| Причина падения | **три, не шим** | (1) `recreate-service.sh` отсутствовал; (2) читал шим `~/deploy.sh` вместо тела → пустая строка запуска; (3) пересоздание без `sudo` (root-owned `/tmp/recreate-*`); плюс один тег всем образам |
 | Исправлено в репозитории | ✅ `ca1090c5` | `update.sh`: `tag_of` посервисно + маппинг `clients→xdiary-client`; `recreate-service.sh` в дереве |
 
-**Отзыв моей гипотезы (`08:36`):** я объявил причиной отсутствие маркера DO-066 на `/home/deploy/*.sh` — `grep -c` дал **2 и 2**, шим на месте.
+**Отзыв моей гипотезы (`08:36`):** я объявил причиной отсутствие маркера DO-066 на `~/*.sh` — `grep -c` дал **2 и 2**, шим на месте.
 Класс тот же, что `gh/main` у @AR: вывод по модели вместо объекта. Правило: **причина деплоя проверяется командой на контуре**,
 иначе это гипотеза.
 
 **Остаток по §5:** п.4 закрыт удалением `openapi/index.json` (`load_ops` = 80); п.2/п.3 — вход @EX;
 `openapi` 12/12 и `latency --check` — квитанция @DO/@TE; `check_be092_delivery.py` на обновлённом dev — за @TE.
+
+## §5 п.5 — уточнение `2026-11-07 08:35`: «гейты зелёные» **не выполнен**, `check_rule_docs` = `rc=1`
+
+Мой прежний блок «5/5 гейтов зелёные» перечислял **7 проверок, которые я выбрал сам**. Полный набор даёт ещё одну красную:
+
+| Гейт | rc | Строка |
+|---|---|---|
+| `check_rule_docs` | ❌ **1** | «файлов **637**, ошибок **7**, предупреждений **20**» |
+
+**Ошибки (7, все — зона @DO):** `7-deploy/runbooks/apim-backup.md:27,28,29,30,85,103` и `7-deploy/runbooks/apim.md:427` — «абсолютный домашний путь».
+**Предупреждения (20):** в том числе **4 у @TE** (`9-tests/reports/…`) и **8 у меня** (`tl/ERRATA.md`, `tl/RETRO-DRAFT.md`, `tl/SPRINT-CLOSE.md`) — в своей зоне
+уже заменил `~/…` (этим же коммитом), у @TE/@DO — их файлы, им и править.
+
+⇒ Критерий §5 п.5 **не закрыт**: пока эти 7 ошибок в `origin`, «гейты зелёные» — неверное утверждение. Свою ошибку записал в `ERRATA` №13.
