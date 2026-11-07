@@ -175,7 +175,7 @@ operations:
     request:
       required: [photo, notes, brand, fantasyPartner]
       types: {photo: string, notes: string, brand: string, fantasyPartner: string}
-      note: "UpdateCatalogItemDetailsCommand (из токена/route: aggregateId)"
+      note: "UpdateCatalogItemDetailsCommand (из токена/route: aggregateId). Семантика — **полная замена четырёх полей**, не partial: домен присваивает все четыре без условий (`Catalog.Domain/Implementation/Aggregate.cs:36-41`). Поэтому `required` = все четыре не случайно: отсутствие поля ⇒ 400 (implicit required биндинга), `\"\"` ⇒ **стереть**. Опционального поля (как `photoUrl` у `Client.UpdateProfile`) здесь нет намеренно. Проверено @AR 2026-11-07 при аудите 14 операций с `required` ≥ 2."
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
     codes_status: derived
