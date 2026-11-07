@@ -4,16 +4,16 @@
 # деплой читает только этот файл, откат = revert коммита, изменившего строку.
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
-journal              single-2f8c167  6-msa/BC-Journal
-partners             single-2f8c167  6-msa/BC-Partners
-catalog              single-2f8c167  6-msa/BC-Catalog
-somatic-series       single-2f8c167  6-msa/BC-SomaticSeries
-daily-metrics        single-2f8c167  6-msa/BC-DailyMetrics
-garmin-gateway       single-2f8c167  6-msa/BC-GarminGateway
-apple-health-gateway single-2f8c167  6-msa/BC-AppleHealthGateway
+journal              single-0ae8e31  6-msa/BC-Journal
+partners             single-0ae8e31  6-msa/BC-Partners
+catalog              single-0ae8e31  6-msa/BC-Catalog
+somatic-series       single-0ae8e31  6-msa/BC-SomaticSeries
+daily-metrics        single-0ae8e31  6-msa/BC-DailyMetrics
+garmin-gateway       single-0ae8e31  6-msa/BC-GarminGateway
+apple-health-gateway single-0ae8e31  6-msa/BC-AppleHealthGateway
 analytics            single-9150468  6-msa/BC-Analytics
-privacy              single-50961be  6-msa/BC-Privacy
-portability          single-2f8c167  6-msa/BC-Portability
+privacy              single-0ae8e31  6-msa/BC-Privacy
+portability          single-0ae8e31  6-msa/BC-Portability
 client               single-2f8c167  6-msa/BC-Client
 api-gateway          single-50961be  6-msa/ApiGateway
 front                single-362883b  8-front
