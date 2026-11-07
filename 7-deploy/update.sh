@@ -83,7 +83,7 @@ verify_image_age() {
   [ -n "${CODE_TS:-}" ] || return 0
   code_epoch="$(date -d "$CODE_TS" +%s 2>/dev/null || echo 0)"
   [ "$code_epoch" -gt 0 ] || return 0
-  created="$(podman image inspect "$img" --format '{{.Created}}' 2>/dev/null || true)"
+  created="$(sudo -n podman image inspect "$img" --format '{{.Created}}' 2>/dev/null || true)"
   [ -n "$created" ] || return 1
   created_epoch="$(date -d "$(printf '%s' "$created" | sed -E 's/\.[0-9]+//; s/ UTC$//')" +%s 2>/dev/null || echo 0)"
   [ "$created_epoch" -gt 0 ] || return 0
@@ -195,7 +195,7 @@ declare -A CUR_IDS=()
 NEW_STATE=""
 MISSING=0
 for img in $IMAGES; do
-  id="$(podman image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
+  id="$(sudo -n podman image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
   if [ -z "$id" ]; then
     say "образ $img отсутствует локально" >&2
     MISSING=$((MISSING + 1))
