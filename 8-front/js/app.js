@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.102"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.103"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -652,14 +652,32 @@
 
   // FE-015: НЕ кэшируем (правило PO) — один getAllJournalData на открытие, данные идут в шаги параметром
   // FE-014/015: данные визарда — партнёры+журнал (шаги), recent/places — лёгкие MV вместо клиентского скана
+  var WIZ_TIMEOUT_MS = 6000;      // одна загрузка
+  var WIZ_TOTAL_TIMEOUT_MS = 12000; // весь набор
+  var WIZ_TIMEOUT = { __wizTimeout: true };
   function loadWizardData() {
     var failed = [];
-    return Promise.all([
-      DB.getAllPartners().catch(function () { failed.push("партнёры"); return []; }),
-      Api.journal.recent().catch(function () { failed.push("последняя запись"); return null; }),
-      Api.journal.places().catch(function () { failed.push("места"); return []; }),
-      DB.getAllCatalog().catch(function () { failed.push("каталог"); return []; })
-    ]).then(function (res) {
+    // P0 (smoke-front 2026-11-07): без таймаутов зависший запрос оставлял визард закрытым
+    // навсегда — тест видел timedOut вместо экрана. Теперь каждый источник ограничен 6 с,
+    // а весь набор — 12 с; таймаут отмечается в readError как причина, а не как «пусто».
+    function src(promise, label, fallback) {
+      return withTimeout(promise, WIZ_TIMEOUT_MS, WIZ_TIMEOUT).then(function (v) {
+        if (v === WIZ_TIMEOUT) { failed.push(label + " (таймаут)"); return fallback; }
+        return v;
+      }, function () { failed.push(label); return fallback; });
+    }
+    return withTimeout(Promise.all([
+      src(DB.getAllPartners(), "партнёры", []),
+      src(Api.journal.recent(), "последняя запись", null),
+      src(Api.journal.places(), "места", []),
+      src(DB.getAllCatalog(), "каталог", [])
+    ]), WIZ_TOTAL_TIMEOUT_MS, null).then(function (res) {
+      if (!res) {
+        failed.push("набор данных (таймаут)");
+        return { partners: [], recent: {}, places: [], catalog: [], readError: failed };
+      }
+      return { partners: res[0], recent: res[1] || {}, places: res[2] || [], catalog: res[3] || [], readError: failed };
+    }, function () {
       return { partners: res[0], recent: res[1] || {}, places: res[2] || [], catalog: res[3] || [], readError: failed };
     }, function (e) {
       failed.push("журнал");
