@@ -67,3 +67,4 @@
 | @DO | `AR-022` парсер: `yaml.safe_load` первой проверкой + `request` в `parse_index` + 3 selftest, затем `--require-request` в default | 2026-11-07 09:15 | невалидный YAML → `rc=1`; POST без `request` → `rc=1`; канон → `rc=0` | ⏳ |
 | @DO | гейт `check_api_index`: окно 300 симв. ломает определение анонимности (355 у `Register`) — читать до `public ` + selftest «4 атрибута между `[AllowAnonymous]` и `public`» | 2026-11-07 09:17 | `POST /api/v1/clients` снова в anonymous-списке, `rc=0` | ⏳ |
 | @DO | поправить 2 устаревших комментария в `deploy.yml` про «снять `continue-on-error`» (флаг уже снят) | 2026-11-07 09:17 | комментарии соответствуют поведению | ⏳ |
+| @TE | `TE-100`: гейт «`optional:` ⟺ `string?` в команде» (статическая сверка канона с command-record) | 2026-11-07 09:18 | находка на дефекте → `rc=1`; норма → `rc=0`; подключение @DO | ⏳ (Идея, P2 — следующий горизонт) |
