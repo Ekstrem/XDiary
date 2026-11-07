@@ -125,6 +125,25 @@ def auth_scope(root):
     return ok, broken, extended
 
 
+
+def check_post_request(ops):
+    """AR-022 (@AR 2026-11-07 08:49): у каждой POST-операции должен быть блок `request:`.
+
+    «Тела нет» — тоже утверждение о контракте, поэтому допустим `request: {required: []}`
+    (пример: `Journal.StartManualEntry` — `clientId` берётся из токена, тела нет).
+    Отсутствие блока `request` целиком — нарушение: следующая команда иначе появится
+    без тела, и клиент снова будет угадывать форму запроса.
+    """
+    bad = []
+    for o in ops:
+        if str(o.get("method", "")).upper() != "POST":
+            continue
+        if "request" in o:
+            continue
+        bad.append(o.get("path") or o.get("operationId") or "<без пути>")
+    return bad
+
+
 def selftest():
     ok = 0
     cases = [
@@ -158,7 +177,21 @@ def selftest():
         print("  [FAIL] ddd-ссылка не поймана: %s" % (got,))
 
     shutil.rmtree(base, ignore_errors=True)
-    total = 4
+
+    # AR-022: «POST без request → нарушение» и «POST с required: [] → норма»
+    post_no_req = [{"method": "POST", "path": "/api/v1/x"}]
+    post_empty = [{"method": "POST", "path": "/api/v1/x", "request": {"required": []}}]
+    get_no_req = [{"method": "GET", "path": "/api/v1/x"}]
+    if check_post_request(post_no_req) == ["/api/v1/x"]:
+        ok += 1
+    else:
+        print("  [FAIL] POST без request не пойман")
+    if check_post_request(post_empty) == [] and check_post_request(get_no_req) == []:
+        ok += 1
+    else:
+        print("  [FAIL] request: {required: []} или GET дали ложное нарушение")
+
+    total = 6
     print("check_api_index --selftest: %d/%d" % (ok, total))
     # 2026-11-05: было `ok == 3` при четырёх кейсах — текст печатал 4/4, а rc был 1.
     # Класс «верно считает, врёт кодом возврата»; теперь сравнение с total.
@@ -275,6 +308,10 @@ def main():
     ap.add_argument("--root", default=".")
     ap.add_argument("--index", default=None)
     ap.add_argument("--selftest", action="store_true")
+    # AR-022: по умолчанию — отчёт (`::warning::`), с флагом — блокирующая проверка.
+    # Флаг снимается, когда @AR заполнит `request:` у всех POST в индексе (сейчас 54 без него).
+    ap.add_argument("--require-request", action="store_true",
+                    help="POST без блока request = ошибка (AR-022); пока 54 нарушения — отчёт")
     a = ap.parse_args()
 
     if a.selftest:
@@ -303,6 +340,16 @@ def main():
     for v, p in extra_in_index[:20]:
         print("::error::в индексе есть, в коде нет: %s %s" % (v, p))
         bad += 1
+
+    post_no_req = check_post_request(ops)
+    if post_no_req:
+        if a.require_request:
+            for p in post_no_req[:20]:
+                print("::error::(AR-022) POST без блока request: %s" % p)
+            bad += 1
+        else:
+            print("::warning::(AR-022) POST без блока request: %d (отчёт; блокирует с --require-request): %s"
+                  % (len(post_no_req), ", ".join(post_no_req[:5])))
 
     no_codes = [o for o in ops if not (o.get("codes") or "").strip()]
     for o in no_codes[:10]:
