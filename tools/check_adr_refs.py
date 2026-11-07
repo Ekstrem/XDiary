@@ -74,6 +74,28 @@ def scan(root, statuses=None, dirs=None):
     return problems, refs
 
 
+def accepted_refs_rejected(root):
+    """Активный ADR (Принято/Пересмотрен) ссылается на Отклонённый/Отменённый -> нарушение связности."""
+    statuses = adr_status_map(root)
+    problems = []
+    for path in glob.glob(os.path.join(root, '04-architecture', 'ADL', 'adr-*.md')):
+        m = re.search(r'adr-(\d{3})\.md$', os.path.basename(path))
+        if not m:
+            continue
+        src = m.group(1)
+        if statuses.get(src) not in ('Принято', 'Пересмотрен'):
+            continue
+        for no, line in enumerate(open(path, encoding='utf-8', errors='replace'), 1):
+            for ref in re.finditer(r'ADR\s?-?(\d{3})', line):
+                tgt = ref.group(1)
+                if tgt == src:
+                    continue
+                if statuses.get(tgt) in ('Отклонено', 'Отменён'):
+                    problems.append((os.path.relpath(path, root).replace(os.sep, '/'),
+                                     no, src, tgt, statuses[tgt]))
+    return problems
+
+
 def selftest():
     ok = total = 0
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.tmp-adr-refs')
@@ -135,15 +157,20 @@ def main():
 
     dirs = SCAN_DIRS + ARCH_DIR if a.include_arch else SCAN_DIRS
     problems, refs = scan(root, dirs=dirs)
+    link_problems = accepted_refs_rejected(root)
     print('check_adr_refs: каталоги: %s' % ', '.join(dirs))
     for rel, no, adr, claimed, fact in problems:
         print('::error::(adr-refs) %s:%d — `ADR-%s` заявлен как `%s`, фактически `%s`'
               % (rel, no, adr, claimed, fact))
-    print('check_adr_refs: проверено ссылок %d, нарушений %d' % (refs, len(problems)))
+    for rel, no, src, tgt, fact in link_problems:
+        print('::error::(adr-refs) %s:%d — активный ADR-%s ссылается на `ADR-%s` (фактически `%s`)'
+              % (rel, no, src, tgt, fact))
+    print('check_adr_refs: проверено ссылок %d, нарушений %d, связность активный->отклонённый %d'
+          % (refs, len(problems), len(link_problems)))
     if refs == 0:
         print('::error::check_adr_refs: НЕ ИЗМЕРЕНО — ни одной ссылки со статусом не найдено')
         return 2
-    return 1 if problems else 0
+    return 1 if (problems or link_problems) else 0
 
 
 if __name__ == '__main__':

@@ -14,6 +14,7 @@
     python tools/check_awaits.py --selftest
 """
 import argparse
+from datetime import datetime
 import os
 import re
 import subprocess
@@ -83,6 +84,15 @@ def bad_stamps(path):
     return out
 
 
+def _age_minutes(stamp, now):
+    """Возраст метки в минутах; inf, если метку не разобрать."""
+    try:
+        t = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+        return (now - t).total_seconds() / 60.0
+    except (ValueError, TypeError):
+        return float("inf")
+
+
 def chat_accepts(root, role, after):
     """Есть ли в chat/<role>.md сообщение после `after` со словом принятия."""
     path = os.path.join(root, "5-tech-backlog", "chat", role + ".md")
@@ -113,16 +123,20 @@ def commit_artifacts(root, role, topic):
     return False
 
 
-def check(root, use_git=True):
-    """use_git=False — только outbox (для selftest: иначе хвост реальной истории
-    протекает в кейсы, и проверка проверяет не то)."""
+def check(root, use_git=True, max_age_minutes=60, now=None):
+    """use_git=False — только outbox (для selftest)."""
     rows = parse_awaits(os.path.join(root, AWAIT))
     hanging = []
     done_rows = 0
+    now = now or datetime.now()
     for role, what, stamp, _, done in rows:
         if done:
             done_rows += 1
             continue
+        if role == "ex":
+            continue  # владелец — не роль пайплайна, outbox-обязанности нет (AN-03)
+        if max_age_minutes is not None and 0 <= _age_minutes(stamp, now) < max_age_minutes:
+            continue  # свежая выдача — окно отсрочки, не «висит» (AN-03)
         ok = chat_accepts(root, role, stamp)
         if not ok and use_git:
             ok = commit_artifacts(root, role, what)
@@ -184,8 +198,32 @@ def selftest():
               % (len(rows), hanging, done))
 
     shutil.rmtree(base, ignore_errors=True)
-    print("check_awaits --selftest: %d/4" % ok)
-    return 0 if ok == 4 else 1
+    # кейс 5: свежая выдача (моложе окна) — не висит
+    os.makedirs(os.path.dirname(os.path.join(base, AWAIT)), exist_ok=True)
+    os.makedirs(os.path.join(base, "5-tech-backlog", "chat"), exist_ok=True)
+    open(os.path.join(base, AWAIT), "w", encoding="utf-8").write(
+        "| кому | что | метка |\n|---|---|---|\n| @TE | свежее | 2026-11-13 19:50 |\n")
+    open(os.path.join(base, "5-tech-backlog", "chat", "te.md"), "w", encoding="utf-8").write("")
+    rows, hanging, _done = check(base, use_git=False, max_age_minutes=60,
+                                 now=datetime(2026, 11, 13, 20, 0))
+    if len(rows) == 1 and not hanging:
+        ok += 1
+    else:
+        print("  [FAIL] свежая выдача зачтена висящей: hanging=%s" % hanging)
+
+    # кейс 6: строка @EX — не считается висящей ролью
+    open(os.path.join(base, AWAIT), "w", encoding="utf-8").write(
+        "| кому | что | метка |\n|---|---|---|\n| @EX | вход владельца | 2026-11-13 19:00 |\n")
+    rows, hanging, _done = check(base, use_git=False, max_age_minutes=60,
+                                 now=datetime(2026, 11, 13, 20, 0))
+    if len(rows) == 1 and not hanging:
+        ok += 1
+    else:
+        print("  [FAIL] строка @EX зачтена висящей: hanging=%s" % hanging)
+
+    shutil.rmtree(base, ignore_errors=True)
+    print("check_awaits --selftest: %d/6" % ok)
+    return 0 if ok == 6 else 1
 
 
 def _utf8_stdout():
@@ -206,6 +244,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--max-age-minutes", type=int, default=60)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     _utf8_stdout()
@@ -213,7 +252,7 @@ def main():
         return selftest()
 
     root = os.path.abspath(a.root)
-    rows, hanging, done_rows = check(root)
+    rows, hanging, done_rows = check(root, max_age_minutes=a.max_age_minutes)
     if not rows:
         print("check_awaits: AWAIT.md нет или таблица пуста — висящих решений 0")
         return 0
