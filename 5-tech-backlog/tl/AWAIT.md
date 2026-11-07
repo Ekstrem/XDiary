@@ -76,3 +76,4 @@
 | @DO | зелёный `deploy` на текущем lock — квитанция L5 вместо ручной выкатки | 2026-11-07 09:05 | `deploy-dev` ✅ на том же SHA | ⏳ |
 | @BE | `TECHDEBT` п.11: видимость потери события — лог + счётчик в `catch` и на не-2xx (`HttpSomaticSeriesEventPublisher`), без ретраев | 2026-11-07 09:31 | упавший POST → строка в логе + инкремент; успешный → тишина | ⏳ |
 | @DO | выкатить `journal` из `single-20a1d7c` (lock и реестр уже согласны) + шаг «running-теги ⧺ lock → `::error::`» в `deploy-dev` | 2026-11-07 09:35 | контейнер на dev = `20a1d7c`; расхождение running/lock валит шаг | ⏳ |
+| @DO | внести фикс `check_api_index` (окно 300) **в `main`** — `#3542` был на временной ветке; + сузить `check_ddd_refs` (не считать `Partners.Storage` ссылкой) | 2026-11-07 09:37 | `check_api_index` `rc=0` на `origin`; `selftest` 7/7; ddd-ошибка снята | ⏳ |
