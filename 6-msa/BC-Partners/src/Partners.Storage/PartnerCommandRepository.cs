@@ -38,6 +38,8 @@ public sealed class PartnerCommandRepository : IRepository<IPartners, IPartnerAn
             {
                 // @TL 00:17 — Id строки outbox обязан быть уникальным на событие: result.Event.Id — это
                 // id АГРЕГАТА (IHasKey), он один на все события агрегата → PK-конфликт на второй команде (500).
+                // id агрегата храним отдельно для корректной re-delivery (BE-059, @AR 08:14).
+                AggregateId = result.Event.Id,
                 EventType = "Partners",
                 // $type-дискриминатор для реконструкции IValueObject (BE-059).
                 Payload = JsonSerializer.Serialize(result.Event.ChangedValueObjects, jsonOptions),

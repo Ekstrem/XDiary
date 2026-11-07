@@ -40,8 +40,10 @@ public sealed class OutboxDispatcher : BackgroundService
                 foreach (var msg in pending)
                 {
                     var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(msg.Payload, jsonOptions);
+                    // BE-059 (@AR 08:14): re-delivery обязана нести id АГРЕГАТА, а не PK строки outbox.
+                    var aggregateId = msg.AggregateId ?? msg.Id;
                     var domainEvent = new DomainEvent<IPartners>(
-                        msg.Id,
+                        aggregateId,
                         0,
                         null,
                         vos!,

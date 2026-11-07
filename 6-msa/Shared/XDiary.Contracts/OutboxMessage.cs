@@ -8,6 +8,8 @@ namespace XDiary.Contracts;
 public sealed class OutboxMessage
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>id агрегата (IHasKey) — для реконструкции события при re-delivery; Id — только PK строки.</summary>
+    public Guid? AggregateId { get; set; }
     /// <summary>Имя типа события/контекста для восстановления обработчика.</summary>
     public string EventType { get; set; } = string.Empty;
     /// <summary>Сериализованный домен-событие (JSON).</summary>
