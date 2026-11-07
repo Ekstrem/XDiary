@@ -164,7 +164,9 @@ for img in $IMAGES; do
     [ -n "$t" ] && name="xdiary-$s2"
   fi
   if [ -n "$t" ] && [ "$t" != "$img" ]; then
-    say "тег из lock: ${name#xdiary-} → ${t}"
+    # `say` определяется ниже по файлу — здесь обычный echo. Иначе в CI:
+    # `update.sh: line 65: say: command not found`, и деплой падал до pull.
+    echo "  тег из lock: ${name#xdiary-} → ${t}"
     img="ghcr.io/ekstrem/${name}:${t}"
   fi
   RETAGGED="$RETAGGED $img"
