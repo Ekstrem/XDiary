@@ -51,29 +51,55 @@ def delivery_of(doc):
     return (doc or {}).get("delivery") if isinstance(doc, dict) else None
 
 
-def evaluate(new_resp, dup_resp, third_resp):
-    """(new, dup, third) — (status, doc) → (issues, stats)."""
+def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
+    """(new, dup, third) — (status, doc) → (issues, stats).
+
+    `expect_no_delivery=True` — тестовый режим (`TESTOTP`): по замыслу `delivery` в теле **нет**
+    (`ClientsController.cs:33-34`), поэтому строка 1 проверяет `2xx` **без** `delivery` (а если поле
+    вдруг есть — это расхождение: режим не тот, что ожидали), строка 2 — `409`+`clientId`,
+    `delivery` при этом необязателен, строка 3 (`429`) не меняется.
+    """
     issues = []
     rows = {}
 
     st, doc = new_resp
-    ok1 = isinstance(st, int) and 200 <= st < 300 and isinstance(delivery_of(doc), dict)
-    rows["200+delivery"] = ok1
-    if not ok1:
-        if isinstance(st, int) and 200 <= st < 300:
-            issues.append(f"новый номер: `{st}`, но в теле **нет `delivery`** "
-                          f"(поля: {sorted(doc.keys()) if isinstance(doc, dict) else '—'}) — старый образ или `BE-092` не выкачен")
-        else:
-            issues.append(f"новый номер: ожидали `200`+`delivery`, получили `{st}`")
+    has_delivery = isinstance(delivery_of(doc), dict)
+    if expect_no_delivery:
+        label1 = "200 (тестовый режим, без delivery)"
+        ok1 = isinstance(st, int) and 200 <= st < 300 and not has_delivery
+        rows[label1] = ok1
+        if not ok1:
+            if isinstance(st, int) and 200 <= st < 300:
+                issues.append(f"новый номер: `{st}`, но `delivery` в теле **есть** — тестовый режим "
+                              f"ожидался без него (поля: {sorted(doc.keys()) if isinstance(doc, dict) else '—'})")
+            else:
+                issues.append(f"новый номер: ожидали `200` (тестовый режим), получили `{st}`")
+    else:
+        label1 = "200+delivery"
+        ok1 = isinstance(st, int) and 200 <= st < 300 and has_delivery
+        rows[label1] = ok1
+        if not ok1:
+            if isinstance(st, int) and 200 <= st < 300:
+                issues.append(f"новый номер: `{st}`, но в теле **нет `delivery`** "
+                              f"(поля: {sorted(doc.keys()) if isinstance(doc, dict) else '—'}) — старый образ или `BE-092` не выкачен")
+            else:
+                issues.append(f"новый номер: ожидали `200`+`delivery`, получили `{st}`")
 
     st, doc = dup_resp
     has_id = isinstance(doc, dict) and bool(doc.get("clientId"))
-    ok2 = st == 409 and has_id and isinstance(delivery_of(doc), dict)
-    rows["409+clientId+delivery"] = ok2
+    has_delivery = isinstance(delivery_of(doc), dict)
+    if expect_no_delivery:
+        label2 = "409+clientId (без delivery)"
+        ok2 = st == 409 and has_id
+    else:
+        label2 = "409+clientId+delivery"
+        ok2 = st == 409 and has_id and has_delivery
+    rows[label2] = ok2
     if not ok2:
-        issues.append(f"занятый номер: ожидали `409` + `clientId` + `delivery`, получили `{st}`, "
+        need = "`409` + `clientId`" + ("" if expect_no_delivery else " + `delivery`")
+        issues.append(f"занятый номер: ожидали {need}, получили `{st}`, "
                       f"`clientId` {'есть' if has_id else 'нет'}, `delivery` "
-                      f"{'есть' if isinstance(delivery_of(doc), dict) else 'нет'}")
+                      f"{'есть' if has_delivery else 'нет'}")
 
     st, _doc = third_resp
     ok3 = st == 429
@@ -103,6 +129,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", help="адрес API (dev)")
     ap.add_argument("--phone", help="номер для пробы (по умолчанию случ. в тестовом диапазоне)")
+    ap.add_argument("--expect-no-delivery", action="store_true",
+                    help="тестовый режим (TESTOTP): `delivery` в теле нет по замыслу — строка 1 проверяет "
+                         "`200` без `delivery`, строка 2 — `409`+`clientId` без требования `delivery`")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -121,7 +150,7 @@ def main(argv=None):
         results.append((st, parse(body)))
         print(f"   POST /clients {{phone: {phone[:4]}…{phone[-2:]}}} → {st}")
 
-    issues, stats = evaluate(results[0], results[1], results[2])
+    issues, stats = evaluate(results[0], results[1], results[2], a.expect_no_delivery)
     for m in issues:
         print(f"::error::check_be092_delivery: {m}")
     print(receipt(stats, issues))
@@ -131,10 +160,10 @@ def main(argv=None):
 def selftest():
     ok = total = 0
 
-    def case(name, three, want_rc, must=()):
+    def case(name, three, want_rc, must=(), expect_no_delivery=False):
         nonlocal ok, total
         total += 1
-        issues, stats = evaluate(three[0], three[1], three[2])
+        issues, stats = evaluate(three[0], three[1], three[2], expect_no_delivery)
         text = "\n".join(issues) + "\n" + receipt(stats, issues)
         rc = 1 if issues else 0
         miss = [m for m in must if m not in text]
@@ -160,6 +189,22 @@ def selftest():
     case("429 вместо 200 — тоже расхождение",
          ((429, {}), (409, {"clientId": "c", "delivery": {}}), (429, {})), 1, ["новый номер"])
 
+    # Тестовый режим (@TL 08:46): `delivery` в теле нет по замыслу.
+    test_mode_good = ((200, {"id": "c1", "version": 1, "phone": "+79990000000", "verified": False}),
+                      (409, {"clientId": "c1"}),
+                      (429, {}))
+    case("тестовый режим: 200 без delivery + 409+clientId + 429", test_mode_good, 0,
+         ["тестовый режим", "нарушено: 0"], expect_no_delivery=True)
+
+    test_mode_wrong = ((200, {"id": "c1", "delivery": {"ok": True}}),
+                       (409, {"clientId": "c1"}),
+                       (429, {}))
+    case("тестовый режим: delivery внезапно есть — расхождение", test_mode_wrong, 1,
+         ["`delivery` в теле **есть**"], expect_no_delivery=True)
+
+    case("тестовый режим: повтор всё равно 200 — расхождение", ((200, {"id": "c1"}), (200, {"id": "c1"}), (429, {})), 1,
+         ["ожидали `409` + `clientId`"], expect_no_delivery=True)
+
     total += 1
     line = receipt({"lines": {"200+delivery": True, "409+clientId+delivery": True, "429": True}, "leaks": []}, [])
     if "200+delivery: ✅" in line and "нарушено: 0" in line:
@@ -168,7 +213,8 @@ def selftest():
         print(f"  [FAIL] текст квитанции: {line}")
 
     print(f"check_be092_delivery --selftest: {ok}/{total} "
-          f"(200+delivery / 409+clientId+delivery / 429 — три строки приёмки BE-092)")
+          f"(200+delivery / 409+clientId+delivery / 429 — три строки приёмки BE-092; "
+          f"плюс тестовый режим `--expect-no-delivery`: норма, «delivery внезапно есть», повтор 200)")
     return 0 if ok == total else 1
 
 
