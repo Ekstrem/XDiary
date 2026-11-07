@@ -50,6 +50,16 @@ public class RecordInvariantTests
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
+    [Fact]
+    public void SpecifyWhen_NormalizesToIso()
+    {
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00");
+        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+        var stored = result.Model().Root.StartedAt;
+        Assert.NotEqual("2026-10-29T21:00", stored); // TE-101: нормализованный ISO, а не дословная строка
+        Assert.True(System.DateTimeOffset.TryParse(stored, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out _));
+    }
+
     // ---- DurationPositive: durationMin >= 1 ----
     [Theory]
     [InlineData(0, false)]

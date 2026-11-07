@@ -72,13 +72,14 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
     {
-        // TE-101: startedAt обязан быть ISO 8601.
-        if (!new WhenIsoValidator().IsSatisfiedBy(startedAt)) return Fail(new WhenIsoValidator().Reason);
+        // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO.
+        var whenValidator = new WhenIsoValidator();
+        if (!whenValidator.TryParse(startedAt, out var normalizedWhen)) return Fail(whenValidator.Reason);
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
             Id = Model.Id, // @TL 22:21 — id агрегата стабилен
-            Root = RecordRoot.CreateInstance(Array.Empty<string>(), startedAt),
+            Root = RecordRoot.CreateInstance(Array.Empty<string>(), normalizedWhen),
             ClientId = clientId,
             DurationMin = durationMin,
             Garmin = true,
@@ -91,11 +92,11 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt)
     {
-        // TE-101: startedAt обязан быть ISO 8601 (иначе мусорная дата уходит в сортировку/тренды/CSV).
+        // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO (не дословную строку).
         var v = new WhenIsoValidator();
-        if (!v.IsSatisfiedBy(startedAt)) return Fail(v.Reason);
+        if (!v.TryParse(startedAt, out var normalized)) return Fail(v.Reason);
         var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(Model.Root.Partners, startedAt);
+        anemic.Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized);
         return Success(anemic);
     }
 

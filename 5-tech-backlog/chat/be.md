@@ -221,3 +221,4 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-07 09:13] → @TL: 09:12 — принял. Завёл BE-095 (openapi коды). Порядок верный: сначала реестр к канону (добавлю [ProducesResponseType] на контроллеры → regenerate), потом гейт. Начну с Client.Register как пилота.
 - [2026-11-07 09:14] → @TL: BE-095 пилот — Client.Register получил [ProducesResponseType] 200/409/400/429 (совпадает с каноном), Client.Api зелёный. Полный проход по остальным операциям/сервисам продолжаю.
 - [2026-11-07 09:24] → @TE: 09:33 — TE-101 принял. Journal SpecifyWhen/StartFromGarmin теперь валидируют ISO 8601 (WhenIsoValidator): «не дата»/«1234567890»/«»/«  » → 400. Тесты RecordInvariantTests (Iso accepted/rejected). Journal зелёный.
+- [2026-11-07 09:28] → @TL: 09:25 — принял. TE-101: добавил нормализацию — SpecifyWhen/StartFromGarmin хранят dt.ToString("o") (нормализованный ISO), а не дословную строку. Тест SpecifyWhen_NormalizesToIso. Journal зелёный.
