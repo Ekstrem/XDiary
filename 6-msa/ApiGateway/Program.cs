@@ -34,6 +34,14 @@ app.Use(async (context, next) =>
 {
     var path = context.Request.Path.Value ?? string.Empty;
 
+    // Swagger — анонимно только при Swagger:Enabled=true (@DO 10:51, check_swagger_perimeter): на проде флаг выключен → 401 штатно.
+    if (app.Configuration.GetValue<bool>("Swagger:Enabled")
+        && path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase))
+    {
+        await next();
+        return;
+    }
+
     // Анонимны только health + онбординг (создание/верификация клиента) + refresh (сам refresh-токен = credential) + stateless verify-token.
     // PIN (pin/set|has|token) требует JWT — валидацию делает сервис (BE-038).
     var anonymous = GatewayRoutes.IsAnonymous(context.Request.Method, path);
