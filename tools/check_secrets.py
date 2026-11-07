@@ -107,6 +107,12 @@ SHAPES = [
     ("aws-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("telegram-bot", re.compile(r"\b\d{8,10}:[A-Za-z0-9_\-]{30,}")),
     ("pem-private", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    # @AR 2026-11-07 11:41 п.4: три формы, которые гейт не ловил (проверено тремя пробами):
+    # (1) пароль внутри URI-строки подключения, (2) SQL `PASSWORD '<значение>'`,
+    # (3) `PGPASSWORD=` в командах бэкапа/скриптах.
+    ("uri-password", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^@\s/]{8,})@")),
+    ("sql-password", re.compile(r"(?i)\bPASSWORD\s+'([^']{8,})'")),
+    ("pgpassword", re.compile(r"\bPGPASSWORD=(\S{8,})")),
 ]
 
 
@@ -313,8 +319,12 @@ def scan_text(text, allow_shapes=True):
                         continue          # цепочка идентификаторов, не ключ (дефект 2026-11-10)
                     if name == "hex-long" and _hex_is_identifier(m.group(0)):
                         continue          # git-объект/sha256-дайджест — не секрет (дефект 2026-11-07)
-                    if looks_like_secret(m.group(0)):
-                        findings.append((name, i, len(m.group(0))))
+                    # если у шаблона есть группа — проверяем ЗАХВАЧЕННОЕ значение,
+                    # иначе `PGPASSWORD=abcdefgh12` проверялся целиком (с именем переменной)
+                    # и не считался секретом (@AR 2026-11-07 11:41 п.4).
+                    value = m.group(1) if m.groups() and m.group(1) is not None else m.group(0)
+                    if looks_like_secret(value):
+                        findings.append((name, i, len(value)))
     return findings
 
 
@@ -327,6 +337,30 @@ def changed_files(root, rev_range):
         return []
     return [os.path.join(root, n) for n in names if os.path.exists(os.path.join(root, n))]
 
+
+
+def _selftest_new_forms():
+    """Три формы @AR 11:41 п.4: URI-креды, SQL PASSWORD, PGPASSWORD — должны ловиться."""
+    cases = [
+        ('postgresql://u:s3cr3tPASS@pg:5432/db', 'uri-password'),
+        ("ALTER ROLE x WITH PASSWORD 's3cr3tPASS'", 'sql-password'),
+        ('PGPASSWORD=abcdefgh12 ./backup.sh', 'pgpassword'),
+    ]
+    ok = 0
+    for text, kind in cases:
+        hits = [h[0] for h in (scan_text(text) or [])]
+        if kind in hits:
+            ok += 1
+        else:
+            print("  [FAIL] форма %s не поймана: %r" % (kind, text[:40]))
+    # контроль: плейсхолдер и короткое значение ловить не должны
+    for text in ('postgresql://u:<password>@pg/db', 'PGPASSWORD=short'):
+        hits = [h[0] for h in (scan_text(text) or [])]
+        if any(h in ('uri-password', 'sql-password', 'pgpassword') for h in hits):
+            print("  [FAIL] ложное срабатывание на %r" % text[:40])
+        else:
+            ok += 1
+    return ok, len(cases) + 2
 
 
 def selftest():
@@ -359,6 +393,24 @@ def selftest():
     f = scan_text("sha256 " + sha256)
     print("  [%s] sha256-дайджест (64-hex) -> находок %d (ожидали 0)" % ("OK " if not f else "FAIL", len(f)))
     bad += 0 if not f else 1
+
+    # @AR 2026-11-07 11:41 п.4: три формы, которые гейт не ловил (URI-креды, SQL PASSWORD,
+    # PGPASSWORD) — плюс контроль «плейсхолдер и короткое значение не ловятся».
+    forms = [
+        ("postgresql://u:s3cr3tPASS@pg:5432/db", "uri-password"),
+        ("ALTER ROLE x WITH PASSWORD 's3cr3tPASS'", "sql-password"),
+        ("PGPASSWORD=abcdefgh12 ./backup.sh", "pgpassword"),
+    ]
+    for text, kind in forms:
+        f = [h[0] for h in (scan_text(text) or [])]
+        got = kind in f
+        print("  [%s] форма %s -> %s" % ("OK " if got else "FAIL", kind, "поймана" if got else "НЕ поймана"))
+        bad += 0 if got else 1
+    for text in ("postgresql://u:<password>@pg/db", "PGPASSWORD=short"):
+        f = [h[0] for h in (scan_text(text) or [])]
+        ok = not any(h in ("uri-password", "sql-password", "pgpassword") for h in f)
+        print("  [%s] контроль %r -> %s" % ("OK " if ok else "FAIL", text[:34], "чисто" if ok else "ложное"))
+        bad += 0 if ok else 1
 
     print("check_secrets: самопроверка %s" % ("пройдена" if bad == 0 else "ПРОВАЛЕНА"))
     return 0 if bad == 0 else 1
