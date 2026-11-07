@@ -17,7 +17,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Single
       ConnectionStrings__PrivacyDb: "Host=postgres;Port=5432;Database=privacy;Username=postgres;Password=postgres"
-      Jwt__SigningKey: "eGRpYXJ5LWRldi1zaWduaW5nLWtleS0zMmJ5dGVzLW1pbiE="
+      Jwt__SigningKey: "${Jwt__SigningKey:?нет Jwt__SigningKey в окружении}"
     ports:
       - "8080:8080"
     depends_on:
