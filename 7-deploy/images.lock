@@ -8,15 +8,15 @@
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
 journal              single-20a1d7c     6-msa/BC-Journal  commit=20a1d7c
-partners             single-1d8b9b3     6-msa/BC-Partners  commit=1d8b9b3
-catalog              single-1d8b9b3     6-msa/BC-Catalog  commit=1d8b9b3
-somatic-series       single-3dc0711     6-msa/BC-SomaticSeries  commit=3dc0711
-daily-metrics        single-1d8b9b3     6-msa/BC-DailyMetrics  commit=1d8b9b3
-garmin-gateway       single-1d8b9b3     6-msa/BC-GarminGateway  commit=1d8b9b3
-apple-health-gateway single-1d8b9b3     6-msa/BC-AppleHealthGateway  commit=1d8b9b3
+partners             single-4a21cc1     6-msa/BC-Partners  commit=4a21cc1
+catalog              single-4a21cc1     6-msa/BC-Catalog  commit=4a21cc1
+somatic-series       single-4a21cc1     6-msa/BC-SomaticSeries  commit=4a21cc1
+daily-metrics        single-4a21cc1     6-msa/BC-DailyMetrics  commit=4a21cc1
+garmin-gateway       single-4a21cc1     6-msa/BC-GarminGateway  commit=4a21cc1
+apple-health-gateway single-4a21cc1     6-msa/BC-AppleHealthGateway  commit=4a21cc1
 analytics            single-1d8b9b3     6-msa/BC-Analytics  commit=1d8b9b3
-privacy              single-1d8b9b3     6-msa/BC-Privacy  commit=1d8b9b3
-portability          single-331e4f3     6-msa/BC-Portability  commit=331e4f3
-client               single-6df2579     6-msa/BC-Client  commit=6df2579
+privacy              single-4a21cc1     6-msa/BC-Privacy  commit=4a21cc1
+portability          single-4a21cc1     6-msa/BC-Portability  commit=4a21cc1
+client               single-4a21cc1     6-msa/BC-Client  commit=4a21cc1
 api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5
 front                single-362883b     8-front  commit=362883b  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером
