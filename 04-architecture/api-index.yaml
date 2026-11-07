@@ -53,7 +53,7 @@ operations:
     operationId: Analytics.Events
     request:
       required: [eventType, id, date, stress, sleepScore, t, hr, bodyBattery]
-      types: {eventType: string, id: guid, date: string, stress: int, sleepScore: int, t: string, hr: int, bodyBattery: int}
+      types: {eventType: string,  id: guid,  date: string,  stress: int,  sleepScore: int,  t: string,  hr: int,  bodyBattery: int}
       note: "AnalyticsEvent (свойства класса; record — nullable, не обязателен)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -107,7 +107,7 @@ operations:
     operationId: AppleHealthGateway.Configure
     request:
       required: [metrics]
-      types: {metrics: [string]}
+      types: {metrics: string[]}
       note: "ConfigureCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -143,7 +143,7 @@ operations:
     operationId: Catalog.Add
     request:
       required: [kind, name]
-      types: {kind: string, name: string}
+      types: {kind: string,  name: string}
       note: "AddCatalogItemCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -171,7 +171,7 @@ operations:
     operationId: Catalog.UpdateDetails
     request:
       required: [photo, notes, brand, fantasyPartner]
-      types: {photo: string, notes: string, brand: string, fantasyPartner: string}
+      types: {photo: string,  notes: string,  brand: string,  fantasyPartner: string}
       note: "UpdateCatalogItemDetailsCommand (из токена/route: aggregateId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token", 403: "not-owner"}
@@ -307,7 +307,7 @@ operations:
     operationId: DailyMetrics.Hrv
     request:
       required: [date, hrv]
-      types: {date: string, hrv: int}
+      types: {date: string,  hrv: int}
       note: "RecordHrvCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -318,7 +318,7 @@ operations:
     operationId: DailyMetrics.RestingHr
     request:
       required: [date, restingHr]
-      types: {date: string, restingHr: int}
+      types: {date: string,  restingHr: int}
       note: "RecordRestingHrCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -336,7 +336,7 @@ operations:
     operationId: DailyMetrics.Sleep
     request:
       required: [date, sleep]
-      types: {date: string, sleep: sleepdto}
+      types: {date: string,  sleep: SleepDto}
       note: "RecordSleepCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -347,7 +347,7 @@ operations:
     operationId: DailyMetrics.Stress
     request:
       required: [date, stress]
-      types: {date: string, stress: int}
+      types: {date: string,  stress: int}
       note: "RecordStressCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -358,7 +358,7 @@ operations:
     operationId: GarminGateway.Connect
     request:
       required: [credentials]
-      types: {credentials: credentialsdto}
+      types: {credentials: CredentialsDto}
       note: "ConnectCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -386,7 +386,7 @@ operations:
     operationId: GarminGateway.Sync
     request:
       required: [config]
-      types: {config: syncconfigdto}
+      types: {config: SyncConfigDto}
       note: "SyncCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -441,7 +441,7 @@ operations:
     operationId: Journal.StartFromGarmin
     request:
       required: [startedAt, durationMin, garminId]
-      types: {startedAt: string (ISO), durationMin: int, garminId: string}
+      types: {startedAt: string (ISO),  durationMin: int,  garminId: string}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка", 401: "no-token"}
     codes_status: verified
@@ -460,7 +460,7 @@ operations:
     operationId: Journal.AddAccessories
     request:
       required: [costumes, toys, fantasies, tags]
-      types: {costumes: string[], toys: string[], fantasies: string[], tags: string[]}
+      types: {costumes: string[],  toys: string[],  fantasies: string[],  tags: string[]}
       note: "все четыре массива обязательны: отсутствие любого даёт 400 (случай @TE 2026-11-06)"
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
@@ -482,7 +482,7 @@ operations:
     operationId: Journal.RecordContraception
     request:
       required: [contraceptives, contraceptiveCount]
-      types: {contraceptives: string[], contraceptiveCount: int}
+      types: {contraceptives: string[],  contraceptiveCount: int}
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
     codes_status: verified
@@ -514,7 +514,7 @@ operations:
     operationId: Journal.RecordOrgasms
     request:
       required: [orgasms]
-      types: {orgasms: OrgasmsDto[] { participant: string, count: int, types: string[], rating: int }}
+      types: {orgasms: OrgasmsDto[] { participant: string,  count: int,  types: string[],  rating: int}}
       note: "элемент — {participant, count, types, rating} (OrgasmsDto)"
     auth: jwt
     codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
@@ -702,7 +702,7 @@ operations:
     operationId: Portability.Export
     request:
       required: [rows]
-      types: {rows: [string]}
+      types: {rows: string[]}
       note: "ExportRecordsCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -713,7 +713,7 @@ operations:
     operationId: Portability.ImportRecords
     request:
       required: [rows]
-      types: {rows: [string]}
+      types: {rows: string[]}
       note: "ImportRecordsCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -724,7 +724,7 @@ operations:
     operationId: Portability.ImportSomatic
     request:
       required: [rows]
-      types: {rows: [string]}
+      types: {rows: string[]}
       note: "ImportSomaticCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -735,7 +735,7 @@ operations:
     operationId: Privacy.ChangePin
     request:
       required: [pin, currentPin]
-      types: {pin: string, currentPin: string|null}
+      types: {pin: string,  currentPin: string?}
       note: "ChangePinCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
@@ -766,7 +766,7 @@ operations:
     operationId: Privacy.Remove
     request:
       required: [currentPin]
-      types: {currentPin: string|null}
+      types: {currentPin: string?}
       note: "RemovePinCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
@@ -778,7 +778,7 @@ operations:
     operationId: Privacy.SetPin
     request:
       required: [pin, currentPin]
-      types: {pin: string, currentPin: string|null}
+      types: {pin: string,  currentPin: string?}
       note: "SetPinCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
@@ -836,7 +836,7 @@ operations:
     operationId: SomaticSeries.RecordPoint
     request:
       required: [t, hr, bodyBattery]
-      types: {t: string, hr: int, bodyBattery: int}
+      types: {t: string,  hr: int,  bodyBattery: int}
       note: "RecordPointCommand (из токена/route: clientId)"
     auth: jwt
     codes: {400: "validation", 401: "no-token"}
@@ -854,7 +854,7 @@ operations:
     operationId: Journal.IngestPartnerEvent
     request:
       required: [partnerId, name]
-      types: {partnerId: guid, name: string, clientId: guid|null, deletedAt: datetime|null}
+      types: {partnerId: guid,  name: string,  clientId: guid?,  deletedAt: datetime?}
       note: "E1-срез: конверт не соответствует приёмке E1 (нет eventId/type/schemaVersion) — долг зафиксирован в contract_note ниже"
     auth: anonymous-inside
     internal: true
