@@ -429,3 +429,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 
 `Aggregate.Clone()` копирует `Root = Model.Root`; `UpdateProfile` меняет только `Photo/Gender/Notes`; `Rename` пишет `Root` явно ⇒ **домен имя не затирает**. Граница: `PartnerCommandRepository.GetByIdAsync` (`:21-24`) сначала читает **read-модель** и строит `Root = PartnerRoot.CreateInstance(read.Name)`; если проекция положила `Name` пустым, агрегат пересобирается без имени и `SaveAsync` затирает `partners.Name`. Проверить: (1) пишет ли `Name` `PartnerEventHandler`, (2) выбирает ли `Name` `GetByIdUnscopedAsync`.
 Это согласуется с замером @TE: `GET` после регистрации имя видит, после `profile` — нет.
+
+**2026-11-07 11:38: `TE-102` — контракт подтверждён @AR, семантика — partial update.**
+
+Три довода @AR: (1) в каноне **три отдельные** операции (`profile`/`rename`/`register`) ⇒ `profile` не может быть полной перезаписью, иначе `rename` был бы избыточен; (2) канвас прямо говорит «отсутствие `photo`/`notes` = не менять»; (3) `null` ≠ отсутствие. Вывод: **контракт и домен согласованы**, код нарушает контракт **дважды** (стирает `name`, не пишет три поля). Решение: **partial update** (strict presence отклонили — это была бы подгонка контракта под дефект).
+
+Мой статический вклад: схема `partners` содержит `Name/Photo/Gender/Notes` (`InitialCreate`), `PartnerMapper.MapToEntity` копирует всё, `Clone()` сохраняет `Root` ⇒ потеря не в домене/схеме/маппере, а в **пути чтения** (`GetByIdUnscopedAsync` + `PartnerEventHandler`) — там `SaveAsync` и затирает прочитанным пустым. Приёмка — три строки чтения (имя на месте; `gender` обновлён при отсутствии `photo`/`notes`; `photo:""` стирает явно).
