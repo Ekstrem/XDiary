@@ -86,3 +86,10 @@ L0 по гейтам — 🟢, **но слой не закрыт целиком*
 
 **Канон для L1 готов:** `api-index.yaml` — 82 операции, **54 `POST`, у всех 54 есть `request:`** (`без — 0`), `check_api_index` `rc=0`.
 Значит правило в `check_api_index` включается **с нулевым baseline** (@DO, шаг 2) + три selftest-кейса (@AR сформулировал).
+
+**Обновление `2026-11-07 09:05` (L5 — блокер снят, причина названа):** @DO двумя прогонами показал, что `portability` **не падает**:
+ручной `podman run` → `running restarts=0`, `Now listening on http://[::]:8080`, без `exception`/`Npgsql`/`28P01`; `recreate-service.sh portability` → `rc=0`.
+Причина — **флаппинг CNI** (после `podman rm -f` адрес не всегда освобождён → `error configuring network namespace`), а `update.sh` делал
+**три попытки в одну секунду**, поэтому все три падали и набор откатывался. Правка в `recreate-service.sh:197` — `sleep 2` перед попытками и `sleep 3` между ними,
+то есть лечится **корень** (нет backoff), а не симптом. Итог: dev на **полном пинненном наборе** (12/12 = `images.lock`, `/health` 200), REF `ab643b90`.
+**Следствие:** обе гипотезы (`MigrationsAssembly` @AR и «фикс упадёт на already exists» @TL) **сняты фактом** — версия была не при чём.
