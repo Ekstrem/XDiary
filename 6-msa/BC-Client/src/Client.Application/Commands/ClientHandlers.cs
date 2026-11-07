@@ -6,6 +6,7 @@ using MediatR;
 using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.Domain.Implementation;
+using Client.Domain.Specifications;
 using Client.Application.Abstraction;
 using Client.InternalContracts;
 using XDiary.Contracts;
@@ -25,9 +26,18 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
     {
         var channel = _config["Otp:Channel"] ?? "log";
 
+        // BE-092 (@TL 08:02): валидация телефона ДО отправки — иначе шлём OTP на пустой номер
+        // («Telegram OTP отправлен на .» на проде).
+        var phoneCheck = new PhoneRequiredValidator();
+        if (!phoneCheck.IsSatisfiedBy(new AnemicModel { Root = ClientRoot.CreateInstance(r.Phone) }))
+            return new RegisterClientResult(ClientResults.Fail(phoneCheck.Reason), false, null, channel, false);
+
         // BE-092: лимит переотправки — до отправки, иначе OTP-бомбинг.
         if (!_rateLimiter.TryAcquire(r.Phone, DateTime.UtcNow))
             return new RegisterClientResult(ClientResults.Fail("Слишком много запросов, попробуйте позже."), false, null, channel, true);
+
+        // BE-092 (@TL 08:02): существующий номер — тоже ДО отправки (не шлём повторный код, пока не знаем номера).
+        var existing = await _query.GetByPhoneAsync(r.Phone, ct);
 
         var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString();
         bool? deliveryOk = null;
@@ -38,7 +48,6 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
             catch (Exception ex) { _log.LogWarning(ex, "OTP send failed for {Phone} (delivery.ok=false).", r.Phone); deliveryOk = false; }
         }
 
-        var existing = await _query.GetByPhoneAsync(r.Phone, ct);
         if (existing is not null)
         {
             var agg = await _repo.GetByIdAsync(existing.Id, ct);

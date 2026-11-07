@@ -30,7 +30,8 @@ public class RegisterClientHandlerTests
     private sealed class FakeSender : IOtpSender
     {
         public bool Ok { get; set; } = true;
-        public Task<bool> SendAsync(string phone, string otp, CancellationToken ct = default) => Task.FromResult(Ok);
+        public int SentCount { get; private set; }
+        public Task<bool> SendAsync(string phone, string otp, CancellationToken ct = default) { SentCount++; return Task.FromResult(Ok); }
     }
     private sealed class FakeRateLimiter : IOtpRateLimiter
     {
@@ -85,5 +86,15 @@ public class RegisterClientHandlerTests
         var handler = MakeHandler(new FakeRepo(), new FakeQuery { ExistingId = null }, new FakeSender(), new FakeRateLimiter { Allow = false });
         var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
         Assert.True(res.RateLimited);
+    }
+
+    [Fact]
+    public async Task Register_EmptyPhone_FailsBeforeSend()
+    {
+        var sender = new FakeSender();
+        var handler = MakeHandler(new FakeRepo(), new FakeQuery { ExistingId = null }, sender, new FakeRateLimiter());
+        var res = await handler.Handle(new RegisterClientCommand(""), CancellationToken.None);
+        Assert.False(res.Result.IsSuccess());   // BE-092 (@TL 08:02): валидация ДО отправки
+        Assert.Equal(0, sender.SentCount);      // OTP не отправлен на пустой номер
     }
 }
