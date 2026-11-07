@@ -1,19 +1,22 @@
 # images.lock — какие образы считаются текущими (ADR-027, DO-066)
 #
-# Формат: <service> <tag> <путь> — по строке на образ. Ручной тег при деплое запрещён:
-# деплой читает только этот файл, откат = revert коммита, изменившего строку.
-# Генератор: python tools/gen_images_lock.py --write
-# Проверка:  python tools/gen_images_lock.py --check
-journal              single-293c36e  6-msa/BC-Journal
-partners             single-47bf700  6-msa/BC-Partners
-catalog              single-e9b556c  6-msa/BC-Catalog
-somatic-series       single-b8d4f2a  6-msa/BC-SomaticSeries
-daily-metrics        single-b8d4f2a  6-msa/BC-DailyMetrics
-garmin-gateway       single-6647cdc  6-msa/BC-GarminGateway
-apple-health-gateway single-6647cdc  6-msa/BC-AppleHealthGateway
-analytics            single-9150468  6-msa/BC-Analytics
-privacy              single-6647cdc  6-msa/BC-Privacy
-portability          single-331e4f3  6-msa/BC-Portability
-client               single-6df2579  6-msa/BC-Client
-api-gateway          single-c00fe5d  6-msa/ApiGateway
-front                single-2aafa77  8-front
+# ВНИМАНИЕ: набор смешанный — это последние ДОСТУПНЫЕ образы, а НЕ сборка HEAD.
+# Причина: у части сервисов красные тесты, образа «последнего коммита» нет (DO-108).
+# Провенанс: `commit=<sha>` — коммит, из которого образ собран; он всегда предок HEAD.
+# Вывести этот режим после появления `release.yml` (13 сервисов на одном коммите).
+#
+# Формат: <service> <tag> <путь>  commit=<sha>
+# Проверка: python tools/gen_images_lock.py --verify-registry
+journal              single-1d8b9b3     6-msa/BC-Journal  commit=1d8b9b3
+partners             single-1d8b9b3     6-msa/BC-Partners  commit=1d8b9b3
+catalog              single-1d8b9b3     6-msa/BC-Catalog  commit=1d8b9b3
+somatic-series       single-1d8b9b3     6-msa/BC-SomaticSeries  commit=1d8b9b3
+daily-metrics        single-1d8b9b3     6-msa/BC-DailyMetrics  commit=1d8b9b3
+garmin-gateway       single-1d8b9b3     6-msa/BC-GarminGateway  commit=1d8b9b3
+apple-health-gateway single-1d8b9b3     6-msa/BC-AppleHealthGateway  commit=1d8b9b3
+analytics            single-1d8b9b3     6-msa/BC-Analytics  commit=1d8b9b3
+privacy              single-1d8b9b3     6-msa/BC-Privacy  commit=1d8b9b3
+portability          single-331e4f3     6-msa/BC-Portability  commit=331e4f3
+client               single-6df2579     6-msa/BC-Client  commit=6df2579
+api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5
+front                single-2aafa77     8-front  commit=2aafa77  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером
