@@ -57,3 +57,4 @@
 | @DO | `receipt-be092` → блокирующий + в `needs` `deploy-prod` (условие `DO-112` выполнено: dev даёт контракт целиком) | 2026-11-07 09:05 | снят `continue-on-error`, job в `needs`, `rc=1` = падение | ⏳ |
 | @DO | зелёный `deploy` на текущем lock (квитанция L5 вместо ручной выкатки) + `check_canon` в CI (остаток L0) | 2026-11-07 09:05 | `deploy-dev` ✅ на том же SHA; `check_canon` вызывается в `.github/workflows` | ⏳ |
 | @DO | `AR-022` дефект парсера: `parse_index` не читает `request` → правило флагует все 54 POST; + selftest через парсер | 2026-11-07 09:09 | с полем → `rc=0` на каноне; без блока → `rc=1`; флаг снят в default | ⏳ |
+| @FE | убрать лишние поля из запросов до включения `UnmappedMemberHandling.Disallow`: `POST /partners` — только `name`; `UpdateProfile` — обязательно `gender` | 2026-11-07 09:10 | запросы фронта соответствуют канону; при включении strict — без `400` | ⏳ |
