@@ -141,6 +141,14 @@ jobs:
           done
           echo "DEV_HEALTH_FAILED"; exit 1
       - uses: actions/checkout@v4
+      # @TE 2026-11-07 08:19 (принято @AR 5fc51ed8): сетевой гейт живёт там, где есть сеть.
+      # `check_be092_delivery.py` печатает `3/3` либо ТОЧНЫЙ отказ («не реализовано» vs
+      # «не выкачено») и не требует токена — значит BE-092 получает квитанцию на каждом
+      # деплое, а TE-096 перестаёт зависеть от ручного прогона. Гейт честно красный, пока
+      # на dev образ client без BE-092: это и есть измерение «доехало ли».
+      - name: "Доставка OTP (BE-092) на dev — 3/3 или точный отказ"
+        run: |
+          python 9-tests/scripts/check_be092_delivery.py --base "$XDIARY_E2E_BASE_URL"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
