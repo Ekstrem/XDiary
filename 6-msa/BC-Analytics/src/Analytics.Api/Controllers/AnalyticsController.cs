@@ -18,6 +18,8 @@ public class AnalyticsController : ControllerBase
     private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
 
     [HttpGet("summary")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Summary([FromQuery] string period = "30")
     {
         var clientId = ClientId();
@@ -26,30 +28,45 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("correlations")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Correlations()
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Correlations(clientId.Value)); }
 
     [HttpGet("tops")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Tops()
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Tops(clientId.Value)); }
 
     [HttpGet("distribution")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Distribution()
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Distribution(clientId.Value)); }
 
     [HttpGet("thresholds")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Thresholds()
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Thresholds(clientId.Value)); }
 
     [HttpGet("trends")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Trends()
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Trends(clientId.Value)); }
 
     [HttpGet("physio")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Physio()
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(_snapshot.Physio(clientId.Value)); }
 
     [HttpPost("events")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Events([FromBody] AnalyticsEvent e)
     {
         var clientId = ClientId();
