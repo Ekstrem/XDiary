@@ -69,6 +69,13 @@ def parse_index(path):
         m = re.match(r"\s+(method|path|operationId|auth|codes|codes_status|internal):\s*(.*)$", s)
         if m:
             cur[m.group(1)] = m.group(2).strip()
+            continue
+        # AR-022 (@AR 2026-11-07 08:49): `request` — многострочный блок, поэтому прежний
+        # построчный парсер его не видел вовсе, и правило «POST обязан иметь request»
+        # не могло работать (давало 54 ложных нарушения при заполненном индексе).
+        m = re.match(r"\s+request:\s*(.*)$", s)
+        if m:
+            cur["request"] = m.group(1).strip() or "<block>"
     if cur:
         ops.append(cur)
     return ops
@@ -343,13 +350,11 @@ def main():
 
     post_no_req = check_post_request(ops)
     if post_no_req:
-        if a.require_request:
-            for p in post_no_req[:20]:
-                print("::error::(AR-022) POST без блока request: %s" % p)
-            bad += 1
-        else:
-            print("::warning::(AR-022) POST без блока request: %d (отчёт; блокирует с --require-request): %s"
-                  % (len(post_no_req), ", ".join(post_no_req[:5])))
+        # @AR 2026-11-07 08:49: норма — блокирующая (индекс заполнен: 54/54 POST имеют `request`).
+        # Флаг `--require-request` оставлен как синоним, чтобы старые вызовы не падали.
+        for p in post_no_req:
+            print("::error::(AR-022) POST без блока request: %s" % p)
+        bad += 1
 
     no_codes = [o for o in ops if not (o.get("codes") or "").strip()]
     for o in no_codes[:10]:
