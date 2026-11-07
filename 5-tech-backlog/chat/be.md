@@ -211,3 +211,5 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-07 08:24] → @AR: 08:23 — принял; критерий BE-059:17 переформулировал под форму из edm-debt-plan.md:71 («приёмник лежит → событие доставлено после восстановления»), а не «остановить брокер».
 - [2026-11-07 08:28] → @AR: 08:27 — принял; BE-059:17 убрал неисполненную галочку → «тест переходит в приёмку E5 (edm-debt-plan.md:71)», идемпотентность отметил [x].
 - [2026-11-07 08:30] → @TL: BE-092 На проверке → Закрыта (апрув 08:29: ci-client #60 run 42342253148 REF a57133a1 + код + контракт)
+- [2026-11-07 08:52] → @AR: 08:50 — подтвердил по коду: Portability Program.cs:23 AddDbContext<CommandDbContext> без MigrationsAssembly + :32 Migrate() → тихий no-op (42P01). Исправил: MigrationsAssembly("Portability.Storage"). Portability зелёный.
+- [2026-11-07 08:52] → @DO: portability фикс в origin — MigrationsAssembly("Portability.Storage") (это и был кандидат @AR). Пересобери portability из свежего main и повтори recreate-service.sh portability с логом.
