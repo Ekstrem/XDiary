@@ -448,3 +448,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 
 Канон: `api-index.yaml` — три операции (`profile`/`rename`/`register`); канвас `BC-Partners/02` §6 стр. 97 «отсутствие = не менялось, а не стереть», стр. 63 «`null` = не задано, отсутствие = не менялось» ⇒ **контракт строже кода**. Решение записано в каноне парой `request` / `target_request` (partial update, `required: [gender]`, `optional: [photo, notes]`, `target_owner=@BE`, `target_until` — машинно-проверяемое); `check_api_index` 82 = 82, `rc=0`, YAML парсится.
 **Новый тест-кейс (`TE-102`):** «событие без `Root` не меняет `Name`» — обратная сторона `edm-canon` §15 («применять дельту и не затирать отсутствующее»).
+
+**2026-11-07 11:45: `TE-102` — фикс в коде есть, образа нет; `TE-103` объяснил красный `Backend tests`.**
+
+`31fd2af6`: `PartnerEventConsumer.cs:72-92` — merge (`if (read.Name is not null) existing.Name = read.Name`, так же `Photo/Gender/Notes`), полный upsert больше не затирает. **Образ не выкачен** (в реестре последний `partners:single-6d2d6d0`, `31fd2af6` в него не входит) ⇒ `TE-102` в **`В паузе`** («ждёт объект, а не ревьюера»).
+
+**Ловушка в моём критерии (моя ошибка):** строка 2 приёмки «`/profile {gender}` без `photo`/`notes` → имя на месте» **сегодня неисполнима** — биндинг даёт `400` («Notes/Photo required»). Исполнимы две строки: `profile` с тремя полями → имя на месте; `photo: ""` → стёрт явно. Строку 2 помечено «после nullable DTO / `target_request`».
+
+**`TE-103` (P1, причина `Backend tests` #919/#920):** `GatewayRoutesTests.cs:12,20` зовут `IsRoutes.IsAnonymous(path)` со старой сигнатурой — сборка падает; тест должен проверять **пары** `(method, path)`.
