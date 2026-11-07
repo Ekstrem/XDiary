@@ -34,3 +34,31 @@
 2. `sendMessage` вручную → если `400 chat not found`, `AdminChatId` не тот чат.
 3. `curl -x http://127.0.0.1:1081 https://api.telegram.org` → если 000, туннель лёг: `systemctl --user status xray`, `journalctl --user -u xray`.
 4. Логи `xdiary-client` про OTP: ошибка отправки возвращается **в ответ API** (`Fail(ex.Message)`), а не всегда пишется в лог.
+
+## Тестовый OTP на dev: почему `000000` иногда не работает
+
+`TestOtpPolicy` (`6-msa/BC-Client/src/Client.Application/TestOtpPolicy.cs:8`) отдаёт тестовый код только если:
+
+1. окружение — **`Development`** (без флага), **или**
+2. задан **`Clients__AllowTestOtpOutsideDev=true`** (тогда код отдаётся с предупреждением в лог).
+
+Dev работает в **`ASPNETCORE_ENVIRONMENT=Single`** (так его поднимает `deploy.sh`), поэтому **одного
+`CLIENTS__TESTOTP` недостаточно**: `verify` с `000000` вернёт **400 «Неверный код»**, хотя тестовый код
+формально включён. Лечение (только dev, на прод не ставится):
+
+```bash
+# в secrets/.env на dev
+CLIENTS__TESTOTP=000000
+Clients__AllowTestOtpOutsideDev=true
+```
+
+Затем пересоздать сервис: `sudo -n bash recreate-service.sh client`.
+
+**Замер 2026-11-07 (dev, `Single`):** без флага `verify(000000)` → **400**; после флага → **200**, токен
+236 символов, `GET /journal/records` с ним → **200**. `POST /clients` в первые секунды после пересоздания
+отдаёт **502** (`Connection refused (clients:8080)` — гейтвэй стучится раньше, чем сервис начал слушать);
+это тёплое окно, а не дефект — повтор через 10–15 с даёт 200.
+
+**Прод:** флаг никогда не выставляется автоматически (@BE 11:13: `AllowTestOtpOutsideDev` есть только в
+`test-otp-toggle.sh`, ручной путь с `--reason … --confirm` по `DO-046`). В обычном режиме у прода `delivery`
+в ответе **есть**, на dev при `TESTOTP` — **нет** (это проверяет `receipt-be092`).
