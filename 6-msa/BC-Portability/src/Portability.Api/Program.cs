@@ -20,7 +20,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Portability.Application.Commands.ExportRecordsCommand>());
-// @AR 08:50: MigrationsAssembly обязателен — без него Migrate() ищет миграции в сборке Api (пусто) → тихий no-op → 42P01.
+// Явно указана сборка миграций (контекст в Portability.Storage — по умолчанию EF и так берёт сборку контекста).
 builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Portability.Storage")));
 builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
 builder.Services.AddScoped<IPortabilityRepository, PortabilityCommandRepository>();
