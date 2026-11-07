@@ -179,7 +179,10 @@ if [ "$DRY" = "1" ]; then
   say "DRY-RUN: pull пропущен"
 else
   for img in $IMAGES; do
-    if ! podman pull "$img" >/dev/null 2>&1; then
+    # 2026-11-07: контейнеры создаются через `sudo -n podman` (rootful storage), а pull шёл
+    # БЕЗ sudo — в rootless storage. Из-за этого `pull не удался` падал то на одном сервисе,
+    # то на другом (analytics, apple-health-gateway), а вручную `sudo podman pull` работал.
+    if ! sudo -n podman pull "$img" >/dev/null 2>&1; then
       say "pull не удался: $img" >&2
       PULL_FAILED=$((PULL_FAILED + 1))
     fi
