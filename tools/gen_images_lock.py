@@ -506,8 +506,18 @@ def main():
         return 0
     if a.check:
         if current != text:
-            print("::error::(lock) %s отстал от git: перегенерируй `python tools/gen_images_lock.py --write`"
-                  % a.file)
+            # 2026-11-07 (@AR 21:17, @TE 08:19): lock может быть собран ИЗ РЕЕСТРА
+            # (смешанный набор: per-service теги последних опубликованных предков HEAD).
+            # Тогда он заведомо не равен git-рендеру, но это не «отстал», а другой
+            # источник правды. Проверяем провенанс: каждый тег существует в реестре и
+            # `commit=` в строке совпадает с SHA тега. Иначе — честный rc=1.
+            print("check_images_lock: lock не равен git-рендеру — проверяю провенанс в реестре")
+            rc = verify_registry(a.file, registry=a.registry, owner=a.owner)
+            if rc == 0:
+                print("check_images_lock: OK — lock собран из реестра, все теги опубликованы")
+                return 0
+            print("::error::(lock) %s отстал от git и не подтверждается реестром: "
+                  "перегенерируй `--write` (git) или `--from-registry --write` (реестр)" % a.file)
             return 1
         print("check_images_lock: %s соответствует git" % a.file)
         return 0
