@@ -68,13 +68,23 @@ jobs:
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
           echo "TAG=$first" >> "$GITHUB_ENV"   # только для логов/проверки: update.sh читает lock сам
+      # 2026-11-07 (@TL 08:52 вариант A): без доставки lock на сервер обновление НЕ применялось —
+      # `update.sh` читает `/opt/xdiary/7-deploy/images.lock`, который никто не обновлял, и
+      # пересоздавал контейнеры на старых тегах («deploy-dev success», а на dev `client=single-766e59e`).
+      # Передаём содержимое lock и не-секретных скриптов через env (base64), не через git на сервере.
+      - name: Lock и скрипты в env (base64)
+        run: |
+          set -euo pipefail
+          echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
+          echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
+          echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
-          envs: TAG
+          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64
           script: |
             set -eu
             for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
@@ -82,6 +92,15 @@ jobs:
                 || { echo "на VPS $f без DO-066 — поставь шим из 7-deploy/legacy-shims.sh"; exit 1; }
             done
             cd /opt/xdiary/7-deploy
+            # применить lock и скрипты из репозитория (иначе деплой идёт по устаревшему lock)
+            echo "$LOCK_B64" | base64 -d > images.lock
+            echo "$UPDATE_B64" | base64 -d > update.sh
+            echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            chmod +x update.sh recreate-service.sh
+            echo "lock на VPS-2:"
+            awk '!/^#/ && NF>=2 {printf "  %-20s %s\n", $1, $2}' images.lock | head -13
+            grep -q 'tag_of' update.sh || { echo "::error::update.sh без tag_of"; exit 1; }
+            grep -q 'images.lock' recreate-service.sh || { echo "::error::recreate-service.sh без lock"; exit 1; }
             bash update.sh
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo DEV_OK
