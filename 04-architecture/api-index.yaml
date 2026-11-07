@@ -736,9 +736,10 @@ operations:
     path: "/api/v1/privacy/pin/change"
     operationId: Privacy.ChangePin
     request:
-      required: [pin, currentPin]
+      required: [pin]
+      optional: [currentPin]
       types: {pin: string, currentPin: "string?"}
-      note: "ChangePinCommand (из токена/route: clientId)"
+      note: "currentPin УСЛОВНО обязателен: `PrivacyHandlers.cs:38-42` — только когда PIN уже установлен; иначе 400 «Текущий PIN неверен». Исправлено @AR 2026-11-07 (было `required: [pin, currentPin]`)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -767,9 +768,10 @@ operations:
     path: "/api/v1/privacy/pin/remove"
     operationId: Privacy.Remove
     request:
-      required: [currentPin]
+      required: []
+      optional: [currentPin]
       types: {currentPin: "string?"}
-      note: "RemovePinCommand (из токена/route: clientId)"
+      note: "currentPin УСЛОВНО обязателен: `PrivacyHandlers.cs:55-59` — только когда PIN установлен; иначе 400 «Текущий PIN неверен». Исправлено @AR 2026-11-07 (было `required: [currentPin]`)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
@@ -779,9 +781,10 @@ operations:
     path: "/api/v1/privacy/pin/set"
     operationId: Privacy.SetPin
     request:
-      required: [pin, currentPin]
+      required: [pin]
+      optional: [currentPin]
       types: {pin: string, currentPin: "string?"}
-      note: "SetPinCommand (из токена/route: clientId)"
+      note: "currentPin УСЛОВНО обязателен: `PrivacyHandlers.cs:20-23` требует его только когда PIN уже установлен (иначе 400 «Текущий PIN неверен»); при первом назначении PIN не нужен. Статическое правило @TE («optional только для `string?`») выполнено, а условность записана здесь. Исправлено @AR 2026-11-07 (было `required: [pin, currentPin]` — требовал лишнее)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
     codes: {400: "validation", 401: "no-token"}
