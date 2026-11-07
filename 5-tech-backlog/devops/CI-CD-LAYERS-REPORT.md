@@ -99,3 +99,34 @@ portability #39, garmin #28, apple-health #28, client #62.
 | `AWAIT.md` — регистр решений | **@TL** |
 | `smoke-front` — визард + `FE-014` | **@FE** / **@TE** |
 | `check_openapi` `rc=2` — снимки спек | **@BE** |
+
+## Обновление: `deploy` #1779 (`b3c2eabd`) — L5 почти закрыт
+
+| джоба | результат |
+|---|---|
+| `lock-published` | ✅ (после правки: lock только из реестра) |
+| `deploy-dev` | ✅ |
+| `smoke-api` | ✅ |
+| `receipt-be092` | ✅ |
+| `smoke-prod-cors` | ✅ |
+| **`smoke-front`** | ❌ `исполнено 4, passed 1, failed 3, skipped 1` |
+| `deploy-prod` | ⏭ skipped (гейт по `smoke-front` — корректно) |
+
+**Единственный красный L5 — визард. Разбор по кейсам (из лога прогона):**
+
+| кейс | статус | факт |
+|---|---|---|
+| `add-partner` | ✅ passed 8.6 s | приложение и вход работают |
+| `wizard-record` (запись через визард) | ❌ `timedOut` 1.3 m | — |
+| `wizard-record` (FE-014: автоподстановка) | ❌ assertion | `#w-partner-grid .partner-card.selected` → **0 элементов** за 20 с («последний партнёр должен быть выбран по умолчанию») |
+| `wizard-record` (FE-016: не грузить полный журнал) | ❌ assertion | в запросах визарда есть `GET /api/v1/journal/records`; ожидались только `recent` + `places` |
+
+**Pages в момент прогона:** `sw.js` → `xdiary-v103`, `js/app.js` → `APP_VERSION = "0.103"` (119 979 Б) —
+то есть фикс таймаутов выкачен, а пункты `FE-014`/`FE-016` в этой версии **ещё не работают**.
+
+**Куда смотреть (код фронта, зона @FE):** `8-front/js/app.js:813` — преселект строится как
+`p.name === draft.partner` (при пустом `draft.partner` ни одна карточка не получает `selected`);
+`8-front/js/api.js:152` — `list()` = `GET /journal/records`, и визард его вызывает.
+
+**Итог по слоям:** L1/L2/L4 — как в таблице выше; L5 — 5 из 6 зелёные, красный один и он
+продуктовый (визард), а не инфраструктурный; `deploy-prod` ждёт только его.
