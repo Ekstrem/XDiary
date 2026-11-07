@@ -12,9 +12,11 @@
 
 ### 2. InMemory EventBus (Single-профиль)
 - **Суть:** межсервисная доставка событий — Outbound Handler (Saga/HTTP), не настоящая шина.
-- **Риск:** средний (потеря/дубликаты событий при сбое доставки).
+- **Факт 2026-11-07 (проверено @AR по коду):** механизм реализован **не везде, а в одном BC** — `BC-Partners`: таблица `outbox` (миграции `20261105165235_AddOutbox`, `20261107090000_AddOutboxAggregateId`), запись в неё из `PartnerCommandRepository.cs:32-39` («BE-059: persist события в outbox + текущая доставка») и `OutboxDispatcher` в `Partners.Api/Events/`. Остальные BC либо публикуют напрямую (`BC-Journal`: `JournalCommandRepository.cs:51` `await _bus.PublishAsync(...)`, плюс `HttpJournalEventPublisher` для межсервисных), либо не публикуют вовсе (`BC-SomaticSeries` — HTTP с пустым `catch`, см. п.11).
+  То есть «Outbound Handler» существует **как срез E1 в Partners**, а не как общий механизм; `grep outbox` по `6-msa` → **8 файлов, все в `BC-Partners`**.
+- **Риск:** средний (потеря/дубликаты событий при сбое доставки; в BC без outbox — потеря без следа).
 - **Приоритет:** P2.
-- **Оценка:** эволюция профиля Single → Cqrs → Ceqrs (по таблице edm-skill).
+- **Оценка:** эволюция профиля Single → Cqrs → Ceqrs (по таблице edm-skill); обобщение outbox на остальные BC — приёмка E1/E5 (`edm-debt-plan.md:35`, `:71`).
 
 ### 3. dev-ключи в appsettings (allowlist)
 - **Суть:** dev-значения в `appsettings.json` (в allowlist `guard-secrets`).
