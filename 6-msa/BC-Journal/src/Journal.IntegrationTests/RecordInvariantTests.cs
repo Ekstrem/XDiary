@@ -29,6 +29,27 @@ public class RecordInvariantTests
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }
 
+    // ---- WhenIso (TE-101): startedAt обязан быть ISO 8601, мусор не сохраняется ----
+    [Theory]
+    [InlineData("2026-10-29T21:00")]
+    [InlineData("2026-11-11T10:00:00Z")]
+    public void SpecifyWhen_Iso_Accepted(string startedAt)
+    {
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen(startedAt);
+        Assert.Equal(DomainOperationResultEnum.Success, result.Result);
+    }
+
+    [Theory]
+    [InlineData("не дата")]
+    [InlineData("1234567890")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void SpecifyWhen_NonIso_Rejected(string startedAt)
+    {
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen(startedAt);
+        Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
+    }
+
     // ---- DurationPositive: durationMin >= 1 ----
     [Theory]
     [InlineData(0, false)]

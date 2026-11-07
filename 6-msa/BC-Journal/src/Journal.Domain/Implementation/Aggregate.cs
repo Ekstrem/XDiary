@@ -72,6 +72,8 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
     {
+        // TE-101: startedAt обязан быть ISO 8601.
+        if (!new WhenIsoValidator().IsSatisfiedBy(startedAt)) return Fail(new WhenIsoValidator().Reason);
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
@@ -89,6 +91,9 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt)
     {
+        // TE-101: startedAt обязан быть ISO 8601 (иначе мусорная дата уходит в сортировку/тренды/CSV).
+        var v = new WhenIsoValidator();
+        if (!v.IsSatisfiedBy(startedAt)) return Fail(v.Reason);
         var anemic = Clone();
         anemic.Root = RecordRoot.CreateInstance(Model.Root.Partners, startedAt);
         return Success(anemic);
