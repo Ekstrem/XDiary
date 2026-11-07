@@ -607,9 +607,8 @@ operations:
     verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — Forbid/404 в контроллере отсутствуют, GetPartnerByIdQuery без clientId, 2026-11-14 @AR"
     contract_note: "РЕШЕНО 2026-11-11 (@AR): двухшаговый контракт остаётся — создание принимает только name, gender задаётся через POST /partners/{id}/profile. Неизвестные поля в командах = 400, не игнор. Сейчас 400 по этому основанию НЕ отдаётся (@TE замер: 200, gender пуст). @TE закрыл ловушку «200 допустим всегда» переключателем по факту: Point9 печатает ::warning::[spec] с target_owner/target_until, Point9b включается XDIARY_STRICT_UNKNOWN_FIELDS=1 — регресс «вернули игнор» краснеет без правки теста."
     request:
-      required: [name, gender]
-      optional: [photo, notes]
-      note: "ClientId берётся из sub токена, в теле не передаётся"
+      required: [name]
+      note: "ClientId берётся из sub токена, в теле не передаётся. Создание принимает ТОЛЬКО `name` — это двухшаговый контракт (см. contract_note выше): `gender`/`photo`/`notes` задаются через `POST /partners/{id}/profile`. Код: `RegisterPartnerCommand(string Name, Guid ClientId)` — других полей в команде нет (сверено @AR 2026-11-07, было ошибочно `required: [name, gender]` + `optional: [photo, notes]`)"
   - bc: Partners
     method: GET
     path: "/api/v1/partners/{id}"
