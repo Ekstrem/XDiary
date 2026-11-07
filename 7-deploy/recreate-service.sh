@@ -14,7 +14,27 @@
 #   * 3 попытки; при провале — печатаем готовую команду восстановления и выходим с 1.
 set -uo pipefail
 
-DEPLOY_SH="${DEPLOY_SH:-/home/deploy/deploy.sh}"
+# 2026-11-07: на VPS `/home/deploy/deploy.sh` — ШИМ (DO-066: только `exec` в актуальный
+# скрипт), а не сам скрипт. Из-за этого `recreate-service` искал строку запуска в шиме,
+# получал ПУСТОЕ тело (1 байт) и падал «контейнер не поднялся» — так `deploy-dev` не ехал
+# 5 раундов. Берём реальный скрипт: сначала рядом с этим файлом, потом /opt, потом шим.
+if [ -z "${DEPLOY_SH:-}" ]; then
+  for cand in "$(dirname "$0")/deploy.sh" /opt/xdiary/7-deploy/deploy.sh /home/deploy/deploy.sh; do
+    if [ -f "$cand" ] && ! head -3 "$cand" | grep -q 'exec bash /opt/xdiary/7-deploy'; then
+      DEPLOY_SH="$cand"
+      break
+    fi
+  done
+  DEPLOY_SH="${DEPLOY_SH:-/home/deploy/deploy.sh}"
+fi
+# @TL/@AR 2026-11-07: тег берём из images.lock посервисно. Раньше здесь было жёстко
+# `TAG=single`, из-за этого `update.sh` (который пинит образы по lock) пересоздавал
+# контейнеры на старом `:single` — и dev оставался старше прода.
+LOCK_FILE="${LOCK_FILE:-$(dirname "$0")/images.lock}"
+tag_of() {
+  [ -f "$LOCK_FILE" ] || { echo ""; return; }
+  awk -v s="$1" '!/^#/ && NF>=2 && $1==s {print $2; exit}' "$LOCK_FILE"
+}
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/xdiary/7-deploy}"
 SVCS_ALL="journal partners catalog somatic-series daily-metrics garmin-gateway apple-health-gateway analytics privacy portability client api-gateway"
 
@@ -141,7 +161,9 @@ ADD_HOSTS="$(gen_expected)"
 
 { echo 'set -u'; echo 'NET=xdiary'
   echo 'LBL="--label io.containers.autoupdate=registry"'
-  echo 'TAG=single'
+  lock_tag="$(tag_of "$SVC" 2>/dev/null || true)"
+  [ -n "$lock_tag" ] || lock_tag="single"
+  echo "TAG=$lock_tag"
   cat "$BODY"; } > "$RUNNER"
 
 if [ -n "$ADD_HOSTS" ] && ! grep -q -- '--add-host' "$RUNNER"; then
