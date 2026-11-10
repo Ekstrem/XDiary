@@ -100,7 +100,8 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 if (read.Name is null)
                 {
                     var agg = (await _events.GetById(domainEvent.Id, default)).LastOrDefault();
-                    if (agg is not null)
+                    // @TL 14:26: Root может быть null у реконструированного состояния.
+                    if (agg?.Root is not null)
                     {
                         name = agg.Root.Name;
                         clientId = agg.ClientId;
@@ -118,7 +119,9 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                     DeletedAt = deletedAt,
                 };
                 await _readStore.UpsertAsync(created);
-                await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
+                // @TL 14:26: полноты нет (agg is null / Root is null) → не публикуем пустое имя.
+                if (!string.IsNullOrEmpty(name))
+                    await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
             }
         }
     }
