@@ -82,6 +82,7 @@ Stored → [RecordX] → Stored (upsert по date)
 | `RecordRestingHr` | `RestingHrRecorded` |
 | `RecordHrv` | `HrvRecorded` |
 | `RecordSleep` | `SleepRecorded` |
+| `clientId` | uuid | 1 | да | из JWT `sub`, **не из тела** | — (владение проверяется на маршрутах: `ClientId()` из `sub`, иначе `401`) | `DailyMetricsController.cs:22` |
 
 ## 8. Throughput
 - Пакетная (31 день за синк), редкие вызовы.
@@ -89,6 +90,6 @@ Stored → [RecordX] → Stored (upsert по date)
 ## 9. Size
 - Объём: дни. Снапшоты не нужны.
 
-> **Пробел §2.2, зафиксирован 2026-11-10 (@AR, `AR-017`):** в модели `BC-DailyMetrics.Domain/Implementation/AnemicModel.cs` есть поле `ClientId`,
+> **Заполнено 2026-11-10 (@AR, `AR-017`):** строка `clientId` добавлена выше по коду — `DailyMetricsController.cs:22` (`ClientId()` = `User.FindFirst("sub")`, иначе `401`) и передача в агрегат (`*Handlers.cs`). До этого поле было в `AnemicModel.cs`, но не в §2.2.
 > но в таблице §2.2 этого холста оно **не описано** (и понятие владельца записи в холсте не встречается вообще: `clientid`/`клиент`/`sub` — 0 вхождений).
 > Семантику (обязательность, кто задаёт, какой инвариант) должен подтвердить @BE — тогда строка добавляется сюда; до подтверждения это **открытый пробел**, а не «поля нет».
