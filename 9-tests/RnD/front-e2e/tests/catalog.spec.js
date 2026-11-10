@@ -2,7 +2,7 @@
 // E2E (настоящий): каталог по всем kind — живое приложение + живой шлюз.
 // Вход по PIN, добавление элемента каждого вида, проверка в списке, удаление за собой.
 const { test, expect } = require('@playwright/test');
-const { loginWithPin, removeByName } = require('./api');
+const { loginWithPin, removeByName, stepGuard } = require('./api');
 
 const KINDS = ['costume', 'toy', 'fantasy', 'contraception'];
 
@@ -34,10 +34,11 @@ for (const kind of KINDS) {
           await page.locator('#ce-partner').selectOption({ index: 0 });
         }
       }
-      await page.click('#btn-catalog-save', { timeout: 20000 });
-
-      // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
-      await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
+      await stepGuard(page, 'catalog: save', async () => {
+        await page.click('#btn-catalog-save', { timeout: 20000 });
+        // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
+        await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
+      });
       // TE-120: `#catalog-list` содержит и чужие записи, поэтому «имени нет в тексте контейнера»
       // неотличимо от «список показывает не то». Утверждаем СТРОКУ (карточка — `button.partner-row`):
       await expect(page.locator('#catalog-list .partner-row', { hasText: name })).toHaveCount(1);

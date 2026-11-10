@@ -824,5 +824,24 @@ function watchLinkPartner(page) {
   };
 }
 
+// TE-121 (@TL `2026-11-11 01:40`: диагностику из `wizard-record` «надо тиражировать»).
+// Любой сбой шага превращается в сообщение с фактом: шаг, тост, последние API, экраны, localStorage.
+// Это не замена утверждению — это адрес падения, чтобы разбор не начинался с «воспроизведи у себя».
+async function stepGuard(page, label, fn, apiLog) {
+  try {
+    return await fn();
+  } catch (e) {
+    const views = await dumpViews(page, 'stepGuard').catch(() => null);
+    const ls = await snapshotStorage(page, 'stepGuard').catch(() => null);
+    const toast = await page.locator('#toast').innerText().catch(() => '');
+    const tail = Array.isArray(apiLog) ? apiLog.slice(-10).join(' | ') : '';
+    throw new Error(
+      'ШАГ: ' + label + ' ;; ТОСТ: ' + JSON.stringify((toast || '').slice(0, 200)) +
+      ' ;; API: ' + tail + ' ;; ВИДЫ: ' + JSON.stringify(views) +
+      ' ;; LS: ' + JSON.stringify(ls).slice(0, 400)
+    );
+  }
+}
+
 module.exports = {
-  waitAnyScreen, UI_WAIT, waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner };
+  waitAnyScreen, UI_WAIT, waitAppReady, API_BASE, PIN, TEST_OTP, ACCESS_KEY, readToken, uniquePhone, installBase, seedSession, waitToken, loginWithPin, unlockIfLocked, removeByName, dumpViews, snapshotStorage, reportStep, expectScreen, watchLinkPartner, stepGuard };
