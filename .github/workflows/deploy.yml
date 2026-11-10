@@ -262,7 +262,10 @@ jobs:
           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
       - name: UI smoke (add-partner, wizard-record, change-pin)
         working-directory: 9-tests/RnD/front-e2e
-        run: npx playwright test add-partner wizard-record change-pin
+        run: |
+          set -o pipefail
+          mkdir -p test-results
+          npx playwright test add-partner wizard-record change-pin 2>&1 | tee test-results/pw.log
 
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
@@ -275,6 +278,13 @@ jobs:
             9-tests/RnD/front-e2e/test-results
             9-tests/RnD/front-e2e/playwright-report
           retention-days: 7
+
+      # 2026-11-10 (@TE 11:45): у @TE нет доступа к артефактам и к контуру, поэтому классы
+      # падений печатаются прямо в лог прогона — без скачивания.
+      - name: Классы падений (e2e_triage)
+        if: failure()
+        run: |
+          python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
           if-no-files-found: ignore
 
   deploy-prod:
