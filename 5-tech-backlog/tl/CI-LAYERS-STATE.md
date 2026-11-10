@@ -817,3 +817,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Моя проверка:** `Catalog.Get` = `{200, 401, 404}`; по всем **82** операциям **403 в путях с `{id}`/`{partnerId}` — 0**; `check_api_index` → `rc=0`.
 
 **Сужение вывода о каноне (после `13:34` @AR):** раннерные `rc=1`×5 **недействительны** — это мог быть баг `check_apim_auth` (падение до печати, код 1). «Канон не воспроизводится при повторе» остаётся **только** для серии с машины @DO (`#1 rc=0 → #2 rc=2 unknown=7 → #3 rc=2 unknown=2`, PyYAML есть). Нужен перезапуск после `pip install pyyaml`.
+
+**2026-11-10 16:58: `TE-102` — обрыв найден на Journal (500), два кандидата причины.**
+
+**Факты @DO:** `partners single-a2bade2` выкачен (`running`, `/health` 200); логи `partners` показывают публикацию `POST http://journal:8080/internal/partners/events` → **`Journal partner publish <id>: HTTP 500`**; `partners_directory` — **0 строк** (total/null/empty = 0) ⇒ `recent.lastPartner.name` = фолбэк **id**. В логах `journal` (106 402 строки) **нет** строк про `/internal/partners/events` — 500 без логирования исключения.
+
+**Кандидаты (мои):** (1) `PartnersDirectoryReadModel` имеет ключ `PartnerId`, а не `Id`, а дженерик `IReadModelStore` обычно ждёт `Id` ⇒ падение при записи, при том что чтения через `Set<T>` работают; (2) `DeletedAt` — `DateTime?`, колонка может быть `timestamp with time zone` ⇒ Npgsql 6+ бросает на `Kind=Unspecified` **только при записи**. Проверки: успешный `UpsertAsync` любой другой read-модели; `\d partners_directory` (4 колонки и тип `DeletedAt`). Отдельно: таблица создаётся **ReadStore-миграцией** (`Migrations/ReadStore/20261105170525_AddReadStores`) — `check_schema` может её не покрывать.
