@@ -29,15 +29,41 @@ OPENAPI_DIR = "openapi"
 
 
 def index_operations(root):
+    """operationId ПУБЛИЧНЫХ операций индекса (`internal: true` не считается).
+
+    2026-11-10 (@AR 15:36, `AR-019`): раньше собирали все `operationId` регуляркой,
+    и `internal: true` попадали в счёт: 82 против 80 в публичных спеках → вечный `rc=1`
+    на двух внутренних (`DailyMetrics.InternalSeries`, `Journal.ClientIds`).
+    Правильный счёт публичных: **блок** операции (`- bc:` … до следующего `- bc:`) без
+    `internal: true`. Regex по блокам, а не YAML-парсер: у инструмента нет PyYAML
+    в деплой-пути (python из образа), тянуть зависимость ради одного поля — лишнее.
+    """
     path = os.path.join(root, INDEX)
     if not os.path.exists(path):
         return set()
     txt = open(path, encoding="utf-8", errors="replace").read()
-    return {m for m in re.findall(r'operationId:\s*([A-Za-z0-9_.]+)', txt) if not m.isdigit()}
+    # блоки операций начинаются с `- bc:` (см. api-index.yaml); заголовки/правила — без него
+    blocks = re.split(r"(?m)^\s*-\s+bc:\s*", txt)[1:]
+    out = set()
+    for b in blocks:
+        body = "- bc: " + b
+        if re.search(r"(?m)^\s*internal:\s*true\s*$", body):
+            continue
+        m = re.search(r'operationId:\s*([A-Za-z0-9_.]+)', body)
+        if m and not m.group(1).isdigit():
+            out.add(m.group(1))
+    return out
 
 
 def spec_operations(root):
-    """operationId из `openapi/*.json` (реестр @BE)."""
+    """operationId ПУБЛИЧНЫХ операций из `openapi/*.json` (реестр @BE).
+
+    2026-11-10 (@AR 15:36): сверять надо публичные с публичными. Внутренние
+    (`/internal/**`) попадают в снимок не всегда: сейчас в `openapi/` их **две** из
+    четырёх (`Journal.ListAll`, `Journal.IngestPartnerEvent`), а `DailyMetrics.InternalSeries`
+    и `Journal.ClientIds` — нет. Поэтому путь `/internal/…` из спеки исключаем, иначе
+    сравнение «публичные vs все» даёт вечное расхождение (78 против 80).
+    """
     out = set()
     base = os.path.join(root, OPENAPI_DIR)
     if not os.path.isdir(base):
@@ -49,7 +75,9 @@ def spec_operations(root):
             doc = json.load(open(os.path.join(base, name), encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        for item in (doc.get("paths") or {}).values():
+        for path, item in (doc.get("paths") or {}).items():
+            if str(path).startswith("/internal/"):
+                continue
             for op in (item or {}).values():
                 if isinstance(op, dict) and op.get("operationId"):
                     out.add(op["operationId"])
@@ -138,14 +166,21 @@ def selftest():
     os.makedirs(os.path.join(base, "04-architecture"))
     os.makedirs(os.path.join(base, "openapi"))
     open(os.path.join(base, "04-architecture", "api-index.yaml"), "w", encoding="utf-8").write(
-        "operations:\n  - operationId: Journal.List\n  - operationId: Client.Me\n")
+        # 2026-11-10: блок операции начинается с `- bc:` (так в реальном индексе), а
+        # `internal: true` в публичный счёт не входит — это и проверяем.
+        "operations:\n"
+        "  - bc: Journal\n    method: GET\n    path: \"/api/v1/journal\"\n    operationId: Journal.List\n"
+        "  - bc: Client\n    method: GET\n    path: \"/api/v1/clients/me\"\n    operationId: Client.Me\n"
+        "  - bc: Journal\n    method: GET\n    path: \"/internal/journal/records\"\n"
+        "    operationId: Journal.ListAll\n    internal: true\n")
     got = index_operations(base)
     if got == {"Journal.List", "Client.Me"}:
         ok += 1
     else:
         print("  [FAIL] индекс: %s" % got)
     open(os.path.join(base, "openapi", "journal.json"), "w", encoding="utf-8").write(json.dumps(
-        {"paths": {"/journal": {"get": {"operationId": "Journal.List"}}}}))
+        {"paths": {"/journal": {"get": {"operationId": "Journal.List"}},
+                   "/internal/journal/records": {"get": {"operationId": "Journal.ListAll"}}}}))
     got = spec_operations(base)
     if got == {"Journal.List"}:
         ok += 1
