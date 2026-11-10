@@ -1406,8 +1406,12 @@ def _run_guarded() -> int:
     except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001 — любая авария = «не измерено», а не «нарушено»
+        # TE-113 (@DO `2026-11-10 13:23`): в `canon-stability` лог попытки был ПУСТ — нужен трейс в хвосте,
+        # иначе причину не назвать. Печатаем стек в stderr (он попадает в тот же лог через `2>&1`).
+        import traceback as _tb
+        _tb.print_exc()
         print(f"::error::check_apim_auth: {type(exc).__name__}: {exc}")
-        print("квитанция: НЕ ИЗМЕРЕНО — проверка упала до печати результата (см. ::error:: выше)")
+        print("квитанция: НЕ ИЗМЕРЕНО — проверка упала до печати результата (см. трейс и ::error:: выше)")
         return 2
 
 
