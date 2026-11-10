@@ -75,7 +75,9 @@
 
   // ---- Журнал ----
   DB.getAllRecords = function () {
-    return Api.partners.list().then(function (partners) {
+    // @AR 2026-11-10: раньше здесь был прямой Api.partners.list() — второй GET /partners
+    // на каждую отрисовку журнала мимо кэша. Берём через DB.getAllPartners (мемо 2 с).
+    return DB.getAllPartners().then(function (partners) {
       var names = nameMap(partners);
       var dels = deletedMap(partners);
       return Api.journal.list().then(function (list) { return (list || []).map(function (rm) { return mapRecord(rm, names, dels); }); });
@@ -83,12 +85,12 @@
   };
   // FE-015: один запрос /partners + один /journal — визард не должен ходить в API на каждый шаг
   DB.getAllJournalData = function () {
-    return Api.partners.list().then(function (partners) {
+    return DB.getAllPartners().then(function (partners) {
       var names = nameMap(partners);
       var dels = deletedMap(partners);
       return Api.journal.list().then(function (list) {
         return {
-          partners: (partners || []).map(mapPartner),
+          partners: partners || [],
           records: (list || []).map(function (rm) { return mapRecord(rm, names, dels); })
         };
       });
@@ -166,13 +168,20 @@
   }
   DB.readFreshness = function (kind) { return fresh[kind] || null; };
 
+  // Мемо на 2 с: журнал и визард зовут партнёров в одном тике, второй запрос не нужен.
+  var partnersMemo = null, partnersMemoAt = 0;
+  var PARTNERS_MEMO_MS = 2000;
+  function dropPartnersMemo() { partnersMemo = null; partnersMemoAt = 0; }
   DB.getAllPartners = function () {
+    var now = Date.now();
+    if (partnersMemo && (now - partnersMemoAt) < PARTNERS_MEMO_MS) return Promise.resolve(partnersMemo);
     return withCache("partners",
       function () { return Api.partners.list().then(function (l) { return (l || []).map(mapPartner); }); },
-      function () { return DB.rawPartners().then(function (l) { return (l || []).map(mapPartner); }); });
+      function () { return DB.rawPartners().then(function (l) { return (l || []).map(mapPartner); }); })
+      .then(function (list) { partnersMemo = list; partnersMemoAt = Date.now(); return list; });
   };
   DB.getPartner = function (id) { return Api.partners.get(id).then(function (rm) { return rm ? mapPartner(rm) : null; }); };
-  DB.deletePartner = function (id) { return Api.partners.remove(id); };
+  DB.deletePartner = function (id) { dropPartnersMemo(); return Api.partners.remove(id); };
   // FE-045: profile после register/rename нужен только если форма отличается от дефолтов
   // (photo="", gender="female", notes="") — иначе это лишний вызов в цепочке создания.
   function needProfile(p) {
@@ -195,6 +204,7 @@
   }
 
   DB.putPartner = function (p) {
+    dropPartnersMemo();
     if (p.id) {
       return Api.partners.rename(p.id, p.name).then(function () {
         if (!needProfile(p)) return p;
