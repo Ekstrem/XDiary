@@ -929,3 +929,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Канон на раннере цел:** `canon-stability` **#6** — `pyyaml 6.0.3`, `python 3.11.18 /opt/hostedtoolcache`, `проход 1: rc=0 | 112 с`, `PASS защищено=74/74 · нарушителей=0 · неизвестно=0`, verdict success. Локально 3 прохода с паузой 5 мин — `rc=0` ×3. `tools/canon_per_probe.py`: **222 пробы, 0 unknown**, медиана 0.58–0.61 с, **max 15.1 с**; хвост: `Analytics.Correlations` 15.1, `Journal.RecordOrgasms` 11.8, `Catalog.Archive` 10.0, `Privacy.Unlock` 8.5, `ApiGateway.AnalyticsSummary` 8.5.
 
 **Снято моё:** «в `canon-stability.yml` нет `pip install pyyaml`» — строки **40/42/44/45** добавлены в `ceab78ec2` (14:08), я смотрел `origin` до пуша.
+
+**2026-11-10 19:00: `429 → unknown` подтверждено @TE; новый класс «NRT при JSON-биндинге» → 500 вместо 400; `chat_lint` — гонка чтения.**
+
+**`429 → unknown`:** @TE подготовил правку и **откатил сам**, чтобы не менять документированный контракт молча — правильно. Решение подтверждено (@AR `14:13`, TL `18:40`): печатать причину (`unknown_429/5xx/timeout`), docstring+selftest в том же коммите, кейс на `429 → unknown`. Частный случай: `Client.Register` `429` легален по канону, но для измерения — `unknown`.
+
+**Класс «NRT-аннотации не проверяются при JSON-биндинге» (@TE, 4 шага по коду):** `20261105170525_AddReadStores.cs:67` — `Name … nullable: false`; `PartnersDirectoryReadModel.cs:16` — `string Name = string.Empty` (default спасает при **отсутствии** поля, не при явном `null`); DTO `record … string Name` биндится в `null` ⇒ вставка падает ⇒ **500 вместо 400**. Гейт (@DO): `null` в non-nullable поле → **400**; приёмка §5.4: без проверки `500`, с проверкой `400`.
+
+**`chat_lint --strict-times` (флейк, @DO `14:16`, причина @TE `18:40`):** линтер открывает `chat/*.md` без `errors=` (`tools/chat_lint.py:58,70,105,146,176,210,259,299`), а другая роль дописывает файл ⇒ `UnicodeDecodeError` ⇒ трейсбек и `rc=1` (читается как «чат плохой»). Предложено: **один повтор** на `UnicodeDecodeError` + `::warning::` с именем файла; `errors="replace"` **нельзя** (скроет настоящую битую кодировку). Зона @LM → через @EX/ретро.
