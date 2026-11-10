@@ -154,8 +154,56 @@ def check_post_request(ops):
     return bad
 
 
+# 2026-11-10 (@DO) по решению @AR `13:46`: ownership НЕ кодируется статусом.
+# «не твой» и «не существует» неразличимы ⇒ только `404`. `403` законен лишь там, где
+# ответ НЕ зависит от существования чужого объекта (сравнение с `sub`/ролью ДО запроса).
+# Машинная форма: `403` у операции с `{id}` в пути допустим только для allowlist ниже
+# и для `/internal/**` (там `403` маршрутный: вопрос «что позволено вызвать», не «чей объект»).
+OWNERSHIP_403_ALLOW = {
+    # причина обязательна: иначе allowlist превращается в «где нам удобно»
+    "Client.Get": "ClientsController.cs:109 — сравнение id с sub ДО `_mediator.Send`, "
+                  "существование чужой строки не раскрывается (@AR 13:46 п.2)",
+}
+
+
+def check_ownership_codes(ops):
+    """@AR `13:46`: `403` у ресурсной операции = утечка существования. Возвращает нарушения."""
+    bad = []
+    for o in ops:
+        path = (o.get("path") or "")
+        codes = str(o.get("codes") or "")
+        if "{" not in path or "403" not in codes:
+            continue
+        if path.startswith("/internal/"):
+            continue
+        oid = o.get("operationId") or (o.get("method", "") + " " + path)
+        if oid in OWNERSHIP_403_ALLOW:
+            continue
+        bad.append((oid, o.get("method"), path))
+    return bad
+
+
 def selftest():
     ok = 0
+    # @AR `13:46` §5.4: правило ownership проверяется на ДЕФЕКТЕ и на норме.
+    _ops = [
+        {"operationId": "Catalog.Get", "method": "GET",
+         "path": "/api/v1/catalog/items/{id}", "codes": "{200: 'ok', 404: 'not-found'}"},
+        {"operationId": "Catalog.Get", "method": "GET",
+         "path": "/api/v1/catalog/items/{id}", "codes": "{200: 'ok', 403: 'not-owner', 404: 'nf'}"},
+        {"operationId": "Client.Get", "method": "GET",
+         "path": "/api/v1/clients/{id}", "codes": "{200: 'ok', 403: 'чужая запись'}"},
+        {"operationId": "DailyMetrics.InternalSeries", "method": "GET",
+         "path": "/internal/daily-metrics/series", "codes": "{200: 'ok', 403: 'route'}"},
+    ]
+    _half = check_ownership_codes(_ops[:2])
+    _ok_cases = (len(_half) == 1 and _half[0][0] == "Catalog.Get"
+                 and check_ownership_codes(_ops[2:]) == [])
+    if _ok_cases:
+        ok += 1
+    else:
+        print("  [FAIL] ownership-403: дефект=%s, allowlist/internal=%s"
+              % (_half, check_ownership_codes(_ops[2:])))
     cases = [
         ('{"path":"/api/v1/x/{id}"}', norm_path("/api/v1/x/{id:guid}"), "/api/v1/x/{id}"),
     ]
@@ -216,7 +264,7 @@ def selftest():
     else:
         print("  [FAIL] пространство имён не исключено из ddd-ссылок")
 
-    total = 8
+    total = 9
     print("check_api_index --selftest: %d/%d" % (ok, total))
     # 2026-11-05: было `ok == 3` при четырёх кейсах — текст печатал 4/4, а rc был 1.
     # Класс «верно считает, врёт кодом возврата»; теперь сравнение с total.
@@ -382,6 +430,12 @@ def main():
         for p in post_no_req:
             print("::error::(AR-022) POST без блока request: %s" % p)
         bad += 1
+
+    own_bad = check_ownership_codes(ops)
+    for oid, method, path in own_bad[:10]:
+        print("::error::(codes_rule) %s %s: `403` у ресурсной операции — ownership не кодируется "
+              "статусом, «не твой» ≡ «не существует» = `404` (@AR 13:46)" % (method, path))
+    bad += 1 if own_bad else 0
 
     no_codes = [o for o in ops if not (o.get("codes") or "").strip()]
     for o in no_codes[:10]:
