@@ -89,31 +89,40 @@ test('E2E: запись через визард — создаётся и вид
       }
     });
 
+    // TE-107 (@DO `2026-11-10 12:33`: «запись через визард» -> `timedOut` 1.3 мин). Ограничиваем КАЖДЫЙ шаг
+    // 10 с и называем его в логе: иначе падение по лимиту теста не говорит, на каком шаге мастер встал.
+    const NEXT = { timeout: 10000 };
+    const next = async (label) => {
+      console.log('::notice::wizard next: ' + label);
+      await page.click('#btn-wizard-next', NEXT);
+    };
+    const prev = async (label) => {
+      console.log('::notice::wizard prev: ' + label);
+      await page.click('#btn-wizard-prev', NEXT);
+    };
+
     await page.fill('#w-startedAt', WHEN);
     // `#btn-wizard-prev` не трогала ни одна спека: возврат на шаг назад не был проверен.
-  // Проверяем на первом переходе: назад с шага 1 обязан вернуть на шаг 0 (дата).
-  await page.click('#btn-wizard-prev');
-  await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
-  await page.click('#btn-wizard-next');  // вернулись и снова 0 -> 1
-  await page.click('#btn-wizard-next');  // 0 -> 1
-    await page.click('#btn-wizard-next');  // 1 -> 2
+    // Проверяем на первом переходе: назад с шага 1 обязан вернуть на шаг 0 (дата).
+    await prev('1 -> 0');
+    await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
+    await next('0 -> 1 (после возврата)');
+    await next('0 -> 1');
+    await next('1 -> 2');
     // Кнопка «Без партнёра» (`#w-partner-none`) не проверялась ни одной спекой: она сбрасывает
     // партнёра и перерисовывает шаг. Проверяем, что шаг остаётся рабочим и мастер не ломается.
     if (await page.locator('#w-partner-none').isVisible()) {
-      await page.click('#w-partner-none');
+      await page.click('#w-partner-none', NEXT);
       await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
     }
-    await page.click('#btn-wizard-next');  // 2 -> 3
-    await page.click('#btn-wizard-next');  // 3 -> 4
-    await page.click('#btn-wizard-next');  // 4 -> 5
-    await page.click('#btn-wizard-next');  // 5 -> 6
-    await page.fill('#w-dur-custom', '30');
-    await page.click('#btn-wizard-next');  // 6 -> 7
-    await page.click('#btn-wizard-next');  // 7 -> 8
+    await next('2 -> 3');
+    await next('3 -> 4');
+    await next('4 -> 5');
+    await next('5 -> 6');
+    await page.fill('#w-dur-custom', '30', { timeout: 10000 });
+    await next('6 -> 7');
+    await next('7 -> 8');
 
-  // TE-073: клик по «Сохранить» ограничен 20 с. В прогоне #775 шаг висел ДО ЛИМИТА ТЕСТА (80 с),
-  // и в аннотации шаг выглядел как `Click` без времени — то есть кнопка оставалась недоступной
-  // (перекрыта спиннером/ошибкой API), а тест молчал. Теперь падение будет по делу и с диагностикой ниже.
   await page.click('#btn-wizard-save', { timeout: 20000 });
 
     // ждём переключения на журнал (цепочка из ~10 запросов)
