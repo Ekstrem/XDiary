@@ -6,8 +6,8 @@
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "7f445484f4a321131e59319b73c09f1a461e991934e6890dd26ad3331428f936",
-      "synced_at": "2026-11-07",
+      "sha256": "eb9220ecac274fa79eb4c2de85fc14167f113ede1875c428b02cec0628df85ef",
+      "synced_at": "2026-11-10",
       "upstream": "tools/chat_lint.py"
     },
     "chat_rotate.py": {
@@ -41,8 +41,8 @@
       "upstream": "tools/check_owner_chat.py"
     },
     "check_paths.py": {
-      "sha256": "778d11d0761691c24dedc7dbe621ee96b6d9df4ca9e8c8afa85eac41aeb587c4",
-      "synced_at": "2026-11-03",
+      "sha256": "880045ba648cb76b6a033d502f98eaa0269908fa6048a14d0ec0a252a77f3f40",
+      "synced_at": "2026-11-10",
       "upstream": "tools/check_paths.py"
     },
     "check_pdr.py": {
@@ -66,8 +66,8 @@
       "upstream": "tools/check_test_map.py"
     },
     "check_workflow_paths.py": {
-      "sha256": "169695a0a84701a4e6d73e75633547140223fa37d6c6e7319dc84a25a47299bf",
-      "synced_at": "2026-11-03",
+      "sha256": "a8e1176771901d444b85e50079c4dd69eacba8dc18e7c0e2519cd9fe8f73ebd7",
+      "synced_at": "2026-11-10",
       "upstream": "tools/check_workflow_paths.py"
     },
     "ci-metrics.py": {
@@ -129,11 +129,6 @@
       "sha256": "f018ec5e52aeab3e13079adb405fe1f56e0494146f2d7bb0dedbae36bec7cd2d",
       "synced_at": "2026-11-03",
       "upstream": "tools/latency.py"
-    },
-    "merge_chat.py": {
-      "sha256": "2933b8e10cc06ef8367ce4b08bdeedd94d4e25c9824e39a264ad9f6a17a6b900",
-      "synced_at": "2026-11-03",
-      "upstream": "tools/merge_chat.py"
     },
     "migrate_statuses.py": {
       "sha256": "be76cc0b665b71ab4ff0c4d4fd2db8db28a1655fd7e17f90f722c8d163a21478",
