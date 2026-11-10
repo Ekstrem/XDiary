@@ -876,11 +876,11 @@ operations:
       required: [partnerId, name]
       types: {partnerId: guid, name: string, clientId: "guid?", deletedAt: "datetime?"}
       note: "E1-срез: конверт не соответствует приёмке E1 (нет eventId/type/schemaVersion) — долг зафиксирован в contract_note ниже"
-    auth: anonymous-inside
+    auth: jwt-service
     internal: true
-    codes: {200: "ok — upsert в partners_directory", 401: "снаружи/через шлюз (внутренний контур не публикуется)"}
+    codes: {200: "ok — upsert в partners_directory", 401: "нет токена", 403: "токен не sub=partners"}
     codes_status: verified
-    verification: "код: Journal.Api/Controllers/PartnersEventsController.cs ([Route(internal/partners)], [AllowAnonymous], UpsertAsync), 2026-11-14 @AR"
+    verification: "код: `PartnersEventsController.cs:15` — `[Authorize]` на классе; `:25` — `if (User.FindFirst(\"sub\")?.Value != \"partners\") return Forbid()` ⇒ токен обязателен, чужой sub → 403. Было в каноне: `auth: anonymous-inside` + `codes: {200, 401}` — устарело (контроллер получил `[Authorize]` и проверку sub); исправлено 2026-11-10 @AR."
     contract_note: "E1-срез: конверт НЕ соответствует приёмке E1 (edm-debt-plan §1.2) — в DTO нет eventId/type/schemaVersion/aggregateId/version/occurredAt/correlationToken. Без eventId нет идемпотентности, без version — защиты от устаревшего события. Требуется @BE до закрытия E1."
   - bc: DailyMetrics
     method: GET
