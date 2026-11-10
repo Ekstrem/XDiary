@@ -101,27 +101,45 @@ test('E2E: запись через визард — создаётся и вид
       await page.click('#btn-wizard-prev', NEXT);
     };
 
-    await page.fill('#w-startedAt', WHEN);
+    // TE-119 (@TL `2026-11-11 01:10`: красный «записи через визард» не называет шаг, а логи раннера — 403):
+    // любой сбой внутри шагов превращаем в ошибку С ДИАГНОСТИКОЙ — экраны, тосты, последние запросы.
+    // Без этого единственным сообщением остаётся «Timeout 10000ms exceeded», и разбор начинается с нуля.
+    async function wizardDiagnose(step) {
+      const toasts = await page.evaluate(() => window.__toasts || []).catch(() => []);
+      const vis = await viewState(page).catch(() => ({}));
+      return 'ШАГ ВИЗАРДА: ' + step + ' ;; ТОСТЫ: ' + JSON.stringify(toasts) +
+        ' ;; API: ' + apiLog.slice(-10).join(' | ') +
+        ' ;; ВИДЫ: ' + JSON.stringify(vis);
+    }
+    const stepWrapped = async (label, fn) => {
+      try {
+        await fn();
+      } catch (e) {
+        throw new Error(wizardDiagnose ? await wizardDiagnose(label) : label);
+      }
+    };
+
+    await stepWrapped('fill #w-startedAt', () => page.fill('#w-startedAt', WHEN));
     // `#btn-wizard-prev` не трогала ни одна спека: возврат на шаг назад не был проверен.
     // Проверяем на первом переходе: назад с шага 1 обязан вернуть на шаг 0 (дата).
-    await prev('1 -> 0');
+    await stepWrapped('1 -> 0 (prev)', () => prev('1 -> 0'));
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
-    await next('0 -> 1 (после возврата)');
-    await next('0 -> 1');
-    await next('1 -> 2');
+    await stepWrapped('0 -> 1 (после возврата)', () => next('0 -> 1 (после возврата)'));
+    await stepWrapped('0 -> 1', () => next('0 -> 1'));
+    await stepWrapped('1 -> 2', () => next('1 -> 2'));
     // Кнопка «Без партнёра» (`#w-partner-none`) не проверялась ни одной спекой: она сбрасывает
     // партнёра и перерисовывает шаг. Проверяем, что шаг остаётся рабочим и мастер не ломается.
     if (await page.locator('#w-partner-none').isVisible()) {
       await page.click('#w-partner-none', NEXT);
       await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
     }
-    await next('2 -> 3');
-    await next('3 -> 4');
-    await next('4 -> 5');
-    await next('5 -> 6');
-    await page.fill('#w-dur-custom', '30', { timeout: 10000 });
-    await next('6 -> 7');
-    await next('7 -> 8');
+    await stepWrapped('2 -> 3', () => next('2 -> 3'));
+    await stepWrapped('3 -> 4', () => next('3 -> 4'));
+    await stepWrapped('4 -> 5', () => next('4 -> 5'));
+    await stepWrapped('5 -> 6', () => next('5 -> 6'));
+    await stepWrapped('fill #w-dur-custom', () => page.fill('#w-dur-custom', '30', { timeout: 10000 }));
+    await stepWrapped('6 -> 7', () => next('6 -> 7'));
+    await stepWrapped('7 -> 8', () => next('7 -> 8'));
 
   await page.click('#btn-wizard-save', { timeout: 20000 });
 
