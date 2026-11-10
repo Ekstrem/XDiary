@@ -194,6 +194,20 @@ fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
 
+# 2026-11-10 (@DO): ПОРЯДОК ВАЖЕН — образ проверяем/тянем ДО удаления контейнера.
+# Инцидент: lock указывал на новый тег, которого не было локально; скрипт удалил старый
+# контейнер, три попытки поднять новый провалились, и сервис journal лежал (504).
+# Теперь: нет образа локально → `podman pull`; не удалось → выход без удаления старого.
+if [ -n "${lock_tag:-}" ]; then
+  img="ghcr.io/ekstrem/xdiary-$SVC:$lock_tag"
+  if ! sudo -n podman image inspect "$img" >/dev/null 2>&1; then
+    echo "  образа $img нет локально — pull"
+    if ! sudo -n podman pull -q "$img" >/dev/null 2>&1; then
+      echo "  ОШИБКА: не удалось скачать $img — контейнер НЕ трогаю" >&2
+      exit 3
+    fi
+  fi
+fi
 podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
 # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
 # `podman run` падает с "error configuring network namespace". В `update.sh` это
