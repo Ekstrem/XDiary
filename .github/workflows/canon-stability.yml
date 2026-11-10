@@ -64,6 +64,10 @@ jobs:
           echo "--- диагностика запуска ---"
           command -v python || echo "::error::python не найден в PATH"
           python -u -c "import sys; print('python', sys.version.split()[0], sys.executable)" || true
+          # @TL 17:58: «баннер первой строкой» — окружение должно быть видно ДО замера,
+          # иначе отсутствие зависимости выглядит как нарушение канона (было сегодня).
+          python -u -c "import yaml; print('yaml', yaml.__version__)" \
+            || echo "::error::yaml отсутствует — канон не стартует, замер невозможен"
           ls -l 9-tests/scripts/check_apim_auth.py || echo "::error::скрипт канона отсутствует"
           echo "--- конец диагностики ---"
           for i in $(seq 1 "$RUNS"); do
