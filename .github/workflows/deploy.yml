@@ -198,7 +198,12 @@ jobs:
           # но rc=2 обязан оставаться красным (канон: «не измерено»), поэтому не закрашиваем,
           # а даём ВТОРУЮ попытку и печатаем обе: rc=1 → сразу fail; rc=2 → пауза 15 с и повтор;
           # rc=2 дважды → fail «не измерено дважды»; rc=2→0 → notice «первый был флейком».
-          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
+          # @TL 23:00: таймаут пробы 8 с был на границе (прод отвечает 0.5 с, но всплески до 6.7 с,
+          # а с раннера сеть медленнее) — поднимаем до 15 с и печатаем длительность каждого прохода.
+          # Это не «закрашивание»: если ответа нет и за 15 с, rc=2 остаётся rc=2.
+          T0=$SECONDS
+          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --timeout 15; rc=$?
+          echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (таймаут пробы 15 с)"
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
             # @AR 12:34: «заметка о rc=2 не равна исправлению» — печатаем ЧАСТОТУ, а не разовое событие.
@@ -209,7 +214,9 @@ jobs:
               echo "частота за прошлые прогоны: см. workflow \`canon-stability\` (ночной счётчик повторов)"
             } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
             sleep 15
-            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
+            T1=$SECONDS
+            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --timeout 15; rc=$?
+            echo "::notice::канон (попытка 2): rc=$rc за $((SECONDS - T1)) с"
             [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
           fi
           if [ "$rc" = "2" ]; then
