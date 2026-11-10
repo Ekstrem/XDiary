@@ -45,4 +45,4 @@ public sealed class PartnersEventsController : ControllerBase
     }
 }
 
-public sealed record PartnersEventDto(Guid PartnerId, string Name, Guid? ClientId, DateTime? DeletedAt);
+public sealed record PartnersEventDto(Guid PartnerId, string? Name, Guid? ClientId, DateTime? DeletedAt);

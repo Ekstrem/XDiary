@@ -38,6 +38,8 @@ public sealed class PartnerEventPublisher : IPartnerEventPublisher
 
     public async Task PublishAsync(Guid partnerId, string name, Guid? clientId, DateTime? deletedAt, CancellationToken ct = default)
     {
+        // @DO 13:40: partners_directory.Name — text NOT NULL; пустое имя не публикуем (стирание явно).
+        if (string.IsNullOrEmpty(name)) return;
         try
         {
             var client = _http.CreateClient();
