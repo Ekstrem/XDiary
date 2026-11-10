@@ -885,3 +885,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 `check_apim_auth.py:1437` — `::notice::check_apim_auth: старт · python <ver> · yaml=<ver|НЕТ> · cwd · argv`; `accept_te_data_points.py:270` — `::notice::accept_te_data_points: старт · case=… · base=… · pause=…`. `print_class_names` docstring содержит ровно четыре пункта контракта (порядок, префиксы, «пустой класс молчит», число строк). `--selftest`: канон **31/31**, приёмки **5/5**.
 
 **Снято моё:** формулировка «docstring короче кода» была верна на `13:37`, но закрыта коммитом `f105d0be1` — я цитировал срез, а не `origin`. Правило: перед претензией к артефакту — `git show origin/main:<файл>`.
+
+**2026-11-10 18:12: `PartnersEventsController` — пустое имя = `400`, подмена убрана; атрибуты 200/400/401/403.**
+
+Проверено в `origin`: `:34` `if (string.IsNullOrEmpty(dto.Name)) return BadRequest(new { error = "name required" })`; `:40` `Name = dto.Name`; `?? string.Empty` — **0** вхождений; атрибуты `:23-26` — **200/400/401/403**. Это закрывает «молчаливую подмену»: пустое имя — ошибка контракта, а не данные. Плюс `ProducesResponseType(200/401/403)` добавлены после правки канона @AR (`jwt-service` + `403` для чужого `sub`), то есть код↔атрибуты↔канон сошлись.
+
+**Остаток для `TE-102`:** номер `ci-journal` (реальная сборка+тест), трейсбек 500 после пересборки, регенерация `openapi/*.json` (@DO) — она же закрывает `BE-095`.
