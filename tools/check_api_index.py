@@ -246,6 +246,64 @@ def check_codes_vs_code(ops, code_map):
 
 
 
+
+# 2026-11-10 (@AR 16:14, `1153`): копипаста в `verification` — утверждение о БЕЗОПАСНОСТИ,
+# скопированное на операции с другим `auth`. @AR нашёл руками: у 8 операций `Client.*` стояла
+# одна строка «[AllowAnonymous] на :25/:28/:38», хотя анонимны только 3, а 5 — `[Authorize]`.
+#
+# ВАЖНО: проверка идёт по ТЕКСТУ индекса, а не через `parse_index` — тот не извлекает
+# `verification` вовсе (проверено: у всех 82 операций поле пустое), поэтому объектная
+# проверка была бы «зелёной на пустоте». Здесь блок операции = от `- bc:` до следующего
+# `- bc:`; `verification` может быть folded-скаляром (`>-` + строки ниже) — читаем и его.
+def verification_by_auth(path):
+    """[(operationId, auth, text_verification)] из ТЕКСТА индекса."""
+    txt = open(path, encoding="utf-8", errors="replace").read()
+    out = []
+    blocks = re.split(r"(?m)^(?=\s*-\s+bc:\s*)", txt)
+    for b in blocks:
+        mo = re.search(r"(?m)^\s*operationId:\s*([A-Za-z0-9_.]+)", b)
+        if not mo:
+            continue
+        oid = mo.group(1)
+        ma = re.search(r"(?m)^\s*auth:\s*([\w-]+)", b)
+        auth = ma.group(1) if ma else ""
+        mv = re.search(r"(?m)^\s*verification:\s*(.*)$", b)
+        if not mv:
+            continue
+        val = mv.group(1).strip()
+        if val in (">-", ">", "|", "|-"):
+            # folded/литеральный скаляр: собираем строки с отступом до следующего ключа
+            rest = b[mv.end():]
+            body = []
+            for line in rest.split("\n"):
+                if not line.strip():
+                    continue
+                if re.match(r"^\s{0,6}[A-Za-z_]+:", line):
+                    break
+                body.append(line.strip())
+                if len(body) >= 40:
+                    break
+            val = " ".join(body)
+        else:
+            val = val.strip('"').strip("'")
+        if val.strip():
+            out.append((oid, auth, val.strip()))
+    return out
+
+
+def check_verification_copypaste(path):
+    """Группы одинакового текста `verification` с РАЗНЫМ `auth` — копипаста, а не проверка."""
+    groups = {}
+    for oid, auth, text in verification_by_auth(path):
+        groups.setdefault(text, []).append((oid, auth))
+    bad = []
+    for text, items in groups.items():
+        auths = {a for _oid, a in items if a}
+        if len(items) > 1 and len(auths) > 1:
+            bad.append((", ".join(o for o, _a in items[:4]), len(items), sorted(auths)))
+    return bad
+
+
 def selftest():
     ok = 0
     # @AR `13:46` §5.4: правило ownership проверяется на ДЕФЕКТЕ и на норме.
@@ -267,6 +325,34 @@ def selftest():
     else:
         print("  [FAIL] ownership-403: дефект=%s, allowlist/internal=%s"
               % (_half, check_ownership_codes(_ops[2:])))
+
+    # @AR `1153` §5.4: копипаста `verification` ловится ТЕКСТОВОЙ проверкой (parse_index его не читает).
+    # временный каталог — рядом с инструментом (в системном %TEMP% запись запрещена песочницей)
+    _dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-copypaste")
+    shutil.rmtree(_dir, ignore_errors=True)
+    os.makedirs(_dir, exist_ok=True)
+    _idx = os.path.join(_dir, "api-index.yaml")
+    with open(_idx, "w", encoding="utf-8") as f:
+        f.write(
+            "operations:\n"
+            "  - bc: Client\n    method: GET\n    path: /api/v1/clients/me\n"
+            "    operationId: Client.Me\n    auth: jwt\n"
+            "    verification: >-\n      одинаковый текст\n      про авторизацию\n"
+            "  - bc: Client\n    method: POST\n    path: /api/v1/clients\n"
+            "    operationId: Client.Register\n    auth: anonymous\n"
+            "    verification: >-\n      одинаковый текст\n      про авторизацию\n"
+            "  - bc: Journal\n    method: GET\n    path: /api/v1/journal/records\n"
+            "    operationId: Journal.List\n    auth: jwt\n"
+            "    verification: свой текст\n"
+            "  - bc: Journal\n    method: GET\n    path: /api/v1/journal/recent\n"
+            "    operationId: Journal.Recent\n    auth: jwt\n"
+            "    verification: свой текст\n")
+    _cp = check_verification_copypaste(_idx)
+    shutil.rmtree(_dir, ignore_errors=True)
+    if len(_cp) == 1 and _cp[0][1] == 2:
+        ok += 1
+    else:
+        print("  [FAIL] копипаста verification: %s" % (_cp,))
     cases = [
         ('{"path":"/api/v1/x/{id}"}', norm_path("/api/v1/x/{id:guid}"), "/api/v1/x/{id}"),
     ]
@@ -327,7 +413,7 @@ def selftest():
     else:
         print("  [FAIL] пространство имён не исключено из ddd-ссылок")
 
-    total = 9
+    total = 10
     print("check_api_index --selftest: %d/%d" % (ok, total))
     # 2026-11-05: было `ok == 3` при четырёх кейсах — текст печатал 4/4, а rc был 1.
     # Класс «верно считает, врёт кодом возврата»; теперь сравнение с total.
@@ -522,6 +608,13 @@ def main():
                  "блокирующий" if a.require_response_types else "отчёт"))
         if a.require_response_types:
             bad += 1
+
+    # @AR `1153`: копипаста `verification` у операций с разным `auth` — ошибка, а не стиль.
+    copypaste = check_verification_copypaste(index_path)
+    for ids, n, auths in copypaste[:5]:
+        print("::error::(verification) одна строка у %d операций с разным auth (%s): %s"
+              % (n, ", ".join(auths), ids))
+    bad += 1 if copypaste else 0
 
     no_codes = [o for o in ops if not (o.get("codes") or "").strip()]
     for o in no_codes[:10]:
