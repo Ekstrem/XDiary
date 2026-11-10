@@ -4,14 +4,25 @@ using MediatR;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
 using Partners.Domain.Implementation;
+using Partners.InternalContracts;
 using XDiary.Contracts;
 
 public sealed class RegisterPartnerHandler : IRequestHandler<RegisterPartnerCommand, AggregateResult<IPartners, IPartnerAnemicModel>>
 {
     private readonly IRepository<IPartners, IPartnerAnemicModel> _repo;
-    public RegisterPartnerHandler(IRepository<IPartners, IPartnerAnemicModel> repo) => _repo = repo;
+    private readonly IPartnerEventPublisher _publisher;
+    public RegisterPartnerHandler(IRepository<IPartners, IPartnerAnemicModel> repo, IPartnerEventPublisher publisher) { _repo = repo; _publisher = publisher; }
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(RegisterPartnerCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Name, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Name, r.ClientId);
+        if (res.IsSuccess())
+        {
+            await _repo.SaveAsync(res, ct);
+            // @DO 14:55: синхронная публикация на create-пути, иначе ordering — гонка (fire-and-forget).
+            await _publisher.PublishAsync(res.Event.Id, r.Name, r.ClientId, null, ct);
+        }
+        return res;
+    }
 }
 public sealed class RenamePartnerHandler : IRequestHandler<RenamePartnerCommand, AggregateResult<IPartners, IPartnerAnemicModel>>
 {

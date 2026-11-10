@@ -5,13 +5,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using Partners.InternalContracts;
 using XDiary.Contracts;
-
-/// <summary>Контракт публикации партнёра в Journal (BE-082). Выделен для теста.</summary>
-public interface IPartnerEventPublisher
-{
-    Task PublishAsync(Guid partnerId, string name, Guid? clientId, DateTime? deletedAt, CancellationToken ct = default);
-}
 
 /// <summary>
 /// BE-082: связь Partners → Journal. Публикует текущее состояние партнёра в

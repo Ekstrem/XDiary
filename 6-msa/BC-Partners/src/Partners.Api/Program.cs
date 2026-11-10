@@ -41,7 +41,7 @@ builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.C
 builder.Services.AddEventBusInMemory();
 // BE-082: связь Partners → Journal (partners_directory).
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<Partners.Api.Events.IPartnerEventPublisher, Partners.Api.Events.PartnerEventPublisher>();
+builder.Services.AddSingleton<Partners.InternalContracts.IPartnerEventPublisher, Partners.Api.Events.PartnerEventPublisher>();
 builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
 builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
 builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
