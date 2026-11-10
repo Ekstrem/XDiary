@@ -163,10 +163,14 @@ def images_for(services: list[str], container_template: str = "xdiary-{service}"
 def final_rc(violators: list, contracts: list, unknown: list, passed: int, total: int) -> int:
     """Код возврата по четырём классам (@AR `01:42`, @TL `01:43`):
 
-      `protected` = `401/403`  · `violator` = `2xx/400/415/429` (ручка открыта) ·
+      `protected` = `401/403`  · `violator` = `2xx/400/415` (ручка открыта) ·
       `contract` = `404/405` на операции, которая **есть в `api-index.yaml`** (дефект реестра,
       класс `DO-050`: индекс обещает маршрут, сервис его не имеет) ·
-      `unknown`  = ответа нет (таймаут/соединение).
+      `unknown`  = **не измерено**, три причины с отдельным счётом: `timeout` (ответа нет),
+      `5xx` (502/503/504 в режиме через прокси — не дошло до сервиса), `429` (лимитер/WAF — не дошло до сервиса;
+      открытость ручки `429` не означает никогда — `@AR 14:13`). Частный случай: у `Client.Register` `429` —
+      легальный код канона, но для **измерения** это всё равно `unknown`: лимитер шлюза и лимитер сервиса без
+      заголовка неразличимы, а «не измерено» ≠ «сломано».
 
     `PASS` — только когда `violator=0 И contract=0 И unknown=0` (то есть `passed == total`).
     `contract` — это НЕ «неизвестно»: молча складывать его туда значит делать гейт зелёным
@@ -214,9 +218,24 @@ def print_class_names(violators, contracts, unknown, tag: str) -> int:
     return n
 
 
+def unknown_breakdown(unknown) -> dict:
+    """Счёт `unknown` по причинам (@AR 14:13): `429` (лимитер/WAF), `5xx` (прокси), `timeout` (нет ответа).
+    Одно ведро «неизвестно» скрывало, что именно не измерилось — это и чинится разбивкой."""
+    out = {"429": 0, "5xx": 0, "timeout": 0}
+    for item in unknown or []:
+        s = str(item)
+        if "429 [infra" in s:
+            out["429"] += 1
+        elif "[infra]" in s:
+            out["5xx"] += 1
+        else:
+            out["timeout"] += 1
+    return out
+
+
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
                  violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "",
-                 network: str = "") -> str:
+                 network: str = "", unknown_items=None) -> str:
     """Квитанция
 
         REF=<sha> | (ii-b) PASS|FAIL|UNKNOWN защищено=N/76 | нарушителей=V | contract=C |
@@ -245,6 +264,10 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     line += f" | network={network or 'НЕ УКАЗАНО'}"
     line += f" | via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}"
     line += f" | unknown_retried={RETRY_STATS['retried']}"
+    if unknown_items:
+        _br = unknown_breakdown(unknown_items)
+        line += (f" | unknown_429={_br['429']} | unknown_5xx={_br['5xx']}"
+                 f" | unknown_timeout={_br['timeout']}")
     line += f" | tool={tool_id()}"
     return line
 
@@ -422,6 +445,10 @@ def verdict(results, five_xx_unknown=None, direct: bool = False):
         elif code in (404, 405):
             contracts.append(f"{name} — {code} на индексированной операции: дефект реестра "
                              f"(api-index обещает маршрут, сервис его не имеет), {url}")
+        elif code == 429:
+            # `429` от лимитера/WAF — «не дошло до сервиса», тот же класс, что 502/503/504 через прокси (@AR 14:13).
+            # В `violator` его держать нельзя: открытость ручки он не означает никогда.
+            unknown.append(f"{name} — 429 [infra/лимит] (проба не измерена; это не «доступ без токена»), {url}")
         elif code in (502, 503, 504) and five_xx_unknown:
             unknown.append(f"{name} — {code} [infra] (прокси недоступен; в --direct это было бы нарушение), {url}")
         else:
@@ -635,7 +662,7 @@ def selftest() -> int:
         # Таблица кодов: 2xx/400/415/429/500 → violator; 404/405 → contract;
         # 401/403 → protected; 502 → unknown (и violator при `--5xx-violator`).
         cls = [
-            (200, "violator"), (400, "violator"), (415, "violator"), (429, "violator"),
+            (200, "violator"), (400, "violator"), (415, "violator"), (429, "unknown"),
             (500, "violator"), (404, "contract"), (405, "contract"),
             (401, "protected"), (403, "protected"), (502, "unknown"),
         ]
@@ -1022,6 +1049,24 @@ def selftest() -> int:
         ok += 1
     else:
         print(f"  [FAIL] нет PyYAML -> ждали Unmeasured (rc=2), получили {_raised}")
+
+    # TE-116 (@AR 14:13): `429` => unknown => `rc=2` (не «нарушено»), и причина считается отдельно.
+    total += 1
+    _v, _c, _u, _p = verdict([({"method": "GET", "path": "/api/v1/x", "operationId": "X"}, 429, "url")])
+    _rc = final_rc(_v, _c, _u, 0, 1)
+    _br = unknown_breakdown(_u)
+    if not _v and len(_u) == 1 and _rc == 2 and _br["429"] == 1:
+        ok += 1
+    else:
+        print(f"  [FAIL] 429 => unknown => rc=2: v={_v}, u={_u}, rc={_rc}, br={_br}")
+
+    # и обратная сторона закреплена: `200` => violator => `rc=1`
+    total += 1
+    _v2, _c2, _u2, _p2 = verdict([({"method": "GET", "path": "/api/v1/x", "operationId": "X"}, 200, "url")])
+    if len(_v2) == 1 and final_rc(_v2, _c2, _u2, 1, 1) == 1:
+        ok += 1
+    else:
+        print(f"  [FAIL] 200 => violator => rc=1: v={_v2}, rc={final_rc(_v2, _c2, _u2, 1, 1)}")
 
     print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
