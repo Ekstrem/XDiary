@@ -19,10 +19,11 @@ public class PartnerEventHandlerTests
     private sealed class FakeStore : IEventStoreRepository<IPartners, IPartnerAnemicModel>
     {
         public int SavedEvents;
+        public List<IPartnerAnemicModel> Events = new();
         public Task SaveEventAsync(DomainEventEntry entry, CancellationToken ct = default) { SavedEvents++; return Task.CompletedTask; }
         public Task SaveSnapshotAsync(Guid id, long version, string aggregateJson, CancellationToken ct = default) => Task.CompletedTask;
         public Task<int> GetEventCountAsync(Guid id, CancellationToken ct = default) => Task.FromResult(0);
-        public Task<List<IPartnerAnemicModel>> GetById(Guid id, CancellationToken ct = default) => Task.FromResult(new List<IPartnerAnemicModel>());
+        public Task<List<IPartnerAnemicModel>> GetById(Guid id, CancellationToken ct = default) => Task.FromResult(Events);
         public Task<IPartnerAnemicModel> GetByIdAndVersion(Guid id, long version, CancellationToken ct = default) => Task.FromResult<IPartnerAnemicModel>(null!);
         public Task<IPartnerAnemicModel> GetByCorrelationToken(Guid correlationToken, CancellationToken ct = default) => Task.FromResult<IPartnerAnemicModel>(null!);
     }
@@ -82,5 +83,28 @@ public class PartnerEventHandlerTests
 
         Assert.NotNull(readStore.Upserted);
         Assert.NotNull(readStore.Upserted!.DeletedAt); // soft-delete доехал в MV
+    }
+
+    // @AR 12:47: детерминированный кейс TE-102 (адрес 3) — частичное событие (profile) приходит
+    // раньше материализации строки: имя обязано взяться из event store, а не быть пустым.
+    [Fact]
+    public void Handle_ProfileFirst_DoesNotWipeName()
+    {
+        var clientId = Guid.NewGuid();
+        var reg = Aggregate.CreateInstance(new AnemicModel()).Register("Алиса", clientId);
+        var profile = Aggregate.CreateInstance(reg.Model()).UpdateProfile("photo.jpg", "male", "note");
+        Assert.Equal(DomainOperationResultEnum.Success, profile.Result);
+
+        var store = new FakeStore { Events = new List<IPartnerAnemicModel> { reg.Model() } }; // предыдущее состояние в event store
+        var readStore = new FakeReadStore();
+        var handler = new PartnerEventHandler(store, readStore, new FakeRead(), new FakePublisher(), store);
+
+        handler.HandleAsync(profile.Event!).GetAwaiter().GetResult();
+
+        Assert.NotNull(readStore.Upserted);
+        Assert.Equal("Алиса", readStore.Upserted!.Name);      // имя из предыдущего состояния, не ""
+        Assert.Equal("male", readStore.Upserted.Gender);
+        Assert.Equal("photo.jpg", readStore.Upserted.Photo);
+        Assert.Equal("note", readStore.Upserted.Notes);
     }
 }
