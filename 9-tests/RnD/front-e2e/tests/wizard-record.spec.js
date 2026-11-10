@@ -92,9 +92,27 @@ test('E2E: запись через визард — создаётся и вид
     // TE-107 (@DO `2026-11-10 12:33`: «запись через визард» -> `timedOut` 1.3 мин). Ограничиваем КАЖДЫЙ шаг
     // 10 с и называем его в логе: иначе падение по лимиту теста не говорит, на каком шаге мастер встал.
     const NEXT = { timeout: 10000 };
+    // TE-122 (@DO `2026-11-10 17:03`: в #1908 диагностика показала `ШАГ 1 -> 0 (prev)` — то есть клик по
+    // «далее» уводил НАЗАД). Раньше `next()` проверял только успешность клика, и такой дефект всплывал
+    // позже как непонятный таймаут. Теперь проверяем САМ ФАКТ продвижения: текст шага должен измениться.
+    const stepText = () => page.locator('#view-wizard').innerText();
     const next = async (label) => {
       console.log('::notice::wizard next: ' + label);
+      const before = await stepText().catch(() => '');
       await page.click('#btn-wizard-next', NEXT);
+      await page.waitForFunction(
+        (prev) => {
+          const el = document.getElementById('view-wizard');
+          return !!el && el.innerText !== prev;
+        },
+        before,
+        { timeout: NEXT.timeout }
+      ).catch(async () => {
+        const after = await stepText().catch(() => '');
+        throw new Error('ШАГ НЕ СМЕНИЛСЯ при «далее» (' + label + '): шаг не продвинулся. ' +
+          'До: ' + JSON.stringify((before || '').slice(0, 160)) + ' ;; После: ' +
+          JSON.stringify((after || '').slice(0, 160)));
+      });
     };
     const prev = async (label) => {
       console.log('::notice::wizard prev: ' + label);

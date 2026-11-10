@@ -24,6 +24,11 @@ test('E2E: партнёр — добавить в приложении, увид
     await expect(page.locator('#view-partners')).toBeVisible();
     // TE-118 (@DO `2026-11-10 16:21`): весь список содержит и чужие сиды, поэтому «мой строки нет»
   // неотличимо от «список показывает только сид». Утверждаем СТРОКУ партнёра, а не текст контейнера.
+  // TE-122 (@DO 17:03): печатаем ЧИСЛО карточек — «список пуст» и «список есть, моей строки нет» —
+  // разные дефекты, и по одному `toHaveCount(1)` их не различить.
+  const cards = await page.locator('#partners-list .partner-card').count().catch(() => -1);
+  console.log('::notice::add-partner: карточек в списке после создания: ' + cards +
+    ' | ищем: ' + name);
   await expect(page.locator('#partners-list .partner-card', { hasText: name })).toHaveCount(1);
   } finally {
     const r = await removeByName(page, 'partner', name);
