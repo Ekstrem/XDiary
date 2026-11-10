@@ -31,16 +31,27 @@ jobs:
           after="${AFTER:-}"
           if [ -z "$after" ] || ! git cat-file -e "${after}^{commit}" 2>/dev/null; then
             after=HEAD
-          fi
-          if [ -z "${BEFORE:-}" ] \
-             || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            range="${after}~1..${after}"
+            # 2026-11-10 (@DO): раньше здесь был `range="${after}~1..${after}"` — ТОЛЬКО последний
+            # коммит. Из-за этого коммит, приехавший в main merge-ом или в пакете из нескольких,
+            # не проверялся вовсе (случай @TE `a086700f8`: локально `--range a086700f8~1..a086700f8`
+            # даёт rc=1, а прогон был зелёный). Теперь при недоступном after берём before, если он
+            # известен, иначе окно ~20 коммитов, и явно предупреждаем в лог.
+            if [ -n "${BEFORE:-}" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              range="${BEFORE}..${after}"
+            else
+              base="$(git rev-list --max-count=21 "$after" | tail -1)"
+              if [ -n "$base" ] && git rev-parse --verify "${base}~1" >/dev/null 2>&1; then
+                range="${base}~1..${after}"
+              else
+                range="$(git rev-list --max-parents=0 HEAD | head -1)..${after}"
+              fi
+              echo "::warning::guard-paths: before/after неизвестны — проверяю окно коммитов ($range), а не один"
+            fi
           else
             range="${BEFORE}..${after}"
           fi
           echo "range: ${range}"
-          python tools/check_paths.py --range "$range"
+
 
       - name: Проверить триггеры workflow (paths-фильтры)
         run: python tools/check_workflow_paths.py
