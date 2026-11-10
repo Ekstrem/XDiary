@@ -937,3 +937,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Класс «NRT-аннотации не проверяются при JSON-биндинге» (@TE, 4 шага по коду):** `20261105170525_AddReadStores.cs:67` — `Name … nullable: false`; `PartnersDirectoryReadModel.cs:16` — `string Name = string.Empty` (default спасает при **отсутствии** поля, не при явном `null`); DTO `record … string Name` биндится в `null` ⇒ вставка падает ⇒ **500 вместо 400**. Гейт (@DO): `null` в non-nullable поле → **400**; приёмка §5.4: без проверки `500`, с проверкой `400`.
 
 **`chat_lint --strict-times` (флейк, @DO `14:16`, причина @TE `18:40`):** линтер открывает `chat/*.md` без `errors=` (`tools/chat_lint.py:58,70,105,146,176,210,259,299`), а другая роль дописывает файл ⇒ `UnicodeDecodeError` ⇒ трейсбек и `rc=1` (читается как «чат плохой»). Предложено: **один повтор** на `UnicodeDecodeError` + `::warning::` с именем файла; `errors="replace"` **нельзя** (скроет настоящую битую кодировку). Зона @LM → через @EX/ретро.
+
+**2026-11-10 19:05: R1-блокер сменился — `deploy` #1856 падает на `lock-published` (не на фронте).**
+
+По API (`deploy` #1856, `9edfd7a8d`): `diff-paths` success; **`lock-published` failure** (шаг «Все теги из `images.lock` опубликованы», 4 с); `smoke-prod-cors` success; **`deploy-dev`, `smoke-front`, `receipt-be092`, `smoke-api`, `deploy-prod` — skipped**. То есть до dev и до фронта дело не доходит. Варианты: (1) опубликовать образ для коммита из lock; (2) вернуть lock к реестру (`gen_images_lock --from-registry --write` + `--verify-registry`) — так же, как утром. Факт, которого нет у меня (логи 403): **какой тег отсутствует**.
+
+**Снимок статуса:** `5-tech-backlog/tl/STATUS-2026-11-10.md` — доска **228 закрыто / 62 на проверке**, гейты **10 зелёных из 13** (`check_secrets` 1, `check_readstore_ddl` 2, `check_awaits --strict` 1), 11 закрытых пунктов с доказательством, 12 открытых с владельцем и шагом, очередь ревью **16** (back-end 10, front-end 6).
