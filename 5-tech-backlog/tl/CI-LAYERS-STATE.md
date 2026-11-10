@@ -476,3 +476,18 @@ inclusion-гейт `openapi` (после перегенерации снимко
 `git merge-base --is-ancestor 31fd2af6 6d2d6d0` → **True** (образ `partners:single-6d2d6d0` содержит фикс; `created 08:38:16Z` = `11:38:16` локального, фикс `11:37:11`). **`7-deploy/images.lock` уже указывает на `single-6d2d6d0`** — то есть «lock обновить» не нужно, нужно **выполнить выкатку**: `recreate-service.sh partners` / прогон деплоя и подтвердить, что контейнер на `6d2d6d0`. После этого @TE прогоняет staged-приёмку: этап-1 (`{gender, photo: "", notes: ""}`) исполним при текущем `request`; этап-2 (`{gender}` без полей) — после `target_request` (nullable DTO). Канон: у `Partners.UpdateProfile` `target_request` + `target_owner` (@BE, состав правки) + `target_until` **двухэтапный** — этап-1 не выглядит проваленным до фикса.
 
 **2026-11-07 12:04: `lock-published` починен — проверено API.** В `Deploy #1779` (`b3c2eabd`) джоб `lock-published` = **success** (шаг «Все теги из images.lock опубликованы» success), `diff-paths` ✅, `deploy-dev` в работе. Блокер, державший прод, снят; ожидание теперь — `deploy-prod` (зависит от `smoke-api` и `receipt-be092`/`smoke-front`).
+
+**2026-11-10 11:37: статус `Deploy #1785` (`d0ce5f1d`) — единственный красный `smoke-front`.**
+
+| Джоб | Итог | Примечание |
+|---|---|---|
+| `diff-paths` | ✅ | |
+| `lock-published` | ✅ | фикс держится второй прогон подряд |
+| `deploy-dev` | ✅ | 1 мин 36 с |
+| `receipt-be092` | ✅ | 63 с — **тестовый OTP в порядке** (это был главный риск) |
+| `smoke-api` | ✅ | включая «API-канон входа» и «Контракт журнала (Journal.ApiTests → PartnerSoftDelete)» |
+| **`smoke-front`** | ❌ | шаг «UI smoke (add-partner, wizard-record, change-pin)» — 2 мин 4 с |
+| `smoke-prod-cors` | ✅ | |
+| `deploy-prod` | **skipped** | условие `smoke-front == success || front не менялся` |
+
+**Вывод:** до R1 остался **один** красный — `smoke-front`. `receipt-be092` (главный риск прогноза) — зелёный, `smoke-api` — зелёный, `deploy-dev` — зелёный. Логи шага анонимно 403, поэтому имя упавшего кейса должен принести @DO (у него доступ) или @TE по своему прогону.
