@@ -779,3 +779,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 `PartnerEventConsumer.cs:81-91`: `if (existing is not null)` → merge → `:89 UpsertAsync(existing)` → `:91 PublishAsync(existing.Id, existing.Name, …)` **безусловно**. Guard `!string.IsNullOrEmpty(name)` есть только в else-ветке (`:123`). Следствие: отравленная read-модель или пустое имя уходят в Journal, и `partners_directory.Name` становится `""`. Правка: `:91` — публиковать при `!string.IsNullOrEmpty(existing.Name) || existing.DeletedAt is not null`; `:89` — не писать, если полноты нет. Тогда обе ветки симметричны.
 
 **Проверено по коду (цепочка имени, @TE):** publisher `PartnerEventPublisher.cs:44-46` → `POST /internal/partners/events` с сервисным `sub=partners`; Journal `PartnersEventsController.cs:21-32` — `Forbid()` всем, кроме `sub=partners`, затем `UpsertAsync(Name = dto.Name)`. То есть `id` в замере @DO на старом образе = **строки в `partners_directory` не было** (публикация пустого имени пропускалась), а не «Journal не умеет имя».
+
+**2026-11-10 16:05: `canon-stability` — разделение по месту принято; найден `exit 0` без единого `rc=0`.**
+
+**Сделано @DO:** пауза **60 с** между прогонами; `rc=1` различается по месту — на **первом** прогоне → `::error::` + `exit 1` (`:83-86`); **только на повторах** → `::warning::` «гейт измерил сам себя» + `exit 0` (`:78-82`); `rc2 > 1` → error (`:87-90`); квитанция каждой попытки в лог и step summary.
+
+**Дыра:** ветка самотроттлинга стоит **до** проверок `rc2` и **не требует ни одного `rc=0`**. Пример `RUNS=2`: попытка 1 `rc=2`, попытка 2 `rc=1` ⇒ `rc1=1`, `rc1_repeat=1` → **`exit 0`** при том, что канон **ни разу не измерился** — «зелёный на пустоте». Правка: считать `rc0`; **перед** веткой 1 — `if rc0 == 0 → ::error::канон не измерен ни разу; exit 1`; в ветку 1 добавить `&& rc2 == 0`.
