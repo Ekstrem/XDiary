@@ -44,22 +44,22 @@ jobs:
         run: |
           set -uo pipefail
           set +e
-          # 2026-11-10: гонка с публикацией. `lock-sync` пишет в lock тег сразу после сборки, но
-          # реестр может отдавать его на несколько секунд позже — и `--verify-registry` честно даёт
-          # `rc=1` (тег отсутствует). Так упали #1867/#1868: lock верный, образ ещё «не виден».
-          # Ждём с backoff, но НЕ закрашиваем: rc=1 после всех попыток — по-прежнему красный,
-          # rc=2 (registry недоступен) — «не измерено», его тоже ждём, но не превращаем в PASS.
-          for attempt in 1 2 3 4 5; do
+          # 2026-11-10 (@TL 20:45, факт #1856): разрыв был не «секунды», а минуты — deploy стартовал
+          # в 11:26Z, а `ci-journal` #144 финишировал в 11:36Z. Поэтому окно ожидания — до 5 минут
+          # (10 попыток × 30 с), и каждая попытка печатает СПИСОК отсутствующих тегов (его даёт
+          # `--verify-registry`), чтобы было видно, ждём мы одну сборку или реестр недоступен.
+          # НЕ закрашиваем: rc=1 после всех попыток — по-прежнему красный.
+          for attempt in $(seq 1 10); do
             python3 tools/gen_images_lock.py --verify-registry
             rc=$?
             if [ "$rc" = "0" ]; then
-              echo "::notice::lock-published: все теги доступны (попытка $attempt)"
+              echo "::notice::lock-published: все теги доступны (попытка $attempt из 10)"
               exit 0
             fi
-            echo "::warning::lock-published: попытка $attempt → rc=$rc (ждём публикацию/реестр, пауза $((attempt * 15)) с)"
-            [ "$attempt" -lt 5 ] && sleep $((attempt * 15))
+            echo "::warning::lock-published: попытка $attempt из 10 → rc=$rc (пауза 30 с)"
+            [ "$attempt" -lt 10 ] && sleep 30
           done
-          echo "::error::lock-published: теги недоступны после 5 попыток (rc=$rc) — последний результат выше"
+          echo "::error::lock-published: теги недоступны после 10 попыток (~5 мин, rc=$rc) — список отсутствующих выше; это либо незавершённая сборка, либо реестр"
           exit "$rc"
 
   deploy-dev:
@@ -271,6 +271,11 @@ jobs:
       XDIARY_E2E_PIN: "1234"
     steps:
       - uses: actions/checkout@v4
+      - name: Подготовить скрипт очистки (base64 для доставки на стенд)
+        run: |
+          # 2026-11-10: «нет скрипта на стенде» больше не повод пропускать очистку —
+          # доставляем файл из этого же коммита (см. шаг ниже).
+          echo "CLEANUP_SCRIPT_B64=$(base64 -w0 7-deploy/cleanup-e2e-dev.sh)" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -290,14 +295,27 @@ jobs:
       # скрипт чистит только тестовые телефоны (`+7999…`) и печатает отчёт «до/после».
       - name: Очистить накопленные E2E-данные на dev (DO-044)
         uses: appleboy/ssh-action@v1
+        env:
+          CLEANUP_B64: ${{ env.CLEANUP_SCRIPT_B64 }}
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
+          envs: CLEANUP_B64
           script: |
-            SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
+            # 2026-11-10 (@DO): скрипт в репозитории, но на стенде его может не быть — тогда
+            # «очистка» молча пропускалась (warning в #1871). Доставляем его сами, из текущего
+            # коммита: base64 -> /tmp -> bash. Так очистка не зависит от того, что успел выкатить
+            # deploy-dev, и «нет скрипта» перестаёт быть нормой.
+            if [ -n "${CLEANUP_B64:-}" ]; then
+              echo "$CLEANUP_B64" | base64 -d > /tmp/cleanup-e2e-dev.sh
+              SCRIPT=/tmp/cleanup-e2e-dev.sh
+              echo "::notice::очистка: скрипт доставлен из коммита ($(wc -l < "$SCRIPT") строк)"
+            else
+              SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
+            fi
             if [ ! -f "$SCRIPT" ]; then
-              echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
+              echo "::warning::скрипт очистки не найден ни в коммите, ни на стенде — прогон без очистки"
               exit 0
             fi
             bash "$SCRIPT" | tail -12
