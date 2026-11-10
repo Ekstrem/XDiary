@@ -221,7 +221,6 @@
       "guard-tools.yml",
       "guard-paths.yml",
       "stats.yml",
-      "merge-chat.yml",
       "health.yml",
       "badges.yml",
       "sync-board.yml"
