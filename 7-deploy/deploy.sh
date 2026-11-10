@@ -11,11 +11,25 @@
 # отстала, `-e` перекрывал `--env-file`, и сервисы падали с `28P01`. Путь «починил на
 # сервере» больше не нужен: значение живёт в `.env` (вне git), скрипт его только читает.
 #
-# Fallback ниже — ТОЛЬКО переходный: он нужен, чтобы деплой не сломался на VPS-1, где
-# `DB_PASSWORD` ещё не заведён. Условие его удаления записано в DO-111 (критерий 4).
 if [ -f "$(dirname "$0")/secrets/.env" ]; then
   set -a; . "$(dirname "$0")/secrets/.env"; set +a
 fi
+
+# DO-111 + @TL 2026-11-10 12:06 (критерий приёмки): fail-fast вместо «тихого» пустого пароля.
+# Без этой проверки отсутствующий DBPW_<SERVICE> раскрывался в пустую строку, сервис поднимался
+# и падал в 28P01 — то есть деплой «зелёный», а сервис мёртв. Теперь деплой падает ДО создания
+# контейнеров и печатает, каких ключей нет.
+__missing=""
+for __k in JOURNAL PARTNERS CATALOG SOMATIC_SERIES DAILY_METRICS GARMIN_GATEWAY \
+           APPLE_HEALTH_GATEWAY ANALYTICS PRIVACY PORTABILITY CLIENT; do
+  eval "__v=\${DBPW_$__k:-}"
+  [ -n "$__v" ] || __missing="$__missing DBPW_$__k"
+done
+if [ -n "$__missing" ]; then
+  echo "::error::deploy: не заданы пароли БД:$__missing — задай их в secrets/.env (DO-111)" >&2
+  exit 2
+fi
+unset __k __v __missing
 # Пароли БД — по-сервисные ключи DBPW_<SERVICE> в secrets/.env (DO-111).
 # Общего DB_PASSWORD нет: у ролей постгреса разные пароли (проверено по хешам).
 #!/usr/bin/env bash
