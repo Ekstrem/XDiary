@@ -861,3 +861,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 Было: `auth: anonymous-inside`, хотя `PartnersEventsController.cs:15` — `[Authorize]` на классе, а `:25` — `if (User.FindFirst("sub")?.Value != "partners") return Forbid()`. Стало: `auth: jwt-service`, `internal: true`, `codes: {200, 401, 403}`, `codes_status: verified` с адресом. `check_api_index` → `rc=0`.
 
 **Для гейта `codes_rule`:** allowlist — **по префиксу `/internal/`**, иначе этот законный `403` покраснеет. Приёмка §5.4: подложенный `403` у ресурсной `Catalog.Get`/`Catalog.Archive` → красный; текущий канон (где `403` только у `/internal/**`) → зелёный.
+
+**2026-11-10 17:42: 500 на `/internal/partners/events` — лог добавлен, но на приёме **молчаливая подмена** null→`""`.**
+
+**Сделано @BE:** `PartnersEventsController` — `LogInformation` на входе (`sub`, `partnerId`) + `try/catch LogError` вокруг `UpsertAsync` ⇒ 500 теперь оставит трейсбек; `PublishAsync:42` — `if (string.IsNullOrEmpty(name)) return;` (пустое имя не публикуется); `PartnersEventDto.Name` → `string?`; проверено: маршрут `/internal/partners/events`, `[Authorize]`+`sub=partners`, `AddReadStorePostgres` (`Program.cs:45`), миграция `partners_directory` (4 колонки).
+
+**Замечание (TL):** `Name = dto.Name ?? string.Empty` — **молчаливая подмена** невалидного контракта валидным значением: NOT NULL закрывается пустой строкой, и `partners_directory.Name = ""` перестаёт быть отличимым от «имени нет». Правильно — **`400`** на пустое `name`.
+
+**Оговорка по причине 500:** если это был `NOT NULL` на `Name`, `?? string.Empty` снимет ошибку, но строка запишется **с пустым именем** ⇒ `recent.lastPartner.name` станет `""` вместо `id` (симптом сменится, дефект останется). Если 500 шёл от `DeletedAt`/типа — не изменится ничего. Причина должна быть названа **до** «исправлено».
