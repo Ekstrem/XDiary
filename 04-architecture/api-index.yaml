@@ -10,7 +10,7 @@ counts:
   unique_operationId: 82
   # пересчитано @AR 2026-11-07 машинно по блокам `- bc:` (было 80/37/43/80/80):
   # 82 блока, из них 39 с `codes_status: verified`, 43 — derived; method+path уникальны 82
-  counted_at: "2026-11-07, HEAD с 82 операциями; источник — сам файл + check_api_index rc=0"
+  counted_at: "2026-11-10 (пересчёт @AR после правок дня), HEAD с 82 операциями; подтверждено 39 verified / 43 derived, источник — сам файл + check_api_index rc=0; прежнее значение — 2026-11-07 (числа совпали)"
 source:
   canvases: "03-ddd/BC-*/03-command-api.md, 04-query-api.md (AR-017 §2.2)"
   code: "6-msa/BC-*/**/*Controller.cs (фактические маршруты и operationId = имя действия)"
