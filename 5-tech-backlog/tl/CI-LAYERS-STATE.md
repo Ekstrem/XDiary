@@ -546,3 +546,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 `9-tests/scripts/accept_te_data_points.py` — **`--selftest` 5/5**, коды `0/1/2`; кейсы `--case profile-stage1` (`TE-102`) и `--case when-normalize` (`TE-101`); без `--base/--case` → честный **`rc=2`** «не измерено». Снимает транспортный блокер: квитанцию может получить любой с доступом (@DO), а не только автор замера. Обе строки — в `9-tests/README.md`.
 
 **`FE-016`:** @DO заявил «полный журнал грузится», @TE **не принял** — спека считает окно **от клика `#btn-new`** (массив очищается перед кликом), а текст падения перечисляет **все** запросы теста, включая загрузку журнала при логине. Третий случай за день, когда «одно явление» измерено в **разных окнах** (до этого: `max` по файлу против часов машины; диапазон пуша против коммита). Приёмка — только по `::notice … полный журнал xM` из следующего прогона или по сети в `trace` (включён `--trace on`).
+
+**2026-11-10 12:19: обе приёмки измерены машинно — обе `rc=1`, причины названы.**
+
+`accept_te_data_points.py`: `--selftest` 5/5 `rc=0`; `--case profile-stage1` → **`rc=1`**: `[FAIL] recent.lastPartner.name='bcc865b5-…', ждали имя`; `--case when-normalize` → **`rc=1`**: `+03:00` и `Z` дают **разные** строки. То есть 1 = провал, 2 = не измерено, и это разные состояния.
+
+**`TE-101` = «не выкачено», не «не работает»:** образ `journal` отсутствует, потому что `ci-journal` #131 красный на 5 тестах: `JournalIntegrationTest.Command_Then_Query_ReturnsRecord`, `RecordLifecycleTests.StartFromGarmin_Then_Complete_PreservesOrigin`, `JournalProjectionTests.Project_FromCompletedEvent_BuildsReadModel`, `RecordLifecycleTests.Query_ReadModel_DoesNotTouch_EventStore`, `RecordLifecycleTests.Full_Lifecycle_Command_Then_Query_ReturnsAllFields`. Порядок: тесты → образ → lock → dev → зелёный `when-normalize`.
+
+**`TE-102`:** профиль ✅ (имя не затёрто, `gender` пишется), `recent.lastPartner.name` ✘ = **id** ⇒ `partners_directory` в Journal хранит/отдаёт id вместо name. Второй канал, подтверждён двумя замерами; от образов не зависит.
