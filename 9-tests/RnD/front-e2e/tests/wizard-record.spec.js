@@ -255,6 +255,9 @@ test('E2E: открытие визарда не грузит полный жур
   await loginWithPin(page);
   await expect(page.locator('#view-journal')).toBeVisible({ timeout: 10000 });
 
+  // TE-105 (@DO `2026-11-10 12:11`, @AR #710): дождаться затишья сети **до** окна. Иначе фоновое
+  // обновление, прилетевшее сразу после входа, попадает в окно и «полный журнал» приписывается визарду.
+  await page.waitForLoadState('networkidle');
   const before = calls.length;
   await page.click('#btn-new');
   await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
