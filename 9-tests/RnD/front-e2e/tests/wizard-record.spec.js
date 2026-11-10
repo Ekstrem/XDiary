@@ -294,5 +294,26 @@ test('E2E: открытие визарда не грузит полный жур
   expect(places.length, 'должен быть `GET /journal/places` (шаг «Где?»); ' + windowText)
     .toBeGreaterThanOrEqual(1);
 
+  // TE-106 (@TL `2026-11-10 13:26`, @AR «контрольное окно»): ПОЛОЖИТЕЛЬНЫЙ КОНТРОЛЬ СБОРЩИКА.
+  // `expect(fullJournal).toHaveLength(0)` проходит и на пустоте (журнал не грузился вовсе) — тогда «x0»
+  // ничего не доказывает. Поэтому после всех утверждений делаем контролируемый запрос из страницы и
+  // убеждаемся, что сборщик его ВИДИТ: если нет, тест обязан краснеть, а не зеленеть «на пустоте».
+  const controlFrom = calls.length;
+  // Ждём именно СЕТЕВОЕ событие (детерминированно): фиксированную паузу запрещает `check_e2e_no_sleeps`,
+  // а `waitForResponse` доказывает, что запрос реально ушёл и был замечен.
+  const controlResponse = page
+    .waitForResponse((r) => r.url().indexOf('/api/v1/journal/records') !== -1, { timeout: 10000 })
+    .catch(() => null);
+  await page.evaluate(() => {
+    // статус не важен (может быть 401 без заголовка) — проверяем сам факт регистрации запроса сборщиком
+    return fetch('/api/v1/journal/records').catch(() => null);
+  });
+  await controlResponse;
+  const controlSeen = calls.slice(controlFrom).filter((l) => l.indexOf('/journal/records') !== -1);
+  expect(controlSeen.length, 'контроль приёмки: сборщик окна обязан видеть `journal/records` ' +
+    '(иначе «полный журнал x0» — зелёный на пустоте); окно: ' + windowText)
+    .toBeGreaterThanOrEqual(1);
+  console.log('::notice::FE-016 контроль: сборщик видит journal/records x' + controlSeen.length);
+
   await page.click('#btn-wizard-close');
 });
