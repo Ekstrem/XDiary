@@ -182,12 +182,35 @@ PULL_FAILED=0
 if [ "$DRY" = "1" ]; then
   say "DRY-RUN: pull пропущен"
 else
+  PULL_ATTEMPTS="${PULL_ATTEMPTS:-3}"
+  PULL_PAUSE="${PULL_PAUSE:-10}"
   for img in $IMAGES; do
     # 2026-11-07: контейнеры создаются через `sudo -n podman` (rootful storage), а pull шёл
     # БЕЗ sudo — в rootless storage. Из-за этого `pull не удался` падал то на одном сервисе,
     # то на другом (analytics, apple-health-gateway), а вручную `sudo podman pull` работал.
-    if ! sudo -n podman pull "$img" >/dev/null 2>&1; then
-      say "pull не удался: $img" >&2
+    #
+    # 2026-11-10 (deploy #1912, 14:14:32Z): одна попытка pull на один образ — и весь деплой
+    # красный из-за транзиентной ошибки реестра (`catalog:single-e195ad9`), при том что
+    # `lock-published` тот же тег видел минутами раньше, а предыдущие прогоны (#1908/#1909/
+    # #1911) тянули его нормально. Реестр — внешняя система: 1 попытка = гейт, который
+    # падает «не по нашей вине» и который поэтому захочется отключить (§5.4).
+    # Ретраим ТОЛЬКО pull (не деплой): провал после всех попыток остаётся красным.
+    attempt=1
+    pulled=0
+    while [ "$attempt" -le "$PULL_ATTEMPTS" ]; do
+      if sudo -n podman pull "$img" >/dev/null 2>&1; then
+        pulled=1
+        [ "$attempt" -gt 1 ] && say "pull ок на попытке $attempt: $img"
+        break
+      fi
+      if [ "$attempt" -lt "$PULL_ATTEMPTS" ]; then
+        say "pull: попытка $attempt/$PULL_ATTEMPTS не удалась: $img — пауза ${PULL_PAUSE} с"
+        sleep "$PULL_PAUSE"
+      fi
+      attempt=$((attempt + 1))
+    done
+    if [ "$pulled" != "1" ]; then
+      say "pull не удался после $PULL_ATTEMPTS попыток: $img" >&2
       PULL_FAILED=$((PULL_FAILED + 1))
     fi
   done
