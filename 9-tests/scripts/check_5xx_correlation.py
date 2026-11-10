@@ -47,6 +47,16 @@ def evaluate(results):
     return issues, stats
 
 
+def empty_notice(stats):
+    """`5xx = 0` — не «зелено», а «правило не воспроизведено» (@AR 2026-11-10 15:24).
+
+    Гейт, который молчит при нуле проверенных случаев, читается как «всё хорошо». Поэтому при `5xx = 0`
+    печатается строка с числом проверенных запросов: видно, что проверка была, но случая не было.
+    """
+    return ("::notice::check_5xx_correlation: ошибок 5xx не было — правило не воспроизведено "
+            "(проверено запросов %d)" % stats.get("probes", 0))
+
+
 def receipt(stats, issues):
     return (f"квитанция: запросов {stats['probes']} | из них 5xx {stats['5xx']} | "
             f"с X-Correlation-Id {stats['5xx_with_id']} | нарушено: {len(issues)}")
@@ -133,6 +143,8 @@ def main(argv=None):
     print(receipt(stats, issues))
     if issues:
         return 1
+    if stats["5xx"] == 0 and not a.require_5xx:
+        print(empty_notice(stats))
     if a.require_5xx and stats["5xx"] == 0:
         print("::error::check_5xx_correlation: ни одного 5xx не встретилось — заголовок не проверялся, "
               "это «не измерено», а не «зелено» (rc=2)")
@@ -180,6 +192,13 @@ def selftest():
         ok += 1
     else:
         print(f"  [FAIL] текст квитанции: {line}")
+
+    total += 1
+    _n = empty_notice({"probes": 7, "5xx": 0, "5xx_with_id": 0})
+    if "не воспроизведено" in _n and "7" in _n and _n.startswith("::notice::"):
+        ok += 1
+    else:
+        print(f"  [FAIL] notice при 5xx=0: {_n}")
 
     print(f"check_5xx_correlation --selftest: {ok}/{total} "
           f"(5xx без X-Correlation-Id = rc=1: иначе «запрос → лог» не восстановить)")
