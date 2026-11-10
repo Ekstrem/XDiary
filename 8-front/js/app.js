@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.104"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.105"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -730,6 +730,12 @@
         draft = newDraft();
         draft.partner = (data.recent.lastPartner && data.recent.lastPartner.name) || "";
         draft.place = data.recent.lastPlace || "";
+        // FE-014: диагностика подстановки — прогон должен объяснять пустое предзаполнение сам.
+        console.log("FE-014 prefill: partner=" + JSON.stringify(draft.partner) +
+          " (lastPartner: " + (data.recent.lastPartner ? "есть" : "нет") + ")" +
+          ", place=" + JSON.stringify(draft.place) +
+          ", partners=" + ((data.partners || []).length) +
+          ", в списке=" + ((data.partners || []).some(function (p) { return p.name === draft.partner; }) ? "да" : "нет"));
       }
       showView("wizard");
       renderWizard(data);
@@ -807,6 +813,19 @@
       '<button type="button" class="btn" id="w-partner-none">Без партнёра</button>';
 
     var grid = $("w-partner-grid");
+    // FE-014: если предзаполнение пришло из recent, а партнёра в списке нет (мягко удалён
+    // или проекция отстала), показываем его отдельной выбранной карточкой, а не теряем.
+    var knownNames = {};
+    partners.forEach(function (p) { knownNames[p.name] = true; });
+    if (draft.partner && !knownNames[draft.partner]) {
+      var legacy = document.createElement("button");
+      legacy.type = "button";
+      legacy.className = "partner-card selected";
+      legacy.innerHTML = '<span class="avatar avatar-initial">' + esc(String(draft.partner).slice(0, 1)) +
+        '</span><span>' + esc(draft.partner) + ' <small>· нет в списке</small></span>';
+      legacy.addEventListener("click", function () { draft.partner = draft.partner; stepPartner(body, data); });
+      grid.appendChild(legacy);
+    }
     partners.forEach(function (p) {
       var c = document.createElement("button");
       c.type = "button";
