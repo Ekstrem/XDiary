@@ -31,10 +31,20 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok — новый номер: тело id, version, phone, otpExpiresAt, verified, delivery"
+          },
+          "400": {
+            "description": "validation телефона — тело: СТРОКА"
+          },
+          "409": {
+            "description": "номер уже зарегистрирован: тело СТРУКТУРИРОВАННОЕ {error, clientId, delivery}, код переотправлен; 429 при лимите"
+          },
+          "429": {
+            "description": "лимит переотправки: 1/60с на клиента, 5/час на номер"
           }
         },
-        "operationId": "Client.Register"
+        "operationId": "Client.Register",
+        "security": []
       }
     },
     "/api/v1/clients/{id}/verify": {
@@ -74,10 +84,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok (access+refresh)"
+          },
+          "400": {
+            "description": "bad-otp"
           }
         },
-        "operationId": "Client.Verify"
+        "operationId": "Client.Verify",
+        "security": []
       }
     },
     "/api/v1/clients/refresh": {
@@ -106,10 +120,14 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok (новая пара токенов)"
+          },
+          "401": {
+            "description": "bad-refresh"
           }
         },
-        "operationId": "Client.Refresh"
+        "operationId": "Client.Refresh",
+        "security": []
       }
     },
     "/api/v1/clients/{id}/link-partner": {
@@ -130,10 +148,19 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok {deprecated:true} — no-op"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Client.LinkPartnerDeprecated"
+        "operationId": "Client.LinkPartnerDeprecated",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/clients/{id}/unlink-partner": {
@@ -154,10 +181,19 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok {deprecated:true} — no-op"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Client.UnlinkPartnerDeprecated"
+        "operationId": "Client.UnlinkPartnerDeprecated",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/clients/me": {
@@ -167,10 +203,21 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "клиент не найден"
           }
         },
-        "operationId": "Client.Me"
+        "operationId": "Client.Me",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/clients/me/profile": {
@@ -199,10 +246,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok, gender канонизирован"
+          },
+          "400": {
+            "description": "validation (Other/м/пусто)"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Client.UpdateProfile"
+        "operationId": "Client.UpdateProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/clients/{id}": {
@@ -223,71 +281,35 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "403": {
+            "description": "чужая запись: id != sub, сравнение ДО запроса"
+          },
+          "404": {
+            "description": "не найден"
           }
         },
-        "operationId": "Client.Get"
+        "operationId": "Client.Get",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     }
   },
   "components": {
-    "schemas": {
-      "RefreshClientTokenCommand": {
-        "type": "object",
-        "properties": {
-          "refreshToken": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "RegisterClientCommand": {
-        "type": "object",
-        "properties": {
-          "phone": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "UpdateProfileCommand": {
-        "type": "object",
-        "properties": {
-          "aggregateId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "displayName": {
-            "type": "string",
-            "nullable": true
-          },
-          "gender": {
-            "type": "string",
-            "nullable": true
-          },
-          "photoUrl": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "VerifyClientOtpCommand": {
-        "type": "object",
-        "properties": {
-          "aggregateId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "code": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }

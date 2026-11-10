@@ -31,10 +31,22 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.SetPin"
+        "operationId": "Privacy.SetPin",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/pin/change": {
@@ -63,10 +75,22 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.ChangePin"
+        "operationId": "Privacy.ChangePin",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/pin/remove": {
@@ -95,10 +119,22 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.Remove"
+        "operationId": "Privacy.Remove",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/pin/lock": {
@@ -108,10 +144,22 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.Lock"
+        "operationId": "Privacy.Lock",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/pin/unlock": {
@@ -121,10 +169,22 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.Unlock"
+        "operationId": "Privacy.Unlock",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/pin/has": {
@@ -134,10 +194,19 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.HasPin"
+        "operationId": "Privacy.HasPin",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/pin/verify": {
@@ -166,10 +235,22 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.VerifyPin"
+        "operationId": "Privacy.VerifyPin",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/token": {
@@ -198,10 +279,22 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Privacy.Token"
+        "operationId": "Privacy.Token",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "deprecated": true
       }
     },
     "/api/v1/privacy/verify-token": {
@@ -230,103 +323,25 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok; невалидный токен → valid:false"
+          },
+          "400": {
+            "description": "нет поля token (implicit required из [ApiController] + non-nullable string)"
           }
         },
-        "operationId": "Privacy.VerifyToken"
+        "operationId": "Privacy.VerifyToken",
+        "security": []
       }
     }
   },
   "components": {
-    "schemas": {
-      "ChangePinCommand": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pin": {
-            "type": "string",
-            "nullable": true
-          },
-          "currentPin": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "IssueTokenCommand": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pin": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "RemovePinCommand": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "currentPin": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "SetPinCommand": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pin": {
-            "type": "string",
-            "nullable": true
-          },
-          "currentPin": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "VerifyPinQuery": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "pin": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "VerifyTokenQuery": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }

@@ -31,10 +31,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "DailyMetrics.Stress"
+        "operationId": "DailyMetrics.Stress",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/daily-metrics/resting-hr": {
@@ -63,10 +74,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "DailyMetrics.RestingHr"
+        "operationId": "DailyMetrics.RestingHr",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/daily-metrics/hrv": {
@@ -95,10 +117,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "DailyMetrics.Hrv"
+        "operationId": "DailyMetrics.Hrv",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/daily-metrics/sleep": {
@@ -127,10 +160,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "DailyMetrics.Sleep"
+        "operationId": "DailyMetrics.Sleep",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/daily-metrics/series": {
@@ -156,100 +200,50 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "DailyMetrics.Series"
+        "operationId": "DailyMetrics.Series",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/internal/daily-metrics/series": {
+      "get": {
+        "operationId": "DailyMetrics.InternalSeries",
+        "tags": [
+          "DailyMetrics"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok — серия по clientId"
+          },
+          "401": {
+            "description": "нет сервисного токена / снаружи"
+          },
+          "403": {
+            "description": "токен без требуемой роли"
+          }
+        },
+        "security": [],
+        "x-internal": true
       }
     }
   },
   "components": {
-    "schemas": {
-      "RecordHrvCommand": {
-        "type": "object",
-        "properties": {
-          "date": {
-            "type": "string",
-            "nullable": true
-          },
-          "hrv": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "RecordRestingHrCommand": {
-        "type": "object",
-        "properties": {
-          "date": {
-            "type": "string",
-            "nullable": true
-          },
-          "restingHr": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "RecordSleepCommand": {
-        "type": "object",
-        "properties": {
-          "date": {
-            "type": "string",
-            "nullable": true
-          },
-          "sleep": {
-            "$ref": "#/components/schemas/SleepDto"
-          }
-        },
-        "additionalProperties": false
-      },
-      "RecordStressCommand": {
-        "type": "object",
-        "properties": {
-          "date": {
-            "type": "string",
-            "nullable": true
-          },
-          "stress": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "SleepDto": {
-        "type": "object",
-        "properties": {
-          "score": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "durationMin": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "deepMin": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "lightMin": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "remMin": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "awakeMin": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }

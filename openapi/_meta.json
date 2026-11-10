@@ -1,97 +1,85 @@
 {
   "analytics": {
-    "rev": "b6fca17f1c261f5b217505e1f48cf4e49d0d9f43c28148cf4f0c5fa935cecc24",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 8,
     "title": "Analytics Microservice API",
     "operations": 8,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "api-gateway": {
-    "rev": "608f346564004662766d7a88c311784141dd441a30120ee28f868a0bdf772d4e",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 1,
     "title": "API Gateway",
     "operations": 1,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "apple-health-gateway": {
-    "rev": "6837e29aa890f4d391b6c32ecbcc2f1a174f06345648fed3e5f9672b73bd57fc",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 3,
     "title": "Apple Health Gateway API",
     "operations": 3,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "catalog": {
-    "rev": "96d04f2632305902f526e7df94b17d8d78ccdb4de8191a5657019f350523d692",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 7,
     "title": "Catalog Microservice API",
     "operations": 8,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "client": {
-    "rev": "895e7bdd487865d3efe264829a72abfc32842a3a16121990ab36d80606f2bfc6",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 8,
-    "title": "Client API",
+    "title": "Client Microservice API",
     "operations": 8,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "daily-metrics": {
-    "rev": "0d258d37cde6ad7efcbc9c1f97094c94c8f5409916cfc7447d472138aad6176f",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
-    "paths": 5,
-    "title": "Daily Metrics Microservice API",
-    "operations": 5,
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
+    "paths": 6,
+    "title": "Daily Metrics API",
+    "operations": 6,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "garmin-gateway": {
-    "rev": "7c0590da1c465d561269d3ed6cbed76653ecd0eb33bfffcf47024bc521b9c483",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 4,
     "title": "Garmin Gateway API",
     "operations": 4,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "journal": {
-    "rev": "423dea0c4b62ccf6693f544d8792930b035b461bafb1e89ac2fbdbafe9497465",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
-    "paths": 19,
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
+    "paths": 20,
     "title": "Journal Microservice API",
-    "operations": 20,
+    "operations": 21,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "partners": {
-    "rev": "0cc9a8651cf2cd8759b0d45209bdc8ecf605213afc6505a84379d4138afa652c",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 7,
     "title": "Partners Microservice API",
     "operations": 8,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "portability": {
-    "rev": "4c4b23289b283af4410d20203d75b398554c17f0dcf212ec181d39a98afcb5b7",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 4,
     "title": "Portability Microservice API",
     "operations": 4,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "privacy": {
-    "rev": "96f8a9662fc234ae8f4bafc7de689a2402f1d661a9b3b04183badcde5c740f78",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 9,
     "title": "Privacy Microservice API",
     "operations": 9,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "somatic-series": {
-    "rev": "02345f48571b17fc4ae3ca8d75a048c6defd7746a13ec6f95bad527e52e029d5",
-    "index_sha256": "c43663c17cbabf16c1af52507418794e4cda074c76715011fd3ac58c5a820e47",
+    "rev": "4028d1a99f31800e41310ee685788ad1dc1330bfcd99748dd9cc2f10b0b93216",
     "paths": 2,
-    "title": "Somatic Series Microservice API",
+    "title": "Somatic Series API",
     "operations": 2,
     "derived_from": "04-architecture/api-index.yaml"
   }

@@ -41,7 +41,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "deprecated": true
       }
     }
   }

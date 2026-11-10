@@ -115,6 +115,9 @@
           },
           "401": {
             "description": "no-token"
+          },
+          "404": {
+            "description": "чужой/несуществующий id"
           }
         },
         "parameters": [
@@ -149,6 +152,9 @@
           },
           "401": {
             "description": "no-token"
+          },
+          "404": {
+            "description": "чужой/несуществующий id"
           }
         },
         "parameters": [
@@ -183,6 +189,9 @@
           },
           "401": {
             "description": "no-token"
+          },
+          "404": {
+            "description": "чужой/несуществующий id"
           }
         },
         "parameters": [
@@ -217,6 +226,9 @@
           },
           "401": {
             "description": "no-token"
+          },
+          "404": {
+            "description": "чужой/несуществующий id"
           }
         },
         "parameters": [
@@ -251,6 +263,9 @@
           },
           "401": {
             "description": "no-token"
+          },
+          "404": {
+            "description": "чужой/несуществующий id"
           }
         },
         "parameters": [

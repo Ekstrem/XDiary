@@ -73,10 +73,7 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
-          },
-          "204": {
-            "description": "no-content: Ok(null) при отсутствии записи (подтверждено @TE)"
+            "description": "ok; при отсутствии данных — 200 с пустым/null телом (НЕ 204)"
           },
           "401": {
             "description": "no-token"
@@ -169,9 +166,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id (Forbid)"
-          },
           "404": {
             "description": "не найден"
           }
@@ -208,9 +202,6 @@
           },
           "401": {
             "description": "no-token"
-          },
-          "403": {
-            "description": "чужой id"
           },
           "404": {
             "description": "не найден"
@@ -249,9 +240,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id"
-          },
           "404": {
             "description": "не найден"
           }
@@ -288,9 +276,6 @@
           },
           "401": {
             "description": "no-token"
-          },
-          "403": {
-            "description": "чужой id"
           },
           "404": {
             "description": "не найден"
@@ -329,9 +314,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id"
-          },
           "404": {
             "description": "не найден"
           }
@@ -368,9 +350,6 @@
           },
           "401": {
             "description": "no-token"
-          },
-          "403": {
-            "description": "чужой id"
           },
           "404": {
             "description": "не найден"
@@ -409,9 +388,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id"
-          },
           "404": {
             "description": "не найден"
           }
@@ -449,9 +425,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id"
-          },
           "404": {
             "description": "не найден"
           }
@@ -488,9 +461,6 @@
           },
           "401": {
             "description": "no-token"
-          },
-          "403": {
-            "description": "чужой id"
           },
           "404": {
             "description": "не найден"
@@ -537,9 +507,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id"
-          },
           "404": {
             "description": "не найден"
           }
@@ -576,9 +543,6 @@
           },
           "401": {
             "description": "no-token"
-          },
-          "403": {
-            "description": "чужой id"
           },
           "404": {
             "description": "не найден"
@@ -617,9 +581,6 @@
           "401": {
             "description": "no-token"
           },
-          "403": {
-            "description": "чужой id"
-          },
           "404": {
             "description": "не найден"
           }
@@ -649,10 +610,10 @@
         ],
         "responses": {
           "200": {
-            "description": "ok, изнутри сети без токена"
+            "description": "ok, с сервисным JWT (Analytics)"
           },
           "401": {
-            "description": "снаружи/через шлюз"
+            "description": "без токена / снаружи"
           }
         },
         "security": []
@@ -668,11 +629,35 @@
           "200": {
             "description": "ok — upsert в partners_directory"
           },
+          "400": {
+            "description": "пустое имя (явный BadRequest `name required`, :34) + implicit required полей"
+          },
           "401": {
-            "description": "снаружи/через шлюз (внутренний контур не публикуется)"
+            "description": "нет токена"
+          },
+          "403": {
+            "description": "токен не sub=partners"
           }
         },
         "security": []
+      }
+    },
+    "/internal/journal/client-ids": {
+      "get": {
+        "operationId": "Journal.ClientIds",
+        "tags": [
+          "Journal"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok — список clientId, у которых есть записи"
+          },
+          "401": {
+            "description": "нет сервисного токена / снаружи"
+          }
+        },
+        "security": [],
+        "x-internal": true
       }
     }
   }
