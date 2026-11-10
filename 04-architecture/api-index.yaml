@@ -431,9 +431,9 @@ operations:
     path: "/api/v1/journal/recent"
     operationId: Journal.Recent
     auth: jwt
-    codes: {200: "ok", 204: "no-content: Ok(null) при отсутствии записи (подтверждено @TE)", 401: "no-token"}
+    codes: {200: "ok; при отсутствии данных — 200 с пустым/null телом (НЕ 204)", 401: "no-token"}
     codes_status: verified
-    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
+    verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR | 204 СНЯТ 2026-11-10 (@AR, проверено по коду): `JournalController.cs:100-105` — `Recent` всегда `return Ok(...)`, `NoContent`/`StatusCode(204)` в `BC-Journal/src` нет ни одного; прежний `204` в каноне был неверен. Отсутствие данных определяется по телу (нет `lastPartner`), а не по коду — на это опирается `rc=2` в приёмке."
   - bc: Journal
     method: GET
     path: "/api/v1/journal/records"
