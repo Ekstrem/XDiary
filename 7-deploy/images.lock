@@ -1,22 +1,19 @@
 # images.lock — какие образы считаются текущими (ADR-027, DO-066)
 #
-# ВНИМАНИЕ: набор смешанный — это последние ДОСТУПНЫЕ образы, а НЕ сборка HEAD.
-# Причина: у части сервисов красные тесты, образа «последнего коммита» нет (DO-108).
-# Провенанс: `commit=<sha>` — коммит, из которого образ собран; он всегда предок HEAD.
-# Вывести этот режим после появления `release.yml` (13 сервисов на одном коммите).
-#
-# Формат: <service> <tag> <путь>  commit=<sha>
-# Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-b9f4dc3     6-msa/BC-Journal  commit=b9f4dc3
-partners             single-7f8408d     6-msa/BC-Partners  commit=7f8408d
-catalog              single-e195ad9     6-msa/BC-Catalog  commit=e195ad9
-somatic-series       single-0a741be     6-msa/BC-SomaticSeries  commit=0a741be
-daily-metrics        single-28fc85d     6-msa/BC-DailyMetrics  commit=28fc85d
-garmin-gateway       single-cfba2a2     6-msa/BC-GarminGateway  commit=cfba2a2
-apple-health-gateway single-cfba2a2     6-msa/BC-AppleHealthGateway  commit=cfba2a2
-analytics            single-3a803bb     6-msa/BC-Analytics  commit=3a803bb
-privacy              single-8d4d412     6-msa/BC-Privacy  commit=8d4d412
-portability          single-07a2426     6-msa/BC-Portability  commit=07a2426
-client               single-4a21cc1     6-msa/BC-Client  commit=4a21cc1
-api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5
-front                single-077cc06     8-front  commit=077cc06  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером
+# Формат: <service> <tag> <путь> — по строке на образ. Ручной тег при деплое запрещён:
+# деплой читает только этот файл, откат = revert коммита, изменившего строку.
+# Генератор: python tools/gen_images_lock.py --write
+# Проверка:  python tools/gen_images_lock.py --check
+journal              single-4b90af9  6-msa/BC-Journal
+partners             single-41411e2  6-msa/BC-Partners
+catalog              single-0b18877  6-msa/BC-Catalog
+somatic-series       single-0a741be  6-msa/BC-SomaticSeries
+daily-metrics        single-817c640  6-msa/BC-DailyMetrics
+garmin-gateway       single-cf58f11  6-msa/BC-GarminGateway
+apple-health-gateway single-c98dbe4  6-msa/BC-AppleHealthGateway
+analytics            single-9353529  6-msa/BC-Analytics
+privacy              single-b92f62b  6-msa/BC-Privacy
+portability          single-9fbcd25  6-msa/BC-Portability
+client               single-2f8c167  6-msa/BC-Client
+api-gateway          single-50961be  6-msa/ApiGateway
+front                single-077cc06  8-front
