@@ -48,17 +48,23 @@ public sealed class ClientTokenService
     }
 
     private string CreateAccess(string sub, string? phone, DateTime now)
-        => WriteToken(sub, "access", now.AddMinutes(TokenPolicy.AccessMinutes), phone);
+    {
+        var claims = new List<Claim> { new Claim("sub", sub), new Claim("kind", "access") };
+        if (!string.IsNullOrWhiteSpace(phone)) claims.Add(new Claim("phone", phone));
+        return WriteToken(claims, now.AddMinutes(TokenPolicy.AccessMinutes));
+    }
 
     private string CreateRefresh(string sub, DateTime now)
-        => WriteToken(sub, "refresh", now.AddDays(TokenPolicy.RefreshDays), null);
+    {
+        // AR-018: refresh без PII — phone невозможен по сигнатуре (claims строятся только из sub+kind).
+        var claims = new List<Claim> { new Claim("sub", sub), new Claim("kind", "refresh") };
+        return WriteToken(claims, now.AddDays(TokenPolicy.RefreshDays));
+    }
 
-    private string WriteToken(string sub, string kind, DateTime expires, string? phone)
+    private string WriteToken(IEnumerable<Claim> claims, DateTime expires)
     {
         var handler = new JwtSecurityTokenHandler();
         var key = new SymmetricSecurityKey(Convert.FromBase64String(_key));
-        var claims = new List<Claim> { new Claim("sub", sub), new Claim("kind", kind) };
-        if (!string.IsNullOrWhiteSpace(phone)) claims.Add(new Claim("phone", phone));
         var token = new JwtSecurityToken(issuer: _issuer, claims: claims, expires: expires, signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
         return handler.WriteToken(token);
     }
