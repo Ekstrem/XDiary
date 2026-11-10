@@ -585,11 +585,11 @@ operations:
     method: GET
     path: "/internal/journal/records"
     operationId: Journal.ListAll
-    auth: anonymous-inside
+    auth: jwt-service
     internal: true
-    codes: {200: "ok, изнутри сети без токена", 401: "снаружи/через шлюз"}
+    codes: {200: "ok, с сервисным JWT (Analytics)", 401: "без токена / снаружи"}
     codes_status: verified
-    verification: "код: InternalJournalController.cs ([AllowAnonymous]) + ADR-026 §3 п.4; снаружи 401 (@TE)"
+    verification: "код: `InternalJournalController.cs:8` — `[Authorize]` на классе (НЕ `[AllowAnonymous]`), поэтому изнутри нужен токен; Analytics зовёт его **сервисным** JWT (`AnalyticsPrecomputeService.cs:27-31, 45-48`: `sub: analytics`, TTL 5 мин). Снаружи — `401` от auth-стены шлюза (`ContractChainTests.cs:428-443`, факт dev `71f2f91d`); маршрут `/internal/**` шлюзом не публикуется (`git grep internal` по `6-msa/ApiGateway` → 0). Было: `auth: anonymous-inside` + `[AllowAnonymous]` в описании — расходилось с кодом и с соседним `Journal.ClientIds` (тот же контроллер, `jwt-service`); исправлено 2026-11-10 @AR."
   - bc: Partners
     method: GET
     path: "/api/v1/partners"
