@@ -116,4 +116,25 @@ public class PartnerEventHandlerTests
         Assert.Equal("Алиса", publisher.LastName);
         Assert.Equal(clientId, publisher.LastClientId);
     }
+
+    // @AR 12:55: остаток (порядок + fire-and-forget) — если пересобирать нечего (Events пуст),
+    // имя пустое, и в Journal оно НЕ публикуется (guard от пустого имени).
+    [Fact]
+    public void Handle_ProfileFirst_NoPreviousState_DoesNotPublishEmptyName()
+    {
+        var clientId = Guid.NewGuid();
+        var reg = Aggregate.CreateInstance(new AnemicModel()).Register("Алиса", clientId);
+        var profile = Aggregate.CreateInstance(reg.Model()).UpdateProfile("photo.jpg", "male", "note");
+
+        var store = new FakeStore { Events = new List<IPartnerAnemicModel>() }; // пересобирать нечего
+        var readStore = new FakeReadStore();
+        var publisher = new FakePublisher();
+        var handler = new PartnerEventHandler(store, readStore, new FakeRead(), publisher, store);
+
+        handler.HandleAsync(profile.Event!).GetAwaiter().GetResult();
+
+        Assert.NotNull(readStore.Upserted);
+        Assert.Equal("", readStore.Upserted!.Name);   // полноты нет — имя пустое
+        Assert.Equal(0, publisher.Published);          // пустое имя НЕ ушло в Journal
+    }
 }
