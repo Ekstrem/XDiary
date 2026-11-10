@@ -1,5 +1,5 @@
 using DigiTFactory.Libraries.SeedWorks.Result;
-using Journal.spi.Events;
+using Journal.InternalContracts;
 using Journal.Domain.Implementation;
 using Xunit;
 using XDiary.Contracts;
