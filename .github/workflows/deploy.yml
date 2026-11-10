@@ -181,6 +181,13 @@ jobs:
           python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
+            # @AR 12:34: «заметка о rc=2 не равна исправлению» — печатаем ЧАСТОТУ, а не разовое событие.
+            {
+              echo "### smoke-api: rc=2 (не измерено)"
+              echo
+              echo "прогон $GITHUB_RUN_ID: попытка 1 дала rc=2 → был повтор через 15 с"
+              echo "частота за прошлые прогоны: см. workflow \`canon-stability\` (ночной счётчик повторов)"
+            } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
             sleep 15
             python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
             [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
