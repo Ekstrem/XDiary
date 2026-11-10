@@ -86,19 +86,21 @@ def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
         if not ok1:
             if isinstance(st, int) and 200 <= st < 300:
                 issues.append(f"новый номер: `{st}`, но `delivery` в теле **есть** — тестовый режим "
-                              f"ожидался без него (поля: {sorted(doc.keys()) if isinstance(doc, dict) else '—'})")
+                              f"ожидался без него (ключи: {body_keys(doc)})")
             else:
-                issues.append(f"новый номер: ожидали `200` (тестовый режим), получили `{st}`")
+                issues.append(f"новый номер: ожидали `200` (тестовый режим), получили `{st}` "
+                              f"(ключи: {body_keys(doc)})")
     else:
         label1 = "200+delivery"
         ok1 = isinstance(st, int) and 200 <= st < 300 and has_delivery
         rows[label1] = ok1
         if not ok1:
             if isinstance(st, int) and 200 <= st < 300:
-                issues.append(f"новый номер: `{st}`, но в теле **нет `delivery`** "
-                              f"(поля: {sorted(doc.keys()) if isinstance(doc, dict) else '—'}) — старый образ или `BE-092` не выкачен")
+                issues.append(f"новый номер: `{st}`, но в теле **нет `delivery`** (ключи: {body_keys(doc)}) "
+                              f"— старый образ или `BE-092` не выкачен")
             else:
-                issues.append(f"новый номер: ожидали `200`+`delivery`, получили `{st}`")
+                issues.append(f"новый номер: ожидали `200`+`delivery`, получили `{st}` "
+                              f"(ключи: {body_keys(doc)})")
 
     # @AR `2026-11-10 15:33`: «условно по предусловию». Предусловие — **строка создана** (первый вызов дал 2xx),
     # а не «всё сошлось»: на старом образе `200` без `delivery` строка создана, поэтому повтор ИЗМЕРЯЕМ
@@ -124,7 +126,7 @@ def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
             need = "`409` + `clientId`" + ("" if expect_no_delivery else " + `delivery`")
             issues.append(f"занятый номер: ожидали {need}, получили `{st}`, "
                           f"`clientId` {'есть' if has_id else 'нет'}, `delivery` "
-                          f"{'есть' if has_delivery else 'нет'}")
+                          f"{'есть' if has_delivery else 'нет'}, ключи: {body_keys(doc)}")
 
     st, _doc = third_resp
     ok3 = st == 429
@@ -145,6 +147,14 @@ def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
 
     stats = {"lines": rows, "leaks": leaks, "precondition_failed": precondition_failed}
     return issues, stats
+
+
+def body_keys(doc):
+    """Ключи тела без значений (@DO `2026-11-10 16:18`): именно это отличает «дефект контракта» от
+    «не тот образ». Значения НЕ печатаем — в теле телефон/`delivery`-адрес (PII), репозиторий публичный."""
+    if not isinstance(doc, dict):
+        return "—"
+    return "[" + ", ".join(sorted(doc.keys())) + "]"
 
 
 def receipt(stats, issues):
