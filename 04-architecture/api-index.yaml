@@ -89,9 +89,21 @@ operations:
     path: "/api/v1/analytics/events"
     operationId: Analytics.Events
     request:
-      required: [eventType, id, date, stress, sleepScore, t, hr, bodyBattery]
-      types: {eventType: string, id: guid, date: string, stress: int, sleepScore: int, t: string, hr: int, bodyBattery: int}
-      note: "AnalyticsEvent (свойства класса; record — nullable, не обязателен)"
+      # Тело — СОБЫТИЕ С ДИСКРИМИНАТОРОМ: обязателен только `eventType`, остальные поля
+      # зависят от ветки. Проверено по коду 2026-11-10 (@AR): AnalyticsController.cs:70-80
+      #   RecordCompleted        -> id + record (record nullable; без него ветка не срабатывает)
+      #   RecordDeleted          -> id
+      #   SleepRecorded          -> date + sleepScore
+      #   SomaticPointRecorded   -> t + hr + bodyBattery
+      #   StressRecorded         -> date + stress
+      # Ранее здесь стояло required: [eventType, id, date, stress, sleepScore, t, hr, bodyBattery] —
+      # это требовало от клиента всех полей сразу и НЕ описывало `record` (он был только в note).
+      required: [eventType]
+      optional: [id, date, stress, sleepScore, t, hr, bodyBattery, record]
+      types: {eventType: string, id: guid, date: string, stress: int, sleepScore: int, t: string, hr: int, bodyBattery: int, record: object}
+      note: "AnalyticsEvent (Analytics.Api/Precompute/JournalRecord.cs:20-30); обязательность — по ветке `eventType`, см. комментарий выше"
+
+
     auth: jwt
     codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
