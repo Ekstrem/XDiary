@@ -64,6 +64,19 @@ def parse(body):
         return None
 
 
+def current_ref():
+    """`REF` артефакта для квитанции (@AR `2026-11-10 15:29`): «артефакт — это номер прогона или ref,
+    а не фраза». Берём короткий SHA дерева; если git недоступен — `нет-ref` (честно, а не пусто)."""
+    try:
+        import subprocess
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=10)
+        sha = (out.stdout or "").strip()
+        return sha or "нет-ref"
+    except Exception:  # noqa: BLE001 — квитанция важнее диагностики git
+        return "нет-ref"
+
+
 def diagnose_name(got, want):
     """Диагноз `recent.lastPartner.name` (TE-102, @TL `2026-11-10 19:55`): `id` и `None` — РАЗНЫЕ дефекты.
 
@@ -326,7 +339,8 @@ def main(argv=None):
     phone = a.phone or "+7999%07d" % (int(time.time()) % 10000000)
     rc, line = CASES[a.case](a.base, phone, a.pause)
     print(("::error::" if rc == 1 else "::warning::" if rc == 2 else "::notice::") + line)
-    print("квитанция %s: %s | контур %s | rc=%d" % (a.case, "✅" if rc == 0 else "❌", a.base, rc))
+    print("квитанция %s: %s | контур %s | REF=%s | rc=%d"
+          % (a.case, "✅" if rc == 0 else "❌", a.base, current_ref(), rc))
     return rc
 
 
