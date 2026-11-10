@@ -36,7 +36,7 @@ public sealed class PartnersEventsController : ControllerBase
         {
             await _store.UpsertAsync(new PartnersDirectoryReadModel
             {
-                PartnerId = dto.PartnerId,
+                Id = dto.PartnerId,
                 Name = dto.Name,
                 ClientId = dto.ClientId,
                 DeletedAt = dto.DeletedAt,

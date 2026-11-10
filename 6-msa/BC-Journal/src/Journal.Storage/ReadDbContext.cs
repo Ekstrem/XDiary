@@ -29,7 +29,9 @@ public sealed class ReadDbContext : DbContext
         b.Entity<PartnersDirectoryReadModel>(e =>
         {
             e.ToTable("partners_directory");
-            e.HasKey(x => x.PartnerId);
+            // @DO 14:28: ключ — Id (как ожидает PostgresReadModelStore.UpsertAsync), колонка в БД остаётся "PartnerId".
+            e.Property(x => x.Id).HasColumnName("PartnerId");
+            e.HasKey(x => x.Id);
         });
 
         b.Entity<JournalDefaultsReadModel>(e =>

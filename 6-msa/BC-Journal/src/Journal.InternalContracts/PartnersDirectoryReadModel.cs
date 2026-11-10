@@ -8,7 +8,10 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 /// </summary>
 public sealed class PartnersDirectoryReadModel : IReadModel<Journal.Domain.IJournal>
 {
-    public Guid PartnerId { get; set; }
+    // DF PostgresReadModelStore.UpsertAsync ищет ключ по имени "Id" (@DO 14:28);
+    // колонка в БД остаётся "PartnerId" (HasColumnName), PartnerId — обратная совместимость.
+    public Guid Id { get; set; }
+    public Guid PartnerId => Id;
     public string Name { get; set; } = string.Empty;
     public Guid? ClientId { get; set; }
     public DateTime? DeletedAt { get; set; }
