@@ -53,5 +53,30 @@ jobs:
           echo "range: ${range}"
 
 
+      # 2026-11-11 (@TL 02:20, `1549`): гейт зон в CI НЕ ВЫЗЫВАЛСЯ ВООБЩЕ —
+      # `git grep check_paths origin/main -- .github` → 0 вхождений. Скрипт существует,
+      # у него дефолт `--range HEAD~1..HEAD` (один коммит), поэтому выход из зоны
+      # «смывался» следующим коммитом. Это тот же класс, что «зелёный на пустоте».
+      # Здесь проверяем ТОТ ЖЕ range, что вычислили выше, и на push — from before до sha.
+      - name: Роль не вышла за зону (check_paths на диапазон)
+        env:
+          RANGE: ${{ github.event_name == 'push' && format('{0}..{1}', github.event.before, github.sha) || 'origin/main..HEAD' }}
+        run: |
+          set -uo pipefail
+          set +e
+          # before может быть нулевым SHA (первый пуш/force) — тогда берём окно, как выше
+          case "${RANGE}" in
+            0000000000000000000000000000000000000000*)
+              BASE="$(git rev-list --max-count=21 HEAD | tail -1)"
+              RANGE="${BASE}~1..HEAD"
+              echo "::warning::guard-paths: before — нулевой SHA, проверяю окно ${RANGE}"
+              ;;
+          esac
+          echo "check_paths --range ${RANGE}"
+          python tools/check_paths.py --range "${RANGE}"
+          rc=$?
+          [ "$rc" = "0" ] || echo "::error::guard-paths: выход за зону в диапазоне ${RANGE} (rc=$rc)"
+          exit "$rc"
+
       - name: Проверить триггеры workflow (paths-фильтры)
         run: python tools/check_workflow_paths.py
