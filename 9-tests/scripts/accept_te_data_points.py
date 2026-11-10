@@ -27,6 +27,7 @@
 """
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -339,8 +340,12 @@ def main(argv=None):
     phone = a.phone or "+7999%07d" % (int(time.time()) % 10000000)
     rc, line = CASES[a.case](a.base, phone, a.pause)
     print(("::error::" if rc == 1 else "::warning::" if rc == 2 else "::notice::") + line)
-    print("квитанция %s: %s | контур %s | REF=%s | rc=%d"
-          % (a.case, "✅" if rc == 0 else "❌", a.base, current_ref(), rc))
+    # `REF` — версия КОДА, `run`/`attempt` — идентификатор ПРОГОНА (@AR `2026-11-10 15:51`:
+    # «ref и run, а не одно из них»: два прогона на одном коммите могут дать разный rc).
+    print("квитанция %s: %s | контур %s | REF=%s | run=%s | attempt=%s | rc=%d"
+          % (a.case, "✅" if rc == 0 else "❌", a.base, current_ref(),
+             os.environ.get("GITHUB_RUN_ID") or "локальный",
+             os.environ.get("GITHUB_RUN_ATTEMPT") or "1", rc))
     return rc
 
 

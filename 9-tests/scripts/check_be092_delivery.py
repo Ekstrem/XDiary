@@ -164,9 +164,10 @@ def main(argv=None):
     ap.add_argument("--mode", choices=["strict", "test-otp"], default="strict",
                     help="то же самое именем, которое просил @DO: `test-otp` == `--expect-no-delivery` "
                          "(для шага CI в deploy.yml, где вызывается `--mode test-otp`)")
-    ap.add_argument("--limit-wait", type=float, default=66.0,
-                    help="сколько ждать окно лимитера, если `409` перекрыт `429`; по умолчанию 66 "
-                         "(измерено @DO 2026-11-10 15:31: пауза 62 с дала 200, 65 с — 409; берём запас)")
+    ap.add_argument("--limit-wait", type=float, default=70.0,
+                    help="сколько ждать окно лимитера, если `409` перекрыт `429`; по умолчанию 70 "
+                         "(измерено @DO 2026-11-10 15:31: пауза 62 с дала 200, 65 с — 409; запас 5 с, "
+                         "а не 1 — секунда запаса не стабильность, @AR 15:55)")
     ap.add_argument("--no-wait", action="store_true",
                     help="не ждать окно лимитера: тогда строка `409` будет «не измерена», а не проверена")
     ap.add_argument("--selftest", action="store_true")
