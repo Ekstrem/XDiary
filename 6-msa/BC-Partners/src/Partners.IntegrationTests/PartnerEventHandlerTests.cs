@@ -45,7 +45,11 @@ public class PartnerEventHandlerTests
     private sealed class FakePublisher : IPartnerEventPublisher
     {
         public int Published;
-        public Task PublishAsync(Guid partnerId, string name, Guid? clientId, DateTime? deletedAt, CancellationToken ct = default) { Published++; return Task.CompletedTask; }
+        public string? LastName;
+        public Guid? LastClientId;
+        public DateTime? LastDeletedAt;
+        public Task PublishAsync(Guid partnerId, string name, Guid? clientId, DateTime? deletedAt, CancellationToken ct = default)
+        { Published++; LastName = name; LastClientId = clientId; LastDeletedAt = deletedAt; return Task.CompletedTask; }
     }
 
     [Fact]
@@ -97,7 +101,8 @@ public class PartnerEventHandlerTests
 
         var store = new FakeStore { Events = new List<IPartnerAnemicModel> { reg.Model() } }; // предыдущее состояние в event store
         var readStore = new FakeReadStore();
-        var handler = new PartnerEventHandler(store, readStore, new FakeRead(), new FakePublisher(), store);
+        var publisher = new FakePublisher();
+        var handler = new PartnerEventHandler(store, readStore, new FakeRead(), publisher, store);
 
         handler.HandleAsync(profile.Event!).GetAwaiter().GetResult();
 
@@ -106,5 +111,9 @@ public class PartnerEventHandlerTests
         Assert.Equal("male", readStore.Upserted.Gender);
         Assert.Equal("photo.jpg", readStore.Upserted.Photo);
         Assert.Equal("note", readStore.Upserted.Notes);
+        // @AR 12:51: проверяем и второй канал — в Journal ушло имя, а не "".
+        Assert.Equal(1, publisher.Published);
+        Assert.Equal("Алиса", publisher.LastName);
+        Assert.Equal(clientId, publisher.LastClientId);
     }
 }
