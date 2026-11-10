@@ -4,6 +4,7 @@ using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
@@ -35,17 +36,20 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     private readonly IReadModelStore<IPartners, PartnersReadModel> _readStore;
     private readonly IReadRepository<IPartners, PartnersReadModel> _readRepo;
     private readonly PartnerEventPublisher _publisher;
+    private readonly IAnemicModelRepository<IPartners, IPartnerAnemicModel> _events;
 
     public PartnerEventHandler(
         IEventStoreRepository<IPartners, IPartnerAnemicModel> store,
         IReadModelStore<IPartners, PartnersReadModel> readStore,
         IReadRepository<IPartners, PartnersReadModel> readRepo,
-        PartnerEventPublisher publisher)
+        PartnerEventPublisher publisher,
+        IAnemicModelRepository<IPartners, IPartnerAnemicModel> events)
     {
         _store = store;
         _readStore = readStore;
         _readRepo = readRepo;
         _publisher = publisher;
+        _events = events;
     }
 
     public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
@@ -88,15 +92,30 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
             }
             else
             {
+                // @AR 12:15: не материализуем строку из частичной дельты — если Root не в дельте
+                // (например profile пришёл раньше register), пересобираем полное состояние из event store.
+                var name = read.Name;
+                var clientId = read.ClientId;
+                var deletedAt = read.DeletedAt;
+                if (read.Name is null)
+                {
+                    var agg = (await _events.GetById(domainEvent.Id, default)).LastOrDefault();
+                    if (agg is not null)
+                    {
+                        name = agg.Root.Name;
+                        clientId = agg.ClientId;
+                        deletedAt = agg.DeletedAt;
+                    }
+                }
                 var created = new PartnersReadModel
                 {
                     Id = domainEvent.Id,
-                    Name = read.Name ?? string.Empty,
+                    Name = name ?? string.Empty,
                     Photo = read.Photo ?? string.Empty,
                     Gender = read.Gender ?? string.Empty,
                     Notes = read.Notes ?? string.Empty,
-                    ClientId = read.ClientId,
-                    DeletedAt = read.DeletedAt,
+                    ClientId = clientId,
+                    DeletedAt = deletedAt,
                 };
                 await _readStore.UpsertAsync(created);
                 await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
