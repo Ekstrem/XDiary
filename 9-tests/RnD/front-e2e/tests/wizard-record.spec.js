@@ -270,11 +270,14 @@ test('E2E: открытие визарда не грузит полный жур
   console.log('::notice::FE-016 wizard open: ' + mine.length + ' запросов; полный журнал x' +
     fullJournal.length + ', recent x' + recent.length + ', places x' + places.length);
 
-  expect(fullJournal, 'визард не должен грузить полный журнал (FE-016); запросы: ' + mine.join(' | '))
+  // Окно = запросы ПОСЛЕ входа, с момента перед кликом `#btn-new` до `networkidle` (см. `before` выше).
+  // В тексте падения это названо явно: иначе список читают как «все запросы теста» (реальный случай 2026-11-10).
+  const windowText = 'окно после клика #btn-new: ' + mine.join(' | ');
+  expect(fullJournal, 'визард не должен грузить полный журнал (FE-016); ' + windowText)
     .toHaveLength(0);
-  expect(recent.length, 'должен быть `GET /journal/recent` (подсказки шагов); запросы: ' + mine.join(' | '))
+  expect(recent.length, 'должен быть `GET /journal/recent` (подсказки шагов); ' + windowText)
     .toBeGreaterThanOrEqual(1);
-  expect(places.length, 'должен быть `GET /journal/places` (шаг «Где?»); запросы: ' + mine.join(' | '))
+  expect(places.length, 'должен быть `GET /journal/places` (шаг «Где?»); ' + windowText)
     .toBeGreaterThanOrEqual(1);
 
   await page.click('#btn-wizard-close');
