@@ -90,5 +90,26 @@ Delete()                → RecordDeleted
 - **Источник истины — микросервисы** (API `/api/v1/**`). IndexedDB на устройстве — **кэш/офлайн-фоллбэк**, не источник.
 - `8-front/js/repository.js` переопределяет `DB.getAllRecords/getRecord/putRecord/deleteRecord` на `Api.journal.*` + `Api.partners.*` (прокси на API); «локальные данные» в `app.js` — вызовы через API, не локальное хранилище.
 
+## Карта папок (сверено 2026-11-10 по `git ls-tree origin/main 03-ddd`)
+
+**11 BC**, у каждого один и тот же набор из 5 файлов: `01-context-canvas.md` (контекст), `02-aggregate-canvas.md` (агрегат),
+`03-command-api.md`, `04-query-api.md`, `05-materialized-views.md`.
+
+| Папка | Особенность |
+|---|---|
+| `BC-Journal` | эталон: `02-aggregate-canvas.md` — образец для остальных |
+| `BC-Partners` | владелец владения (`ForeignIdIsHidden`, §21 `edm-canon`) |
+| `BC-Catalog`, `BC-DailyMetrics`, `BC-SomaticSeries`, `BC-Portability` | 5 файлов по конвенции |
+| `BC-Privacy` | 5 файлов; коды PIN-операций описаны в `api-index` (`Privacy.*`) |
+| `BC-Analytics` | read-only, без агрегата (статус ниже) |
+| `BC-GarminGateway`, `BC-AppleHealthGateway` | шлюзы: 5 файлов, агрегат — синхронизация |
+| `BC-Client` | **имя первого файла другое:** `01-bounded-context-canvas.md` (не `01-context-canvas.md`). Ссылки учитывают это; переименование не делалось, чтобы не рвать ссылки |
+
+**Верхний уровень:** `00-context-map.md` (карта контекстов), `01-entity-map.md` (карта сущностей),
+`TECHDEBT.md` (реестр технического долга с адресами фактов), `README.md` (этот файл).
+
+**`api-gateway` — не BC:** это BFF-маршрут (`GET /api/v1/bff/analytics-summary`, `6-msa/ApiGateway/README.md:35`),
+канваса в `03-ddd` нет. Вопрос «нужен ли минимальный канвас или запись „инфраструктура, не BC“» — **за владельцем** (открыт).
+
 ## Статус
 Все 9 агрегатов записи приведены к шаблону (Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument). Аналитика — read-only, без агрегата.
