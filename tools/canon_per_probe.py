@@ -40,7 +40,17 @@ def main() -> int:
 
     canon = load_canon()
     ops = [o for o in canon.load_ops() if canon.requires_auth(o) and not o.get("internal")]
-    print("проб всего: %d | база %s | проходов %d" % (len(ops), a.base, a.passes))
+    # 2026-11-10 (@TL 17:58): «баннер первой строкой» — норма для измерителей @DO.
+    # По первой строке должно быть видно окружение, чтобы «не измерено» отличалось от
+    # «измерено и плохо» без чтения хвоста. yaml важен: без него канон не стартует.
+    try:
+        import yaml as _y
+        _yaml = getattr(_y, "__version__", "?")
+    except Exception:  # noqa: BLE001
+        _yaml = "absent"
+    print("::notice::canon_per_probe: старт · python %s · yaml=%s · base=%s · проходов=%d · проб=%d"
+          % (sys.version.split()[0], _yaml, a.base, a.passes, len(ops)), flush=True)
+
 
     all_rows = []
     for p in range(1, a.passes + 1):
