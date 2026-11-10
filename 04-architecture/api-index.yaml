@@ -847,7 +847,8 @@ operations:
       types: {token: string}
       note: "VerifyTokenQuery"
     auth: anonymous
-    codes: {200: "ok", 401: "bad-token"}
+    codes: {200: "ok; невалидный токен → valid:false", 400: "нет поля token (implicit required из [ApiController] + non-nullable string)"}
+    verification: "код: `PrivacyController.cs:70-73` — `[AllowAnonymous]` + `[ProducesResponseType(200)]` + `Ok(await _mediator.Send(q))` ⇒ 401 НЕ возвращается: это ПРОВЕРКА, а не аутентификация, «токен невалиден» = `200 {valid:false}`. `400` — implicit required (`VerifyTokenQuery(string Token)` + `[ApiController]`). Было в каноне: `401: bad-token` — неверно, снято 2026-11-10 @AR по запросу @TL."
     codes_status: verified
   - bc: SomaticSeries
     method: POST
