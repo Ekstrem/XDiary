@@ -114,7 +114,7 @@
 - **Приоритет:** P2 → **P3** (остаток закрывается в `DO-113`).
 - **Оценка:** ~~теги образов + версионирование~~ → сделано; остаток — `digest=` и выкатка по нему (`DO-113`).
 
-### 13. EDM-несоответствие BE (Event Sourcing / IEventBus / MV) — **в эталонном BC реализовано, в остальных нет**
+### 13. EDM-несоответствие BE (Event Sourcing / IEventBus / MV) — **в двух BC реализовано, в остальных нет**
 - **Суть (было):** код `6-msa` не использует инфраструктуру DigiTFactory — вместо Event Store/Event Bus/Read Store сделан **свой слой**: EF Core `SaveChangesAsync` + ручной HTTP-паблишер. Нет Event Sourcing, `IEventBus`, Event Consumer (`IHostedService`), проекции MV (`UpsertAsync`); свои `IRepository`/`IReadRepository`/`IBusAdapter` (запрещено скиллом). Полный разбор — `04-architecture/edm-verification.md`.
 - **Факт 2026-11-07 (проверено @AR по коду), цепочка E1 в `BC-Journal` СОБРАНА:**
   1. запись публикует событие, а не пишет модель: `Journal.Storage/JournalCommandRepository.cs:48-52` — `await _bus.PublishAsync(result.Event)` (`IEventBusProducer`);
@@ -122,7 +122,13 @@
   3. хендлер пишет **event store** и **проекцию MV**: `JournalEventHandler` (`:35-45`, `IEventStoreRepository` + `IReadModelStore`/`UpsertAsync`);
   4. `SaveChangesAsync` в `BC-Journal` встречается **только в комментарии** `:50` — прямых записей в command-path нет.
 - **Что осталось (и это и есть долг п.13):** `IEventStoreRepository` есть только в **двух** BC (`BC-Journal` — 2 файла, `BC-Partners` — 3), а `SaveChangesAsync` — в **десяти**: `Partners` (2: `PartnerCommandRepository.cs:48` + `OutboxDispatcher.cs:60`), и по одному в `AppleHealthGateway`, `Catalog`, `Client`, `DailyMetrics`, `GarminGateway`, `Journal`, `Portability`, `Privacy`, `SomaticSeries`. То есть **8 BC пишут модель напрямую**, `Partners` — гибрид (прямая запись + outbox, см. п.2).
-- **Риск:** **высокий, но другой**: не «ядро отсутствует», а «ядро есть в одном BC и не растиражировано» — расхождение поведения между BC (где-то источник истины событие, где-то модель), а не полное отсутствие механизма.
+- **Риск:** **высокий, но другой**: не «ядро отсутствует», а «ядро есть в двух BC и не растиражировано» — расхождение поведения между BC (где-то источник истины событие, где-то модель), а не полное отсутствие механизма.
+- **Уточнение 2026-11-10 (@AR, счёт по `origin`, 711 файлов под `6-msa`):** уровней **три**, а не два:
+  - **полный EDM** (миграции `EventStore` + `ReadStore` + publisher + consumer) — **`BC-Journal`** и **`BC-Partners`** (по 3/3/1/1);
+  - **только публикация по HTTP** (typed-методы, своего event store и outbox нет) — **`BC-DailyMetrics`** (`HttpDailyMetricsEventPublisher`: `PublishStressAsync`/`PublishSleepAsync`) и **`BC-SomaticSeries`** (`HttpSomaticSeriesEventPublisher`, `PublishPointAsync`);
+  - **ничего** — остальные **7** (`Analytics`, `AppleHealthGateway`, `Catalog`, `Client`, `GarminGateway`, `Portability`, `Privacy`) — это осознанный лайт (агрегат + SQL), а не забывчивость.
+  Отдельный риск у двух «публикующих»: **публикации без outbox** — при недоступности Analytics событие теряется **молча** (родственно п.11 и `BE-035`).
+  Методическая оговорка: счёт по имени `PublishAsync` **недосчитывает** — у этих двух методы типизированные (`Publish*Async`).
 - **Приоритет:** P1 (отложено: решение владельца 2026-11-06 п.8 = C — после устойчивой работы приложения).
 - **Оценка:** перенос цепочки `BC-Journal` на остальные 8 BC (`AddEventStorePostgres` + `AddEventBus` + `AddReadStore`, Event Consumer, проекции `UpsertAsync`) — теперь это **тиражирование эталона**, а не изобретение с нуля.
 
