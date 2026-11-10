@@ -21,7 +21,8 @@
 #   2) GET  /api/v1/journal/records (A)    → 200 и содержит id только что созданной записи
 #   3) GET  /api/v1/journal/records/{id}   → 200 (своя)
 #   4) GET  /api/v1/journal/records/{id}   → 404 токеном B (чужая; канон `Journal.Get` — `{200, 401, 404}`,
-#      решение @AR 2026-11-10 14:15). `403` печатается как РАСХОЖДЕНИЕ кода с каноном, а не как норма.
+#      решение @AR 2026-11-10 14:15; код приведён @BE 19:00 — `Forbid()` → `NotFound()` в `EnsureOwns` ×2 и
+#      в `GET /records/{id}`). Ветка `403` оставлена как детектор регресса: она печатает `[WARN]`, а не `PASS`.
 #   5) GET  /api/v1/journal/records        → 401 без токена
 set -uo pipefail
 
