@@ -773,3 +773,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Правки:** (1) **L2 = 12/12** — `ci-partners` **#128 success** на `a2bade2c` (13:02); в отчёте значился #123. (2) **`check_schema.py` локально падает с traceback** (`subprocess` → `_winapi.CreateProcess` → `FileNotFoundError`, `rc=1`), потому что нет `podman`. По нашему же правилу «не измерено» = **`rc=2` + строка**, а не падение: нужен guard на отсутствие podman/БД, иначе гейт всегда красный и его отключат.
 
 **Мои прогоны локально:** 14 гейтов, красных 3 — `check_secrets` (1), `check_readstore_ddl` (2), `check_schema` (падает). Остальные 11 — `rc=0`.
+
+**2026-11-10 15:58: `TE-102` — найдена асимметрия: в ветке «строка есть» публикация без guard'а.**
+
+`PartnerEventConsumer.cs:81-91`: `if (existing is not null)` → merge → `:89 UpsertAsync(existing)` → `:91 PublishAsync(existing.Id, existing.Name, …)` **безусловно**. Guard `!string.IsNullOrEmpty(name)` есть только в else-ветке (`:123`). Следствие: отравленная read-модель или пустое имя уходят в Journal, и `partners_directory.Name` становится `""`. Правка: `:91` — публиковать при `!string.IsNullOrEmpty(existing.Name) || existing.DeletedAt is not null`; `:89` — не писать, если полноты нет. Тогда обе ветки симметричны.
+
+**Проверено по коду (цепочка имени, @TE):** publisher `PartnerEventPublisher.cs:44-46` → `POST /internal/partners/events` с сервисным `sub=partners`; Journal `PartnersEventsController.cs:21-32` — `Forbid()` всем, кроме `sub=partners`, затем `UpsertAsync(Name = dto.Name)`. То есть `id` в замере @DO на старом образе = **строки в `partners_directory` не было** (публикация пустого имени пропускалась), а не «Journal не умеет имя».
