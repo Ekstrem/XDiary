@@ -14,6 +14,10 @@
       Плюс `GET /journal/recent` **после создания записи** — `lastPartner.name` должно быть именем, не id
       (`TE-102`, строка 5: два канала — проекция Partners и справочник Journal).
 
+  `--case ordering` — канон `edm-canon` §15.1 («как проверять»): частичное событие приходит ПЕРВЫМ
+      (строки в справочнике ещё нет) → сервис обязан показать исходное имя, а не `id`/пусто.
+      Гоняется 3 раза без пауз и печатает долю нарушений, а не один удачный прогон.
+
   `--case when-normalize` — `TE-101`, нормализация:
       `POST /journal/records` → `POST .../when` с `2026-11-07T09:00:00+03:00` и с `2026-11-07T06:00:00Z`:
       оба `200` и **одна и та же** сохранённая строка; мусор (`не дата`, ``, `"   "`, `1234567890`) → `400`.
@@ -186,7 +190,49 @@ def case_when_normalize(base, phone, pause):
     return 0, "when-normalize: мусор → 400, эквивалентные моменты → одна строка %r" % va
 
 
-CASES = {"profile-stage1": case_profile_stage1, "when-normalize": case_when_normalize}
+def case_ordering(base, phone, pause, iterations=3):
+    """Канон `edm-canon` §15.1, «как проверять»: частичное событие приходит **первым**.
+
+    Строки в справочнике ещё нет → сервис обязан показать **исходное** значение (имя), а не `id`/пусто.
+    Гоняем `iterations` раз без пауз между созданием и профилем (частичная дельта уходит раньше полного
+    события) и печатаем долю случаев с `id` вместо имени — это доля, а не один удачный прогон.
+    """
+    bad = 0
+    details = []
+    for i in range(iterations):
+        cid, tok, err = login(base, phone if i == 0 else phone + str(i))
+        if err:
+            return 2, "не измерено: %s" % err
+        if not tok:
+            return 2, "не измерено: verify не выдал токен (тестовый OTP включён?)"
+        name = "TE-ORDER-%d-%d" % (int(time.time()), i)
+        st, body, err = call(base, "POST", "/api/v1/partners", {"name": name}, token=tok)
+        pid = (parse(body) or {}).get("id")
+        if err or not pid:
+            return 2, "не создан партнёр на итерации %d: %s" % (i, err or st)
+        # без паузы: частичная дельта (профиль) уходит раньше полного события
+        call(base, "POST", "/api/v1/partners/%s/profile" % pid,
+             {"gender": "male", "photo": "", "notes": ""}, token=tok)
+        time.sleep(pause)
+        st, body, err = call(base, "GET", "/api/v1/journal/recent", token=tok)
+        lp = (parse(body) or {}).get("lastPartner") or {}
+        got = lp.get("name")
+        if got != name:
+            bad += 1
+            details.append("итерация %d: name=%r (ждали %r)" % (i + 1, got, name))
+
+    if bad:
+        for d in details:
+            print("  [FAIL] " + d)
+        return 1, "ordering: id/пусто вместо имени в %d из %d" % (bad, iterations)
+    return 0, "ordering: %d/%d — частичное событие первым не ломает имя (канон §15.1)" % (iterations, iterations)
+
+
+CASES = {
+    "profile-stage1": case_profile_stage1,
+    "when-normalize": case_when_normalize,
+    "ordering": case_ordering,
+}
 
 
 def selftest():
@@ -204,7 +250,7 @@ def selftest():
     case("не-JSON → None", parse("не json"), None)
     case("пустое тело → None", parse(""), None)
     case("неизвестный кейс отсутствует в словаре", "nope" in CASES, False)
-    case("оба кейса объявлены", sorted(CASES), ["profile-stage1", "when-normalize"])
+    case("все кейсы объявлены", sorted(CASES), ["ordering", "profile-stage1", "when-normalize"])
     print("accept_te_data_points --selftest: %d/%d" % (ok, total))
     return 0 if ok == total else 1
 

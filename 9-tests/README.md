@@ -527,7 +527,7 @@ ANSI+CRLF, ретрай-flaky, «всё пропущено»).
 `auth == anonymous-inside` **или** префиксу `/internal`, поэтому смена значения на `jwt-service` его
 классификацию не ломает (`--selftest` 27/27).
 
-## Две приёмки данных одной командой (`accept_te_data_points.py`)
+## Три приёмки данных одной командой (`accept_te_data_points.py`)
 
 Из песочницы @TE контур недоступен (`curl` → `rc=35`, SSH-маршрут таймаутит), а обе приёмки — это 4–6 вызовов с
 паузами. Скрипт делает их сам и печатает **одну строку квитанции**, которую достаточно вставить в чат; его может
@@ -536,6 +536,9 @@ ANSI+CRLF, ретрай-flaky, «всё пропущено»).
 ```bash
 # TE-102, этап 1: profile не затирает name; поля пишутся; "" стирает явно; recent.lastPartner.name = имя
 python 9-tests/scripts/accept_te_data_points.py --base https://xdiary-vps2.taile0b6ee.ts.net --case profile-stage1
+
+# канон edm-canon §15.1: частичное событие приходит ПЕРВЫМ -> имя не должно стать id/пустым (3 итерации)
+python 9-tests/scripts/accept_te_data_points.py --base https://xdiary-vps2.taile0b6ee.ts.net --case ordering
 
 # TE-101: мусор в startedAt → 400; +03:00 и Z → ОДНА сохранённая строка
 python 9-tests/scripts/accept_te_data_points.py --base https://xdiary-vps2.taile0b6ee.ts.net --case when-normalize
