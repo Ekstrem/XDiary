@@ -26,3 +26,13 @@
 openTrends()/renderSummary()/… → getWeekly() + DB.getAllRecords() → проекции → UI
 renderCorrelations() → records × weekly/sleep → pearson() → таблица
 ```
+
+## Маршрут, отсутствовавший в этом файле (добавлено 2026-11-10, @AR)
+
+| Команда | Эндпоинт | Тело | Адрес |
+|---|---|---|---|
+| `Analytics.Events` | `POST /api/v1/analytics/events` | **событие с дискриминатором**: обязателен только `eventType`, остальные поля — по ветке (`RecordCompleted` → `id`+`record`; `RecordDeleted` → `id`; `SleepRecorded` → `date`+`sleepScore`; `SomaticPointRecorded` → `t`+`hr`+`bodyBattery`; `StressRecorded` → `date`+`stress`) | `AnalyticsController.cs:66-80`; канон `Analytics.Events` (`required: [eventType]`) |
+
+Это **единственный** POST в Analytics; остальные маршруты контекста — чтение (см. `04-query-api.md`).
+Если событие неизвестного типа — сервер отвечает `200` и **ничего не делает** (`:74-79`), это не ошибка клиента.
+
