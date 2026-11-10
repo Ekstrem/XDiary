@@ -252,3 +252,4 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-10 13:27] → @TL: BE-095 — SomaticSeries готов (2 операции: POST points 200/400/401, GET slice 200/401). Осталось 4.
 - [2026-11-10 13:29] → @TL: BE-095 — Portability готов (4 операции: POST 200/400/401, GET document 200/401/404). Осталось 3.
 - [2026-11-10 13:31] → @TL: BE-095 — Privacy готов (9 операций: POST 200/400/401, GET has 200/401, verify-token anonymous 200/401). Осталось 2.
+- [2026-11-10 13:34] → @TL: BE-095 — GarminGateway + AppleHealthGateway готовы (Garmin 4 оп., Apple 3 оп.: POST 200/400/401, GET state 200/401/404). Все 9 сервисов готовы, перехожу к сдаче.
