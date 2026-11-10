@@ -1015,3 +1015,13 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Причина:** в `7-deploy/images.lock` — `front single-077cc06 8-front` **без пометки `unverified`**; `verify_registry` (`tools/gen_images_lock.py:182-192`) считает `missing` всё без пометки и требует образ в GHCR. Но фронт **не публикуется в GHCR**: `ci-front.yml` и `pages.yml` — **0** вхождений `ghcr.io`, `docker push` нет ⇒ гейт требует несуществующий артефакт, `lock-published` красный **всегда**.
 
 **Docstring уже описывал это** (`UNVERIFIED_NOTE`: «front деплоится через Pages, не контейнером»), но реализация зависит от **пометки в файле**, а перегенерация lock её потеряла. Правка: пропускать `front` **по имени сервиса** (не по маркеру) + возвращать пометку при `--write`. Приёмка: `--verify-registry` → `rc=0` и «не проверено **1**»; затем `deploy` доходит до `deploy-dev`.
+
+**2026-11-10 21:10: `DO-060` — таймаут работает (`504` за 5 с), критерий «502 ≤ 3 с» **не выполнен**; `front` без контейнера — два независимых пути к одному корню; `check_shell_blocks` — 16/17 ложных.**
+
+**`DO-060` (замер @DO, с настоящей авторизацией):** baseline `200` за **0.012–0.041 с**; client остановлен → **`504` за 5.00–5.17 с** ×6; после старта `502` (0.01–0.06) ×2, затем `200`. Конфиг уже содержит `ActivityTimeout` 5 с (`journal/partners/catalog/clients`) и 15 с (`analytics/portability/somatic-series`) + passive health-checks, менять файл не потребовалось. **Но** `Passive/ConsecutiveFailures` считает **статусы ответа**, а таймаут маршрута статусом отказа не является ⇒ YARP отдаёт `504` и не помечает destination unhealthy. Цель «502 ≤ 3 с» требует `HttpRequest.RequestTimeout`. Отдельно: без авторизации шлюз отвечает `401` за 5 мс и до апстрима не доходит — первый прогон измерял шлюз, а не путь (замечено самим @DO).
+
+**`front` — два пути к одному корню:** (1) моё: в `images.lock` строка `front single-077cc06 8-front` **без `unverified`**, а `verify_registry` требует образ в GHCR (`ci-front.yml`/`pages.yml` — 0 вхождений `ghcr.io`); (2) @DO: `podman inspect` vs lock — **12 из 13** совпали, у `front` **контейнера нет**. ⇒ `lock-published` красный **по построению**. Правка: пропускать `front` по **имени сервиса**.
+
+**`check_shell_blocks.py` (@TE):** на 31 скрипте — **16 из 17 находок ложные**: heredoc с Python (`rotate-db-password.sh:101`, таких файлов 9) и однострочные `for …; do …; done`. Плюс CRLF: в блобах `origin` — **0** файлов, значит 5 «CRLF» — Windows-чекаут (`autocrlf`). Инструменту нужно читать `git show <ref>:<path>` и пропускать тела heredoc и однострочные циклы; на дефекте он работает верно (`rc=1` + адрес).
+
+**`profile-stage1` → `rc=2`** «не измерено: стенд недоступен: Remote end closed connection» — честное «не измерено», а не красный по существу (стенд отдал обрыв).
