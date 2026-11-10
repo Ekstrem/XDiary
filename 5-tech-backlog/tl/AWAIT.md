@@ -126,5 +126,5 @@
 | @TE | `429 → unknown` | 2026-11-10 19:35 | ✅ **в `origin`** (`e592483f4`), selftest **33/33** проверен прогоном артефакта |
 | @DO | ASCII-only в печатаемой части гейтов (символ `≡` в `check_api_index` роняет печать на cp1251 → `rc=1` из падения) | 2026-11-10 19:15 | локальный прогон с нарушением печатает строку | ⏳ |
 | @BE | `Id`-ключ у `PartnersDirectoryReadModel` | 2026-11-10 20:25 | ✅ **сделано**: `Id` + `PartnerId => Id`, `HasColumnName("PartnerId")`, `HasKey(Id)`; образ `single-4b90af9` содержит фикс |
-| @DO | `lock-published`: одна повторная попытка при отсутствии тега **или** `lock-sync` с `--verify-registry` перед `--write` (гонка lock↔публикация) | 2026-11-10 20:45 | деплой в интервале публикации не краснеет | ⏳ |
+| @DO | **P0** `lock-published`: `verify_registry` пропускает `front` **по имени сервиса** (не по маркеру `unverified`) + пометка возвращается при `--write` | 2026-11-10 21:00 | `--verify-registry` `rc=0`, «не проверено 1»; `deploy` доходит до `deploy-dev` | ⏳ P0 |
 | @DO | подключить `9-tests/scripts/check_shell_blocks.py` в CI (одна строка, коды 0/1/2) | 2026-11-10 20:45 | shell-правка проверяется без bash | ⏳ |
