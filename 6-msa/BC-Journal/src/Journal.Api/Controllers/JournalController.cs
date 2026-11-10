@@ -32,11 +32,11 @@ public sealed class JournalController : ControllerBase
     private async Task<IActionResult?> EnsureOwns(Guid id, Guid clientId)
     {
         var rec = await _mediator.Send(new GetRecordByIdQuery(id));
-        if (rec is not null) return rec.ClientId == clientId ? null : Forbid();
+        if (rec is not null) return rec.ClientId == clientId ? null : NotFound();
         // @TE 04:32 — fallback: read-модель материализуется с лагом (404 на свежей записи).
         var agg = (await _anemic.GetById(id, CancellationToken.None)).LastOrDefault();
         if (agg is null) return NotFound();
-        return agg.ClientId == clientId ? null : Forbid();
+        return agg.ClientId == clientId ? null : NotFound();
     }
 
     private async Task<IActionResult> WithOwner(Guid id, Func<Task<IActionResult>> action)
@@ -121,6 +121,6 @@ public sealed class JournalController : ControllerBase
         if (!TryClientId(out var clientId)) return Unauthorized();
         var r = await _mediator.Send(new GetRecordByIdQuery(id), ct);
         if (r is null) return NotFound();
-        return r.ClientId == clientId ? Ok(r) : Forbid();
+        return r.ClientId == clientId ? Ok(r) : NotFound();
     }
 }
