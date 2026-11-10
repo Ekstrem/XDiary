@@ -134,7 +134,8 @@
     "ar": {
       "core": [
         "03-ddd/*",
-        "04-architecture/*"
+        "04-architecture/*",
+        "openapi/*"
       ],
       "service": [
         "5-tech-backlog/arch/*",
