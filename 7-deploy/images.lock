@@ -8,7 +8,7 @@
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
 journal              single-60f3fc6     6-msa/BC-Journal  commit=60f3fc6
-partners             single-923fd82     6-msa/BC-Partners  commit=923fd82
+partners             single-aac56ba     6-msa/BC-Partners  commit=aac56ba
 catalog              single-ac3962d     6-msa/BC-Catalog  commit=ac3962d
 somatic-series       single-ac3962d     6-msa/BC-SomaticSeries  commit=ac3962d
 daily-metrics        single-ac3962d     6-msa/BC-DailyMetrics  commit=ac3962d
