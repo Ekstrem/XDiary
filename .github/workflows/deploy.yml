@@ -41,7 +41,26 @@ jobs:
         run: python3 tools/gen_images_lock.py --selftest
 
       - name: Все теги из images.lock опубликованы
-        run: python3 tools/gen_images_lock.py --verify-registry
+        run: |
+          set -uo pipefail
+          set +e
+          # 2026-11-10: гонка с публикацией. `lock-sync` пишет в lock тег сразу после сборки, но
+          # реестр может отдавать его на несколько секунд позже — и `--verify-registry` честно даёт
+          # `rc=1` (тег отсутствует). Так упали #1867/#1868: lock верный, образ ещё «не виден».
+          # Ждём с backoff, но НЕ закрашиваем: rc=1 после всех попыток — по-прежнему красный,
+          # rc=2 (registry недоступен) — «не измерено», его тоже ждём, но не превращаем в PASS.
+          for attempt in 1 2 3 4 5; do
+            python3 tools/gen_images_lock.py --verify-registry
+            rc=$?
+            if [ "$rc" = "0" ]; then
+              echo "::notice::lock-published: все теги доступны (попытка $attempt)"
+              exit 0
+            fi
+            echo "::warning::lock-published: попытка $attempt → rc=$rc (ждём публикацию/реестр, пауза $((attempt * 15)) с)"
+            [ "$attempt" -lt 5 ] && sleep $((attempt * 15))
+          done
+          echo "::error::lock-published: теги недоступны после 5 попыток (rc=$rc) — последний результат выше"
+          exit "$rc"
 
   deploy-dev:
     needs: [lock-published]
