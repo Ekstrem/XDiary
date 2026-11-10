@@ -156,7 +156,22 @@ def receipt_header(container=None):
             pass
     import datetime
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    print("  REF=%s | образ=%s | время=%s" % (ref[:12] or "неизвестен", image, now))
+    # @AR 15:51 (`1091`/`1092`, канон §20): `ref` отвечает «что измеряли», `run`/`attempt` —
+    # «какой именно прогон». Одного `ref` мало: на одном коммите `rc` расходится
+    # (сегодня доказано серией канона: тот же код дал `rc=0`, потом `rc=2` с `unknown 7`).
+    # @AR 15:52 (`1097`): плюс `tool=` — чтобы «каким инструментом» не восстанавливать по памяти.
+    tool = "tools/check_apim_drift.py"
+    try:
+        import hashlib
+        with open(os.path.abspath(__file__), "rb") as fh:
+            tool = "%s@%s" % (tool, hashlib.sha256(fh.read()).hexdigest()[:10])
+    except OSError:
+        tool = "%s@нет-файла" % tool
+    run_id = (os.environ.get("GITHUB_RUN_ID") or "").strip()
+    attempt = (os.environ.get("GITHUB_RUN_ATTEMPT") or "").strip()
+    run = ("%s attempt=%s" % (run_id, attempt or "1")) if run_id else "локально"
+    print("  REF=%s | образ=%s | время=%s | run=%s | tool=%s"
+          % (ref[:12] or "неизвестен", image, now, run, tool))
 
 
 def selftest():
