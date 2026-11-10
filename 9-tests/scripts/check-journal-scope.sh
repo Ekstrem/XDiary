@@ -20,7 +20,8 @@
 #   1) POST /api/v1/journal/records        → 200 и clientId в ответе НЕ null и = владельцу
 #   2) GET  /api/v1/journal/records (A)    → 200 и содержит id только что созданной записи
 #   3) GET  /api/v1/journal/records/{id}   → 200 (своя)
-#   4) GET  /api/v1/journal/records/{id}   → 403 токеном B (чужая)
+#   4) GET  /api/v1/journal/records/{id}   → 404 токеном B (чужая; канон `Journal.Get` — `{200, 401, 404}`,
+#      решение @AR 2026-11-10 14:15). `403` печатается как РАСХОЖДЕНИЕ кода с каноном, а не как норма.
 #   5) GET  /api/v1/journal/records        → 401 без токена
 set -uo pipefail
 
@@ -36,6 +37,11 @@ fi
 
 fail=0
 say() { printf '%-58s %s\n' "$1" "$2"; }
+warn() {
+  printf '  [WARN] %s — %s\n' "$1" "$2"
+  WARNINGS=$((WARNINGS + 1))
+}
+
 bad() { printf '%-58s %s\n' "$1" "$2"; fail=1; }
 
 # --- 1) создать запись -------------------------------------------------------
@@ -71,7 +77,15 @@ if [ "$own" = "200" ]; then say "3) GET своей записи по id" "200"; 
 if [ -n "$TOKEN_B" ]; then
   foreign=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/journal/records/$id" \
              -H "Authorization: Bearer $TOKEN_B" 2>/dev/null || true)
-  if [ "$foreign" = "403" ]; then say "4) GET чужой записи (токен B)" "403"; else bad "4) GET чужой записи (токен B)" "$foreign (ожидали 403)"; fi
+  # Канон `Journal.Get` = `{200, 401, 404}` (решение @AR 14:15: чужой объект неотличим от несуществующего).
+  # Поэтому норма — 404; `403` — это расхождение КОДА с каноном, и его надо видеть как таковое.
+  if [ "$foreign" = "404" ]; then
+    say "4) GET чужой записи (токен B)" "404 (канон)"
+  elif [ "$foreign" = "403" ]; then
+    warn "4) GET чужой записи (токен B)" "403 — код расходится с каноном {200,401,404} (@AR 14:15)"
+  else
+    bad "4) GET чужой записи (токен B)" "$foreign (ожидали 404 по канону)"
+  fi
 else
   say "4) GET чужой записи" "пропущено: TOKEN_B не задан"
 fi
@@ -81,8 +95,12 @@ anon=$(curl -sS -m 30 -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/journal/r
 if [ "$anon" = "401" ]; then say "5) GET /journal/records без токена" "401"; else bad "5) GET /journal/records без токена" "$anon (ожидали 401)"; fi
 
 echo "----"
+# `WARNINGS` не глотаем: иначе расхождение кода с каноном (403 вместо 404) выглядело бы как PASS.
+if [ "${WARNINGS:-0}" -gt 0 ]; then
+  echo "::warning::журнал: расхождений с каноном ${WARNINGS} (см. [WARN] выше)"
+fi
 if [ "$fail" -eq 0 ]; then
-  echo "PASS: 5/5 строк скоупа журнала"
+  echo "PASS: строки скоупа журнала в порядке (предупреждений: ${WARNINGS:-0})"
   exit 0
 else
   echo "FAIL: см. строки выше (данные не печатались, токены не печатались)"
