@@ -187,8 +187,19 @@ def resolve_images(arg_value: str, services: list) -> str:
 
 
 def print_class_names(violators, contracts, unknown, tag: str) -> int:
-    """Печатает ИМЕНА проб по классам (TE-110, `@AR 12:46`, `@DO 12:46`): счётчик отвечает «как часто
-    не измерилось», а имя — «что именно не измерилось». Возвращает число напечатанных строк (для selftest).
+    """Печатает ИМЕНА проб по классам (TE-110, `@AR 12:46`, `@DO 12:46`).
+
+    **Контракт (сформулирован до кода — `@AR 2026-11-10 13:27`, чтобы красный selftest означал реализацию,
+    а не арифметику автора):**
+
+    1. Порядок вывода фиксирован: сначала все `violators`, затем все `contracts`, затем все `unknown`.
+    2. По одной строке на элемент; формат:
+       `::error::apim-auth(<tag>)[violator]: <name>`,
+       `::error::apim-auth(<tag>)[contract]: <name>`,
+       `::warning::apim-auth(<tag>)[unknown]: <name>`.
+    3. Пустой класс **молчит** (ноль строк) — «нет нарушителей» не печатается как шум.
+    4. Возвращает число напечатанных строк (`= len(violators) + len(contracts) + len(unknown)`),
+       чтобы selftest мог сверить и содержимое, и количество.
     """
     n = 0
     for name in violators or []:
@@ -974,6 +985,18 @@ def selftest() -> int:
         ok += 1
     else:
         print(f"  [FAIL] пустые классы не печатают ничего: printed={n2}, out={out2!r}")
+
+    # Контракт порядка (@AR 13:27): violator -> contract -> unknown, по строке на элемент.
+    total += 1
+    n3, out3 = _capture(["V1", "V2"], ["C1"], ["U1"], "ii-a")
+    want3 = ("::error::apim-auth(ii-a)[violator]: V1\n"
+             "::error::apim-auth(ii-a)[violator]: V2\n"
+             "::error::apim-auth(ii-a)[contract]: C1\n"
+             "::warning::apim-auth(ii-a)[unknown]: U1\n")
+    if n3 == 4 and out3 == want3:
+        ok += 1
+    else:
+        print(f"  [FAIL] порядок классов: printed={n3}, out={out3!r}, want={want3!r}")
 
     # TE-112: отсутствие PyYAML обязано быть `Unmeasured` (=> rc=2), а не `SystemExit` (=> rc=1 при тексте про rc=2)
     import sys as _sys_mod
