@@ -136,6 +136,15 @@ jobs:
         run: |
           python tools/check_api_index.py --selftest
           python tools/check_api_index.py
+          # 2026-11-10 (@AR 17:00, `1286`/`1287`): два готовых гейта были НЕ подключены,
+          # и оба сейчас `rc=0` — то есть шум ноль, а защиты не было:
+          #  • `--require-request` держит `request_rule` (54/54 POST имеют `request`);
+          #    без него следующая POST без тела пройдёт молча, и фронт снова начнёт угадывать.
+          #  • `gen_openapi --check` читает индекс через `yaml.safe_load` ⇒ ловит СЛОМАННЫЙ YAML
+          #    (сегодня @AR ломал канон дважды: кавычки в `verification`, orphan `delivery:`),
+          #    плюс расхождение `openapi/` с каноном. В `.github` его было 0 вхождений.
+          python tools/check_api_index.py --require-request
+          python 04-architecture/gen_openapi.py --check
 
 
       # DO-079/BE-069: тот же класс, что BE-067 — `IPaging` передаётся null (`null!`
