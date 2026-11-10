@@ -172,7 +172,23 @@ jobs:
       # Заменён на ИЗМЕРЕНИЕ канона входа: 74/74 + 2/2, via=gravitee, rc=0/2/1.
       - name: API-канон входа (measure, не заглушка)
         run: |
-          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"
+          set -uo pipefail
+          # 2026-11-10 (@DO): в #1801 канон дал 73/74 и rc=2 из-за ОДНОЙ пробы без ответа
+          # (unknown_retried=6), а локальный повтор того же замера — 74/74, rc=0. Это флейк пробы,
+          # но rc=2 обязан оставаться красным (канон: «не измерено»), поэтому не закрашиваем,
+          # а даём ВТОРУЮ попытку и печатаем обе: rc=1 → сразу fail; rc=2 → пауза 15 с и повтор;
+          # rc=2 дважды → fail «не измерено дважды»; rc=2→0 → notice «первый был флейком».
+          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
+          if [ "$rc" = "2" ]; then
+            echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
+            sleep 15
+            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
+            [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
+          fi
+          if [ "$rc" = "2" ]; then
+            echo "::error::канон входа: не измерено ДВАЖДЫ (rc=2) — это не «зелено» и не «нарушитель»"
+          fi
+          exit "$rc"
       # 2026-11-05 (@DO): путь `9-tests/Contract.ClientJournal` в репозитории ОТСУТСТВУЕТ
       # (в `9-tests/` только RnD/reports/scripts) — тот же класс, что мёртвый E2E-путь выше.
       # Не удаляю и не закрашиваю: печатаю «не измерено» и выхожу rc=2; проект выбирает @TE.
