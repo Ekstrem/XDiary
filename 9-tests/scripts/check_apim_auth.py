@@ -58,6 +58,10 @@ for _stream in (sys.stdout, sys.stderr):
 INDEX = "04-architecture/api-index.yaml"
 ANON = {"anonymous", "anonymous-inside"}
 
+
+class Unmeasured(Exception):
+    """Проверка не выполнена (нет зависимости/данных). Отличается от нарушения: `rc=2`, а не `rc=1`."""
+
 # BC в `api-index.yaml` → имя сервиса в compose (`7-deploy/podman-compose.yml`).
 # Нужен для `--direct`: условие @AR сформулировано про ПРЯМОЙ запрос в сервис, а не про YARP.
 SERVICE_BY_BC = {
@@ -81,7 +85,9 @@ def load_ops(path: str = INDEX) -> list[dict]:
     try:
         import yaml  # noqa: WPS433 — PyYAML есть в окружении; без него честный rc=2
     except ImportError:
-        raise SystemExit("нет PyYAML — проверка не выполнена (rc=2)")
+        # TE-112: `SystemExit("текст")` завершает процесс кодом **1**, хотя текст обещает `rc=2`.
+        # Это ровно класс «сообщение против кода»: теперь исключение ловится `_run_guarded` и даёт честный `rc=2`.
+        raise Unmeasured("нет PyYAML — проверка не выполнена")
     with open(path, "r", encoding="utf-8") as fh:
         doc = yaml.safe_load(fh)
     return list(doc.get("operations") or [])
@@ -969,6 +975,31 @@ def selftest() -> int:
     else:
         print(f"  [FAIL] пустые классы не печатают ничего: printed={n2}, out={out2!r}")
 
+    # TE-112: отсутствие PyYAML обязано быть `Unmeasured` (=> rc=2), а не `SystemExit` (=> rc=1 при тексте про rc=2)
+    import sys as _sys_mod
+    total += 1
+    _saved = _sys_mod.modules.get("yaml", "НЕ БЫЛО")
+    _sys_mod.modules["yaml"] = None  # `import yaml` бросит ImportError
+    try:
+        try:
+            load_ops("любой.yaml")
+            _raised = None
+        except Unmeasured:
+            _raised = "Unmeasured"
+        except SystemExit as _se:  # noqa: F841 — именно этот класс и был дефектом
+            _raised = f"SystemExit({_se})"
+        except Exception as _e:  # noqa: BLE001
+            _raised = type(_e).__name__
+    finally:
+        if _saved == "НЕ БЫЛО":
+            _sys_mod.modules.pop("yaml", None)
+        else:
+            _sys_mod.modules["yaml"] = _saved
+    if _raised == "Unmeasured":
+        ok += 1
+    else:
+        print(f"  [FAIL] нет PyYAML -> ждали Unmeasured (rc=2), получили {_raised}")
+
     print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
 
@@ -1357,5 +1388,28 @@ def main() -> int:
     return rc
 
 
+def _run_guarded() -> int:
+    """Обёртка запуска (TE-112, `@DO 2026-11-10 13:29`): падение ДО печати квитанции не должно давать
+    «пустой лог + `rc=1`». В `canon-stability` это выглядело как «канон сломан», хотя скрипт просто упал на
+    загрузке индекса. Правило дня: **не измерено ≠ нарушено**, поэтому:
+      * `stdout` переводится в построчный режим — хвост лога не теряется при падении;
+      * любое исключение печатается как `::error::` с типом и текстом, затем **`квитанция: НЕ ИЗМЕРЕНО`**;
+      * код возврата — **2** (не измерено), а не 1 (нарушено).
+    """
+    try:
+        import sys as _sys
+        try:
+            _sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001 — старый Python/перенаправленный stdout
+            pass
+        return main()
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001 — любая авария = «не измерено», а не «нарушено»
+        print(f"::error::check_apim_auth: {type(exc).__name__}: {exc}")
+        print("квитанция: НЕ ИЗМЕРЕНО — проверка упала до печати результата (см. ::error:: выше)")
+        return 2
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_run_guarded())
