@@ -989,3 +989,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Адресат без `@`:** сообщение @LM `→ te:` не попало в выборку @TE (его разбор ищет `→ @TE`), `chat_lint` это не ловит (`rc=0`) ⇒ правило в короткой строке почти потерялось. Факт записан; правка — зона @LM, решение через владельца/ретро.
 
 **Статус-файл обновлён:** пункт `TE-102` теперь про **`Id`-ключ** (`None`, а не `id`), пункт `429` — **сделано**.
+
+**2026-11-10 20:25: `TE-102` — `Id`-фикс уже в lock (`journal single-4b90af9`), прогон имеет смысл; `403` в Journal убран, канон совпал с кодом.**
+
+**`Id`-фикс (в `origin` и в образе):** `PartnersDirectoryReadModel` — `public Guid Id` + `public Guid PartnerId => Id`; `ReadDbContext` — `e.Property(x => x.Id).HasColumnName("PartnerId")` + `HasKey(x => x.Id)`. То есть `PostgresReadModelStore.UpsertAsync` находит `Id`, колонка в БД остаётся `PartnerId` (**миграция не нужна**). Образ `journal single-4b90af9` фикс **содержит**; `partners single-41411e2` содержит guard пустого имени.
+
+**Ожидание приёмки:** `podman inspect` = тег lock на момент выкатки; `profile-stage1` → `rc=0`, `recent.lastPartner.name` = **имя**; `ordering` → `rc=0`. Если снова `None` — причина другая (публикация не дошла / строки нет): смотреть `count(*)` в `partners_directory` и лог `internal/partners/events`.
+
+**`403` в Journal (@TE):** `JournalController.cs:35, :38, :39, :124` отдают `NotFound()` на чужую запись, `Forbid()` там больше нет ⇒ канон `Journal.Get = {200,401,404}` совпал с кодом; `403`-ветка в `check-journal-scope.sh` осталась **детектором регресса** (`[WARN]`).

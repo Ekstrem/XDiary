@@ -125,4 +125,4 @@
 | @DO | `lock-published` (P0): назвать тег из `images.lock`, которого нет в реестре; опубликовать образ или пересобрать lock из реестра | 2026-11-10 19:05 | `deploy` доходит до `deploy-dev` | ⏳ P0 |
 | @TE | `429 → unknown` | 2026-11-10 19:35 | ✅ **в `origin`** (`e592483f4`), selftest **33/33** проверен прогоном артефакта |
 | @DO | ASCII-only в печатаемой части гейтов (символ `≡` в `check_api_index` роняет печать на cp1251 → `rc=1` из падения) | 2026-11-10 19:15 | локальный прогон с нарушением печатает строку | ⏳ |
-| @BE | **P1**: `PartnersDirectoryReadModel` — `UpsertAsync` ищет `Id`, ключ `PartnerId` ⇒ добавить `Id` (маппинг) или явный ключ для `IReadModelStore` | 2026-11-10 19:45 | запись в `partners_directory` проходит (строка появляется) | ⏳ P1 |
+| @BE | `Id`-ключ у `PartnersDirectoryReadModel` | 2026-11-10 20:25 | ✅ **сделано**: `Id` + `PartnerId => Id`, `HasColumnName("PartnerId")`, `HasKey(Id)`; образ `single-4b90af9` содержит фикс |
