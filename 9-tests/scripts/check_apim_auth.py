@@ -1423,8 +1423,14 @@ def _run_guarded() -> int:
         import sys as _sys
         try:
             _sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+            _sys.stderr.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
         except Exception:  # noqa: BLE001 — старый Python/перенаправленный stdout
             pass
+        # TE-114 (@DO `2026-11-10 13:29`): в `canon-stability` лог был ПУСТ — ни квитанции, ни ошибки, ни трейса.
+        # Баннер печатается ПЕРВОЙ строкой и сразу: если его нет, значит файл вообще не исполнялся
+        # (не тот `python`, нет файла, отказ импорта до кода) — это отдельный диагноз, а не «канон нарушен».
+        print(f"::notice::check_apim_auth: старт · python {_sys.version.split()[0]} · "
+              f"cwd={_sys.path[0] or '.'} · argv={' '.join(_sys.argv[1:])}", flush=True)
         return main()
     except SystemExit:
         raise
