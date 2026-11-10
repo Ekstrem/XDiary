@@ -30,13 +30,44 @@ def load_canon():
     return mod
 
 
+def selftest() -> int:
+    """@TE 2026-11-10 19:32: в его файле было ДВА классификатора (`verdict` и `classify_code`),
+    и они разошлись на `429`. Мой инструмент зовёт `classify_code`, поэтому обязан сверяться
+    с каноном на каждом классе, а не «доверять импорту». Кейс: если канон изменит смысл кода,
+    этот селфтест упадёт — и тогда правится ожидание, а не закрашивается расхождение.
+    """
+    canon = load_canon()
+    expect = {
+        200: "violator", 400: "violator", 401: "protected", 403: "protected",
+        404: "contract", 405: "contract", 415: "violator", 429: "unknown",
+        500: "violator", 502: "unknown", 503: "unknown", 504: "unknown",
+    }
+    bad = [(c, canon.classify_code(c, True), want) for c, want in expect.items()
+           if canon.classify_code(c, True) != want]
+    if bad:
+        for c, got, want in bad:
+            print("  [FAIL] classify_code(%d) = %s, ждали %s" % (c, got, want))
+        print("canon_per_probe --selftest: %d/%d" % (len(expect) - len(bad), len(expect)))
+        return 1
+    print("canon_per_probe --selftest: %d/%d (классификация совпадает с каноном на всех кодах)"
+          % (len(expect), len(expect)))
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", required=True)
+    ap.add_argument("--base")
     ap.add_argument("--passes", type=int, default=1)
     ap.add_argument("--pause", type=int, default=0)
     ap.add_argument("--retry-unknown", type=int, default=6)
+    ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
+
+    if a.selftest:
+        return selftest()
+    if not a.base:
+        print("::error::нужен --base (или --selftest)")
+        return 2
 
     canon = load_canon()
     ops = [o for o in canon.load_ops() if canon.requires_auth(o) and not o.get("internal")]
