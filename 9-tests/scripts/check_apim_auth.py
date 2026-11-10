@@ -511,6 +511,11 @@ def classify_code(code: int | None, five_xx_unknown: bool) -> str:
         return "protected"
     if code in (404, 405):
         return "contract"
+    if code == 429:
+        # `429` — «не дошло до сервиса» (лимитер/WAF), как 502/503/504 через прокси: открытость ручки
+        # он не означает никогда (@AR 14:13). Правка обязана быть ЗДЕСЬ, иначе `verdict` и `classify_code`
+        # расходятся, а `canon_per_probe.py:65` зовёт именно `classify_code`.
+        return "unknown"
     if code in (502, 503, 504) and five_xx_unknown:
         return "unknown"
     return "violator"
@@ -1071,6 +1076,21 @@ def selftest() -> int:
         ok += 1
     else:
         print(f"  [FAIL] 200 => violator => rc=1: v={_v2}, rc={final_rc(_v2, _c2, _u2, 1, 1)}")
+
+    # TE-117 (@TL 19:15: «инструмент и канон расходятся в классификации 429»): в файле ДВА классификатора —
+    # `verdict` (для гейта) и `classify_code` (для инструментов @DO). Проверяем, что они согласованы на всех кодах.
+    total += 1
+    _mismatch = []
+    for _code in (200, 400, 401, 403, 404, 405, 415, 429, 500, 502, 503, 504):
+        _v, _c, _u, _pp = verdict([({"method": "GET", "path": "/x", "operationId": "X"}, _code, "u")])
+        _by_verdict = "violator" if _v else "contract" if _c else "unknown" if _u else "protected"
+        _by_classify = classify_code(_code, True)
+        if _by_verdict != _by_classify:
+            _mismatch.append(f"{_code}: verdict={_by_verdict}, classify_code={_by_classify}")
+    if not _mismatch:
+        ok += 1
+    else:
+        print(f"  [FAIL] классификаторы расходятся: {_mismatch}")
 
     print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
