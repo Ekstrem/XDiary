@@ -76,6 +76,10 @@ def verdict(partners_read=None, partners_src=None, journal_read=None, journal_sr
             unmeasured.append(f"HTTP {name} = {code} (нет доступа к измерению, не «зелено»)")
         elif code >= 500:
             issues.append(f"HTTP {name} = {code} — сервис отвечает ошибкой")
+        elif code == 429:
+            # @AR 15:21: `429` — лимитер/WAF, то есть «доступ к измерению не получен», как 401/403 рядом.
+            # В `issues` («ожидали 200») его держать нельзя: лимитер снова становился бы нарушением.
+            unmeasured.append(f"HTTP {name} = 429 (лимитер/WAF — не измерено, не «зелено»)")
         elif code != 200:
             issues.append(f"HTTP {name} = {code}, ожидали 200")
 
