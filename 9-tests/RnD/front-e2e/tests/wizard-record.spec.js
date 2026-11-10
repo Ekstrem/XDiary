@@ -258,21 +258,32 @@ test('E2E: открытие визарда не грузит полный жур
   const before = calls.length;
   await page.click('#btn-new');
   await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
+  // TE-104: с этого момента визард уже показан — отделяем «на открытии» (клик → экран)
+  // от «после открытия», чтобы `journal/records` нельзя было списать на фоновое обновление.
+  const afterOpen = calls.length;
   // Ждём, пока сеть успокоится (детерминированно): спека проверяет ОТСУТСТВИЕ
   // полного `/journal/records`, поэтому «догоняющие» ленивые запросы должны успеть уйти.
   await page.waitForLoadState('networkidle');
 
   const mine = calls.slice(before);
+  const duringOpen = calls.slice(before, afterOpen);
+  const afterWizard = calls.slice(afterOpen);
   const fullJournal = mine.filter((l) => /GET \/api\/v1\/journal\/records$/.test(l));
+  const fullAtOpen = duringOpen.filter((l) => /GET \/api\/v1\/journal\/records$/.test(l));
+  const fullAfter = afterWizard.filter((l) => /GET \/api\/v1\/journal\/records$/.test(l));
   const recent = mine.filter((l) => l.indexOf('/api/v1/journal/recent') !== -1);
   const places = mine.filter((l) => l.indexOf('/api/v1/journal/places') !== -1);
 
-  console.log('::notice::FE-016 wizard open: ' + mine.length + ' запросов; полный журнал x' +
-    fullJournal.length + ', recent x' + recent.length + ', places x' + places.length);
+  console.log('::notice::FE-016 wizard open: ' + mine.length + ' запросов (на открытии ' +
+    duringOpen.length + ', после открытия ' + afterWizard.length + '); полный журнал x' +
+    fullJournal.length + ' (на открытии x' + fullAtOpen.length + ', после x' + fullAfter.length +
+    '), recent x' + recent.length + ', places x' + places.length);
 
   // Окно = запросы ПОСЛЕ входа, с момента перед кликом `#btn-new` до `networkidle` (см. `before` выше).
   // В тексте падения это названо явно: иначе список читают как «все запросы теста» (реальный случай 2026-11-10).
-  const windowText = 'окно после клика #btn-new: ' + mine.join(' | ');
+  const windowText = 'окно после клика #btn-new: ' + mine.join(' | ') +
+    ' | на открытии (клик→экран): ' + (duringOpen.join(' | ') || '—') +
+    ' | после открытия: ' + (afterWizard.join(' | ') || '—');
   expect(fullJournal, 'визард не должен грузить полный журнал (FE-016); ' + windowText)
     .toHaveLength(0);
   expect(recent.length, 'должен быть `GET /journal/recent` (подсказки шагов); ' + windowText)
