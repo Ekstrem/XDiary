@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
     inputs:
       runs:
-        description: 'Сколько прогонов канона подряд'
-        default: '5'
+        description: 'Сколько проходов канона'
+        default: '3'
+      pause:
+        description: 'Пауза между проходами, секунды (5 минут = 300)'
+        default: '300'
       base:
         description: 'База (прод-вход)'
         default: 'https://xdiary-vps1.taile0b6ee.ts.net'
@@ -37,7 +40,8 @@ jobs:
       - name: Канон N раз, rc по попыткам
         env:
           BASE: ${{ inputs.base || 'https://xdiary-vps1.taile0b6ee.ts.net' }}
-          RUNS: ${{ inputs.runs || '5' }}
+          RUNS: ${{ inputs.runs || '3' }}
+          PAUSE: ${{ inputs.pause || '300' }}
         run: |
           # Actions запускает `bash -e`: без `set +e` первый же ненулевой rc канона обрывал
           # весь цикл (ровно так упал #1 — без единой строки «попытка N»).
@@ -48,13 +52,16 @@ jobs:
           rc1_repeat=0
           rows=""
           for i in $(seq 1 "$RUNS"); do
+            t0=$SECONDS
             python 9-tests/scripts/check_apim_auth.py --all --base "$BASE" > "/tmp/canon-$i.log" 2>&1
             rc=$?
+            dur=$((SECONDS - t0))
             line="$(grep -m1 'REF=' "/tmp/canon-$i.log" || true)"
-            rows="${rows}| $i | rc=$rc | ${line} |"$'\n'
+            where="$(printf '%s' "$line" | sed -n 's/.*where=\([^ ]*\).*/\1/p')"
+            rows="${rows}| $i | rc=$rc | ${dur} с | ${where:-—} | ${line} |"$'\n'
             [ "$rc" = "2" ] && rc2=$((rc2 + 1))
             [ "$rc" = "1" ] && rc1=$((rc1 + 1))
-            echo "попытка $i: rc=$rc"
+            echo "проход $i: rc=$rc | ${dur} с"
             echo "  квитанция: $line"
             # 2026-11-10: при rc≠0 квитанции может не быть (падание ДО печати) — тогда
             # причина не видна. Печатаем хвост лога попытки, иначе снова «не измерено вслепую».
@@ -70,13 +77,14 @@ jobs:
             # 2026-11-10: прогоны подряд бьют по лимитам APIM — пауза, чтобы измерять канон,
             # а не собственную частоту запросов.
             # @TL 14:55: 20 с недостаточно — троттлинг возможен и после минутной паузы.
-            [ "$i" -lt "$RUNS" ] && sleep 60
+            # @TL 15:30: пауза 5 минут (не 20 с) — проверяем «лимит с длинным окном».
+            [ "$i" -lt "$RUNS" ] && sleep "${PAUSE:-300}"
           done
           {
             echo "### canon-stability: rc=1 (нарушители) за $RUNS: $rc1 · rc=2 (не измерено) за $RUNS: $rc2"
             echo
-            echo "| попытка | rc | квитанция |"
-            echo "|---|---|---|"
+            echo "| проход | rc | длительность | where | квитанция |"
+            echo "|---|---|---|---|---|"
             printf '%s' "$rows"
           } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
           echo "ИТОГ: rc=1 за $RUNS: $rc1 · rc=2 за $RUNS: $rc2"
