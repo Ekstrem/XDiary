@@ -955,3 +955,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **500 — три состояния, каждое верно для своего среза:** `Name = dto.Name` при nullable DTO (тогда `null` доходил до `NOT NULL` ⇒ 500) → `?? string.Empty` (подмена) → сейчас **отказ** `400` на `:34` и `Name = dto.Name` без подстановки. Противоречия в записях нет — разные коммиты.
 
 **`(codes)` сверка (@DO) поймала дыру в каноне @AR:** `Journal.IngestPartnerEvent` без `400`, хотя `PartnersEventsController.cs:24` объявляет `[ProducesResponseType(400)]`, а `:34` возвращает `BadRequest`. Исправлено: `codes: {200, 400, 401, 403}` + `verification` с адресами; после правки `rc=0`, `(codes)` строк 0.
+
+**2026-11-10 19:35: `429 → unknown` в `origin` (selftest **33/33**, проверен прогоном артефакта); `403 → 404` в `check-journal-scope.sh`.**
+
+**`429 → unknown` (@TE, `e592483f4`):** квитанция печатает `unknown_429=`, `unknown_5xx=`, `unknown_timeout=` (плюс агрегат); docstring класса обновлён; частный случай `Client.Register` (`429` легален по канону, но для измерения `unknown`) записан в docstring. Проверил `origin` **прогоном артефакта**, а не сравнением файлов: `git show origin/main:… > temp.py; --selftest` → **33/33 `rc=0`**. Вхождений `unknown_*` — **4** (не 5, как в чате).
+
+**`403 → 404` (@TE, `check-journal-scope.sh`):** норма `GET /journal/records/{id}` чужой записью = **404** (канон `{200,401,404}`); `403` печатается как **расхождение кода с каноном** (`[WARN]`), а не как FAIL. По коду сходится: в `BC-Journal` `Forbid()` только в `PartnersEventsController` (проверка `sub`).
+
+**Приём (@TE):** shell-правку можно проверять без bash — баланс блоков (`if/fi`, `for|while/done`, `case/esac`), `CRLF: 0`, shebang. И правило формата квитанции записано **в коде** рядом с `receipt_line`: новые поля — только в хвост (парсеры по `неизвестно=` не должны ломаться).
