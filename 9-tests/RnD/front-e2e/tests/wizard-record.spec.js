@@ -138,9 +138,16 @@ test('E2E: запись через визард — создаётся и вид
     };
 
     await stepWrapped('fill #w-startedAt', () => page.fill('#w-startedAt', WHEN));
-    // `#btn-wizard-prev` не трогала ни одна спека: возврат на шаг назад не был проверен.
-    // Проверяем на первом переходе: назад с шага 1 обязан вернуть на шаг 0 (дата).
+
+    // TE-123 (@DO `2026-11-10 17:03` принёс `ШАГ ВИЗАРДА: 1 -> 0 (prev)`, и это оказался ДЕФЕКТ МОЕГО КЕЙСА):
+    // `#btn-wizard-prev` скрыт на шаге 0 (`app.js:771`: `classList.toggle("hidden", wizardStep === 0)`),
+    // а кейс кликал `prev` прямо после открытия мастера, ни разу не уйдя вперёд. Playwright ждал
+    // видимости 10 с и падал. Правильный порядок: сначала уйти на шаг 1, затем вернуться назад.
+    await stepWrapped('0 -> 1 (перед проверкой возврата)', () => next('0 -> 1 (перед проверкой возврата)'));
     await stepWrapped('1 -> 0 (prev)', () => prev('1 -> 0'));
+    // Возврат обязан вернуть именно экран даты (шаг 0), иначе «назад» сработал в пустоту.
+    await stepWrapped('после prev виден шаг «Дата»',
+      () => expect(page.locator('#w-startedAt')).toBeVisible({ timeout: 10000 }));
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 10000 });
     await stepWrapped('0 -> 1 (после возврата)', () => next('0 -> 1 (после возврата)'));
     await stepWrapped('0 -> 1', () => next('0 -> 1'));
