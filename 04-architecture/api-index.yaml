@@ -882,9 +882,9 @@ operations:
       note: "E1-срез: конверт не соответствует приёмке E1 (нет eventId/type/schemaVersion) — долг зафиксирован в contract_note ниже"
     auth: jwt-service
     internal: true
-    codes: {200: "ok — upsert в partners_directory", 401: "нет токена", 403: "токен не sub=partners"}
+    codes: {200: "ok — upsert в partners_directory", 400: "пустое имя (явный BadRequest `name required`, :34) + implicit required полей", 401: "нет токена", 403: "токен не sub=partners"}
     codes_status: verified
-    verification: "код: `PartnersEventsController.cs:15` — `[Authorize]` на классе; `:25` — `if (User.FindFirst(\"sub\")?.Value != \"partners\") return Forbid()` ⇒ токен обязателен, чужой sub → 403. Было в каноне: `auth: anonymous-inside` + `codes: {200, 401}` — устарело (контроллер получил `[Authorize]` и проверку sub); исправлено 2026-11-10 @AR."
+    verification: "код: `PartnersEventsController.cs:23-26` — `[Authorize]` на классе, `[ProducesResponseType(200/400/401/403)]`; `:32` — `if (sub != \"partners\") return Forbid()`; `:34` — `if (string.IsNullOrEmpty(dto.Name)) return BadRequest(\"name required\")` (TL `17:42`: без имени — 400, а не молчаливое \"\"); `:40` — `Name = dto.Name` без подстановки. Атрибуты и канон сверены гейтом `check_api_index` (`(codes)`), 2026-11-10."
     contract_note: "E1-срез: конверт НЕ соответствует приёмке E1 (edm-debt-plan §1.2) — в DTO нет eventId/type/schemaVersion/aggregateId/version/occurredAt/correlationToken. Без eventId нет идемпотентности, без version — защиты от устаревшего события. Требуется @BE до закрытия E1."
   - bc: DailyMetrics
     method: GET
