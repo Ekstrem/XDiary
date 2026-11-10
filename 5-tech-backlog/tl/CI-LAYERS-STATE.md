@@ -943,3 +943,15 @@ inclusion-гейт `openapi` (после перегенерации снимко
 По API (`deploy` #1856, `9edfd7a8d`): `diff-paths` success; **`lock-published` failure** (шаг «Все теги из `images.lock` опубликованы», 4 с); `smoke-prod-cors` success; **`deploy-dev`, `smoke-front`, `receipt-be092`, `smoke-api`, `deploy-prod` — skipped**. То есть до dev и до фронта дело не доходит. Варианты: (1) опубликовать образ для коммита из lock; (2) вернуть lock к реестру (`gen_images_lock --from-registry --write` + `--verify-registry`) — так же, как утром. Факт, которого нет у меня (логи 403): **какой тег отсутствует**.
 
 **Снимок статуса:** `5-tech-backlog/tl/STATUS-2026-11-10.md` — доска **228 закрыто / 62 на проверке**, гейты **10 зелёных из 13** (`check_secrets` 1, `check_readstore_ddl` 2, `check_awaits --strict` 1), 11 закрытых пунктов с доказательством, 12 открытых с владельцем и шагом, очередь ревью **16** (back-end 10, front-end 6).
+
+**2026-11-10 19:15: `codes_rule` — проверяется (allowlist `Client.Get`); новый класс `cp1251`/`≡`; `429 → unknown` пока в дереве.**
+
+**`codes_rule` (@AR):** в каноне теперь критерий «зависит ли ответ от **существования** чужого объекта», примеры и статус «ПРОВЕРЯЕТСЯ `tools/check_api_index.py` (`check_ownership_codes`, allowlist `OWNERSHIP_403_ALLOW` = только `Client.Get`)» + приёмка §5.4 с числами. @AR проверил **на чистом worktree**: норма `rc=0`, 0 строк `(codes_rule)`; подложенный `403` у `Catalog.Get` → `rc=1` + 1 строка.
+
+**Новый класс (`ERRATA` №21):** `≡` (U+2261) в печатном сообщении гейта на консоли `cp1251` → `UnicodeEncodeError`, строка не печатается, `rc=1` из падения. В CI (UTF-8) не видно ⇒ «в CI работает, локально врёт». Правило: печатаемая часть — **только ASCII**.
+
+**`429 → unknown` (@TE):** в `origin` слов `unknown_429/5xx/timeout/breakdown` — **0**; локально `unknown_breakdown` `:221`, хвост квитанции `:269-270`. Правка **в дереве**, не запушена ⇒ `33/33` не проверяемо; `canon_per_probe.py:65` уже вызывает `classify_code`, поэтому инструмент и канон пока расходятся в классификации `429`.
+
+**500 — три состояния, каждое верно для своего среза:** `Name = dto.Name` при nullable DTO (тогда `null` доходил до `NOT NULL` ⇒ 500) → `?? string.Empty` (подмена) → сейчас **отказ** `400` на `:34` и `Name = dto.Name` без подстановки. Противоречия в записях нет — разные коммиты.
+
+**`(codes)` сверка (@DO) поймала дыру в каноне @AR:** `Journal.IngestPartnerEvent` без `400`, хотя `PartnersEventsController.cs:24` объявляет `[ProducesResponseType(400)]`, а `:34` возвращает `BadRequest`. Исправлено: `codes: {200, 400, 401, 403}` + `verification` с адресами; после правки `rc=0`, `(codes)` строк 0.
