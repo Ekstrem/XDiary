@@ -74,10 +74,27 @@ def scan(root, statuses=None, dirs=None):
     return problems, refs
 
 
+def adr_status_raw(root):
+    """номер -> сырой текст статуса (нужен, чтобы отличить «заменено ADR-NNN» от «отклонено»)."""
+    out = {}
+    for path in glob.glob(os.path.join(root, '04-architecture', 'ADL', 'adr-*.md')):
+        m = re.search(r'adr-(\d{3})\.md$', os.path.basename(path))
+        if not m:
+            continue
+        for line in open(path, encoding='utf-8', errors='replace').read().splitlines():
+            sm = STATUS_LINE.match(line)
+            if sm:
+                out[m.group(1)] = sm.group(1).replace('*', '').replace('`', '')
+                break
+    return out
+
+
 def accepted_refs_rejected(root):
-    """Активный ADR (Принято/Пересмотрен) ссылается на Отклонённый/Отменённый -> нарушение связности."""
+    """Активный ADR ссылается на снятый: «заменён» -> устаревшая ссылка (stale),
+    «отклонён/отменён без замены» -> опора на снятое решение (error)."""
     statuses = adr_status_map(root)
-    problems = []
+    raw = adr_status_raw(root)
+    problems, stale = [], []
     for path in glob.glob(os.path.join(root, '04-architecture', 'ADL', 'adr-*.md')):
         m = re.search(r'adr-(\d{3})\.md$', os.path.basename(path))
         if not m:
@@ -90,10 +107,12 @@ def accepted_refs_rejected(root):
                 tgt = ref.group(1)
                 if tgt == src:
                     continue
-                if statuses.get(tgt) in ('Отклонено', 'Отменён'):
-                    problems.append((os.path.relpath(path, root).replace(os.sep, '/'),
-                                     no, src, tgt, statuses[tgt]))
-    return problems
+                if statuses.get(tgt) not in ('Отклонено', 'Отменён'):
+                    continue
+                rel = os.path.relpath(path, root).replace(os.sep, '/')
+                replaced = 'замен' in (raw.get(tgt) or '').lower()
+                (stale if replaced else problems).append((rel, no, src, tgt, statuses[tgt]))
+    return problems, stale
 
 
 def selftest():
@@ -157,7 +176,8 @@ def main():
 
     dirs = SCAN_DIRS + ARCH_DIR if a.include_arch else SCAN_DIRS
     problems, refs = scan(root, dirs=dirs)
-    link_problems = accepted_refs_rejected(root)
+    link_problems, stale_links = (accepted_refs_rejected(root)
+                                   if a.include_arch else ([], []))
     print('check_adr_refs: каталоги: %s' % ', '.join(dirs))
     for rel, no, adr, claimed, fact in problems:
         print('::error::(adr-refs) %s:%d — `ADR-%s` заявлен как `%s`, фактически `%s`'
@@ -165,8 +185,12 @@ def main():
     for rel, no, src, tgt, fact in link_problems:
         print('::error::(adr-refs) %s:%d — активный ADR-%s ссылается на `ADR-%s` (фактически `%s`)'
               % (rel, no, src, tgt, fact))
-    print('check_adr_refs: проверено ссылок %d, нарушений %d, связность активный->отклонённый %d'
-          % (refs, len(problems), len(link_problems)))
+    for rel, no, src, tgt, fact in stale_links:
+        print('::warning::(adr-refs) %s:%d — ADR-%s ссылается на заменённое (`ADR-%s`), '
+              'актуальная ссылка — на решение-замену' % (rel, no, src, tgt))
+    print('check_adr_refs: проверено ссылок %d, нарушений %d | связность: опора на снятое %d, '
+          'устаревших ссылок на заменённое %d'
+          % (refs, len(problems), len(link_problems), len(stale_links)))
     if refs == 0:
         print('::error::check_adr_refs: НЕ ИЗМЕРЕНО — ни одной ссылки со статусом не найдено')
         return 2
