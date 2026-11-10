@@ -1049,6 +1049,20 @@ def main() -> int:
         print(receipt_line("ii-c", current_ref(), len(ok_c), len(iops), rc_c, where,
                            len(bad_c), 0, len(unk_c),
                            resolve_images(args.images, []) if not args.direct else "", args.network))
+        # TE-110 (@AR `2026-11-10 12:46`): в `--all` печатались ТОЛЬКО СЧЁТЧИКИ, и `rc=2` не говорил,
+        # какие именно пробы не ответили. Счётчик отвечает «как часто не измерилось», но не «что не
+        # измерилось» — поэтому печатаем имена: иначе разбор начинается с повторного прогона.
+        for name in v_a:
+            print(f"::error::apim-auth(ii-a)[violator]: {name}")
+        for name in c_a:
+            print(f"::error::apim-auth(ii-a)[contract]: {name}")
+        for name in u_a:
+            print(f"::warning::apim-auth(ii-a)[unknown]: {name}")
+        for name in bad_c:
+            print(f"::error::apim-auth(ii-c)[violator]: {name}")
+        for name in unk_c:
+            print(f"::warning::apim-auth(ii-c)[unknown]: {name}")
+
         # Если попросили и пробу входа — печатаем её в том же прогоне: «после переключения»
         # должно сниматься одной командой, иначе сравнивают два прогона из разных моментов.
         if args.probe_entry:
