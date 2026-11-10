@@ -67,7 +67,7 @@ operations:
       types: {eventType: string, id: guid, date: string, stress: int, sleepScore: int, t: string, hr: int, bodyBattery: int}
       note: "AnalyticsEvent (свойства класса; record — nullable, не обязателен)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Analytics
     method: GET
@@ -121,7 +121,7 @@ operations:
       types: {metrics: "string[]"}
       note: "ConfigureCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: AppleHealthGateway
     method: POST
@@ -132,7 +132,7 @@ operations:
       types: {fileName: string}
       note: "ImportFileCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: AppleHealthGateway
     method: GET
@@ -157,7 +157,7 @@ operations:
       types: {kind: string, name: string}
       note: "AddCatalogItemCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Catalog
     method: GET
@@ -174,7 +174,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
+    codes: {200: "ok", 400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -185,7 +185,7 @@ operations:
       types: {photo: string, notes: string, brand: string, fantasyPartner: string}
       note: "UpdateCatalogItemDetailsCommand (из токена/route: aggregateId). Семантика — **полная замена четырёх полей**, не partial: домен присваивает все четыре без условий (`Catalog.Domain/Implementation/Aggregate.cs:36-41`). Поэтому `required` = все четыре не случайно: отсутствие поля ⇒ 400 (implicit required биндинга), `\"\"` ⇒ **стереть**. Опционального поля (как `photoUrl` у `Client.UpdateProfile`) здесь нет намеренно. Проверено @AR 2026-11-07 при аудите 14 операций с `required` ≥ 2."
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
+    codes: {200: "ok", 400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -196,7 +196,7 @@ operations:
       types: {name: string}
       note: "RenameCatalogItemCommand (из токена/route: aggregateId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
+    codes: {200: "ok", 400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -206,7 +206,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
+    codes: {200: "ok", 400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -216,7 +216,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
+    codes: {200: "ok", 400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Client
     method: POST
@@ -322,7 +322,7 @@ operations:
       types: {date: string, hrv: int}
       note: "RecordHrvCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: DailyMetrics
     method: POST
@@ -333,7 +333,7 @@ operations:
       types: {date: string, restingHr: int}
       note: "RecordRestingHrCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: DailyMetrics
     method: GET
@@ -351,7 +351,7 @@ operations:
       types: {date: string, sleep: SleepDto}
       note: "RecordSleepCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: DailyMetrics
     method: POST
@@ -362,7 +362,7 @@ operations:
       types: {date: string, stress: int}
       note: "RecordStressCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: GarminGateway
     method: POST
@@ -373,7 +373,7 @@ operations:
       types: {credentials: CredentialsDto}
       note: "ConnectCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: GarminGateway
     method: POST
@@ -383,7 +383,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: GarminGateway
     method: GET
@@ -401,7 +401,7 @@ operations:
       types: {config: SyncConfigDto}
       note: "SyncCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Journal
     method: GET
@@ -721,7 +721,7 @@ operations:
       types: {rows: "string[]"}
       note: "ExportRecordsCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Portability
     method: POST
@@ -732,7 +732,7 @@ operations:
       types: {rows: "string[]"}
       note: "ImportRecordsCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Portability
     method: POST
@@ -743,7 +743,7 @@ operations:
       types: {rows: "string[]"}
       note: "ImportSomaticCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -756,7 +756,7 @@ operations:
       note: "currentPin УСЛОВНО обязателен: `PrivacyHandlers.cs:38-42` — только когда PIN уже установлен; иначе 400 «Текущий PIN неверен». Исправлено @AR 2026-11-07 (было `required: [pin, currentPin]`)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: GET
@@ -775,7 +775,7 @@ operations:
       note: "тела нет"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -788,7 +788,7 @@ operations:
       note: "currentPin УСЛОВНО обязателен: `PrivacyHandlers.cs:55-59` — только когда PIN установлен; иначе 400 «Текущий PIN неверен». Исправлено @AR 2026-11-07 (было `required: [currentPin]`)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -801,7 +801,7 @@ operations:
       note: "currentPin УСЛОВНО обязателен: `PrivacyHandlers.cs:20-23` требует его только когда PIN уже установлен (иначе 400 «Текущий PIN неверен»); при первом назначении PIN не нужен. Статическое правило @TE («optional только для `string?`») выполнено, а условность записана здесь. Исправлено @AR 2026-11-07 (было `required: [pin, currentPin]` — требовал лишнее)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -812,7 +812,7 @@ operations:
       note: "тела нет"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -824,7 +824,7 @@ operations:
       note: "VerifyPinQuery (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -836,7 +836,7 @@ operations:
       note: "IssueTokenCommand (из токена/route: clientId)"
     auth: jwt
     deprecated: "ADR-021: PIN локальный (не credential); серверный PIN legacy, удаление — с device-токеном"
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: Privacy
     method: POST
@@ -859,7 +859,7 @@ operations:
       types: {t: string, hr: int, bodyBattery: int}
       note: "RecordPointCommand (из токена/route: clientId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token"}
+    codes: {200: "ok", 400: "validation", 401: "no-token"}
     codes_status: derived
   - bc: SomaticSeries
     method: GET
