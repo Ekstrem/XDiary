@@ -265,6 +265,25 @@ jobs:
       # 2026-11-07: транспорт до dev без tailnet — SSH-туннель 127.0.0.1:8080 -> VPS-2.
       # Раннер GitHub не в tailnet: браузер получал `Failed to fetch` на /clients/me,
       # из-за чего падали partner-edit/csv/wizard (и это выглядело дефектом фронта).
+      # 2026-11-10 (@DO): `smoke-front` падал на `add-partner` не из-за фронта, а из-за ГРЯЗНОГО
+      # стенда: в `#partners-list` лежал чужой партнёр (`TTE-SEED-…`), а созданного тестом в списке
+      # ещё не было. У `front-e2e-repeat` очистка есть, у `smoke-front` — не было. Добавляем ту же:
+      # скрипт чистит только тестовые телефоны (`+7999…`) и печатает отчёт «до/после».
+      - name: Очистить накопленные E2E-данные на dev (DO-044)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SSH_HOST }}
+          username: ${{ secrets.DEV_SSH_USER }}
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
+            if [ ! -f "$SCRIPT" ]; then
+              echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
+              exit 0
+            fi
+            bash "$SCRIPT" | tail -12
+            bash "$SCRIPT" --apply --clients | tail -12
+
       - name: Туннель к dev (127.0.0.1:8080)
         env:
           DEV_KEY: ${{ secrets.DEV_SSH_KEY }}
