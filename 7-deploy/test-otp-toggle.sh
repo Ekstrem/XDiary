@@ -39,7 +39,7 @@ recreate_container() {
   # ИНЦИДЕНТ 03.11: первая версия удаляла контейнер ДО того, как убедилась, что
   # команда запуска корректна; при сбое генерации прод остался без сервиса clients.
   # Теперь порядок обратный: собрать и проверить команду -> только потом удалять.
-  # ИНЦИДЕНТ 03.11 09:19: таймер снял флаги и НЕ поднял контейнер, потому что
+  # ИНЦИДЕНТ 03.11 09:19: внешний таймер-скрипт (НЕ systemd-юнит этого репозитория) снял флаги и не поднял контейнер; в `7-deploy` файлов `.timer` нет, на dev таймеров нет — источник был ручной (проверено @DO 2026-11-10), потому что
   # команда использует относительный `--env-file secrets/.env`, а cwd у systemd-юнита
   # другой. Теперь всегда заходим в каталог деплоя.
   cd /opt/xdiary/7-deploy || return 1
@@ -109,27 +109,43 @@ wait_healthy() {
 
 
 probe_api() {
-  # возвращает строку с результатом: есть ли otpCode в ответе регистрации
-  local phone resp attempt
+  # 2026-11-10 (@AR 16:11, `TECHDEBT` п.17 факт 6): проверка была СЛОМАНА.
+  # `otpCode` НЕ отдаётся вовсе — `ClientsController.cs:37` «BE-090: whitelist-проекция»
+  # (тело 200 = {id, version, phone, otpExpiresAt, verified, delivery?}), а `delivery`
+  # в тестовом режиме намеренно null. Поэтому старый grep `"otpCode":"000000"` никогда
+  # не срабатывал ⇒ ветка `on` печатала «ФЛАГ ПРОИГНОРИРОВАН ОБРАЗОМ» и ОТКАТЫВАЛА
+  # рабочий флаг (ложный вывод «код не задеплоен»).
+  # Индикатор — не поле ответа, а ДЕЙСТВИЕ: код 000000 принимается при verify?
+  local phone resp attempt id code
   phone="+7999$(date +%H%M%S)$RANDOM"
   phone="${phone:0:12}"
   for attempt in 1 2 3 4 5; do
+    # `name` в теле не передаём: `RegisterClientCommand(string Phone)` такого поля не имеет
     resp="$(curl -s -m 20 -X POST "$API/api/v1/clients" \
       -H 'Content-Type: application/json' \
-      -d "{\"phone\":\"$phone\",\"name\":\"testotp-probe\"}" || true)"
+      -d "{\"phone\":\"$phone\"}" || true)"
     [ -n "$resp" ] && break
     say "  (попытка $attempt: пустой ответ, жду 4 c)"
     sleep 4
   done
-  # ВАЖНО: `otpCode` есть в ЛЮБОМ успешном ответе (он часть агрегата).
-  # Признак активного тестового кода — именно значение 000000, иначе проверка врёт.
-  if printf '%s' "$resp" | grep -q '"otpCode":"000000"'; then
-    say "  ответ API: otpCode=000000 (тестовый код АКТИВЕН)"
-    return 0
+  id="$(printf '%s' "$resp" | sed -n 's/.*"id":"\([0-9a-f-]\{36\}\)".*/\1/p')"
+  if [ -z "$id" ]; then
+    say "  ответ API без id — проверить нечего: $(printf '%s' "$resp" | head -c 160)"
+    return 2   # не измерено, а не «не активен»
   fi
-  say "  ответ API: otpCode != 000000 (обычный режим)"
-  say "  фрагмент ответа: $(printf '%s' "$resp" | head -c 160)"
-  return 1
+  code="$(curl -s -o /dev/null -w '%{http_code}' -m 20 -X POST "$API/api/v1/clients/$id/verify" \
+    -H 'Content-Type: application/json' -d "{\"code\":\"$CODE\"}" || echo 000)"
+  case "$code" in
+    200)
+      say "  ответ API: verify с кодом $CODE → 200 (тестовый код АКТИВЕН)"
+      return 0 ;;
+    400)
+      say "  ответ API: verify с кодом $CODE → 400 (обычный режим, тестовый код НЕ активен)"
+      return 1 ;;
+    *)
+      say "  ответ API: verify вернул $code — не измерено (не «не активен»)"
+      return 2 ;;
+  esac
 }
 
 case "${1:-}" in
@@ -164,7 +180,14 @@ case "${1:-}" in
     sleep 10
     wait_healthy || true
     say "== проверка =="
-    if ! probe_api; then
+    probe_api; probe_rc=$?
+    if [ "$probe_rc" = "2" ]; then
+      say ""
+      say "?? НЕ ИЗМЕРЕНО: verify не дал 200/400 (сеть/5xx). Флаг НЕ откатываю, состояние неизвестно."
+      say "?? Проверить руками: POST $API/api/v1/clients/<id>/verify с кодом $CODE"
+      die "проверка не выполнена — флаг оставлен включённым, разберитесь до снятия"
+    fi
+    if [ "$probe_rc" != "0" ]; then
       say ""
       say "!! ФЛАГ ПРОИГНОРИРОВАН ОБРАЗОМ: тестовый код не подхватился."
       say "!! Значит в сборке нет поддержки $FLAG_ALLOW (правка @BE не задеплоена)."
