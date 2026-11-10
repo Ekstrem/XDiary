@@ -252,13 +252,11 @@ operations:
     rate_limit: "429 на повторный POST /clients с существующим номером: не чаще 1 раза в 60 с на клиента и 5 раз в час на номер. Без лимита 409-путь = OTP-бомбинг и траты: сервер переотправляет код по чужому номеру по запросу." 
     order_note: "ПОРЯДОК ПРОВЕРОК (важно для проб и для гонок): `429` (лимитер) проверяется ДО `400` и `409` — `ClientsController.Register` (`ClientsController.cs:29`) отдаёт 429 по `r.RateLimited` раньше, чем `:30` `400` и `:38` `409`. Практическое следствие: `409` без окна лимитера физически не наблюдаем — второй вызов в пределах 60 с законно получает `429` (замер @TE 2026-11-07: 200 → через 65 с 409+clientId → сразу 429)."
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] :25 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR | СВЕРЕНО 2026-11-10 по коду: `[HttpPost]` :24, `[AllowAnonymous]` :25, 429 :34, 400 :35, 409 :43-45, 200 :47-49; прежняя ссылка «:25/:28/:38» указывала на `[ProducesResponseType]` и комментарий, а не на атрибуты действия"
     request:
       required: [phone]
       optional: []
-    response:
-      always: [aggregateId, version, result, reasons]
-      delivery: "BE-092 (контракт @AR 2026-11-06): { channel: telegram|sms|log|none, ok: bool } — признак ДОСТАВКИ кода, а не сам код; otpCode в ответе не отдаётся вовсе (BE-090). semantics: ok=true только если провайдер канала подтвердил приём; ok=false — попытка была или канала нет; channel=none — канал не сконфигурирован (на проде log запрещён, ADR-021)."
+    response: {always: ["id", "version", "phone", "otpExpiresAt", "verified"], note: "тело 200 — whitelist-проекция ClientsController.cs:47-49 (otpCode НЕ отдаётся, BE-090); 409 — {error, clientId} (:43-45); `delivery` присутствует ТОЛЬКО в реальном режиме, в тестовом отсутствует намеренно (:38-39)"}
   - bc: Client
     method: GET
     path: "/api/v1/clients/me"
@@ -266,7 +264,7 @@ operations:
     auth: jwt
     codes: {200: "ok", 401: "no-token", 404: "клиент не найден"}
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [Authorize] :87 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/me/profile"
@@ -274,7 +272,7 @@ operations:
     auth: jwt
     codes: {200: "ok, gender канонизирован", 400: "validation (Other/м/пусто)", 401: "no-token"}
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [Authorize] :96 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [displayName, gender]
       optional: [photoUrl]
@@ -286,7 +284,7 @@ operations:
     auth: anonymous
     codes: {200: "ok (новая пара токенов)", 401: "bad-refresh"}
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] :62 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [refreshToken]
       optional: []
@@ -299,7 +297,7 @@ operations:
     codes_status: verified
     verification: "код: `ClientsController.cs:105-112` — `if (id != clientId) return Forbid()` стоит **до** `_mediator.Send`, то есть ответ не зависит от существования чужой строки и 403 не раскрывает её наличие; `r is null ? NotFound()` — только для своего и отсутствующего. Правило §21 (`edm-canon`): 403 законен, если ответ не зависит от существования объекта. Решено 2026-11-10 (запрос @TL, подтверждено им же)."
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [Authorize] :104 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/link-partner"
@@ -311,7 +309,7 @@ operations:
     deprecated: "ADR-024: deprecated no-op (200 {deprecated:true}, Deprecation: true); удаляется после 0.88"
     codes: {200: "ok {deprecated:true} — no-op", 401: "no-token"}
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [Authorize] :73 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/unlink-partner"
@@ -323,7 +321,7 @@ operations:
     deprecated: "ADR-024: deprecated no-op (то же)"
     codes: {200: "ok {deprecated:true} — no-op", 401: "no-token"}
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [Authorize] :80 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/verify"
@@ -331,7 +329,7 @@ operations:
     auth: anonymous
     codes: {200: "ok (access+refresh)", 400: "bad-otp"}
     codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] :52 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
     request:
       required: [code]
       optional: []
