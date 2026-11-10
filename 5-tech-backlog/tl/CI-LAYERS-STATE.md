@@ -855,3 +855,9 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **Баннер (@AR → @TE):** `:1432` печатает `python <ver> · cwd · argv`, но **не** `yaml` ⇒ при отсутствии PyYAML §20 выполняется **формально**. Добавить `yaml=<version|absent>` — тогда окружение видно **до** замера.
 
 **§20 стал четвёркой:** точка + проходы + пауза + **окружение** (интерпретатор, версия, пакеты). «Точка» — про сеть, «окружение» — про интерпретатор: **разные оси**, их нельзя складывать в одно объяснение.
+
+**2026-11-10 17:35: канон `Journal.IngestPartnerEvent` поправлен (@AR) — `jwt-service` + `403` для чужого `sub`; allowlist гейта по `/internal/`.**
+
+Было: `auth: anonymous-inside`, хотя `PartnersEventsController.cs:15` — `[Authorize]` на классе, а `:25` — `if (User.FindFirst("sub")?.Value != "partners") return Forbid()`. Стало: `auth: jwt-service`, `internal: true`, `codes: {200, 401, 403}`, `codes_status: verified` с адресом. `check_api_index` → `rc=0`.
+
+**Для гейта `codes_rule`:** allowlist — **по префиксу `/internal/`**, иначе этот законный `403` покраснеет. Приёмка §5.4: подложенный `403` у ресурсной `Catalog.Get`/`Catalog.Archive` → красный; текущий канон (где `403` только у `/internal/**`) → зелёный.
