@@ -268,6 +268,9 @@ def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: s
     line += f" | network={network or 'НЕ УКАЗАНО'}"
     line += f" | via={VIA_NOTE or 'НЕ ОПРЕДЕЛЕНО'}"
     line += f" | unknown_retried={RETRY_STATS['retried']}"
+    # Применённый предел пробы — в квитанции (@TL `2026-11-10 23:1x`: «печатать применённый timeout»):
+    # иначе `unknown` из-за 8 с неотличим от медленного контура, для которого запускали `--timeout 25`.
+    line += f" | timeout={PROBE_TIMEOUT:g}"
     if unknown_items:
         _br = unknown_breakdown(unknown_items)
         line += (f" | unknown_429={_br['429']} | unknown_5xx={_br['5xx']}"
@@ -1113,6 +1116,14 @@ def selftest() -> int:
         ok += 1
     else:
         print(f"  [FAIL] (ii-c) 429 -> unknown: ok={_ok_i}, bad={_bad_i}, unknown={_unk_i}")
+
+    # Квитанция обязана называть применённый timeout (@TL 23:1x): проверяем и число, и наличие поля.
+    total += 1
+    _line = receipt_line("ii-a", "abc", 1, 1, 0, "w")
+    if "timeout=" in _line:
+        ok += 1
+    else:
+        print(f"  [FAIL] квитанция без timeout: {_line}")
 
     print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
