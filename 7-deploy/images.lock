@@ -19,4 +19,4 @@ privacy              single-ac3962d     6-msa/BC-Privacy  commit=ac3962d
 portability          single-ac3962d     6-msa/BC-Portability  commit=ac3962d
 client               single-4a21cc1     6-msa/BC-Client  commit=4a21cc1
 api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5
-front                single-362883b     8-front  commit=362883b  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером
+front                single-2b10b86     8-front  commit=2b10b86  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером
