@@ -198,7 +198,17 @@ jobs:
           # но rc=2 обязан оставаться красным (канон: «не измерено»), поэтому не закрашиваем,
           # а даём ВТОРУЮ попытку и печатаем обе: rc=1 → сразу fail; rc=2 → пауза 15 с и повтор;
           # rc=2 дважды → fail «не измерено дважды»; rc=2→0 → notice «первый был флейком».
-          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
+          # @TL 23:10 (`1503`): таймаут НЕ поднимаем — иначе гейт перестанет ловить настоящие зависания.
+          # Честнее повтор ВНУТРИ пробы: `--retry-unknown 3` — при отсутствии ответа проба повторяется,
+          # и медленный первый ответ (4.77 с у `analytics/summary`, 6.66 с у `clients/me`) не превращается
+          # в «не измерено». Предел пробы остаётся 8 с; длительность каждого прохода печатаем.
+          # @AR 15:32 (`1040`): число в сообщении должно ПРИХОДИТЬ ИЗ КОДА, а не быть вписанным.
+          # Я уже наступил на это: печатал «таймаут 15 с», а вызов шёл с дефолтом 8 с.
+          TW=$(python -c "import sys; sys.path.insert(0,'9-tests/scripts'); import check_apim_auth as c; print(c.PROBE_TIMEOUT)" 2>/dev/null || echo "?")
+          echo "::notice::канон: предел пробы ${TW} с (из check_apim_auth.PROBE_TIMEOUT), ретраев на unknown: 3"
+          T0=$SECONDS
+          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
+          echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (предел пробы ${TW} с, из кода)"
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
             # @AR 12:34: «заметка о rc=2 не равна исправлению» — печатаем ЧАСТОТУ, а не разовое событие.
@@ -209,7 +219,9 @@ jobs:
               echo "частота за прошлые прогоны: см. workflow \`canon-stability\` (ночной счётчик повторов)"
             } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
             sleep 15
-            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL"; rc=$?
+            T1=$SECONDS
+            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
+            echo "::notice::канон (попытка 2): rc=$rc за $((SECONDS - T1)) с"
             [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
           fi
           if [ "$rc" = "2" ]; then
