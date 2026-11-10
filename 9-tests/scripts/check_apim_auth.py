@@ -180,6 +180,23 @@ def resolve_images(arg_value: str, services: list) -> str:
     return arg_value.strip()
 
 
+def print_class_names(violators, contracts, unknown, tag: str) -> int:
+    """Печатает ИМЕНА проб по классам (TE-110, `@AR 12:46`, `@DO 12:46`): счётчик отвечает «как часто
+    не измерилось», а имя — «что именно не измерилось». Возвращает число напечатанных строк (для selftest).
+    """
+    n = 0
+    for name in violators or []:
+        print(f"::error::apim-auth({tag})[violator]: {name}")
+        n += 1
+    for name in contracts or []:
+        print(f"::error::apim-auth({tag})[contract]: {name}")
+        n += 1
+    for name in unknown or []:
+        print(f"::warning::apim-auth({tag})[unknown]: {name}")
+        n += 1
+    return n
+
+
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
                  violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "",
                  network: str = "") -> str:
@@ -926,6 +943,32 @@ def selftest() -> int:
         srv.shutdown()
         srv.server_close()
 
+    # TE-110: имена классов обязаны попадать в лог — иначе `rc=2` говорит «что-то не измерилось» без адреса.
+    # Проверяем не «код существует», а фактический вывод (перехват stdout).
+    import contextlib
+    import io as _io
+
+    def _capture(*args):
+        buf = _io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            printed = print_class_names(*args)
+        return printed, buf.getvalue()
+
+    total += 1
+    n1, out1 = _capture(["GET /a [A]"], [], ["GET /b [B] — нет ответа: url"], "ii-a")
+    if n1 == 2 and "[violator]: GET /a [A]" in out1 and "[unknown]: GET /b [B]" in out1 \
+            and out1.count("::warning::") == 1 and out1.count("::error::") == 1:
+        ok += 1
+    else:
+        print(f"  [FAIL] имена классов в лог: printed={n1}, out={out1!r}")
+
+    total += 1
+    n2, out2 = _capture([], [], [], "ii-c")
+    if n2 == 0 and out2 == "":
+        ok += 1
+    else:
+        print(f"  [FAIL] пустые классы не печатают ничего: printed={n2}, out={out2!r}")
+
     print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
 
@@ -1052,16 +1095,8 @@ def main() -> int:
         # TE-110 (@AR `2026-11-10 12:46`): в `--all` печатались ТОЛЬКО СЧЁТЧИКИ, и `rc=2` не говорил,
         # какие именно пробы не ответили. Счётчик отвечает «как часто не измерилось», но не «что не
         # измерилось» — поэтому печатаем имена: иначе разбор начинается с повторного прогона.
-        for name in v_a:
-            print(f"::error::apim-auth(ii-a)[violator]: {name}")
-        for name in c_a:
-            print(f"::error::apim-auth(ii-a)[contract]: {name}")
-        for name in u_a:
-            print(f"::warning::apim-auth(ii-a)[unknown]: {name}")
-        for name in bad_c:
-            print(f"::error::apim-auth(ii-c)[violator]: {name}")
-        for name in unk_c:
-            print(f"::warning::apim-auth(ii-c)[unknown]: {name}")
+        print_class_names(v_a, c_a, u_a, "ii-a")
+        print_class_names(bad_c, [], unk_c, "ii-c")
 
         # Если попросили и пробу входа — печатаем её в том же прогоне: «после переключения»
         # должно сниматься одной командой, иначе сравнивают два прогона из разных моментов.
