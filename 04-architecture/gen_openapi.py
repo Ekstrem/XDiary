@@ -145,6 +145,54 @@ def merge_spec(path, generated):
     return out
 
 
+def sync_spec(have, generated):
+    """Слияние ПО ПОЛЯМ: обновить только смысловые поля операции, сохранить авторские.
+
+    Зачем не `merge_spec`: он заменяет `paths` целиком и теряет `requestBody`/`parameters`/
+    `summary`, которых в индексе нет (проверено 2026-11-04: −308 строк контракта).
+    Здесь обновляются `operationId`/`security`/`responses`, а остальные ключи операции
+    (`requestBody`, `parameters`, `summary`, `x-*`) остаются авторскими.
+    Операции, которых в индексе больше нет, удаляются — иначе «лишнее в спеке» вечно.
+    """
+    out = dict(have)
+    hp = out.get("paths") or {}
+    gp = generated["paths"]
+
+    for path, methods in gp.items():
+        if path not in hp:
+            hp[path] = methods
+            continue
+        for m, gen_op in methods.items():
+            if m not in hp[path]:
+                hp[path][m] = gen_op
+                continue
+            have_op = hp[path][m]
+            have_op["responses"] = gen_op["responses"]
+            have_op["operationId"] = gen_op["operationId"]
+            if "security" in gen_op:
+                have_op["security"] = gen_op["security"]
+            if gen_op.get("deprecated"):
+                have_op["deprecated"] = True
+
+    for path in list(hp):
+        if path not in gp:
+            del hp[path]
+            continue
+        for m in list(hp[path]):
+            if m in ("get", "post", "put", "delete", "patch") and m not in gp[path]:
+                del hp[path][m]
+        if not hp[path]:
+            del hp[path]
+
+    out["paths"] = hp
+    out["x-derived-from"] = generated["x-derived-from"]
+    if generated.get("x-derived-date"):
+        out["x-derived-date"] = generated["x-derived-date"]
+    if "components" in generated:
+        out["components"] = generated["components"]
+    return out
+
+
 def semantic(spec):
     """Смысловая проекция спеки: что именно опубликовано, без метаданных."""
     out = {}
@@ -179,7 +227,10 @@ def main(argv):
         f = os.path.join(OUT, sl + ".json")
         if write:
             if os.path.exists(f):
-                continue               # существующий авторский файл не перезаписываем
+                # Слияние по полям: смысл (operationId/security/responses) — из индекса,
+                # авторские requestBody/parameters/summary — сохраняются (см. sync_spec).
+                dump(f, sync_spec(json.load(io.open(f, encoding="utf-8")), spec))
+                continue
             dump(f, spec)
             continue
         if not os.path.exists(f):

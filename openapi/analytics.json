@@ -23,10 +23,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Summary"
+        "operationId": "Analytics.Summary",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/correlations": {
@@ -36,10 +44,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Correlations"
+        "operationId": "Analytics.Correlations",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/tops": {
@@ -49,10 +65,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Tops"
+        "operationId": "Analytics.Tops",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/distribution": {
@@ -62,10 +86,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Distribution"
+        "operationId": "Analytics.Distribution",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/thresholds": {
@@ -75,10 +107,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Thresholds"
+        "operationId": "Analytics.Thresholds",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/trends": {
@@ -88,10 +128,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Trends"
+        "operationId": "Analytics.Trends",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/physio": {
@@ -101,10 +149,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Physio"
+        "operationId": "Analytics.Physio",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/analytics/events": {
@@ -133,124 +189,32 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Analytics.Events"
+        "operationId": "Analytics.Events",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     }
   },
   "components": {
-    "schemas": {
-      "AnalyticsEvent": {
-        "type": "object",
-        "properties": {
-          "eventType": {
-            "type": "string",
-            "nullable": true
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "date": {
-            "type": "string",
-            "nullable": true
-          },
-          "record": {
-            "$ref": "#/components/schemas/JournalRecord"
-          },
-          "stress": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "sleepScore": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "t": {
-            "type": "string",
-            "nullable": true
-          },
-          "hr": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "bodyBattery": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "JournalRecord": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "startedAt": {
-            "type": "string",
-            "nullable": true
-          },
-          "durationMin": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "orgasms": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OrgasmDto"
-            },
-            "nullable": true
-          },
-          "positions": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "fantasies": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
-          "place": {
-            "type": "string",
-            "nullable": true
-          },
-          "partners": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "OrgasmDto": {
-        "type": "object",
-        "properties": {
-          "participant": {
-            "type": "string",
-            "nullable": true
-          },
-          "count": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "rating": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }

@@ -31,10 +31,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Catalog.Add"
+        "operationId": "Catalog.Add",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       },
       "get": {
         "tags": [
@@ -42,10 +53,18 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "Catalog.List"
+        "operationId": "Catalog.List",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/catalog/{id}/name": {
@@ -85,10 +104,24 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "чужой id ≡ несуществующий (ownership не кодируется)"
           }
         },
-        "operationId": "Catalog.Rename"
+        "operationId": "Catalog.Rename",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/catalog/{id}/details": {
@@ -128,10 +161,24 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "чужой id ≡ несуществующий (ownership не кодируется)"
           }
         },
-        "operationId": "Catalog.UpdateDetails"
+        "operationId": "Catalog.UpdateDetails",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/catalog/{id}/archive": {
@@ -152,10 +199,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "чужой id ≡ несуществующий (ownership не кодируется)"
           }
         },
-        "operationId": "Catalog.Archive"
+        "operationId": "Catalog.Archive",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/catalog/{id}/restore": {
@@ -176,10 +237,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "чужой id ≡ несуществующий (ownership не кодируется)"
           }
         },
-        "operationId": "Catalog.Restore"
+        "operationId": "Catalog.Restore",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/catalog/{id}/remove": {
@@ -200,10 +275,24 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "чужой id ≡ несуществующий (ownership не кодируется)"
           }
         },
-        "operationId": "Catalog.Remove"
+        "operationId": "Catalog.Remove",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/catalog/{id}": {
@@ -224,69 +313,32 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "not-found"
           }
         },
-        "operationId": "Catalog.Get"
+        "operationId": "Catalog.Get",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     }
   },
   "components": {
-    "schemas": {
-      "AddCatalogItemCommand": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "nullable": true
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "RenameCatalogItemCommand": {
-        "type": "object",
-        "properties": {
-          "aggregateId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "UpdateCatalogItemDetailsCommand": {
-        "type": "object",
-        "properties": {
-          "aggregateId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "photo": {
-            "type": "string",
-            "nullable": true
-          },
-          "notes": {
-            "type": "string",
-            "nullable": true
-          },
-          "brand": {
-            "type": "string",
-            "nullable": true
-          },
-          "fantasyPartner": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }

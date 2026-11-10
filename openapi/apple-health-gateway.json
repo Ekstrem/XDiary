@@ -31,10 +31,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "AppleHealthGateway.Configure"
+        "operationId": "AppleHealthGateway.Configure",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/apple-health/import": {
@@ -63,10 +74,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "AppleHealthGateway.ImportFile"
+        "operationId": "AppleHealthGateway.ImportFile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/apple-health/state": {
@@ -76,46 +98,32 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
+          },
+          "404": {
+            "description": "нет состояния импорта для клиента"
           }
         },
-        "operationId": "AppleHealthGateway.State"
+        "operationId": "AppleHealthGateway.State",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     }
   },
   "components": {
-    "schemas": {
-      "ConfigureCommand": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "metrics": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "ImportFileCommand": {
-        "type": "object",
-        "properties": {
-          "clientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "fileName": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }

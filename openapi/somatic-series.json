@@ -31,10 +31,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "400": {
+            "description": "validation"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "SomaticSeries.RecordPoint"
+        "operationId": "SomaticSeries.RecordPoint",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/somatic-series/slice": {
@@ -60,33 +71,29 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "ok"
+          },
+          "401": {
+            "description": "no-token"
           }
         },
-        "operationId": "SomaticSeries.Slice"
+        "operationId": "SomaticSeries.Slice",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     }
   },
   "components": {
-    "schemas": {
-      "RecordPointCommand": {
-        "type": "object",
-        "properties": {
-          "t": {
-            "type": "string",
-            "nullable": true
-          },
-          "hr": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "bodyBattery": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
-  }
+  },
+  "x-derived-from": "04-architecture/api-index.yaml"
 }
