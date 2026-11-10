@@ -51,6 +51,12 @@ SERVICES = [
     ("front", "8-front"),
 ]
 
+# 2026-11-10 (@TL 21:00): сервисы, которых ПО ПОСТРОЕНИЮ нет в GHCR. Их образ не публикуется —
+# `front` деплоится через GitHub Pages (`ci-front.yml`/`pages.yml`: `docker push` нет).
+# Пропуск проверяется по имени сервиса, а не по пометке в строке lock: пометку теряет
+# перегенерация, и тогда гейт требует несуществующий образ (так упали #1866/#1867/#1868).
+NO_REGISTRY_SERVICES = frozenset({"front"})
+
 HEADER = """# images.lock — какие образы считаются текущими (ADR-027, DO-066)
 #
 # Формат: <service> <tag> <путь> — по строке на образ. Ручной тег при деплое запрещён:
@@ -180,7 +186,12 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
         return 2
     missing, errors, unverified = [], [], []
     for service, tag, _path, unv in entries:
-        if unv:
+        # 2026-11-10 (@TL 21:00, #1866/#1867/#1868): `front` не публикуется в GHCR по построению —
+        # он едет через Pages (`ghcr.io` в `ci-front.yml`/`pages.yml` — 0 вхождений). Раньше это
+        # держалось на пометке `unverified` в строке lock, и перегенерация пометку теряла: тогда
+        # гейт требовал несуществующий образ, `lock-published` краснел ПОСТОЯННО (не гонка),
+        # и деплой не доходил до `deploy-dev`. Теперь пропуск — по имени сервиса, а не по маркеру.
+        if unv or service in NO_REGISTRY_SERVICES:
             unverified.append((service, tag))
             continue
         try:
@@ -290,6 +301,18 @@ def selftest():
     print("  [%s] verify: registry недоступен -> rc=2 (не путать с 'нет образа')"
           % ("OK" if rc == 2 else "FAIL",))
     ok += 1 if rc == 2 else 0
+
+    # 2026-11-10 (@TL 21:00, факт #1866): `front` без пометки `unverified` НЕ должен считаться
+    # отсутствующим — он не публикуется в GHCR по построению (Pages). Пропуск по имени сервиса,
+    # а не по маркеру: перегенерация lock теряла пометку, и гейт краснел постоянно.
+    total += 1
+    front_no_marker = _mk([("front", "single-ccc3333", "8-front"),
+                           ("journal", "single-aaa1111", "6-msa/BC-Journal")])
+    rc = verify_registry(front_no_marker, check=lambda *a: True, echo=lambda *a: None)
+    print("  [%s] verify: front БЕЗ пометки unverified -> rc=0 (пропуск по имени сервиса)"
+          % ("OK" if rc == 0 else "FAIL",))
+    ok += 1 if rc == 0 else 0
+    os.unlink(front_no_marker)
 
     os.unlink(good)
 
