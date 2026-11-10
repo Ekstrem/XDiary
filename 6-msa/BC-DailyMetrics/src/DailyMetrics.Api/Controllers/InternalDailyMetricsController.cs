@@ -14,6 +14,9 @@ public sealed class InternalDailyMetricsController : ControllerBase
     public InternalDailyMetricsController(IMediator mediator) => _mediator = mediator;
 
     [HttpGet("series")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Series([FromQuery] Guid clientId, [FromQuery] string fromDate, [FromQuery] string toDate, CancellationToken ct)
     {
         var sub = User.FindFirst("sub")?.Value;
