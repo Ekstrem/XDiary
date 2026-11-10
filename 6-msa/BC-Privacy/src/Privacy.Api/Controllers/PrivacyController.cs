@@ -70,6 +70,5 @@ public sealed class PrivacyController : ControllerBase
     [HttpPost("verify-token")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> VerifyToken([FromBody] VerifyTokenQuery q, CancellationToken ct) => Ok(await _mediator.Send(q, ct));
 }
