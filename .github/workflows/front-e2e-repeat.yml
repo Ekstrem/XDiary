@@ -149,6 +149,19 @@ jobs:
           # Пишем list-вывод в файл: json-репортёр в этой связке файла не создавал,
           # и итоговый шаг молча выходил с кодом 0 без таблицы (02.11, #5).
           npx playwright test $SPECS --repeat-each=$REPEAT --workers=$WORKERS \
+
+      # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
+      # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
+      - name: Артефакты падения (trace, скриншоты, error-context)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.workflow }}-failure-${{ github.run_id }}
+          path: |
+            9-tests/RnD/front-e2e/test-results
+            9-tests/RnD/front-e2e/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
             --reporter=list 2>&1 | tee /tmp/repeat-list.txt || true
 
       - name: Итог по спекам
