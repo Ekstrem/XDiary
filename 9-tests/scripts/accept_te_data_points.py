@@ -27,6 +27,7 @@
 """
 import argparse
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -60,6 +61,24 @@ def parse(body):
         return json.loads(body or "")
     except (ValueError, TypeError):
         return None
+
+
+def diagnose_name(got, want):
+    """Диагноз `recent.lastPartner.name` (TE-102, @TL `2026-11-10 19:55`): `id` и `None` — РАЗНЫЕ дефекты.
+
+    * `ok` — имя совпало;
+    * `missing` — поля нет (строка в справочник не попала: запись не дошла до БД);
+    * `id` — в справочнике лежит ключ вместо имени;
+    * `other` — другое значение.
+    """
+    if got == want:
+        return "ok", "имя совпало"
+    if got is None:
+        return "missing", "строки в справочнике нет — поле отсутствует (запись не дошла до БД)"
+    s = str(got)
+    if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", s):
+        return "id", "в справочнике лежит id вместо имени"
+    return "other", "другое имя: %r" % (got,)
 
 
 def login(base, phone):
@@ -122,8 +141,10 @@ def case_profile_stage1(base, phone, pause):
         time.sleep(pause)
         st, body, err = call(base, "GET", "/api/v1/journal/recent", token=tok)
         lp = (parse(body) or {}).get("lastPartner") or {}
-        if lp.get("name") != name:
-            issues.append("recent.lastPartner.name=%r, ждали имя %r (канал Journal)" % (lp.get("name"), name))
+        _state, _why = diagnose_name(lp.get("name"), name)
+        if _state != "ok":
+            issues.append("recent.lastPartner.name=%r — %s (канал Journal; ждали имя %r)"
+                          % (lp.get("name"), _why, name))
 
     if issues:
         for i in issues:
@@ -217,9 +238,10 @@ def case_ordering(base, phone, pause, iterations=3):
         st, body, err = call(base, "GET", "/api/v1/journal/recent", token=tok)
         lp = (parse(body) or {}).get("lastPartner") or {}
         got = lp.get("name")
-        if got != name:
+        _state, _why = diagnose_name(got, name)
+        if _state != "ok":
             bad += 1
-            details.append("итерация %d: name=%r (ждали %r)" % (i + 1, got, name))
+            details.append("итерация %d: name=%r — %s (ждали %r)" % (i + 1, got, _why, name))
 
     if bad:
         for d in details:
@@ -251,6 +273,11 @@ def selftest():
     case("пустое тело → None", parse(""), None)
     case("неизвестный кейс отсутствует в словаре", "nope" in CASES, False)
     case("все кейсы объявлены", sorted(CASES), ["ordering", "profile-stage1", "when-normalize"])
+    case("диагноз: имя совпало", diagnose_name("TE-X", "TE-X")[0], "ok")
+    case("диагноз: None — строки нет", diagnose_name(None, "TE-X")[0], "missing")
+    case("диагноз: uuid — id вместо имени",
+         diagnose_name("bcc865b5-177a-4446-a0b8-27cf8aae9541", "TE-X")[0], "id")
+    case("диагноз: другое имя", diagnose_name("чужое", "TE-X")[0], "other")
     print("accept_te_data_points --selftest: %d/%d" % (ok, total))
     return 0 if ok == total else 1
 
