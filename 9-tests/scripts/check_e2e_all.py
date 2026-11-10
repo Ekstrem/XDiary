@@ -129,6 +129,8 @@ def summarize(results):
 
 
 def main(argv=None):
+    print("::notice::check_e2e_all: старт · cwd=%s · argv=%s" % (__import__("os").getcwd(),
+          " ".join(__import__("sys").argv[1:]) or "—"), flush=True)
     # Мета-проверка списка гейтов: осиротевший файл или выдуманное имя = красный (класс DO-099).
     orphans, ghosts = _orphan_gates()
     if orphans or ghosts:

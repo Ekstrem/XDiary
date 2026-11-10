@@ -458,6 +458,10 @@ def selftest() -> int:
 
 
 def main() -> int:
+    # TE-115 (@TL `2026-11-10 17:05`): баннер старта — норма для гейт/приёмка-скриптов:
+    # без него «пустой лог» неотличим от «не запустилось».
+    print("::notice::accept_read_path: старт · argv=%s"
+          % (" ".join(__import__("sys").argv[1:]) or "—"), flush=True)
     ap = argparse.ArgumentParser()
     ap.add_argument("--partners-read", type=int)
     ap.add_argument("--partners-src", type=int)
