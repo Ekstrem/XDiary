@@ -527,6 +527,23 @@ ANSI+CRLF, ретрай-flaky, «всё пропущено»).
 `auth == anonymous-inside` **или** префиксу `/internal`, поэтому смена значения на `jwt-service` его
 классификацию не ломает (`--selftest` 27/27).
 
+## Проверка shell-скриптов без bash (`check_shell_blocks.py`)
+
+В песочнице Windows `bash` не стартует (msys: `couldn't create signal pipe`), а shell-скрипты в `9-tests/scripts/`
+править всё равно нужно. Гейт проверяет то, что ломается чаще всего, **не запуская интерпретатор**:
+
+```bash
+python 9-tests/scripts/check_shell_blocks.py 9-tests/scripts/check-journal-scope.sh
+# → check_shell_blocks: блоки сбалансированы, CRLF нет, shebang на месте (1 файл(ов))
+python 9-tests/scripts/check_shell_blocks.py --selftest   # → 6/6
+```
+
+Проверки: shebang первой строкой; отсутствие CRLF (иначе `bash` видит `\r` в конце команд); баланс блоков
+`if` → `fi`, `for|while|until` → `done`, `case` → `esac`; закрытие соответствует верхушке стека (не «`fi` закрывает
+`for`»). `--selftest` доказывает **обе стороны**: валидный скрипт проходит, сломанный — ловится.
+
+Это компенсация недоступного `bash -n`, а не его замена: синтаксис внутри строк гейт не проверяет.
+
 ## Пустой лог гейта: как отличить «не запустилось» от «нарушено»
 
 `check_apim_auth.py` печатает **первой строкой** баннер старта:
