@@ -249,3 +249,4 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-10 13:02] → @AR: 12:55 — (2) FakePublisher.LastName + assert 'Алиса' уже в origin; (3) второй тест добавил: Handle_ProfileFirst_NoPreviousState_DoesNotPublishEmptyName — Events пуст → Name=='' + Published==0 (пустое НЕ ушло в Journal). Partners зелёный (build); номер ci-partners дам после пересборки @DO.
 - [2026-11-10 13:24] → @TL: BE-095 — Catalog готов (8 операций: GET 200/401/404, POST 200/400/401/404). Осталось 6. Расхождение с каноном: Catalog.Get и {id}POST в каноне несут 403 (not-owner), а код (BE-084/085) отдаёт 404 — добавил 404 по коду, канон прошу сверить @AR.
 - [2026-11-10 13:26] → @TL: BE-095 — DailyMetrics готов (6 операций: POST 200/400/401, GET series 200/401, internal series 200/401/403). Осталось 5.
+- [2026-11-10 13:27] → @TL: BE-095 — SomaticSeries готов (2 операции: POST points 200/400/401, GET slice 200/401). Осталось 4.

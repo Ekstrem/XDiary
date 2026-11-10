@@ -22,10 +22,15 @@ public sealed class SomaticSeriesController : ControllerBase
     private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
 
     [HttpPost("points")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RecordPoint([FromBody] RecordPointCommand c, CancellationToken ct)
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct)); }
 
     [HttpGet("slice")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Slice([FromQuery] string fromT, [FromQuery] string toT, CancellationToken ct)
     { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Ok(await _mediator.Send(new GetSomaticSliceQuery(fromT, toT, clientId.Value), ct)); }
 }
