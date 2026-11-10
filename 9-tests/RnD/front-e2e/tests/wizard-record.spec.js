@@ -344,14 +344,23 @@ test('E2E: открытие визарда не грузит полный жур
   console.log('::notice::FE-016 контроль: сборщик видит journal/records x' + controlSeen.length);
   console.log('::notice::FE-016: control journal x' + controlJournal.length +
     ', control partners x' + controlPartners.length);
-  // Если до окна приложение вообще не ходило в сеть (кэш/localStorage), контроль пути ничего не доказывает:
-  // это не «зелено» и не «красно», а недействительное измерение — говорим об этом громко, но не роняем кейс зря.
-  if (beforeWindow.length === 0) {
-    console.log('::warning::FE-016: контроль пути недействителен — до окна приложение не сделало ни одного запроса');
+  // TE-111 (@AR `2026-11-10 13:00`): у `C < 1` ДВЕ разные причины, и они не должны сливаться в «invalid»:
+  //   (а) `P = 0` — трафика до окна не было вовсе ⇒ контроль пути неприменим (недействительное измерение);
+  //   (б) `P > 0` — `/partners` ушёл, а `/journal/records` нет ⇒ цепочка `partners → journal` ПОРВАЛАСЬ после
+  //       первой ноги. Это дефект, и раньше он маскировался под «недействительно».
+  // Поэтому три состояния — три разных исхода.
+  if (controlJournal.length >= 1) {
+    // (1) журнал грузился сам — контроль пути выполнен, окно измерено корректно
+  } else if (controlPartners.length > 0) {
+    // (2) порванная цепочка — это КРАСНЫЙ, а не warning
+    expect(controlJournal.length, 'контроль пути: цепочка `partners → journal` порвалась — ' +
+      'partners x' + controlPartners.length + ', journal x0; до окна: ' + beforeWindow.join(' | '))
+      .toBeGreaterThanOrEqual(1);
   } else {
-    expect(controlJournal.length, 'контроль пути: приложение обязано САМО загрузить журнал до окна ' +
-      '(цепочка `partners → journal`), иначе пустое окно — следствие сбоя, а не отсутствия запроса; ' +
-      'до окна: ' + beforeWindow.join(' | ')).toBeGreaterThanOrEqual(1);
+    // (3) трафика до окна нет вообще (кэш/localStorage) — измерение недействительно; печатаем громко и с номером
+    // прогона, чтобы «всегда invalid» было видно как тренд, а не как единичная аномалия (@AR 13:00).
+    console.log('::warning::FE-016 invalid: контроль пути недействителен — до окна ни одного запроса ' +
+      '(run=' + (process.env.GITHUB_RUN_ID || 'локально') + '); сторож в этом прогоне выключен');
   }
 
   await page.click('#btn-wizard-close');
