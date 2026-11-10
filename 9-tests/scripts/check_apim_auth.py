@@ -562,7 +562,12 @@ def internal_ops(ops) -> list:
 
 
 def verdict_internal(results):
-    """Классификация (ii-c): ok = `401/403/404`; `2xx` и прочие полученные ответы = нарушение."""
+    """Классификация (ii-c): ok = `401/403/404`; `2xx` и прочие полученные ответы = нарушение.
+
+    Исключение, согласованное с решением по `(ii-a)` (`@AR 14:13`): `429` и `502/503/504` — это **не
+    «достижимо снаружи»**, а «не дошло до сервиса» (лимитер/WAF/прокси). Держать их в `bad` значит объявлять
+    внутреннюю операцию опубликованной из-за лимита проб — тот же класс, что `429 → violator` в `verdict`.
+    """
     ok, bad, unknown = [], [], []
     for op, code, url in results:
         name = f"{op.get('method')} {op.get('path')} [{op.get('operationId')}]"
@@ -570,6 +575,10 @@ def verdict_internal(results):
             unknown.append(f"{name} — нет ответа: {url}")
         elif code in (401, 403, 404):
             ok.append(f"{name} — {code} (недостижим снаружи)")
+        elif code == 429:
+            unknown.append(f"{name} — 429 [infra/лимит] (не измерено; это не «достижимо снаружи»), {url}")
+        elif code in (502, 503, 504):
+            unknown.append(f"{name} — {code} [infra] (прокси недоступен; не измерено), {url}")
         else:
             bad.append(f"{name} — {code}: внутренняя операция ДОСТИЖИМА снаружи "
                        f"(допустимы только 401/403/404), {url}")
@@ -1091,6 +1100,14 @@ def selftest() -> int:
         ok += 1
     else:
         print(f"  [FAIL] классификаторы расходятся: {_mismatch}")
+
+    # (ii-c): `429` — «не измерено», а не «внутренняя операция опубликована» (тот же класс, что в (ii-a)).
+    total += 1
+    _ok_i, _bad_i, _unk_i = verdict_internal([({"method": "GET", "path": "/internal/x", "operationId": "I"}, 429, "u")])
+    if not _bad_i and len(_unk_i) == 1 and not _ok_i:
+        ok += 1
+    else:
+        print(f"  [FAIL] (ii-c) 429 -> unknown: ok={_ok_i}, bad={_bad_i}, unknown={_unk_i}")
 
     print(f"check_apim_auth --selftest: {ok}/{total} (локальный HTTP-сервер, реальные коды)")
     return 0 if ok == total else 1
