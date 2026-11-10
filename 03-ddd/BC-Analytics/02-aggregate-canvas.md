@@ -78,3 +78,26 @@
 ## Статус реализации
 - ✅ TrendSeries (тренды) + CorrelationResult (длительность↔метрики) — реализовано.
 - ⬜ SummaryCards, PhysioProfile, TopLists, Distribution, Thresholds — ST-01, ST-05..ST-08 (следующие инкременты).
+
+**2.2.4. Атрибуты проекции (заполнено 2026-11-10, `AR-017`) — «нет корня» не значит «нет состояния».** Корня-агрегата нет,
+но у проекции есть **своё состояние**, и его состав надо было записать, иначе сверка «модель ↔ документ» по этому BC
+пропускалась. Источник — `AnalyticsSnapshot.ClientSnapshot` (не `AnemicModel`):
+
+| Атрибут | Тип | Что хранит | Адрес |
+|---|---|---|---|
+| `summary30` / `summary90` / `summaryAll` | `SummaryCards` (с `Period` = `30`/`90`/`all`) | три среза сводки по периодам | `AnalyticsSnapshot.cs:38-40` |
+| `correlations` | `List<CorrelationResult>` | коэффициенты + «мало данных» | `:41` |
+| `tops` | `TopLists` | топ-списки (позы/фантазии/места) | `:42` |
+| `distribution` | `Distribution` | распределения по времени/дню | `:43` |
+| `thresholds` | `Thresholds` | пороговые срезы | `:44` |
+| `trends` | `TrendsView` | тренды (серии по датам) | `:45` |
+| `physio` | `PhysioProfile` | физиология (HR/HRV/сон) | `:46` |
+| `updatedAt` | `DateTime` | когда проекция последний раз пересчитана | `:47` |
+
+**Ключ проекции — `clientId`** (`GetOrCreate(clientId)`, `AnalyticsSnapshot.cs:18-22`), то есть у каждого клиента **свой** снимок;
+граница владения та же, что в остальных BC (`sub` из JWT → `clientId`).
+**Как обновляется:** только событиями/пересборкой — `ApplyCompleted` / `ApplyDeleted` / `ApplySleep` / `ApplySomatic` / `ApplyStress` → `RecomputeLocked` (`:52-57`);
+вход — `JournalRecord` (`JournalRecord.cs:4-12`) и метрики дня (`DailyMetricDto.cs:4-9`).
+**Где живёт:** **в памяти процесса** (`AnalyticsSnapshot` — синглтон, `Precompute/AnalyticsSnapshot.cs:8`), не в БД.
+Отсюда следствие, которое надо держать в голове при проверке «аналитика верна»: после рестарта проекция **пуста**, а не «неверна»;
+и это тот же класс, что предусловие пустого справочника (`rc=2` «не измерено», а не дефект расчёта).
