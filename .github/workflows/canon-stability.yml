@@ -39,7 +39,10 @@ jobs:
           BASE: ${{ inputs.base || 'https://xdiary-vps1.taile0b6ee.ts.net' }}
           RUNS: ${{ inputs.runs || '5' }}
         run: |
+          # Actions запускает `bash -e`: без `set +e` первый же ненулевой rc канона обрывал
+          # весь цикл (ровно так упал #1 — без единой строки «попытка N»).
           set -uo pipefail
+          set +e
           rc2=0
           rows=""
           for i in $(seq 1 "$RUNS"); do
