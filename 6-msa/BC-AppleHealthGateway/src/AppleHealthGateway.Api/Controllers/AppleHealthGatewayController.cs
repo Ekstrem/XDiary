@@ -18,10 +18,19 @@ public sealed class AppleHealthGatewayController : ControllerBase
     private Guid CurrentClientId() { var sub = User.FindFirst("sub")?.Value; return sub is not null && Guid.TryParse(sub, out var id) ? id : Guid.Empty; }
 
     [HttpPost("configure")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Configure([FromBody] ConfigureCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { ClientId = CurrentClientId() }, ct));
     [HttpPost("import")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ImportFile([FromBody] ImportFileCommand c, CancellationToken ct) => Respond(await _mediator.Send(c with { ClientId = CurrentClientId() }, ct));
     [HttpGet("state")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> State(CancellationToken ct)
     { var r = await _mediator.Send(new GetImportStateQuery(CurrentClientId()), ct); return r is null ? NotFound() : Ok(r); }
 }
