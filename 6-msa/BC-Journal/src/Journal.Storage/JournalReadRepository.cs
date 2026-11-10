@@ -86,9 +86,20 @@ public sealed class JournalReadRepository : IJournalQueryRepository
             .OrderByDescending(x => x.StartedAt)
             .FirstOrDefault();
         if (last is null) return null;
+
+        // TE-102 (@DO 11:59): имя lastPartner резолвим из partners_directory, а не отдаём id.
+        string? lastPartnerName = null;
+        if (last.Partners.Count > 0 && Guid.TryParse(last.Partners[0], out var pid))
+        {
+            var dir = await _dir.GetAllAsync(new Paging(1, int.MaxValue), ct);
+            lastPartnerName = dir.Where(x => x.DeletedAt is null && x.PartnerId == pid)
+                .Select(x => x.Name)
+                .FirstOrDefault();
+        }
+
         return new RecentDefaultsView
         {
-            LastPartner = last.Partners.Count > 0 ? new PartnerRef { Id = last.Partners[0], Name = last.Partners[0] } : null,
+            LastPartner = last.Partners.Count > 0 ? new PartnerRef { Id = last.Partners[0], Name = lastPartnerName ?? last.Partners[0] } : null,
             LastPlace = string.IsNullOrWhiteSpace(last.Place) ? null : last.Place,
             LastPositions = last.Positions.ToList(),
             LastTags = last.Tags.ToList(),
