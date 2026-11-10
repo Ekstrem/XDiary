@@ -44,6 +44,7 @@ jobs:
           set -uo pipefail
           set +e
           rc2=0
+          rc1=0
           rows=""
           for i in $(seq 1 "$RUNS"); do
             python 9-tests/scripts/check_apim_auth.py --all --base "$BASE" > "/tmp/canon-$i.log" 2>&1
@@ -51,16 +52,23 @@ jobs:
             line="$(grep -m1 'REF=' "/tmp/canon-$i.log" || true)"
             rows="${rows}| $i | rc=$rc | ${line} |"$'\n'
             [ "$rc" = "2" ] && rc2=$((rc2 + 1))
+            [ "$rc" = "1" ] && rc1=$((rc1 + 1))
             echo "попытка $i: rc=$rc"
           done
           {
-            echo "### canon-stability: rc=2 за $RUNS прогонов: $rc2"
+            echo "### canon-stability: rc=1 (нарушители) за $RUNS: $rc1 · rc=2 (не измерено) за $RUNS: $rc2"
             echo
             echo "| попытка | rc | квитанция |"
             echo "|---|---|---|"
             printf '%s' "$rows"
           } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-          echo "ИТОГ: rc=2 за $RUNS прогонов: $rc2"
+          echo "ИТОГ: rc=1 за $RUNS: $rc1 · rc=2 за $RUNS: $rc2"
+          # 2026-11-10 (@DO): в #2 все пять попыток дали rc=1, а workflow сказал success —
+          # потому что считал только rc=2. Теперь rc=1 (нарушитель) валит прогон, как и должен.
+          if [ "$rc1" -gt 0 ]; then
+            echo "::error::канон вернул rc=1 в $rc1 из $RUNS прогонов — это нарушители, а не флейк"
+            exit 1
+          fi
           if [ "$rc2" -gt 1 ]; then
             echo "::error::канон нестабилен: rc=2 в $rc2 из $RUNS прогонов — это не одиночный флейк"
             exit 1
