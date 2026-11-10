@@ -183,6 +183,69 @@ def check_ownership_codes(ops):
     return bad
 
 
+
+# 2026-11-10 (@DO) по запросу @AR `13:49`: сверка «канон ↔ код» без чтения глазами.
+# `codes` операции обязаны покрывать явные возвраты действия + коды middleware.
+# Механику «anonymous ⇒ нет 401» @AR сам признал неверной (`Client.Refresh` возвращает
+# `Unauthorized()` из действия), поэтому смотрим НА КОД действия, а не на `auth`.
+RET_TO_CODE = {
+    "Ok(": 200, "NoContent(": 204, "BadRequest(": 400, "Unauthorized(": 401,
+    "Forbid(": 403, "NotFound(": 404,
+}
+
+
+def code_codes_by_route(root):
+    """{ (METHOD, path): {"returns": {коды явных возвратов}, "attr": {коды атрибутов}, "file": ... } }."""
+    out = {}
+    for dirpath, _, names in os.walk(os.path.join(root, "6-msa")):
+        for n in names:
+            if not n.endswith("Controller.cs"):
+                continue
+            f = os.path.join(dirpath, n)
+            try:
+                text = open(f, encoding="utf-8-sig").read()
+            except OSError:
+                continue
+            base = re.search(r'\[Route\("([^"]*)"\)\]', text)
+            base_path = base.group(1) if base else ""
+            hits = list(re.finditer(r'\[Http(Get|Post|Put|Patch|Delete)(?:\("([^"]*)"\))?\]', text))
+            for i, mm in enumerate(hits):
+                verb = mm.group(1).upper()
+                suffix = mm.group(2) or ""
+                path = norm_path("/" + base_path.strip("/") + ("/" + suffix.strip("/") if suffix else ""))
+                end = hits[i + 1].start() if i + 1 < len(hits) else len(text)
+                block = text[mm.start():end]
+                returns = {RET_TO_CODE[t] for t in RET_TO_CODE if ("return " + t) in block}
+                attr = {int(c) for c in re.findall(r'ProducesResponseType\((?:typeof\([^)]*\),\s*)?(\d{3})', block)}
+                attr |= {int(c) for c in re.findall(
+                    r'ProducesResponseType\([^)]*StatusCodes\.Status(\d{3})', block)}
+                out[(verb, path)] = {"returns": returns, "attr": attr,
+                                     "file": os.path.relpath(f, root)}
+    return out
+
+
+def check_codes_vs_code(ops, code_map):
+    """(пропущено в каноне, лишнее в каноне) — списки (operationId, код, источник)."""
+    missing, extra = [], []
+    for o in ops:
+        key = (o.get("method", "").upper(), norm_path(o.get("path", "")))
+        info = code_map.get(key)
+        if not info:
+            continue
+        canon = {int(c) for c in re.findall(r'\b([1-5]\d{2})\b', str(o.get("codes") or ""))}
+        oid = o.get("operationId") or (key[0] + " " + key[1])
+        for c in sorted(info["returns"] - canon):
+            missing.append((oid, c, "явный возврат действия"))
+        for c in sorted(info["attr"] - canon):
+            missing.append((oid, c, "[ProducesResponseType]"))
+        # Направление «канон обещает код, которого нет в коде» НЕ реализуем: наивный разбор
+        # дал 67 ложных на 82 операциях (границы тела действия по атрибутам `[Http*]` не
+        # совпадают с реальными границами, `Ok(...)` уходит в соседний метод). Ложный гейт
+        # хуже отсутствующего, поэтому здесь только достоверное: пропущенный код.
+    return missing, extra
+
+
+
 def selftest():
     ok = 0
     # @AR `13:46` §5.4: правило ownership проверяется на ДЕФЕКТЕ и на норме.
@@ -392,6 +455,8 @@ def main():
     ap.add_argument("--selftest", action="store_true")
     # AR-022: по умолчанию — отчёт (`::warning::`), с флагом — блокирующая проверка.
     # Флаг снимается, когда @AR заполнит `request:` у всех POST в индексе (сейчас 54 без него).
+    ap.add_argument("--require-response-types", action="store_true",
+                      help="расхождение канон<->код = ошибка (по умолчанию отчёт)")
     ap.add_argument("--require-request", action="store_true",
                     help="POST без блока request = ошибка (AR-022); пока 54 нарушения — отчёт")
     a = ap.parse_args()
@@ -436,6 +501,27 @@ def main():
         print("::error::(codes_rule) %s %s: `403` у ресурсной операции — ownership не кодируется "
               "статусом, «не твой» ≡ «не существует» = `404` (@AR 13:46)" % (method, path))
     bad += 1 if own_bad else 0
+
+    # @AR `13:49`: сверка канон <-> код. По умолчанию отчёт (`::warning::`),
+    # блокирующая — флагом `--require-response-types` (как `--require-request`: сначала данные).
+    _cmap = code_codes_by_route(root)
+    _miss, _extra = check_codes_vs_code(ops, _cmap)
+    if _miss or _extra:
+        _lvl = "::error::" if a.require_response_types else "::warning::"
+        # ВАЖНО: имя `code_num`, а не `code` — `code` выше это список маршрутов из parse_code,
+        # и цикл `for oid, code, why` перекрывал его (`TypeError: 'int' object is not iterable`
+        # на `anon_code`). Класс «локальная переменная цикла ломает соседнюю проверку».
+        for oid, code_num, why in _miss[:12]:
+            print("%s(codes) %s: канон не содержит %d, а код его отдаёт (%s)"
+                  % (_lvl, oid, code_num, why))
+        for oid, code_num, why in _extra[:12]:
+            print("%s(codes) %s: канон обещает %d, но в коде его нет (%s)"
+                  % (_lvl, oid, code_num, why))
+        print("::notice::(codes) сверка канон<->код: пропущено %d, лишних %d | режим: %s"
+              % (len(_miss), len(_extra),
+                 "блокирующий" if a.require_response_types else "отчёт"))
+        if a.require_response_types:
+            bad += 1
 
     no_codes = [o for o in ops if not (o.get("codes") or "").strip()]
     for o in no_codes[:10]:
