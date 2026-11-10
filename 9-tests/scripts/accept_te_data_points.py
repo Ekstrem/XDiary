@@ -142,6 +142,11 @@ def case_profile_stage1(base, phone, pause):
         time.sleep(pause)
         st, body, err = call(base, "GET", "/api/v1/journal/recent", token=tok)
         lp = (parse(body) or {}).get("lastPartner") or {}
+        if st == 204 or not lp:
+            # 204/пусто = записи нет вовсе: это предусловие кейса, а не «идентификатор вместо имени».
+            # Различать обязательно: иначе «нечего измерять» маскируется под дефект проекции (@TL 22:25).
+            return 2, ("не измерено: `GET /journal/recent` вернул %s без `lastPartner` — "
+                       "предусловие кейса не выполнено (запись не создана/не привязана)" % st)
         _state, _why = diagnose_name(lp.get("name"), name)
         if _state != "ok":
             issues.append("recent.lastPartner.name=%r — %s (канал Journal; ждали имя %r)"
@@ -253,6 +258,9 @@ def case_ordering(base, phone, pause, iterations=3):
         time.sleep(pause)
         st, body, err = call(base, "GET", "/api/v1/journal/recent", token=tok)
         lp = (parse(body) or {}).get("lastPartner") or {}
+        if st == 204 or not lp:
+            return 2, ("не измерено: итерация %d — `recent` вернул %s без `lastPartner` "
+                       "(предусловие кейса не выполнено, а не дефект порядка)" % (i + 1, st))
         got = lp.get("name")
         _state, _why = diagnose_name(got, name)
         if _state != "ok":
