@@ -16,21 +16,32 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class PartnersEventsController : ControllerBase
 {
     private readonly IReadModelStore<IJournal, PartnersDirectoryReadModel> _store;
-    public PartnersEventsController(IReadModelStore<IJournal, PartnersDirectoryReadModel> store) => _store = store;
+    private readonly ILogger<PartnersEventsController> _log;
+    public PartnersEventsController(IReadModelStore<IJournal, PartnersDirectoryReadModel> store, ILogger<PartnersEventsController> log) { _store = store; _log = log; }
 
     [HttpPost("events")]
     public async Task<IActionResult> PostEvent([FromBody] PartnersEventDto dto, CancellationToken ct)
     {
         // BE-082: внутренняя запись в read-модель — только сервис-токен sub=partners (ADR-008).
-        if (User.FindFirst("sub")?.Value != "partners") return Forbid();
-        await _store.UpsertAsync(new PartnersDirectoryReadModel
+        var sub = User.FindFirst("sub")?.Value;
+        _log.LogInformation("internal/partners/events: sub={Sub} partnerId={PartnerId}", sub, dto.PartnerId);
+        if (sub != "partners") return Forbid();
+        try
         {
-            PartnerId = dto.PartnerId,
-            Name = dto.Name,
-            ClientId = dto.ClientId,
-            DeletedAt = dto.DeletedAt,
-        }, ct);
-        return Ok(new { ok = true });
+            await _store.UpsertAsync(new PartnersDirectoryReadModel
+            {
+                PartnerId = dto.PartnerId,
+                Name = dto.Name ?? string.Empty,
+                ClientId = dto.ClientId,
+                DeletedAt = dto.DeletedAt,
+            }, ct);
+            return Ok(new { ok = true });
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "internal/partners/events: upsert failed partnerId={PartnerId}", dto.PartnerId);
+            throw;
+        }
     }
 }
 
