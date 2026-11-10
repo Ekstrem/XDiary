@@ -5,8 +5,8 @@
 ## Запросы (чтение)
 | Запрос | Эндпоинт | Response |
 |---|---|---|
-| Есть ли PIN | `GET /api/v1/privacy/has-pin` | bool |
-| Проверка PIN | `POST /api/v1/privacy/verify` | bool |
+| Есть ли PIN | `GET /api/v1/privacy/pin/has` | bool |
+| Проверка PIN | `POST /api/v1/privacy/pin/verify` | bool |
 
 ## JWT (проверка)
 | Запрос | Эндпоинт | Response |
@@ -24,3 +24,8 @@
 | Потребитель | Запросы | Назначение |
 |---|---|---|
 | Все контексты | hasPin/verify | gatekeeper перед доступом |
+
+> **Исправлено 2026-11-10 (@AR):** строки выше указывали `GET /api/v1/privacy/has-pin` и `POST /api/v1/privacy/verify` —
+> таких маршрутов **нет**. По коду `PrivacyController.cs:48` — `[HttpGet("pin/has")]`, `:52` — `[HttpPost("pin/verify")]`;
+> канон `api-index.yaml` (`Privacy.HasPin`, `Privacy.VerifyPin`) с кодом совпадает. То есть устарела была **эта страница**, а не канон.
+> Проверка: `git grep -n 'Http.*\("pin/' 6-msa/BC-Privacy/src/Privacy.Api/Controllers/PrivacyController.cs`.
