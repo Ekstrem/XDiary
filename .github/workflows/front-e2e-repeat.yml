@@ -40,7 +40,7 @@ jobs:
       group: front-e2e-${{ github.event_name == 'workflow_dispatch' && 'manual' || 'push' }}
       cancel-in-progress: false
     env:
-      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+      XDIARY_E2E_BASE_URL: http://127.0.0.1:8080
       XDIARY_E2E_PIN: "1234"
       # DO-079 / TE-054: read-path без сети (read-paths.md §3 п.1) — спеки не должны
       # зависеть от живого канала чтения, иначе «зелено» означает «удалось достучаться».
@@ -107,6 +107,27 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
       - uses: actions/checkout@v4
+
+      # 2026-11-07: раннер не в tailnet — без туннеля браузер получал `Failed to fetch`
+      # на `/clients/me` и спеки падали на входе (csv 5/5, partner-edit 5/5, прогон #17).
+      - name: Туннель к dev (127.0.0.1:8080)
+        env:
+          DEV_KEY: ${{ secrets.DEV_SSH_KEY }}
+          DEV_HOST: ${{ secrets.DEV_SSH_HOST }}
+          DEV_USER: ${{ secrets.DEV_SSH_USER }}
+        run: |
+          set -euo pipefail
+          install -m 600 /dev/null /tmp/dev_key
+          printf '%s\n' "$DEV_KEY" > /tmp/dev_key
+          ssh -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              -o ExitOnForwardFailure=yes -f -N -L 8080:127.0.0.1:8080 "$DEV_USER@$DEV_HOST"
+          for i in $(seq 1 30); do
+            if curl -fsS -m 3 http://127.0.0.1:8080/health >/dev/null; then
+              echo "туннель поднят, /health отвечает (попытка $i)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::туннель не отвечает"; exit 1
 
       - uses: actions/setup-node@v4
         with:
