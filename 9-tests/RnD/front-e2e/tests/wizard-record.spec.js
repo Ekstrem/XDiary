@@ -218,13 +218,21 @@ test('E2E: визард подставляет последние партнёр
     await page.click('#btn-new');
     await expect(page.locator('#view-wizard')).toBeVisible({ timeout: 20000 });
 
-    // Шаг 0 — партнёр: выбранная карточка = последний партнёр.
+    // TE-108 (@DO `2026-11-10 12:33`: кейс падал 29.6 с): шаг 0 в мастере — **«Дата»** (`app.js:8`
+    // `STEPS = ["Дата","Партнёр","Место",…]`), поэтому карточек партнёра на нём нет, и ожидание
+    // `.partner-card.selected` не могло выполниться никогда. Проверка осталась той же — изменился
+    // только шаг, на котором она делается: сначала «Дата», затем «Партнёр».
+    await expect(page.locator('#w-startedAt'), 'шаг 0 — «Дата»').toBeVisible({ timeout: 10000 });
+    await page.click('#btn-wizard-next', { timeout: 10000 });   // 0 -> 1 «Партнёр»
+    await expect(page.locator('#w-partner-grid'), 'шаг 1 — «Партнёр»').toBeVisible({ timeout: 10000 });
+
+    // Шаг 1 — партнёр: выбранная карточка = последний партнёр.
     const selected = page.locator('#w-partner-grid .partner-card.selected');
     await expect(selected, 'последний партнёр должен быть выбран по умолчанию').toHaveCount(1, { timeout: 20000 });
     await expect(selected).toContainText(partnerName);
 
-    // Шаг 1 — место: `draft.place` подставляется в поле значения (app.js: `input.value = draft.place`).
-    await page.click('#btn-wizard-next');
+    // Шаг 2 — место: `draft.place` подставляется в поле значения (app.js: `input.value = draft.place`).
+    await page.click('#btn-wizard-next', { timeout: 10000 });   // 1 -> 2 «Место»
     await expect(page.locator('#w-place')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#w-place'), 'последнее место должно быть подставлено').toHaveValue(place, { timeout: 10000 });
 
