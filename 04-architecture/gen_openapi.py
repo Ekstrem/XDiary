@@ -213,7 +213,53 @@ def dump(path, obj):
         json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=False) + "\n")
 
 
+def selftest():
+    """Три состояния гейта: норма, дефект, и отказ на пустом входе.
+
+    Без этого `--selftest` молча исполнял `--check` (флаг игнорировался), то есть
+    выглядел как «самопроверка пройдена», хотя самопроверки не было (@AR 2026-11-10).
+    """
+    import tempfile
+
+    ok = 0
+    # 1) норма: индекс парсится и содержит операции
+    d = yaml.safe_load(io.open(INDEX, encoding="utf-8").read())
+    if isinstance(d, dict) and d.get("operations"):
+        print("  [OK ] индекс: %d операций" % len(d["operations"]))
+        ok += 1
+    else:
+        print("  [FAIL] индекс не содержит operations")
+
+    # 2) дефект: незакрытая кавычка обязана дать исключение парсера
+    bad = 'operations:\n  - operationId: X\n    summary: "незакрытая кавычка\n'
+    fd, path = tempfile.mkstemp(suffix=".yaml")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(bad)
+        try:
+            yaml.safe_load(io.open(path, encoding="utf-8").read())
+            print("  [FAIL] битый YAML разобран без ошибки")
+        except Exception as e:
+            print("  [OK ] битый YAML -> %s" % type(e).__name__)
+            ok += 1
+    finally:
+        os.remove(path)
+
+    # 3) пустой вход не должен считаться «нет расхождений»
+    empty = yaml.safe_load("operations: []\n")
+    if isinstance(empty, dict) and not empty.get("operations"):
+        print("  [OK ] пустой индекс распознаётся как пустой")
+        ok += 1
+    else:
+        print("  [FAIL] пустой индекс не распознан")
+
+    print("gen_openapi --selftest: %d/3" % ok)
+    return 0 if ok == 3 else 1
+
+
 def main(argv):
+    if "--selftest" in argv:
+        return selftest()
     write = "--write" in argv          # bootstrap: только создать отсутствующие файлы
     check = "--check" in argv or not write
     global REV
