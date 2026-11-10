@@ -38,7 +38,9 @@ for (const kind of KINDS) {
 
       // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
       await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
-      await expect(page.locator('#catalog-list')).toContainText(name);
+      // TE-120: `#catalog-list` содержит и чужие записи, поэтому «имени нет в тексте контейнера»
+      // неотличимо от «список показывает не то». Утверждаем СТРОКУ (карточка — `button.partner-row`):
+      await expect(page.locator('#catalog-list .partner-row', { hasText: name })).toHaveCount(1);
     } finally {
       const r = await removeByName(page, 'catalog', name);
       console.log('cleanup catalog:', JSON.stringify(r));
