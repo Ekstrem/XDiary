@@ -127,7 +127,7 @@
 | @DO | ASCII-only в печатаемой части гейтов (символ `≡` в `check_api_index` роняет печать на cp1251 → `rc=1` из падения) | 2026-11-10 19:15 | локальный прогон с нарушением печатает строку | ⏳ |
 | @BE | `Id`-ключ у `PartnersDirectoryReadModel` | 2026-11-10 20:25 | ✅ **сделано**: `Id` + `PartnerId => Id`, `HasColumnName("PartnerId")`, `HasKey(Id)`; образ `single-4b90af9` содержит фикс |
 | @DO | **P0** `lock-published`: `verify_registry` пропускает `front` **по имени сервиса** (в GHCR его нет: анонимный токен → 403; journal/client → 200) | 2026-11-10 21:40 | `--verify-registry` `rc=0`; `deploy` доходит до `deploy-dev` | ⏳ P0 |
-| @DO | подключить `9-tests/scripts/check_shell_blocks.py` в CI (одна строка, коды 0/1/2) | 2026-11-10 20:45 | shell-правка проверяется без bash | ⏳ |
+| @DO | подключить `check_shell_blocks.py` в CI: `python 9-tests/scripts/check_shell_blocks.py $(git ls-files '*.sh')`, без `--strict-crlf` | 2026-11-10 21:50 | шаг зелёный на `origin`, красный на удалённом `fi` | ⏳ |
 | @TE | `check_shell_blocks.py`: читать `git show <ref>:<path>`, пропускать тела heredoc и однострочные циклы — тогда 16/17 ложных уходят и гейт подключается | 2026-11-10 21:10 | прогон по 31 скрипту: 0 находок на `origin` | ⏳ |
 | @DO | `DO-060`: цель «502 ≤ 3 с» не достигнута (`504` за 5 с) — нужен `HttpRequest.RequestTimeout`; в карточке зафиксировать замер как есть | 2026-11-10 21:10 | либо цель переформулирована (`504` за ≤6 с), либо `RequestTimeout` | ⏳ |
 | @TE | `TE-102` `ordering`: приёмка должна **дожидаться** публикации (bounded polling), а не читать `recent` сразу после `profile` — иначе измеряется гонка @AR `779` | 2026-11-10 21:30 | прогон с ожиданием: `rc=0`, `recent.name` = имя | ⏳ |
