@@ -100,6 +100,11 @@ def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
             else:
                 issues.append(f"новый номер: ожидали `200`+`delivery`, получили `{st}`")
 
+    # @AR `2026-11-10 15:33`: «условно по предусловию». Предусловие — **строка создана** (первый вызов дал 2xx),
+    # а не «всё сошлось»: на старом образе `200` без `delivery` строка создана, поэтому повтор ИЗМЕРЯЕМ
+    # (и он обязан дать `409`). Не измеряем только тогда, когда первый вызов не создал строку (`429` и пр.).
+    precondition_failed = not (isinstance(st, int) and 200 <= st < 300)
+
     st, doc = dup_resp
     has_id = isinstance(doc, dict) and bool(doc.get("clientId"))
     has_delivery = isinstance(delivery_of(doc), dict)
@@ -109,18 +114,26 @@ def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
     else:
         label2 = "409+clientId+delivery"
         ok2 = st == 409 and has_id and has_delivery
-    rows[label2] = ok2
-    if not ok2:
-        need = "`409` + `clientId`" + ("" if expect_no_delivery else " + `delivery`")
-        issues.append(f"занятый номер: ожидали {need}, получили `{st}`, "
-                      f"`clientId` {'есть' if has_id else 'нет'}, `delivery` "
-                      f"{'есть' if has_delivery else 'нет'}")
+    if precondition_failed:
+        rows[label2] = None  # не измерено, а не «провал»
+        issues.append("предусловие не выполнено: новый номер не создан — повтор не измерен "
+                      "(первый вызов не дал 2xx)")
+    else:
+        rows[label2] = ok2
+        if not ok2:
+            need = "`409` + `clientId`" + ("" if expect_no_delivery else " + `delivery`")
+            issues.append(f"занятый номер: ожидали {need}, получили `{st}`, "
+                          f"`clientId` {'есть' if has_id else 'нет'}, `delivery` "
+                          f"{'есть' if has_delivery else 'нет'}")
 
     st, _doc = third_resp
     ok3 = st == 429
-    rows["429"] = ok3
-    if not ok3:
-        issues.append(f"третий вызов подряд: ожидали `429` (лимит 1/60с на клиента), получили `{st}`")
+    if precondition_failed:
+        rows["429"] = None
+    else:
+        rows["429"] = ok3
+        if not ok3:
+            issues.append(f"третий вызов подряд: ожидали `429` (лимит 1/60с на клиента), получили `{st}`")
 
     # Бонус-проверка контракта `BE-090`: кода в теле быть не должно ни в одном ответе.
     leaks = []
@@ -130,13 +143,14 @@ def evaluate(new_resp, dup_resp, third_resp, expect_no_delivery=False):
     if leaks:
         issues.append(f"в теле есть OTP-поля в ответах {leaks} — это уже дефект приватности, не только контракта")
 
-    stats = {"lines": rows, "leaks": leaks}
+    stats = {"lines": rows, "leaks": leaks, "precondition_failed": precondition_failed}
     return issues, stats
 
 
 def receipt(stats, issues):
     lines = stats["lines"]
-    marks = " | ".join(f"{k}: {'✅' if v else '❌'}" for k, v in lines.items())
+    marks = " | ".join(f"{k}: {'⏸ не измерено' if v is None else ('✅' if v else '❌')}"
+                       for k, v in lines.items())
     return f"квитанция BE-092: {marks} | нарушено: {len(issues)}"
 
 
@@ -196,6 +210,10 @@ def main(argv=None):
     for m in issues:
         print(f"::error::check_be092_delivery: {m}")
     print(receipt(stats, issues))
+    if stats.get("precondition_failed"):
+        # @AR 15:33: предусловие не выполнено -> «не измерено» (2), а не «нарушено» (1).
+        print("::warning::check_be092_delivery: предусловие не выполнено — повтор и лимит не измерены (rc=2)")
+        return 2
     return 1 if issues else 0
 
 
@@ -207,7 +225,7 @@ def selftest():
         total += 1
         issues, stats = evaluate(three[0], three[1], three[2], expect_no_delivery)
         text = "\n".join(issues) + "\n" + receipt(stats, issues)
-        rc = 1 if issues else 0
+        rc = 2 if stats.get("precondition_failed") else (1 if issues else 0)
         miss = [m for m in must if m not in text]
         if rc == want_rc and not miss:
             ok += 1
@@ -218,6 +236,10 @@ def selftest():
             (409, {"error": "уже зарегистрирован", "clientId": "c1", "delivery": {"channel": "telegram", "ok": True}}),
             (429, {"error": "лимит"}))
     case("норма: три строки совпали", good, 0, ["200+delivery: ✅", "429: ✅", "нарушено: 0"])
+    # предусловие: первый вызов не создал строку -> rc=2, повтор и лимит «не измерено»
+    case("предусловие: первый 429 -> не измерено",
+         ((429, {"error": "лимит"}), (200, {}), (429, {})), 2,
+         ["409+clientId+delivery: ⏸ не измерено", "429: ⏸ не измерено"])
 
     old = ((200, {"id": "c1"}), (200, {"id": "c1", "otpCode": "123456"}), (200, {"id": "c1"}))
     case("старый образ: нет delivery, повтор 200", old, 1,
@@ -228,8 +250,12 @@ def selftest():
                (429, {}))
     case("409 без delivery — расхождение", partial, 1, ["409", "`delivery` нет"])
 
-    case("429 вместо 200 — тоже расхождение",
-         ((429, {}), (409, {"clientId": "c", "delivery": {}}), (429, {})), 1, ["новый номер"])
+    # Контракт изменён осознанно (@AR `2026-11-10 15:33`): `429` на первом вызове — это лимитер,
+    # то есть строка не создана и повтор НЕ ИЗМЕРЕН. Поэтому `rc=2` («не измерено»), а не `1`.
+    # Раньше здесь ждали `1` — и это делало прогон вечно красным на контуре с включённым лимитером.
+    case("429 на первом вызове — не измерено (rc=2)",
+         ((429, {}), (409, {"clientId": "c", "delivery": {}}), (429, {})), 2,
+         ["новый номер", "409+clientId+delivery: ⏸ не измерено"])
 
     # Тестовый режим (@TL 08:46): `delivery` в теле нет по замыслу.
     test_mode_good = ((200, {"id": "c1", "version": 1, "phone": "+79990000000", "verified": False}),
