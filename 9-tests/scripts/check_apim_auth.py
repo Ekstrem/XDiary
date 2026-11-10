@@ -354,10 +354,15 @@ def resolve_host(svc_map: dict, bc: str, template: str) -> str:
     return template.format(service=val)
 
 
-def check_url(url: str, method: str = "GET", timeout: float = 8.0) -> tuple[int | None, str]:
+# Таймаут одной пробы (сек). Поднимается `--timeout` (@DO `2026-11-10 15:23`: на медленном контуре всплеск
+# выше 8 с даёт `URLError` → `unknown` → `rc=2`, и «медленно» выглядит как «не измерено»).
+PROBE_TIMEOUT = 8.0
+
+
+def check_url(url: str, method: str = "GET", timeout: float | None = None) -> tuple[int | None, str]:
     req = urllib.request.Request(url, method=method.upper())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=PROBE_TIMEOUT if timeout is None else timeout) as resp:
             return int(resp.status), url
     except urllib.error.HTTPError as e:
         return int(e.code), url
@@ -389,12 +394,12 @@ def unresolved_services(hosts: dict) -> list:
     return bad
 
 
-def check_one(base: str, op: dict, timeout: float = 8.0) -> tuple[int | None, str]:
+def check_one(base: str, op: dict, timeout: float | None = None) -> tuple[int | None, str]:
     return check_url(base.rstrip("/") + concrete_path(str(op["path"])),
                      str(op.get("method", "GET")), timeout)
 
 
-def probe_op(base: str, op: dict, retries: int = 1, timeout: float = 8.0) -> tuple[int | None, str]:
+def probe_op(base: str, op: dict, retries: int = 1, timeout: float | None = None) -> tuple[int | None, str]:
     """`check_one` + ретрай на `unknown`; возвращает ту же форму `(код, где)`."""
     code, where, _n = probe_with_retry(lambda: check_one(base, op, timeout), retries)
     return code, where
@@ -1122,6 +1127,9 @@ def main() -> int:
     ap.add_argument("--strict-via", action="store_true", dest="strict_via",
                     help="требовать via=gravitee для ВСЕХ условий (по умолчанию: строго только (ii-a), "
                          "как решил @AR 05:15)")
+    ap.add_argument("--timeout", type=float, default=8.0,
+                    help="предел одной пробы в секундах (по умолчанию 8; на медленном контуре больше — "
+                         "иначе всплеск сети даёт URLError и «медленно» выглядит как «не измерено»)")
     ap.add_argument("--retry-unknown", type=int, default=1, dest="retry_unknown",
                     help="ретраев при отсутствии ответа (класс unknown); 0 — не повторять. "
                          "Канон не меняется: violator/contract НЕ ретраятся (иначе маскировка)")
@@ -1150,6 +1158,8 @@ def main() -> int:
     ap.add_argument("--service-map", default="",
                     help='JSON {"Catalog": "xdiary-catalog:8080"} — переопределить адреса сервисов')
     args = ap.parse_args()
+    global PROBE_TIMEOUT
+    PROBE_TIMEOUT = float(getattr(args, "timeout", 8.0))
 
     global VIA_NOTE, STRICT_VIA
     STRICT_VIA = bool(args.strict_via)
