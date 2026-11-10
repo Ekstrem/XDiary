@@ -174,6 +174,80 @@ def receipt_header(container=None):
           % (ref[:12] or "неизвестен", image, now, run, tool))
 
 
+
+# 2026-11-11 (@TL 02:40, `1554`): гейт «коды в спеке = коды в каноне», блокирующий.
+# Два условия @TL выполнены буквально:
+#   (1) §5.4 в обе стороны — норма `rc=0`, расхождение в копии спеки даёт `rc=1` (проверено);
+#   (2) сравнение ПО КЛЮЧАМ (`dict.keys()` ↔ `responses`), а не регуляркой по тексту:
+#       в каноне `codes` — словарь, а в прозе встречаются отрицания («НЕ 204»), которые
+#       регулярка `[1-5]\d{2}` принимала за обещание (мой же случай, ERRATA №31).
+def canon_codes(root):
+    """{(method, path): {коды}} по ключам `codes` из api-index.yaml (публичные операции)."""
+    import yaml  # noqa: WPS433
+    path = os.path.join(root, INDEX)
+    try:
+        doc = yaml.safe_load(open(path, encoding="utf-8")) or {}
+    except Exception:  # noqa: BLE001
+        return None
+    out = {}
+    for o in doc.get("operations") or []:
+        p = str(o.get("path") or "")
+        if p.startswith("/internal/"):
+            continue
+        raw = o.get("codes")
+        if isinstance(raw, dict):
+            codes = {int(k) for k in raw.keys() if str(k).isdigit()}
+        else:
+            codes = set()
+            for line in str(raw or "").split(","):
+                head = line.strip().lstrip("{").strip()
+                num = head.split(":", 1)[0].strip().strip("'\"")
+                if num.isdigit():
+                    codes.add(int(num))
+        out[((o.get("method") or "").upper(), p)] = codes
+    return out
+
+
+def spec_codes(root):
+    """{(method, path): {коды}} по ключам `responses` из openapi/*.json (публичные пути)."""
+    out = {}
+    base = os.path.join(root, OPENAPI_DIR)
+    if not os.path.isdir(base):
+        return out
+    for name in sorted(os.listdir(base)):
+        if not name.endswith(".json") or name.startswith("_") or name == "index.json":
+            continue
+        try:
+            doc = json.load(open(os.path.join(base, name), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for path, item in (doc.get("paths") or {}).items():
+            if str(path).startswith("/internal/"):
+                continue
+            for verb, op in (item or {}).items():
+                if verb.lower() not in ("get", "post", "put", "patch", "delete"):
+                    continue
+                out[(verb.upper(), path)] = {int(c) for c in (op.get("responses") or {})
+                                             if str(c).isdigit()}
+    return out
+
+
+def codes_drift(root):
+    """[(method, path, канон_без_спеки, спека_без_канона)] — расхождения по кодам."""
+    c, s = canon_codes(root), spec_codes(root)
+    if c is None:
+        return None
+    bad = []
+    for key in c:
+        if key not in s:
+            continue          # состав проверяется отдельно (--specs-only)
+        missing = sorted(c[key] - s[key])
+        extra = sorted(s[key] - c[key])
+        if missing or extra:
+            bad.append((key[0], key[1], missing, extra))
+    return bad
+
+
 def selftest():
     ok = 0
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-apim")
@@ -315,7 +389,19 @@ def main():
                   "(APIM не опрашивался)"
                   % (len(want), len(specs), len(missing_in_specs) + len(extra_in_specs)))
             return 1
-        print("check_apim_drift: --specs-only: индекс %d, спеки %d, расхождений 0 "
+        # @TL `1554`: коды — блокирующая проверка, сравнение по ключам.
+        cd = codes_drift(root)
+        if cd is None:
+            print("::error::check_apim_drift: НЕ ИЗМЕРЕНО — не удалось разобрать `codes` в индексе")
+            return 2
+        for method, path, missing, extra in cd[:20]:
+            print("::error::(codes) %s %s: в спеке нет %s; в спеке лишнее %s"
+                  % (method, path, missing or "—", extra or "—"))
+        if cd:
+            print("check_apim_drift: --specs-only: коды расходятся на %d путях (APIM не опрашивался)"
+                  % len(cd))
+            return 1
+        print("check_apim_drift: --specs-only: индекс %d, спеки %d, расхождений 0, коды совпадают "
               "(APIM не опрашивался)" % (len(want), len(specs)))
         return 0
     if basic:
