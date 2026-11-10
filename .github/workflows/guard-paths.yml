@@ -64,14 +64,31 @@ jobs:
         run: |
           set -uo pipefail
           set +e
-          # before может быть нулевым SHA (первый пуш/force) — тогда берём окно, как выше
-          case "${RANGE}" in
+          # before может быть (а) нулевым SHA — первый пуш/force, (б) НЕДОСТИЖИМЫМ
+          # (force-push, чужой клон): тогда `rev-list before..sha` падает не сообщением
+          # «не смог вычислить диапазон», а внутренней ошибкой check_paths, и гейт
+          # отключают (@AR 17:01, `1291`). Оба случая ведём одним путём: окно + warning.
+          BEFORE="${RANGE%%..*}"
+          fallback=""
+          case "$BEFORE" in
             0000000000000000000000000000000000000000*)
-              BASE="$(git rev-list --max-count=21 HEAD | tail -1)"
-              RANGE="${BASE}~1..HEAD"
-              echo "::warning::guard-paths: before — нулевой SHA, проверяю окно ${RANGE}"
+              fallback="before — нулевой SHA (первый пуш/force)"
+              ;;
+            *)
+              if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+                fallback="before=${BEFORE:0:12} недостижим локально (force-push/чужой клон)"
+              fi
               ;;
           esac
+          if [ -n "$fallback" ]; then
+            BASE="$(git rev-list --max-count=21 HEAD | tail -1)"
+            if [ -n "$BASE" ] && git rev-parse --verify "${BASE}~1" >/dev/null 2>&1; then
+              RANGE="${BASE}~1..HEAD"
+            else
+              RANGE="$(git rev-list --max-parents=0 HEAD | head -1)..HEAD"
+            fi
+            echo "::warning::guard-paths: ${fallback} — проверяю окно ${RANGE}"
+          fi
           echo "check_paths --range ${RANGE}"
           python tools/check_paths.py --range "${RANGE}"
           rc=$?
