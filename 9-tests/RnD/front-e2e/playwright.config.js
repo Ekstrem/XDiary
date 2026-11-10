@@ -13,6 +13,8 @@ module.exports = defineConfig({
   expect: { timeout: Number(process.env.XDIARY_E2E_EXPECT_WAIT || 10000) },
   fullyParallel: false,
   globalSetup: './tests/global-setup.js',
+  // TE-118: сидер убирает за собой (см. `tests/global-teardown.js`)
+  globalTeardown: './tests/global-teardown.js',
   // Второй репортёр  страж: если ВСЕ тесты ушли в skip, прогон НЕ зелёный (код возврата 1,
   // `::error::` в аннотации). Иначе «0 passed, N skipped» читалось бы как успех.
   reporter: [['list'], ['./reporters/notice.js'], ['./reporters/executed-guard.js']],

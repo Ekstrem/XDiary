@@ -331,6 +331,16 @@ async function seedSessionOnce(page) {
   if (seeded && typeof seeded === 'object') seeded.anonStatus = anonStatus;
   if (needPartner && seeded && seeded.partnerId) {
     SEED_PARTNER = { id: seeded.partnerId, name: partnerName };
+    // TE-118 (@DO `2026-11-10 16:21`): сидер не убирал за собой, и очистка `DO-044` (по телефонам) его не
+    // трогает — партнёр оставался на стенде. Пишем сид в файл, чтобы `global-teardown` удалил его сам.
+    try {
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+      const marker = path.join(os.tmpdir(), 'xdiary-e2e-seed-' + API_BASE.replace(/[^a-z0-9]+/gi, '_') + '.json');
+      fs.writeFileSync(marker, JSON.stringify({ base: API_BASE, partnerId: seeded.partnerId,
+                                                partnerName, token: seeded.token || null }), 'utf8');
+    } catch (e) { /* маркер — удобство, а не условие прогона */ }
   }
 
   if (!seeded.ok) {

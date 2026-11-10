@@ -22,7 +22,9 @@ test('E2E: партнёр — добавить в приложении, увид
     await page.click('#btn-partner-save', { timeout: 20000 });
 
     await expect(page.locator('#view-partners')).toBeVisible();
-    await expect(page.locator('#partners-list')).toContainText(name);
+    // TE-118 (@DO `2026-11-10 16:21`): весь список содержит и чужие сиды, поэтому «мой строки нет»
+  // неотличимо от «список показывает только сид». Утверждаем СТРОКУ партнёра, а не текст контейнера.
+  await expect(page.locator('#partners-list .partner-card', { hasText: name })).toHaveCount(1);
   } finally {
     const r = await removeByName(page, 'partner', name);
     console.log('cleanup partner:', JSON.stringify(r));
