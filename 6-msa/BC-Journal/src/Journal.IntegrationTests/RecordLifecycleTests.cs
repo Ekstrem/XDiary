@@ -50,7 +50,7 @@ public class RecordLifecycleTests
 
         var read = ToReadModel(model);
 
-        Assert.Equal("2026-10-29T21:00", read.StartedAt);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-29T21:00"), DateTimeOffset.Parse(read.StartedAt));
         Assert.Equal(new[] { "partner-1" }, read.Partners);
         Assert.Equal("дома", read.Place);
         Assert.Equal(new[] { "Миссионерская", "Догги (сзади)" }, read.Positions);
@@ -81,7 +81,7 @@ public class RecordLifecycleTests
         Assert.True(read.Garmin);
         Assert.Equal("garmin-24790291519", read.GarminId);
         Assert.Equal(18, read.DurationMin);
-        Assert.Equal("2026-10-19T20:02", read.StartedAt);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-19T20:02"), DateTimeOffset.Parse(read.StartedAt));
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public class RecordLifecycleTests
         JournalMapper.MapToEntity(model, entity);
         var read = JournalMapper.MapToReadModel(entity);
 
-        Assert.Equal("2026-10-29T21:00", read.StartedAt);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-29T21:00"), DateTimeOffset.Parse(read.StartedAt));
         Assert.Equal(new[] { "Ложки" }, read.Positions);
         // Round-trip entity → model сохраняет данные (без Event Store).
         var roundTrip = JournalMapper.MapToModel(entity);
