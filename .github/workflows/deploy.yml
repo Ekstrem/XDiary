@@ -265,7 +265,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p test-results
-          npx playwright test add-partner wizard-record change-pin 2>&1 | tee test-results/pw.log
+          npx playwright test add-partner wizard-record change-pin --trace on 2>&1 | tee test-results/pw.log
 
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
