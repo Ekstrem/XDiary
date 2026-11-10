@@ -271,6 +271,11 @@ jobs:
       XDIARY_E2E_PIN: "1234"
     steps:
       - uses: actions/checkout@v4
+      - name: Подготовить скрипт очистки (base64 для доставки на стенд)
+        run: |
+          # 2026-11-10: «нет скрипта на стенде» больше не повод пропускать очистку —
+          # доставляем файл из этого же коммита (см. шаг ниже).
+          echo "CLEANUP_SCRIPT_B64=$(base64 -w0 7-deploy/cleanup-e2e-dev.sh)" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -290,14 +295,27 @@ jobs:
       # скрипт чистит только тестовые телефоны (`+7999…`) и печатает отчёт «до/после».
       - name: Очистить накопленные E2E-данные на dev (DO-044)
         uses: appleboy/ssh-action@v1
+        env:
+          CLEANUP_B64: ${{ env.CLEANUP_SCRIPT_B64 }}
         with:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
+          envs: CLEANUP_B64
           script: |
-            SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
+            # 2026-11-10 (@DO): скрипт в репозитории, но на стенде его может не быть — тогда
+            # «очистка» молча пропускалась (warning в #1871). Доставляем его сами, из текущего
+            # коммита: base64 -> /tmp -> bash. Так очистка не зависит от того, что успел выкатить
+            # deploy-dev, и «нет скрипта» перестаёт быть нормой.
+            if [ -n "${CLEANUP_B64:-}" ]; then
+              echo "$CLEANUP_B64" | base64 -d > /tmp/cleanup-e2e-dev.sh
+              SCRIPT=/tmp/cleanup-e2e-dev.sh
+              echo "::notice::очистка: скрипт доставлен из коммита ($(wc -l < "$SCRIPT") строк)"
+            else
+              SCRIPT=/opt/xdiary/7-deploy/cleanup-e2e-dev.sh
+            fi
             if [ ! -f "$SCRIPT" ]; then
-              echo "::warning::скрипт очистки не найден на стенде — прогон без очистки"
+              echo "::warning::скрипт очистки не найден ни в коммите, ни на стенде — прогон без очистки"
               exit 0
             fi
             bash "$SCRIPT" | tail -12
