@@ -246,8 +246,42 @@ def check_codes_vs_code(ops, code_map):
 
 
 
+
+# 2026-11-10 (@AR 16:14, `1153`): копипаста в `verification` — это утверждение о БЕЗОПАСНОСТИ,
+# скопированное на операции с другим `auth`. @AR нашёл руками: у 8 операций `Client.*` стояла
+# одна строка «[AllowAnonymous] на :25/:28/:38», хотя анонимны только 3, а 5 — `[Authorize]`.
+# Машинная проверка: сгруппировать операции по точному тексту `verification`; если в группе
+# больше одного разного `auth` — это копипаста, а не проверка.
+def check_verification_copypaste(ops):
+    groups = {}
+    for o in ops:
+        text = (o.get("verification") or "").strip()
+        if not text:
+            continue
+        groups.setdefault(text, []).append(o)
+    bad = []
+    for text, items in groups.items():
+        auths = {(o.get("auth") or "").strip() for o in items}
+        if len(auths) > 1 and len(items) > 1:
+            ids = ", ".join((o.get("operationId") or "?") for o in items[:4])
+            bad.append((ids, len(items), sorted(a for a in auths if a)))
+    return bad
+
+
 def selftest():
     ok = 0
+    # @AR `1153` §5.4: копипаста `verification` ловится, а одинаковый auth в группе — нет.
+    _cp = check_verification_copypaste([
+        {"operationId": "Client.Me", "auth": "jwt", "verification": "одинаковый текст"},
+        {"operationId": "Client.Get", "auth": "anonymous", "verification": "одинаковый текст"},
+        {"operationId": "Journal.Get", "auth": "jwt", "verification": "свой текст"},
+        {"operationId": "Journal.List", "auth": "jwt", "verification": "свой текст"},
+    ])
+    total_cp = 1
+    if len(_cp) == 1 and _cp[0][1] == 2:
+        ok += 1
+    else:
+        print("  [FAIL] копипаста verification: %s" % (_cp,))
     # @AR `13:46` §5.4: правило ownership проверяется на ДЕФЕКТЕ и на норме.
     _ops = [
         {"operationId": "Catalog.Get", "method": "GET",
@@ -327,7 +361,7 @@ def selftest():
     else:
         print("  [FAIL] пространство имён не исключено из ddd-ссылок")
 
-    total = 9
+    total = 10
     print("check_api_index --selftest: %d/%d" % (ok, total))
     # 2026-11-05: было `ok == 3` при четырёх кейсах — текст печатал 4/4, а rc был 1.
     # Класс «верно считает, врёт кодом возврата»; теперь сравнение с total.
@@ -522,6 +556,13 @@ def main():
                  "блокирующий" if a.require_response_types else "отчёт"))
         if a.require_response_types:
             bad += 1
+
+    # @AR `1153`: копипаста `verification` у операций с разным `auth` — ошибка, а не стиль.
+    copypaste = check_verification_copypaste(ops)
+    for ids, n, auths in copypaste[:5]:
+        print("::error::(verification) одна строка у %d операций с разным auth (%s): %s"
+              % (n, ", ".join(auths), ids))
+    bad += 1 if copypaste else 0
 
     no_codes = [o for o in ops if not (o.get("codes") or "").strip()]
     for o in no_codes[:10]:
