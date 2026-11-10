@@ -1,0 +1,68 @@
+name: canon-stability
+
+# @AR 2026-11-10 12:34: «одиночный флейк и систематическая ненадёжность выглядят одинаково».
+# Этот workflow измеряет именно ЧАСТОТУ: гоняет канон входа N раз подряд и печатает таблицу
+# rc по попыткам. Тревога — если rc=2 случился больше одного раза из N (это уже не флейк).
+#
+# Ручной запуск и расписание (утро), чтобы не занимать очередь на каждый пуш.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Сколько прогонов канона подряд'
+        default: '5'
+      base:
+        description: 'База (прод-вход)'
+        default: 'https://xdiary-vps1.taile0b6ee.ts.net'
+  schedule:
+    - cron: '15 6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canon-stability
+  cancel-in-progress: false
+
+jobs:
+  stability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Канон N раз, rc по попыткам
+        env:
+          BASE: ${{ inputs.base || 'https://xdiary-vps1.taile0b6ee.ts.net' }}
+          RUNS: ${{ inputs.runs || '5' }}
+        run: |
+          set -uo pipefail
+          rc2=0
+          rows=""
+          for i in $(seq 1 "$RUNS"); do
+            python 9-tests/scripts/check_apim_auth.py --all --base "$BASE" > "/tmp/canon-$i.log" 2>&1
+            rc=$?
+            line="$(grep -m1 'REF=' "/tmp/canon-$i.log" || true)"
+            rows="${rows}| $i | rc=$rc | ${line} |"$'\n'
+            [ "$rc" = "2" ] && rc2=$((rc2 + 1))
+            echo "попытка $i: rc=$rc"
+          done
+          {
+            echo "### canon-stability: rc=2 за $RUNS прогонов: $rc2"
+            echo
+            echo "| попытка | rc | квитанция |"
+            echo "|---|---|---|"
+            printf '%s' "$rows"
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+          echo "ИТОГ: rc=2 за $RUNS прогонов: $rc2"
+          if [ "$rc2" -gt 1 ]; then
+            echo "::error::канон нестабилен: rc=2 в $rc2 из $RUNS прогонов — это не одиночный флейк"
+            exit 1
+          fi
+          if [ "$rc2" = "1" ]; then
+            echo "::warning::канон дал rc=2 один раз из $RUNS — похоже на флейк пробы, но зафиксировано"
+          fi
+          exit 0
