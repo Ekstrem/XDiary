@@ -233,6 +233,10 @@ def unknown_breakdown(unknown) -> dict:
     return out
 
 
+# ПРАВИЛО ФОРМАТА КВИТАНЦИИ (@AR `2026-11-10 14:24`): новые поля добавляются **только в хвост**,
+# существующие не двигаются и не переименовываются. Причина: `canon-stability.yml:89` печатает квитанцию
+# как есть, а `:123` проверяет лишь наличие строки; но любой парсер регуляркой по `неизвестно=` сломается,
+# если поле «переедет». Расширение — это `| unknown_429=…` в конце, а не перестановка.
 def receipt_line(kind: str, ref: str, passed: int, total: int, rc: int, where: str,
                  violators: int = 0, contracts: int = 0, unknown: int = 0, images: str = "",
                  network: str = "", unknown_items=None) -> str:
