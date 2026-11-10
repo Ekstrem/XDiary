@@ -202,9 +202,13 @@ jobs:
           # Честнее повтор ВНУТРИ пробы: `--retry-unknown 3` — при отсутствии ответа проба повторяется,
           # и медленный первый ответ (4.77 с у `analytics/summary`, 6.66 с у `clients/me`) не превращается
           # в «не измерено». Предел пробы остаётся 8 с; длительность каждого прохода печатаем.
+          # @AR 15:32 (`1040`): число в сообщении должно ПРИХОДИТЬ ИЗ КОДА, а не быть вписанным.
+          # Я уже наступил на это: печатал «таймаут 15 с», а вызов шёл с дефолтом 8 с.
+          TW=$(python -c "import sys; sys.path.insert(0,'9-tests/scripts'); import check_apim_auth as c; print(c.PROBE_TIMEOUT)" 2>/dev/null || echo "?")
+          echo "::notice::канон: предел пробы ${TW} с (из check_apim_auth.PROBE_TIMEOUT), ретраев на unknown: 3"
           T0=$SECONDS
           python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
-          echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (таймаут пробы 15 с)"
+          echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (предел пробы ${TW} с, из кода)"
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
             # @AR 12:34: «заметка о rc=2 не равна исправлению» — печатаем ЧАСТОТУ, а не разовое событие.
