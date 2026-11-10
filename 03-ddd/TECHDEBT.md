@@ -20,6 +20,9 @@
 - **Риск:** средний (потеря/дубликаты событий при сбое доставки; в BC без outbox — потеря без следа).
 - **Приоритет:** P2.
 - **Оценка:** эволюция профиля Single → Cqrs → Ceqrs (по таблице edm-skill); обобщение outbox на остальные BC — приёмка E1/E5 (`edm-debt-plan.md:35`, `:71`).
+- **Уточнение 2026-11-10 (@AR, счёт по `origin`):** две цифры в пункте устарели, и обе — в сторону «меньше механизма, чем кажется»:
+  - **шина реально зарегистрирована в 2 BC:** `AddEventBusInMemory()` — `Journal.Api/Program.cs:43` и `Partners.Api/Program.cs:41`. Упоминаний `IEventBus` в коде много (20 файлов в 10 BC), но **упоминание интерфейса ≠ регистрация шины** — поэтому «шина везде» было бы ложным выводом;
+  - **`outbox` — 11 файлов, а не 8:** 9 в `BC-Partners` (включая `OutboxDispatcher`, `CommandDbContext`, 2 миграции) + **2 в `Shared`** (`XDiary.Contracts/OutboxMessage.cs`, `IValueObjectJsonConverter.cs`) — то есть появился **общий контракт** outbox, но реализации вне Partners по-прежнему нет.
 
 ### 3. dev-ключи в appsettings — **не allowlist, а слепая зона гейта** (переписано 2026-11-07)
 - **Суть (было):** dev-значения в `appsettings.json` (в allowlist `guard-secrets`).
