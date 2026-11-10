@@ -50,13 +50,26 @@ jobs:
           rc2=0
           rc1=0
           rc1_repeat=0
+          rc0=0
           rows=""
+          # @TE 16:12: машинный различитель «не исполнялось» vs «исполнялось и упало».
+          # Баннер печатается первой строкой скрипта; без него причина не в каноне, а в запуске.
+          echo "--- диагностика запуска ---"
+          command -v python || echo "::error::python не найден в PATH"
+          python -u -c "import sys; print('python', sys.version.split()[0], sys.executable)" || true
+          ls -l 9-tests/scripts/check_apim_auth.py || echo "::error::скрипт канона отсутствует"
+          echo "--- конец диагностики ---"
           for i in $(seq 1 "$RUNS"); do
             t0=$SECONDS
             python 9-tests/scripts/check_apim_auth.py --all --base "$BASE" > "/tmp/canon-$i.log" 2>&1
             rc=$?
             dur=$((SECONDS - t0))
             line="$(grep -m1 'REF=' "/tmp/canon-$i.log" || true)"
+            banner="$(grep -m1 'check_apim_auth: старт' "/tmp/canon-$i.log" || true)"
+            if [ -z "$banner" ]; then
+              echo "  ::error::баннера старта нет — файл не исполнялся (не тот python / нет файла / отказ до кода)"
+            fi
+            [ "$rc" = "0" ] && rc0=$((rc0 + 1))
             where="$(printf '%s' "$line" | sed -n 's/.*where=\([^ ]*\).*/\1/p')"
             rows="${rows}| $i | rc=$rc | ${dur} с | ${where:-—} | ${line} |"$'\n'
             [ "$rc" = "2" ] && rc2=$((rc2 + 1))
@@ -81,16 +94,23 @@ jobs:
             [ "$i" -lt "$RUNS" ] && sleep "${PAUSE:-300}"
           done
           {
-            echo "### canon-stability: rc=1 (нарушители) за $RUNS: $rc1 · rc=2 (не измерено) за $RUNS: $rc2"
+            echo "### canon-stability: rc=0 за $RUNS: $rc0 · rc=1 (нарушители) за $RUNS: $rc1 · rc=2 (не измерено) за $RUNS: $rc2"
             echo
             echo "| проход | rc | длительность | where | квитанция |"
             echo "|---|---|---|---|---|"
             printf '%s' "$rows"
           } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-          echo "ИТОГ: rc=1 за $RUNS: $rc1 · rc=2 за $RUNS: $rc2"
+          echo "ИТОГ: rc=0 за $RUNS: $rc0 · rc=1 за $RUNS: $rc1 · rc=2 за $RUNS: $rc2"
+          # @TL 16:05: дыра «зелёный на пустоте». Ветка самотроттлинга стояла ДО проверок
+          # и не требовала ни одного rc=0: при RUNS=2 «rc=2, rc=1» давало exit 0 с warning,
+          # хотя канон НИ РАЗУ не измерился. Поэтому: сначала «есть ли хоть одно измерение».
+          if [ "$rc0" = "0" ]; then
+            echo "::error::канон не измерен ни разу за $RUNS проходов (нет ни одного rc=0) — это не «канон нарушен» и не «зелено»"
+            exit 1
+          fi
           # 2026-11-10 (@DO): в #2 все пять попыток дали rc=1, а workflow сказал success —
           # потому что считал только rc=2. Теперь rc=1 (нарушитель) валит прогон, как и должен.
-          if [ "$rc1" -gt 0 ] && [ "$rc1_repeat" = "$rc1" ]; then
+          if [ "$rc1" -gt 0 ] && [ "$rc1_repeat" = "$rc1" ] && [ "$rc2" = "0" ]; then
             echo "::warning::rc=1 во всех $rc1 прогонах, но НИ РАЗУ на первом — похоже на самотроттлинг"
             echo "::warning::гейт измерил сам себя: канон не подтверждён, но и не опровергнут — нужен повтор с холодного старта"
             exit 0
