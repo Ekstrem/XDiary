@@ -19,11 +19,23 @@
 | Complete | `POST /api/v1/journal/records/{id}/complete` | `Complete()` | `RecordCompleted` |
 | Delete | `POST /api/v1/journal/records/{id}/delete` | `Delete()` | `RecordDeleted` |
 
-## Request DTO (RecordDraft)
-```json
-{ "startedAt": "YYYY-MM-DDTHH:mm", "partners": ["uuid"], "place": "string", "positions": ["string"],
-  "costumes": ["string"], "toys": ["string"], "fantasies": ["string"], "tags": ["string"],
-  "contraceptives": ["string"], "contraceptiveCount": 0, "durationMin": 0,
-  "orgasms": [{ "participant": "me|partnerId", "count": 0, "types": ["string"], "rating": 0 }],
-  "garmin": false, "garminId": "" }
-```
+## Тела запросов — по командам (переписано 2026-11-10, @AR)
+
+**Здесь был выдуманный DTO `RecordDraft`** с 14 полями. Такого типа в коде **нет**, и он не соответствует ни одному
+эндпоинту: тело у команд **разное**, а у `StartManualEntry` его **нет вовсе**. Источник — `JournalCommands.cs:9-21`,
+маршруты — `JournalController.cs:49-92`; канон (`api-index.yaml`) с кодом совпадает.
+
+| Команда | Тело (без `clientId` — из `sub`, без `id` — из маршрута) | Адрес |
+|---|---|---|
+| `StartManualEntry` | **тела нет** (`required: []`, `types` отсутствует) | `JournalController.cs:49`, канон `Journal.StartManualEntry` |
+| `StartFromGarmin` | `startedAt` (ISO) · `durationMin` (int) · `garminId` (string) | `JournalCommands.cs:10` |
+| `SpecifyWhen` | `startedAt` (ISO) | `:11` |
+| `AddPartner` | `partnerId` (string) | `:12` |
+| `RemovePartner` | **тела нет** — `partnerId` в маршруте | `JournalController.cs:67` |
+| `SpecifyPlace` | `place` (string) | `JournalCommands.cs:14` |
+| `AddPositions` | `positions` (string[]) | `:15` |
+| `AddAccessories` | `costumes[]` · `toys[]` · `fantasies[]` · `tags[]` | `:16` |
+| `RecordContraception` | `contraceptives[]` · `contraceptiveCount` (int) | `:17` |
+| `SpecifyDuration` | `durationMin` (int) | `:18` |
+| `RecordOrgasms` | `orgasms[]` — каждый: `participant` · `count` · `types[]` · `rating` (`OrgasmsDto`, `:7`) | `:19` |
+| `Complete` / `Delete` | **тела нет** | `JournalController.cs:88`, `:91` |
