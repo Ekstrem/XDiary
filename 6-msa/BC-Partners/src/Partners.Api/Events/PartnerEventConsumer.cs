@@ -35,14 +35,14 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     private readonly IEventStoreRepository<IPartners, IPartnerAnemicModel> _store;
     private readonly IReadModelStore<IPartners, PartnersReadModel> _readStore;
     private readonly IReadRepository<IPartners, PartnersReadModel> _readRepo;
-    private readonly PartnerEventPublisher _publisher;
+    private readonly IPartnerEventPublisher _publisher;
     private readonly IAnemicModelRepository<IPartners, IPartnerAnemicModel> _events;
 
     public PartnerEventHandler(
         IEventStoreRepository<IPartners, IPartnerAnemicModel> store,
         IReadModelStore<IPartners, PartnersReadModel> readStore,
         IReadRepository<IPartners, PartnersReadModel> readRepo,
-        PartnerEventPublisher publisher,
+        IPartnerEventPublisher publisher,
         IAnemicModelRepository<IPartners, IPartnerAnemicModel> events)
     {
         _store = store;

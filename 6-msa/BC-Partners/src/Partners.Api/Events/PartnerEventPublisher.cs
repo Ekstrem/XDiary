@@ -7,11 +7,17 @@ using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using XDiary.Contracts;
 
+/// <summary>Контракт публикации партнёра в Journal (BE-082). Выделен для теста.</summary>
+public interface IPartnerEventPublisher
+{
+    Task PublishAsync(Guid partnerId, string name, Guid? clientId, DateTime? deletedAt, CancellationToken ct = default);
+}
+
 /// <summary>
 /// BE-082: связь Partners → Journal. Публикует текущее состояние партнёра в
 /// `POST /internal/partners/events` (Journal) сервис-токеном `sub=partners`.
 /// </summary>
-public sealed class PartnerEventPublisher
+public sealed class PartnerEventPublisher : IPartnerEventPublisher
 {
     private readonly IHttpClientFactory _http;
     private readonly string _journalUrl;

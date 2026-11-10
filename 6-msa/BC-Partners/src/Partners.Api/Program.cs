@@ -39,6 +39,9 @@ if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Partners.Storage")));
 builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddEventBusInMemory();
+// BE-082: связь Partners → Journal (partners_directory).
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<Partners.Api.Events.IPartnerEventPublisher, Partners.Api.Events.PartnerEventPublisher>();
 builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
 builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
 builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
