@@ -612,7 +612,7 @@ operations:
     auth: jwt
     codes: {200: "ok", 401: "no-token"}
     codes_status: verified
-    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — `ClientId()` из `sub` (иначе 401) + `OwnerGuardAsync` → `NotFound()` для чужого/несуществующего id (BE-085), `GetPartnerByIdQuery(id, clientId)` — фильтр по владельцу; **было в этой строке: «Forbid/404 отсутствуют» — устарело после BE-085**; перепроверено 2026-11-07 @AR"
+    verification: "код: PartnersController.cs + PartnerHandlers.cs + PartnerQueries.cs — `ClientId()` из `sub` (иначе 401) + `OwnerGuardAsync` → `NotFound()` для чужого/несуществующего id (BE-085), `GetPartnerByIdQuery(id, clientId)` — фильтр по владельцу; **было в этой строке: «Forbid/404 отсутствуют» — устарело после BE-085**; перепроверено 2026-11-07 @AR | ADR-024 (Принято 2026-11-09): «я» — профиль клиента, а не партнёр ⇒ список НЕ должен содержать self-партнёра. СТАТУС 2026-11-10 (@AR): фильтра по `Self` в `ListPartnersHandler` (`PartnerQueries.cs:9-14`) НЕТ, миграция self-строк не сделана ⇒ если в данных есть такая строка, она попадёт в список (открытый пункт для @BE)."
   - bc: Partners
     method: POST
     path: "/api/v1/partners"
