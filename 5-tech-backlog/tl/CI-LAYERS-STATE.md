@@ -554,3 +554,11 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **`TE-101` = «не выкачено», не «не работает»:** образ `journal` отсутствует, потому что `ci-journal` #131 красный на 5 тестах: `JournalIntegrationTest.Command_Then_Query_ReturnsRecord`, `RecordLifecycleTests.StartFromGarmin_Then_Complete_PreservesOrigin`, `JournalProjectionTests.Project_FromCompletedEvent_BuildsReadModel`, `RecordLifecycleTests.Query_ReadModel_DoesNotTouch_EventStore`, `RecordLifecycleTests.Full_Lifecycle_Command_Then_Query_ReturnsAllFields`. Порядок: тесты → образ → lock → dev → зелёный `when-normalize`.
 
 **`TE-102`:** профиль ✅ (имя не затёрто, `gender` пишется), `recent.lastPartner.name` ✘ = **id** ⇒ `partners_directory` в Journal хранит/отдаёт id вместо name. Второй канал, подтверждён двумя замерами; от образов не зависит.
+
+**2026-11-10 12:26: `FE-016` — «подтверждён» может быть артефактом окна; дискриминатор назван.**
+
+@TE отозвал свой отказ и перевёл `FE-016` в «подтверждён фактом #1786» (в окне есть `GET /journal/records`). Но в спеке окно начинается **до** того, как завершится загрузка журнала: `loginWithPin` → ждём `#view-journal` видимым → `before = calls.length` → клик → `networkidle`. А `renderJournal()` (`8-front/js/app.js:517-518`) вызывает `DB.getAllRecords()` → `Api.journal.list()` = **`GET /journal/records`**; запрос может приземлиться внутри окна.
+
+**В коде визарда полного журнала нет:** `loadWizardData()` = `DB.getAllPartners()` + `Api.journal.recent()` + `Api.journal.places()` + `DB.getAllCatalog()`.
+
+**Дискриминатор:** `await page.waitForLoadState('networkidle')` **до** `const before = calls.length`, затем прогон. Исчез `/journal/records` → артефакт теста (фронт не трогаем); остался → реальный дефект. До этого прогона `FE-016` считаю **не подтверждённым** — ни «дефектом», ни «зелёным».
