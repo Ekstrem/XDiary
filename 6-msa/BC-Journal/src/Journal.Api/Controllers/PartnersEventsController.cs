@@ -21,6 +21,7 @@ public sealed class PartnersEventsController : ControllerBase
 
     [HttpPost("events")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> PostEvent([FromBody] PartnersEventDto dto, CancellationToken ct)
@@ -29,12 +30,14 @@ public sealed class PartnersEventsController : ControllerBase
         var sub = User.FindFirst("sub")?.Value;
         _log.LogInformation("internal/partners/events: sub={Sub} partnerId={PartnerId}", sub, dto.PartnerId);
         if (sub != "partners") return Forbid();
+        // @TL 17:42: внутренний контракт — писать без имени нельзя; пустое имя → 400, а не молчаливое "".
+        if (string.IsNullOrEmpty(dto.Name)) return BadRequest(new { error = "name required" });
         try
         {
             await _store.UpsertAsync(new PartnersDirectoryReadModel
             {
                 PartnerId = dto.PartnerId,
-                Name = dto.Name ?? string.Empty,
+                Name = dto.Name,
                 ClientId = dto.ClientId,
                 DeletedAt = dto.DeletedAt,
             }, ct);
