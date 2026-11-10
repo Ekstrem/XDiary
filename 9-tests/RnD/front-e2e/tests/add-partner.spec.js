@@ -26,10 +26,12 @@ test('E2E: партнёр — добавить в приложении, увид
   // неотличимо от «список показывает только сид». Утверждаем СТРОКУ партнёра, а не текст контейнера.
   // TE-122 (@DO 17:03): печатаем ЧИСЛО карточек — «список пуст» и «список есть, моей строки нет» —
   // разные дефекты, и по одному `toHaveCount(1)` их не различить.
-  const cards = await page.locator('#partners-list .partner-card').count().catch(() => -1);
+  // TE-124: в `#partners-list` карточки рендерятся как `button.partner-row` (`8-front/js/app.js:1305`),
+  // а `.partner-card` — это сетка ВИЗАРДА (`app.js:835`) и CSS для неё (`styles.css:181`).
+  const cards = await page.locator('#partners-list .partner-row').count().catch(() => -1);
   console.log('::notice::add-partner: карточек в списке после создания: ' + cards +
     ' | ищем: ' + name);
-  await expect(page.locator('#partners-list .partner-card', { hasText: name })).toHaveCount(1);
+  await expect(page.locator('#partners-list .partner-row', { hasText: name })).toHaveCount(1);
   } finally {
     const r = await removeByName(page, 'partner', name);
     console.log('cleanup partner:', JSON.stringify(r));
