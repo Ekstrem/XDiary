@@ -30,6 +30,7 @@ import json
 import re
 import sys
 import time
+from datetime import datetime, timezone
 import urllib.error
 import urllib.request
 
@@ -217,6 +218,11 @@ def case_ordering(base, phone, pause, iterations=3):
     Строки в справочнике ещё нет → сервис обязан показать **исходное** значение (имя), а не `id`/пусто.
     Гоняем `iterations` раз без пауз между созданием и профилем (частичная дельта уходит раньше полного
     события) и печатаем долю случаев с `id` вместо имени — это доля, а не один удачный прогон.
+
+    ВАЖНО (исправлено `2026-11-10 21:5x`): `GET /journal/recent` отдаёт `lastPartner` только когда у клиента
+    **есть запись**. Первая версия кейса запись не создавала, поэтому `lastPartner` всегда был пуст и кейс
+    краснел по причине «нечего показать», а не по дефекту порядка. Теперь создаётся запись, ставится `when`
+    (чтобы она стала самой свежей) и привязывается партнёр — как в `profile-stage1`.
     """
     bad = 0
     details = []
@@ -234,6 +240,16 @@ def case_ordering(base, phone, pause, iterations=3):
         # без паузы: частичная дельта (профиль) уходит раньше полного события
         call(base, "POST", "/api/v1/partners/%s/profile" % pid,
              {"gender": "male", "photo": "", "notes": ""}, token=tok)
+
+        # `recent.lastPartner` существует только при наличии записи: без неё кейс мерил пустое состояние.
+        st, body, err = call(base, "POST", "/api/v1/journal/records", token=tok)
+        rid = (parse(body) or {}).get("id")
+        if err or not rid:
+            return 2, "не создана запись на итерации %d: %s" % (i, err or st)
+        call(base, "POST", "/api/v1/journal/records/%s/when" % rid,
+             {"startedAt": datetime.now(timezone.utc).isoformat()}, token=tok)
+        call(base, "POST", "/api/v1/journal/records/%s/partners" % rid, {"partnerId": pid}, token=tok)
+
         time.sleep(pause)
         st, body, err = call(base, "GET", "/api/v1/journal/recent", token=tok)
         lp = (parse(body) or {}).get("lastPartner") or {}
