@@ -874,6 +874,7 @@ operations:
     operationId: Journal.IngestPartnerEvent
     request:
       required: [partnerId, name]
+      optional: [clientId, deletedAt]
       types: {partnerId: guid, name: string, clientId: "guid?", deletedAt: "datetime?"}
       note: "E1-срез: конверт не соответствует приёмке E1 (нет eventId/type/schemaVersion) — долг зафиксирован в contract_note ниже"
     auth: jwt-service
