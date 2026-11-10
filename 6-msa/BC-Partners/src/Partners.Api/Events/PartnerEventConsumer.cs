@@ -86,9 +86,13 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 if (read.Notes is not null) existing.Notes = read.Notes;
                 if (read.ClientId is not null) existing.ClientId = read.ClientId;
                 if (read.DeletedAt is not null) existing.DeletedAt = read.DeletedAt;
-                await _readStore.UpsertAsync(existing);
-                // BE-082: публикуем текущее состояние партнёра в Journal (partners_directory).
-                await _publisher.PublishAsync(existing.Id, existing.Name, existing.ClientId, existing.DeletedAt, CancellationToken.None);
+                // @TL 15:58: полноты нет → не пишем и не публикуем (симметрия с else); удаление публикуем всегда.
+                if (!string.IsNullOrEmpty(existing.Name) || existing.DeletedAt is not null)
+                {
+                    await _readStore.UpsertAsync(existing);
+                    // BE-082: публикуем текущее состояние партнёра в Journal (partners_directory).
+                    await _publisher.PublishAsync(existing.Id, existing.Name, existing.ClientId, existing.DeletedAt, CancellationToken.None);
+                }
             }
             else
             {
@@ -118,10 +122,12 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                     ClientId = clientId,
                     DeletedAt = deletedAt,
                 };
-                await _readStore.UpsertAsync(created);
-                // @TL 14:26: полноты нет (agg is null / Root is null) → не публикуем пустое имя.
-                if (!string.IsNullOrEmpty(name))
+                // @TL 15:58: полноты нет → не материализуем строку с пустым именем и не публикуем (симметрия с веткой merge).
+                if (!string.IsNullOrEmpty(name) || deletedAt is not null)
+                {
+                    await _readStore.UpsertAsync(created);
                     await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
+                }
             }
         }
     }

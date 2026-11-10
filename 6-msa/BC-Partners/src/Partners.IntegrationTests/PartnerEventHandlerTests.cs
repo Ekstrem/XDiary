@@ -117,8 +117,8 @@ public class PartnerEventHandlerTests
         Assert.Equal(clientId, publisher.LastClientId);
     }
 
-    // @AR 12:55: остаток (порядок + fire-and-forget) — если пересобирать нечего (Events пуст),
-    // имя пустое, и в Journal оно НЕ публикуется (guard от пустого имени).
+    // @TL 15:58: остаток (порядок + fire-and-forget) — если пересобирать нечего (Events пуст),
+    // строку НЕ материализуем и пустое имя НЕ публикуем.
     [Fact]
     public void Handle_ProfileFirst_NoPreviousState_DoesNotPublishEmptyName()
     {
@@ -133,8 +133,7 @@ public class PartnerEventHandlerTests
 
         handler.HandleAsync(profile.Event!).GetAwaiter().GetResult();
 
-        Assert.NotNull(readStore.Upserted);
-        Assert.Equal("", readStore.Upserted!.Name);   // полноты нет — имя пустое
-        Assert.Equal(0, publisher.Published);          // пустое имя НЕ ушло в Journal
+        Assert.Null(readStore.Upserted);       // полноты нет — строку не материализуем
+        Assert.Equal(0, publisher.Published);  // и пустое имя НЕ ушло в Journal
     }
 }
