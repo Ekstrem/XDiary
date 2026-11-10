@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 /// </summary>
 [ApiController]
 [Route("internal/partners")]
-[AllowAnonymous]
+[Authorize]
 public sealed class PartnersEventsController : ControllerBase
 {
     private readonly IReadModelStore<IJournal, PartnersDirectoryReadModel> _store;
@@ -21,6 +21,8 @@ public sealed class PartnersEventsController : ControllerBase
     [HttpPost("events")]
     public async Task<IActionResult> PostEvent([FromBody] PartnersEventDto dto, CancellationToken ct)
     {
+        // BE-082: внутренняя запись в read-модель — только сервис-токен sub=partners (ADR-008).
+        if (User.FindFirst("sub")?.Value != "partners") return Forbid();
         await _store.UpsertAsync(new PartnersDirectoryReadModel
         {
             PartnerId = dto.PartnerId,

@@ -34,15 +34,18 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     private readonly IEventStoreRepository<IPartners, IPartnerAnemicModel> _store;
     private readonly IReadModelStore<IPartners, PartnersReadModel> _readStore;
     private readonly IReadRepository<IPartners, PartnersReadModel> _readRepo;
+    private readonly PartnerEventPublisher _publisher;
 
     public PartnerEventHandler(
         IEventStoreRepository<IPartners, IPartnerAnemicModel> store,
         IReadModelStore<IPartners, PartnersReadModel> readStore,
-        IReadRepository<IPartners, PartnersReadModel> readRepo)
+        IReadRepository<IPartners, PartnersReadModel> readRepo,
+        PartnerEventPublisher publisher)
     {
         _store = store;
         _readStore = readStore;
         _readRepo = readRepo;
+        _publisher = publisher;
     }
 
     public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
@@ -80,10 +83,12 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 if (read.ClientId is not null) existing.ClientId = read.ClientId;
                 if (read.DeletedAt is not null) existing.DeletedAt = read.DeletedAt;
                 await _readStore.UpsertAsync(existing);
+                // BE-082: публикуем текущее состояние партнёра в Journal (partners_directory).
+                await _publisher.PublishAsync(existing.Id, existing.Name, existing.ClientId, existing.DeletedAt, CancellationToken.None);
             }
             else
             {
-                await _readStore.UpsertAsync(new PartnersReadModel
+                var created = new PartnersReadModel
                 {
                     Id = domainEvent.Id,
                     Name = read.Name ?? string.Empty,
@@ -92,7 +97,9 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                     Notes = read.Notes ?? string.Empty,
                     ClientId = read.ClientId,
                     DeletedAt = read.DeletedAt,
-                });
+                };
+                await _readStore.UpsertAsync(created);
+                await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
             }
         }
     }
