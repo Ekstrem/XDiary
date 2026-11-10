@@ -20,6 +20,12 @@ dod_complete: >-
   status: complete ставится только когда: (1) гейт DO-064 зелёный (индекс == код, у всех codes, анонимность = allow-list + internal без токена); (2) каждая операция помечена: verified с источником (тест/контракт/замер с контуром) ИЛИ derived с явной пометкой «сверка не делалась». «Я посмотрел» — не критерий.
 target_rule: >-
   target_codes = целевое поведение, ещё не реализованное. У каждой такой записи обязательны target_owner и target_until. Как только поведение реализовано: код переносится в codes, target_codes/target_owner/target_until удаляются. «Целевое» без срока и владельца — запрещено: это то же, что continue-on-error без даты снятия. Требование к target_until: условие снятия должно быть МАШИННО-ПРОВЕРЯЕМЫМ (env/флаг/конкретный ответ), а не прозой — иначе через месяц никто не поймёт, сработало ли оно. Пример правильной формы: «XDIARY_STRICT_UNKNOWN_FIELDS=1 ставит @DO в smoke-api» (см. Partners.Register). Канон процесса — 5-tech-backlog/tl/ITERATION-PLAN.md §8; при расхождении побеждает §8.
+codes_rule: >-
+  Ownership НЕ кодируется статусом (2026-11-10 @AR, решение по запросу @TL): «не твой» и «не существует» неразличимы — оба 404.
+  Поэтому у ресурсных операций (в пути есть `{id}`/`{partnerId}`) 403 в codes НЕ указывается, а 404 обязателен, если операция скоуплена по владельцу.
+  403 остаётся только для маршрутного/ролевого отказа (`/internal/**` с не-сервисным токеном и т. п.), где вопрос «что тебе позволено вызвать», а не «чей это объект».
+  Причина: 404 не раскрывает существование чужих записей (приватность — продуктовое требование), 403 позволяет перебором id узнавать, что запись есть.
+  Проверка: `403` в codes допустим только у операций без `{id}`; у ресурсных с owner-guard обязателен `404`.
 auth_rule: >-
   deny-by-default (ADR-026): анонимны только 4 контроллерных маршрута — POST /api/v1/clients, POST /api/v1/clients/{id}/verify, POST /api/v1/clients/refresh, POST /api/v1/privacy/verify-token — плюс GET /health (не контроллер, в индексе отсутствует намеренно). Всё остальное требует JWT; без токена -> 401. GET /clients с токеном -> 405 (маршрут удалён, ADR-026). auth: anonymous-inside = внутренний контур /internal/** (ADR-026 §3 п.4): изнутри сети без токена, снаружи 401. ТРЕБОВАНИЕ К КОДУ (из-за него гейт и красный): анонимность обязана быть ЯВНОЙ — [AllowAnonymous] на этих 4 маршрутах и deny-by-default fallback-политика в каждом BC. Сейчас в коде анонимность держится на ОТСУТСТВИИ политики (у PrivacyController нет ни [AllowAnonymous], ни [Authorize]) — это ровно класс дефекта GET /clients: гейт не может отличить «разрешено» от «политики нет», а человек не видит, где граница. Гейт DO-064 должен сравнивать ТРИ источника и называть, какой разъехался: индекс ↔ allow-list шлюза ↔ явные атрибуты в коде.
 trace_rule: >-
@@ -156,7 +162,7 @@ operations:
     path: "/api/v1/catalog/{id}"
     operationId: Catalog.Get
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 403: "not-owner", 404: "not-found"}
+    codes: {200: "ok", 401: "no-token", 404: "not-found"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -166,7 +172,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -177,7 +183,7 @@ operations:
       types: {photo: string, notes: string, brand: string, fantasyPartner: string}
       note: "UpdateCatalogItemDetailsCommand (из токена/route: aggregateId). Семантика — **полная замена четырёх полей**, не partial: домен присваивает все четыре без условий (`Catalog.Domain/Implementation/Aggregate.cs:36-41`). Поэтому `required` = все четыре не случайно: отсутствие поля ⇒ 400 (implicit required биндинга), `\"\"` ⇒ **стереть**. Опционального поля (как `photoUrl` у `Client.UpdateProfile`) здесь нет намеренно. Проверено @AR 2026-11-07 при аудите 14 операций с `required` ≥ 2."
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -188,7 +194,7 @@ operations:
       types: {name: string}
       note: "RenameCatalogItemCommand (из токена/route: aggregateId)"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -198,7 +204,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Catalog
     method: POST
@@ -208,7 +214,7 @@ operations:
       required: []
       note: "тела нет"
     auth: jwt
-    codes: {400: "validation", 401: "no-token", 403: "not-owner"}
+    codes: {400: "validation", 401: "no-token", 404: "чужой id ≡ несуществующий (ownership не кодируется)"}
     codes_status: derived
   - bc: Client
     method: POST
@@ -267,7 +273,7 @@ operations:
     path: "/api/v1/clients/{id}"
     operationId: Client.Get
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 403: "чужой id (Forbid)", 404: "не найден"}
+    codes: {200: "ok", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: ClientsController.cs (fallback deny-by-default в BC; [AllowAnonymous] на :25/:28/:38) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
   - bc: Client
@@ -455,7 +461,7 @@ operations:
     path: "/api/v1/journal/records/{id}"
     operationId: Journal.Get
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 403: "чужой id (Forbid)", 404: "не найден"}
+    codes: {200: "ok", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -467,7 +473,7 @@ operations:
       types: {costumes: "string[]", toys: "string[]", fantasies: "string[]", tags: "string[]"}
       note: "все четыре массива обязательны: отсутствие любого даёт 400 (случай @TE 2026-11-06)"
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -477,7 +483,7 @@ operations:
     request:
       required: []
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -488,7 +494,7 @@ operations:
       required: [contraceptives, contraceptiveCount]
       types: {contraceptives: "string[]", contraceptiveCount: int}
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -498,7 +504,7 @@ operations:
     request:
       required: []
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -509,7 +515,7 @@ operations:
       required: [durationMin]
       types: {durationMin: int}
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -521,7 +527,7 @@ operations:
       types: {orgasms: "OrgasmsDto[] { participant: string,  count: int,  types: string[],  rating: int}"}
       note: "элемент — {participant, count, types, rating} (OrgasmsDto)"
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -529,7 +535,7 @@ operations:
     path: "/api/v1/journal/records/{id}/partners"
     operationId: Journal.AddPartner
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs:59-61 + AddPartnerCommand + @TE 2026-11-13"
     request:
@@ -541,7 +547,7 @@ operations:
     path: "/api/v1/journal/records/{id}/partners/{partnerId}/remove"
     operationId: Journal.RemovePartner
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs:62-64 + @TE 2026-11-13"
     request:
@@ -556,7 +562,7 @@ operations:
       required: [place]
       types: {place: string}
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -567,7 +573,7 @@ operations:
       required: [positions]
       types: {positions: "string[]"}
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
@@ -578,7 +584,7 @@ operations:
       required: [startedAt]
       types: {startedAt: "string (ISO)"}
     auth: jwt
-    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 403: "чужой id", 404: "не найден"}
+    codes: {200: "ok", 400: "доменная ошибка (validation/invariant)", 401: "no-token", 404: "не найден"}
     codes_status: verified
     verification: "код: JournalController.cs (класс [Authorize], WithOwner: 401 no-sub / 404 нет / 403 чужой; Respond: 200 ok / 400 доменная ошибка), 2026-11-13 @AR"
   - bc: Journal
