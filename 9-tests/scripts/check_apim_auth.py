@@ -1429,7 +1429,12 @@ def _run_guarded() -> int:
         # TE-114 (@DO `2026-11-10 13:29`): в `canon-stability` лог был ПУСТ — ни квитанции, ни ошибки, ни трейса.
         # Баннер печатается ПЕРВОЙ строкой и сразу: если его нет, значит файл вообще не исполнялся
         # (не тот `python`, нет файла, отказ импорта до кода) — это отдельный диагноз, а не «канон нарушен».
-        print(f"::notice::check_apim_auth: старт · python {_sys.version.split()[0]} · "
+        try:
+            import yaml as _yaml
+            _yaml_v = getattr(_yaml, "__version__", "?")
+        except Exception:  # noqa: BLE001 — важно не упасть на диагностике
+            _yaml_v = "НЕТ"
+        print(f"::notice::check_apim_auth: старт · python {_sys.version.split()[0]} · yaml={_yaml_v} · "
               f"cwd={_sys.path[0] or '.'} · argv={' '.join(_sys.argv[1:])}", flush=True)
         return main()
     except SystemExit:

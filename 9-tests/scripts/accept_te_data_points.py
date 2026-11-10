@@ -265,6 +265,10 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
+    # TE-115 (@TL `2026-11-10 17:05`): баннер старта — норма для гейт-скриптов: лог самодостаточен,
+    # «пусто» отличимо от «нарушено».
+    print("::notice::accept_te_data_points: старт · case=%s · base=%s · pause=%.1fs"
+          % (a.case or "—", a.base or "—", a.pause), flush=True)
     if not a.base or not a.case:
         print("::warning::accept_te_data_points: нет --base/--case — не измерено (rc=2)")
         return 2
