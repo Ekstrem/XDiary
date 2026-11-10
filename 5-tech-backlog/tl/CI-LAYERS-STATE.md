@@ -919,3 +919,13 @@ inclusion-гейт `openapi` (после перегенерации снимко
 **`403/404` — решено и записано:** `Client.Get` в каноне `{200,401,403,404}` (`verification`: `ClientsController.cs:105-112`, `Forbid()` **до** `_mediator.Send`), `check_api_index` `rc=0`. Холсты `03-ddd` выровнены (Partners 5 правок, Journal 2), инвариант переименован `ForeignIdIsNotNotFound` → **`ForeignIdIsHidden`** с записанной ценой размена.
 
 **Мера вместо подстроки:** @AR поправил @DO — `403 ×45` / `404 ×57` это вхождения **подстроки** по файлу, а правило про **операции**: `403` в `codes` у **3** из 82 (`Client.Get`, `Journal.IngestPartnerEvent`, третий — маршрутный). Машинная проверка нового правила по 28 операциям с `{id}`: нарушений **0** (сравнение 1, поиск 25, без отказа 2).
+
+**2026-11-10 18:52: `check_api_index` падает из-за перекрытой переменной (`:511` → `:543`); причина 500 — `NOT NULL`; канон на раннере цел.**
+
+**Баг гейта:** `:511` `for oid, code, why in _miss[:12]` перекрывает `code = parse_code(root)` (`:478`); после цикла `code` — **int**, и `:543` `for v, p, anon, _ in code` даёт `TypeError` ⇒ `rc=1`. Проявляется только при **непустом** `_miss` (сегодня: `Journal.IngestPartnerEvent` без `400`), поэтому `--selftest 9/9` и прогон на «чистом» каноне его не ловят. Внесено в `ERRATA` №20.
+
+**Причина 500 (подтверждено @DO):** `partners_directory.Name` — **`text NOT NULL`** (`is_nullable=NO`), а `PartnerEventPublisher` отправлял `Name = name` без проверки ⇒ вставка падала. Мои кандидаты (ключ `PartnerId`/`Id`, `DeletedAt` kind) **не подтвердились** — снял.
+
+**Канон на раннере цел:** `canon-stability` **#6** — `pyyaml 6.0.3`, `python 3.11.18 /opt/hostedtoolcache`, `проход 1: rc=0 | 112 с`, `PASS защищено=74/74 · нарушителей=0 · неизвестно=0`, verdict success. Локально 3 прохода с паузой 5 мин — `rc=0` ×3. `tools/canon_per_probe.py`: **222 пробы, 0 unknown**, медиана 0.58–0.61 с, **max 15.1 с**; хвост: `Analytics.Correlations` 15.1, `Journal.RecordOrgasms` 11.8, `Catalog.Archive` 10.0, `Privacy.Unlock` 8.5, `ApiGateway.AnalyticsSummary` 8.5.
+
+**Снято моё:** «в `canon-stability.yml` нет `pip install pyyaml`» — строки **40/42/44/45** добавлены в `ceab78ec2` (14:08), я смотрел `origin` до пуша.
