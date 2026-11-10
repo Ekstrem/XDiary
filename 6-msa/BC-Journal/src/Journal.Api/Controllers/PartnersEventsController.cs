@@ -20,6 +20,9 @@ public sealed class PartnersEventsController : ControllerBase
     public PartnersEventsController(IReadModelStore<IJournal, PartnersDirectoryReadModel> store, ILogger<PartnersEventsController> log) { _store = store; _log = log; }
 
     [HttpPost("events")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> PostEvent([FromBody] PartnersEventDto dto, CancellationToken ct)
     {
         // BE-082: внутренняя запись в read-модель — только сервис-токен sub=partners (ADR-008).
