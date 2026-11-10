@@ -44,6 +44,7 @@ public class ClientTokenServiceTests
         var pair = s.Issue(Guid.NewGuid(), "+71234567890");
         var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
         var jwt = handler.ReadJwtToken(pair.RefreshToken);
+        Assert.Equal(2, jwt.Claims.Count());               // ровно {sub, kind}
         Assert.NotNull(jwt.Claims.FirstOrDefault(c => c.Type == "sub"));
         Assert.Equal("refresh", jwt.Claims.FirstOrDefault(c => c.Type == "kind")?.Value);
         Assert.Null(jwt.Claims.FirstOrDefault(c => c.Type == "phone"));
