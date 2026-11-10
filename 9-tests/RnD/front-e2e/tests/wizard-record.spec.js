@@ -285,6 +285,15 @@ test('E2E: открытие визарда не грузит полный жур
   // полного `/journal/records`, поэтому «догоняющие» ленивые запросы должны успеть уйти.
   await page.waitForLoadState('networkidle');
 
+  // TE-109 (@AR `2026-11-10 12:53`): «контроль должен быть ТЕМ ЖЕ ПУТЁМ, что и проверка».
+  // Синтетический `fetch` доказывает только, что сборщик видит запрос; он обходит приложение.
+  // Поэтому отдельно считаем, что ПРИЛОЖЕНИЕ само прошло цепочку `partners → journal` до окна:
+  // `C ≥ 1` — журнал реально грузился; `P` печатаем, потому что цепочка начинается с `partners`
+  // (`repository.js:77-85`) и `P = 0` означал бы, что вторая нога не стартовала.
+  const beforeWindow = calls.slice(0, before);
+  const controlJournal = beforeWindow.filter((l) => /journal\/records$/.test(l));
+  const controlPartners = beforeWindow.filter((l) => l.indexOf('/api/v1/partners') !== -1);
+
   const mine = calls.slice(before);
   const duringOpen = calls.slice(before, afterOpen);
   const afterWizard = calls.slice(afterOpen);
@@ -331,6 +340,17 @@ test('E2E: открытие визарда не грузит полный жур
     '(иначе «полный журнал x0» — зелёный на пустоте); окно: ' + windowText)
     .toBeGreaterThanOrEqual(1);
   console.log('::notice::FE-016 контроль: сборщик видит journal/records x' + controlSeen.length);
+  console.log('::notice::FE-016: control journal x' + controlJournal.length +
+    ', control partners x' + controlPartners.length);
+  // Если до окна приложение вообще не ходило в сеть (кэш/localStorage), контроль пути ничего не доказывает:
+  // это не «зелено» и не «красно», а недействительное измерение — говорим об этом громко, но не роняем кейс зря.
+  if (beforeWindow.length === 0) {
+    console.log('::warning::FE-016: контроль пути недействителен — до окна приложение не сделало ни одного запроса');
+  } else {
+    expect(controlJournal.length, 'контроль пути: приложение обязано САМО загрузить журнал до окна ' +
+      '(цепочка `partners → journal`), иначе пустое окно — следствие сбоя, а не отсутствия запроса; ' +
+      'до окна: ' + beforeWindow.join(' | ')).toBeGreaterThanOrEqual(1);
+  }
 
   await page.click('#btn-wizard-close');
 });
