@@ -23,9 +23,16 @@ public class RegisterClientHandlerTests
     private sealed class FakeQuery : IClientQueryRepository
     {
         public Guid? ExistingId { get; set; }
+        public bool MissFirst { get; set; }   // race: первый GetByPhoneAsync → null, повторный → ExistingId
+        private int _phoneCalls;
         public Task<ClientReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<ClientReadModel?>(null);
         public Task<IReadOnlyList<ClientReadModel>> ListAsync(CancellationToken ct = default) => Task.FromResult<IReadOnlyList<ClientReadModel>>(Array.Empty<ClientReadModel>());
-        public Task<ClientReadModel?> GetByPhoneAsync(string phone, CancellationToken ct = default) => Task.FromResult<ClientReadModel?>(ExistingId is Guid g ? new ClientReadModel { Id = g, Phone = phone } : null);
+        public Task<ClientReadModel?> GetByPhoneAsync(string phone, CancellationToken ct = default)
+        {
+            _phoneCalls++;
+            var miss = MissFirst && _phoneCalls == 1;
+            return Task.FromResult<ClientReadModel?>(!miss && ExistingId is Guid g ? new ClientReadModel { Id = g, Phone = phone } : null);
+        }
     }
     private sealed class FakeSender : IOtpSender
     {
@@ -69,6 +76,19 @@ public class RegisterClientHandlerTests
         var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
         Assert.False(res.Result.IsSuccess());
         Assert.Contains("phone_taken", res.Result.ErrorMessage());
+    }
+
+    [Fact]
+    public async Task Register_Race_DuplicatePhone_ReissuesOtp_And_MarksExisting()
+    {
+        var id = Guid.NewGuid();
+        var repo = new FakeRepo { ThrowDuplicateOnSave = true, Existing = new AnemicModel { Id = id, Root = ClientRoot.CreateInstance("+79990000000"), OtpCode = "old" } };
+        // MissFirst: первый GetByPhoneAsync (до INSERT) → null, повторный (в catch) → находит существующего.
+        var handler = MakeHandler(repo, new FakeQuery { ExistingId = id, MissFirst = true }, new FakeSender(), new FakeRateLimiter());
+        var res = await handler.Handle(new RegisterClientCommand("+79990000000"), CancellationToken.None);
+        Assert.True(res.Result.IsSuccess());   // BE-092: не 400/200, а путь Existing = true
+        Assert.True(res.Existing);             // → контроллер отдаёт 409 + clientId
+        Assert.NotEqual("old", res.Result.Model().OtpCode);
     }
 
     [Fact]

@@ -67,7 +67,23 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
         if (res.IsSuccess())
         {
             try { await _repo.SaveAsync(res, ct); }
-            catch (DuplicatePhoneException ex) { return new RegisterClientResult(ClientResults.Fail(ex.Message), false, deliveryOk, channel, false); }
+            catch (DuplicatePhoneException)
+            {
+                // BE-092 (@DO 15:48): гонка — GetByPhoneAsync не увидел строку, INSERT дал 23505.
+                // Отдаём 409 + clientId (переотправка), как путь Existing = true, а не 400/200.
+                var raced = await _query.GetByPhoneAsync(r.Phone, ct);
+                if (raced is not null)
+                {
+                    var racedAgg = await _repo.GetByIdAsync(raced.Id, ct);
+                    if (racedAgg is not null)
+                    {
+                        var rr = Aggregate.CreateInstance(racedAgg).ReissueOtp(otp);
+                        if (rr.IsSuccess()) { try { await _repo.SaveAsync(rr, ct); } catch (DuplicatePhoneException) { } }
+                        return new RegisterClientResult(rr, true, deliveryOk, channel, false);
+                    }
+                }
+                return new RegisterClientResult(ClientResults.Fail("phone_taken"), false, deliveryOk, channel, false);
+            }
         }
         return new RegisterClientResult(res, false, deliveryOk, channel, false);
     }
