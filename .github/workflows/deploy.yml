@@ -264,6 +264,19 @@ jobs:
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright test add-partner wizard-record change-pin
 
+      # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
+      # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
+      - name: Артефакты падения (trace, скриншоты, error-context)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.workflow }}-failure-${{ github.run_id }}
+          path: |
+            9-tests/RnD/front-e2e/test-results
+            9-tests/RnD/front-e2e/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
   deploy-prod:
     # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
     # при условии, что фронт в этом пуше не менялся и smoke-api зелёный.
