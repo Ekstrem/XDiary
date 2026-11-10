@@ -101,7 +101,7 @@ Delete()                → RecordDeleted
 | `BC-Partners` | владелец владения (`ForeignIdIsHidden`, §21 `edm-canon`) |
 | `BC-Catalog`, `BC-DailyMetrics`, `BC-SomaticSeries`, `BC-Portability` | 5 файлов по конвенции |
 | `BC-Privacy` | 5 файлов; коды PIN-операций описаны в `api-index` (`Privacy.*`) |
-| `BC-Analytics` | read-only, без агрегата (статус ниже) |
+| `BC-Analytics` | read-only, **без агрегата**, но с состоянием проекции — 8 атрибутов `ClientSnapshot` (§2.2.4; ключ `clientId`) |
 | `BC-GarminGateway`, `BC-AppleHealthGateway` | шлюзы: 5 файлов, агрегат — синхронизация |
 | `BC-Client` | был единственным с другим именем первого файла (`01-bounded-context-canvas.md`) — **приведён к конвенции 2026-11-10**: `git mv` → `01-context-canvas.md`. Ссылок на старое имя вне этого README и чата не было (проверено `git grep`): я сначала написал «переименование порвёт ссылки» **без измерения** — проверка это опровергла, поэтому имя исправлено, а не описано исключением |
 
@@ -112,4 +112,4 @@ Delete()                → RecordDeleted
 канваса в `03-ddd` нет. Вопрос «нужен ли минимальный канвас или запись „инфраструктура, не BC“» — **за владельцем** (открыт).
 
 ## Статус
-Все 9 агрегатов записи приведены к шаблону (Record, Partner, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument). Аналитика — read-only, без агрегата.
+Все **10** агрегатов записи приведены к шаблону: Record, Partner, **Client**, CatalogItem, SomaticPoint, DailyMetrics, GarminSync, AppleImport, PinCredential, CsvDocument. **Исправлено 2026-11-10 (@AR):** здесь стояло «9» и в списке **не было `Client`**, хотя у `BC-Client` есть агрегат (`Client.Domain/Abstraction/IClientAnemicModel.cs`, `Implementation/AnemicModel.cs`, канвас `02` §2 «Агрегат: Client»). Счёт подтверждён файлами: `AnemicModel.cs` — **20** (10 интерфейсов + 10 реализаций) ⇒ **10** BC с агрегатом, 11-й (`BC-Analytics`) read-only. Аналитика — **без агрегата, но с состоянием проекции** (8 атрибутов, §2.2.4 её канваса).
