@@ -1,132 +1,141 @@
-# CI/CD по слоям — отчёт на 2026-11-07 11:30
+# CI/CD по слоям — свежий отчёт
 
-Источник: `origin` = `19232425` (после моих правок), локальные прогоны гейтов + последние завершённые
-прогоны Actions. Правило: слой закрыт, только когда **все** его гейты зелёные; «красный не блокирует» —
-не основание считать слой закрытым.
+**Собран:** 2026-11-07 12:51 локального (09:51 UTC) · **`origin/main`** = `d0ce5f1d`
+**Как измерялось:** 18 гейтов запущены локально на этом `origin`; прогоны Actions — последний
+**завершённый** прогон каждого workflow (не «в процессе»); dev — `podman inspect` + `/health`.
+
+Счёт слоя = «зелёные / всего». Правило прежнее: слой закрыт, только когда зелёные **все**.
 
 ## Сводка
 
-| слой | состояние | красное (владелец) |
+| слой | счёт | что красное (владелец) |
 |---|---|---|
-| **L0 · процесс** | 🟡 **2/4** | `ci-guards` — `AWAIT.md` (@TL) + `check_readstore_ddl` (@AR/@LM); `guard-tools` — манифест копий (@LM) |
-| **L1 · контракт** | 🟡 **1/2** | `ci-api-gateway` #20 — «Тесты ApiGateway (в папке сервиса)» (@BE) |
-| **L2 · тесты сервисов** | 🟡 **10/12** | `ci-journal` #130 и `ci-backend` #920 — тесты (@BE) |
+| **L0 · процесс** | 🟡 **3/4** | `ci-guards` #3674: `check-chat` — `AWAIT.md` (@TL) + канон read-модель ⊆ DDL (@AR/@LM) |
+| **L1 · контракт** | 🟡 **1/2** | `ci-api-gateway` #20 — тесты ApiGateway (@BE) |
+| **L2 · тесты сервисов** | 🟡 **11/12** | `ci-journal` #131 — 5 тестов журнала (@BE) |
 | **L4 · API/APIM** | 🟢 **2/2** | — |
-| **L5 · деплой/смоуки** | 🟡 **4/5** | `deploy` #1774 — `lock-published` (**исправлено этим отчётом**: `19232425`) |
-| **L6 · E2E фронта** | 🟡 **1/2** | `front-e2e-repeat` — исторический `cancelled` |
+| **L5 · деплой/смоуки** | 🟡 **6/7** | `smoke-front` — визард: 3 кейса из 4 (@FE) |
+| **L6 · E2E фронта** | 🟡 **1/2** | `front-e2e-repeat` #18 — `csv` 0/5, `partner-edit` 0/5 (@TE/@BE) |
+| **гейты локально** | 🟡 **16/18** | `check_secrets` — 1 находка (@BE); `check_adr_refs` — активные ADR ссылаются на отменённые (@AR) |
 
-**Гейты локально:** 16 из 18 — `rc=0`. Красные: `check_secrets` — `rc=1` (1 находка, `chat/be.md:231`,
-владелец @BE), `check_openapi` — `rc=2` («не измерено», нужен снимок от @BE).
+## L0 · процессные гейты
 
-## L0 · процессные гейты (быстрые, детерминированные)
-
-| гейт | статус | что делает |
+| гейт / workflow | статус | факт |
 |---|---|---|
-| `check_nul` | 🟢 | маркеры конфликта в `.md` (445+ файлов) |
-| `check_canon` | 🟢 | единственный canon-маркер; **в CI вызывается** (добавлено 2026-11-07) |
-| `check_docs_size` | 🟢 | бюджет инструкций (38 128 / 65 536; `AGENTS.md` 32 699 / 32 768) |
-| `check_rule_docs` | 🟢 | личные пути/токены в доках (ошибок 0, остались `warn` про `$HOME`) |
-| **`check_secrets`** | 🔴 **rc=1** | 1 находка: `5-tech-backlog/chat/be.md:231` — `assign:password`, len 8 (@BE; зачистка + ротация) |
-| `status_lint --strict` | 🟢 | статусы и обязательные поля карточек |
-| `chat_lint --strict-times` | 🟢 | формат/время меток чата |
-| `stats --check` | 🟢 | таблица в `README.md` соответствует карточкам |
-| `check_paths` | 🟢 | зоны ролей |
-| `check_adr` / `_status` / `_refs` | 🟢 | ADR: шаблон, словарь статусов, ссылки |
-| `guard-tools` (CI) | 🔴 | манифест копий `tools/` (@LM) |
-| `ci-guards: AWAIT.md` (CI) | 🔴 | регистр выданных решений (@TL) |
+| `check_nul` | 🟢 | 477 md-файлов, маркеров конфликта нет |
+| `check_canon` | 🟢 | `canon:receipt-v1` в `adr-026.md` |
+| `check_docs_size` | 🟢 | в пределах лимита |
+| `check_rule_docs` | 🟢 | 655 файлов, ошибок 0, предупреждений **0** |
+| **`check_secrets`** | 🔴 `rc=1` | 1 находка: `5-tech-backlog/chat/be.md:233`, `assign:password`, len 8 → зачистка + ротация (**@BE**) |
+| `status_lint --strict` | 🟢 | 371 файл, 8 статусов |
+| `chat_lint --strict-times` | 🟢 | нераспознанных строк нет |
+| `stats --check` | 🟢 | `README` актуален |
+| `check_paths` | 🟢 | нарушений 0 |
+| `guard-paths` (CI) | 🟢 #5064 | |
+| `guard-tools` (CI) | 🟢 #241 | **впервые зелёный** (был красный манифест копий) |
+| `docs-budget` (CI) | 🟢 #726 | |
+| `ci-guards` (CI) | 🔴 #3674 | `guard-secrets` ✅; `check-chat` ❌ на двух пунктах: регистр `AWAIT.md` (@TL) и канон «поля read-модели ⊆ колонки DDL» (@AR/@LM) |
 
 ## L1 · статические каноны контракта
 
-| гейт | статус |
-|---|---|
-| `check_api_index` | 🟢 `82` операции / `82` маршрута, `--selftest` **8/8** (2026-11-07 исправлены два дефекта: `parse_index` не видел `request`, `parse_code` не считал анонимным маршрут при длинном наборе атрибутов) |
-| `check_ddd_refs` (внутри `check_api_index`) | 🟢 пространства имён (`Partners.Storage`) больше не считаются ссылками |
-| `gen_images_lock --check` / `--verify-registry` | 🟢 `rc=0` (12 опубликовано, 1 `unverified` — `front`, он идёт через Pages) |
-| `check_ports`, `check_readstore_mapping` | 🟢 |
-| `openapi-registry` (CI) | 🟢 #194 |
-| `check_openapi` | 🟡 `rc=2` — «не измерено», нужен свежий снимок спек (@BE) |
-| `ci-api-gateway` (CI) | 🔴 #20 — тесты в папке сервиса (@BE) |
-| `check_readstore_ddl` (CI) | 🔴 «ни одной модели с DDL — фильтр сломан» (@AR/@LM, `DO-109`) |
+| гейт | статус | факт |
+|---|---|---|
+| `check_api_index` | 🟢 | auth-стек **6/6** с fallback; без auth по ADR-008 — 5 |
+| `check_adr` | 🟢 | проверено 6, нарушений 0 (29 старых пропущено) |
+| `check_adr_status` | 🟢 | нарушений 0 |
+| **`check_adr_refs --include-arch`** | 🔴 `rc=1` | 17 ссылок, нарушений по формату 0, но **связность**: активные `ADR-001`, `ADR-005`, `ADR-006` ссылаются на `ADR-007` (**Отменён**) и `ADR-029` (**Отклонено**) — 5 ошибок, каталоги `04-architecture` (**@AR**) |
+| `check_ports` | 🟢 | нарушений 0 |
+| `check_readstore_mapping` | 🟢 | 4 регистрации, немаршенных моделей 0 |
+| `gen_images_lock --check` | 🟢 | «собран из реестра, все теги опубликованы» |
+| `gen_images_lock --verify-registry` | 🟢 | 12 опубликовано, 0 отсутствует, 1 `unverified` (`front` — 403 на анонимный pull-token, едет через Pages) |
+| `check_openapi --selftest` | 🟢 | самопроверка пройдена (**сам breaking-diff локально не меряется** — нужен `--generated/--base`) |
+| `openapi-registry` (CI) | 🟢 #196 | |
+| `ci-api-gateway` (CI) | 🔴 #20 | тесты в папке сервиса (**@BE**) |
 
-## L2 · тесты сервисов (unit/integration) — 10/12
+## L2 · тесты сервисов — 11/12
 
-🟢 partners #120, catalog #39, somatic-series #41, daily-metrics #44, analytics #41, privacy #37,
-portability #39, garmin #28, apple-health #28, client #62.
+🟢 `ci-backend` **#931** (был красный — стало зелёным), `ci-partners` #121, `ci-catalog` #39,
+`ci-somatic-series` #41, `ci-daily-metrics` #44, `ci-analytics` #42, `ci-privacy` #37,
+`ci-portability` #39, `ci-garmin-gateway` #28, `ci-apple-health-gateway` #28, `ci-client` #62.
 
-🔴 **journal #130** («Тесты Journal в папке сервиса») и **backend #920** («Тесты изменённых BC,
-изоляция ADR-028») — оба на `d69c9253`, владелец @BE.
+🔴 **`ci-journal` #131** (`9e228c4c`) — падают 5 тестов:
+`JournalIntegrationTest.Command_Then_Query_ReturnsRecord`,
+`RecordLifecycleTests.StartFromGarmin_Then_Complete_PreservesOrigin`,
+`JournalProjectionTests.Project_FromCompletedEvent_BuildsReadModel`,
+`RecordLifecycleTests.Query_ReadModel_DoesNotTouch_EventStore`,
+`RecordLifecycleTests.Full_Lifecycle_Command_Then_Query_ReturnsAllFields`. Владелец **@BE**.
+Практическое следствие: образ `journal` с нормализацией `startedAt` **не собирается** —
+`docker`-джоба зависит от тестов, поэтому «не выкачено» здесь = «не собрано из-за красных тестов».
 
 ## L4 · API/APIM — закрыт
 
-`apim-auth` #57 (канон входа `74/74 + 4/4`, `via=gravitee`), `apim-drift` #2 (12 API = 12 спек).
+`apim-auth` **#62** ✅ (канон входа), `apim-drift` #2 ✅ (12 API = 12 спек).
 
-## L5 · деплой и смоуки
+## L5 · деплой и смоуки (`deploy` #1785, `d0ce5f1d`)
 
-| шаг | статус |
+| джоба | статус |
 |---|---|
-| `lock-published` | 🔴 в #1774 → **исправлено**: `lock-sync` писал lock **из git** (`single-2f8c167` — таких тегов нет), из-за чего 12 «отсутствующих». Теперь режим один: `--from-registry --write` + `--verify-registry`; lock пересобран, `rc=0` |
-| `deploy-dev` | 🟢 в #1765; проверит dev-оверлей E2E (`7-deploy/env/dev.e2e.env`) — флаг тестового OTP ставится деплоем, а не руками |
-| `smoke-api` | 🟢 в #1765 |
-| `receipt-be092` | 🟢 в #1765 (обёртка @TE `--mode test-otp`, `0/1/2`) |
+| `diff-paths` | 🟢 |
+| `lock-published` | 🟢 (lock только из реестра — правка `19232425` держит) |
+| `deploy-dev` | 🟢 |
+| `smoke-api` | 🟢 |
+| `receipt-be092` | 🟢 |
 | `smoke-prod-cors` | 🟢 |
-| `smoke-front` | 🔴 в #1765 — визард (`timedOut`) и `FE-014`; на Pages уже `xdiary-v103`/`0.103`, нужен новый прогон (@FE/@TE) |
-| `lock-sync`, `health`, `public-probe`, `backup-check` | 🟢 |
+| **`smoke-front`** | 🔴 `add-partner` ✅ 5.6 с · «запись через визард» `timedOut` 1.3 м · `FE-014` ✘ 27.4 с · `FE-016` ✘ 4.7 с |
+| `deploy-prod` | ⏭ skipped — корректно (гейт по `smoke-front`) |
+
+**Транспорт E2E переделан (моя зона).** Раннер GitHub **не в tailnet**: браузер в CI получал
+`Failed to fetch` на `https://xdiary-vps2.taile0b6ee.ts.net/api/v1/clients/me`, и приложение
+уходило на lock-экран. Теперь `smoke-front` ходит через **SSH-туннель** к dev:
+`XDIARY_E2E_BASE_URL=http://127.0.0.1:8080` + шаг, который проверяет `/health` **через туннель**.
+В #1785 шаг туннеля — `success` («туннель поднят, /health отвечает (попытка 1)»).
+Вывод: **красный `smoke-front` — реальный дефект визарда, а не сеть** (@FE).
+
+Стенд dev на момент отчёта: **12/12** контейнеров = `images.lock`, `/health` **200**.
 
 ## L6 · E2E фронта
 
-`ci-front` #924 — 🟢 (33 spec-гейта). `front-e2e-repeat` — `cancelled` от 2026-11-05, исторический.
+`ci-front` #935 🟢 (33 гейта). `front-e2e-repeat` **#18** 🔴, тоже через туннель:
 
-## Что закрыто за последние сутки (проверено, не «обещано»)
+| спек | результат |
+|---|---|
+| `add-partner` | **5/5** ✅ |
+| `settings` | **4/5** ✅ (1 падение) |
+| `csv` | **0/5** ❌ |
+| `partner-edit` | **0/5** ❌ |
 
-1. **L1**: `check_api_index` — два дефекта гейта, `rc=0`/`8/8`, подтверждено в чистом worktree `99045715`.
-2. **L5**: `deploy-dev` — `podman pull` и `image inspect` переведены на `sudo -n`; `say` → `echo`;
-   доставка `images.lock`/скриптов/dev-оверлея в шаг деплоя (раньше «зелёный деплой при старом образе»).
-3. **L5**: `deploy-prod` — добавлен отсутствовавший `actions/checkout` (иначе `awk: cannot open file`).
-4. **L5**: `lock-sync` — git-режим удалён, lock только из реестра.
-5. **`DO-111`**: пароли БД — один источник (`${DBPW_<SERVICE>}` + 11 ключей в `secrets/.env`), dev 12/12, `28P01` = 0.
-6. **Тестовый OTP на dev** — причина в коде (`TestOtpPolicy.cs:8`: `Single` требует
-   `Clients__AllowTestOtpOutsideDev=true`), теперь ставится деплоем.
+Падения теперь **быстрые** (1.3 с и 7.4 с), а не таймауты 1.7 мин: первая ошибка —
+`csv.spec.js:34` (шаг «login по PIN»). То есть сетевой барьер снят, осталась логика
+входа/состояния в самих спеках (**@TE**) — и, возможно, общий дефект логина, который надо
+разделить с @BE.
 
-## Остаток — по владельцам
+## Что изменилось с прошлого отчёта (11:30)
+
+1. `ci-backend` **#920 → #931**: красный → **зелёный** (L2 стало 11/12).
+2. `guard-tools` **#238 → #241**: красный → **зелёный** (L0 стало 3/4).
+3. `apim-auth` **#57 → #62**: зелёный, новый прогон.
+4. Появился **новый красный гейт**: `check_adr_refs` `rc=1` — активные ADR ссылаются на
+   отменённые (каталог `04-architecture`, зона @AR).
+5. `smoke-front` и `front-e2e-repeat` переведены на SSH-туннель: tailnet больше не нужен,
+   оба зелёные по шагу туннеля.
+6. `deploy-prod` в #1785 — `skipped` (не «упал»): гейт по `smoke-front` работает как задумано.
+
+## Остаток по владельцам
 
 | пункт | владелец |
 |---|---|
-| `chat/be.md:231` — секрет в чате: зачистить + ротация | **@BE** |
-| `ci-journal` #130, `ci-backend` #920 — тесты | **@BE** |
+| `csv`/`partner-edit` падают на «login по PIN» (`csv.spec.js:34`), 0/5 каждый | **@TE** (и @BE, если дефект в логине) |
+| визард: `FE-014` автоподстановка, `FE-016` полный журнал, таймаут «запись через визард» | **@FE** |
+| `ci-journal` #131 — 5 тестов; из-за них не собирается образ с нормализацией `startedAt` | **@BE** |
 | `ci-api-gateway` #20 — тесты сервиса | **@BE** |
-| `check_readstore_ddl` — читать EF-миграции или снять гейт (`DO-109`) | **@AR** / **@LM** |
-| `guard-tools` — манифест копий | **@LM** |
-| `AWAIT.md` — регистр решений | **@TL** |
-| `smoke-front` — визард + `FE-014` | **@FE** / **@TE** |
-| `check_openapi` `rc=2` — снимки спек | **@BE** |
+| `chat/be.md:233` — секрет в чате: зачистка + ротация | **@BE** |
+| `check_adr_refs` — 5 ссылок активных ADR на `ADR-007` (Отменён) и `ADR-029` (Отклонено) | **@AR** |
+| `AWAIT.md` (регистр решений) + канон read-модель ⊆ DDL | **@TL** / **@AR**+**@LM** |
+| `check_openapi` — breaking-diff требует `--generated/--base` (снимки спек) | **@BE** |
 
-## Обновление: `deploy` #1779 (`b3c2eabd`) — L5 почти закрыт
+## Мои открытые пункты (чтобы не выглядело «всё закрыто»)
 
-| джоба | результат |
-|---|---|
-| `lock-published` | ✅ (после правки: lock только из реестра) |
-| `deploy-dev` | ✅ |
-| `smoke-api` | ✅ |
-| `receipt-be092` | ✅ |
-| `smoke-prod-cors` | ✅ |
-| **`smoke-front`** | ❌ `исполнено 4, passed 1, failed 3, skipped 1` |
-| `deploy-prod` | ⏭ skipped (гейт по `smoke-front` — корректно) |
-
-**Единственный красный L5 — визард. Разбор по кейсам (из лога прогона):**
-
-| кейс | статус | факт |
-|---|---|---|
-| `add-partner` | ✅ passed 8.6 s | приложение и вход работают |
-| `wizard-record` (запись через визард) | ❌ `timedOut` 1.3 m | — |
-| `wizard-record` (FE-014: автоподстановка) | ❌ assertion | `#w-partner-grid .partner-card.selected` → **0 элементов** за 20 с («последний партнёр должен быть выбран по умолчанию») |
-| `wizard-record` (FE-016: не грузить полный журнал) | ❌ assertion | в запросах визарда есть `GET /api/v1/journal/records`; ожидались только `recent` + `places` |
-
-**Pages в момент прогона:** `sw.js` → `xdiary-v103`, `js/app.js` → `APP_VERSION = "0.103"` (119 979 Б) —
-то есть фикс таймаутов выкачен, а пункты `FE-014`/`FE-016` в этой версии **ещё не работают**.
-
-**Куда смотреть (код фронта, зона @FE):** `8-front/js/app.js:813` — преселект строится как
-`p.name === draft.partner` (при пустом `draft.partner` ни одна карточка не получает `selected`);
-`8-front/js/api.js:152` — `list()` = `GET /journal/records`, и визард его вызывает.
-
-**Итог по слоям:** L1/L2/L4 — как в таблице выше; L5 — 5 из 6 зелёные, красный один и он
-продуктовый (визард), а не инфраструктурный; `deploy-prod` ждёт только его.
+- `DO-111` — `На проверке`: осталось завести `DBPW_*` на VPS-1 и убрать переходный fallback.
+- `DO-113` (digest в lock) — `Идея`: сегодня дважды видели, как тег и lock расходятся
+  (`ac3962d` против `6d2d6d0` и наоборот); digest закрывает этот класс.
+- `DO-114` — зачистка прод-баз выполнена, бэкап `~/backups/prod-cleanup/20261107-114708/`.
