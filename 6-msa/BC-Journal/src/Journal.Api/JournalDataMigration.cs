@@ -29,19 +29,23 @@ public sealed class JournalDataMigration
         _store = store;
     }
 
-    public async Task<int> MigrateAsync(CancellationToken ct = default)
+    public async Task<(int Migrated, int SkippedNoOwner)> MigrateAsync(CancellationToken ct = default)
     {
         var records = await _db.Records.AsNoTracking().OrderBy(x => x.CreatedAt).ToListAsync(ct);
         var migrated = 0;
+        var skippedNoOwner = 0;
 
         foreach (var e in records)
         {
+            // G1 (@AR 19:00): запись без владельца не мигрируем молча — считаем отдельно.
+            if (e.ClientId is null) { skippedNoOwner++; continue; }
+
             // идемпотентность: если события по id уже есть — пропускаем.
             var existing = await _store.GetEventCountAsync(e.Id, ct);
             if (existing > 0) continue;
 
             var model = JournalMapper.MapToModel(e);
-            // Событие «создание» для существующей записи: полный срез без бизнес-валидации.
+            // Событие «завершение» (полный срез) — в агрегате нет «создания с полным срезом»; зафиксировано как отклонение в BE-061.
             var aggregate = Aggregate.CreateInstance(model);
             var result = aggregate.Complete();
 
@@ -52,6 +56,6 @@ public sealed class JournalDataMigration
             }
         }
 
-        return migrated;
+        return (migrated, skippedNoOwner);
     }
 }
