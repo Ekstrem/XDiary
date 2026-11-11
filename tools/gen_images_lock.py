@@ -31,6 +31,7 @@ import urllib.request
 import urllib.error
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -153,6 +154,46 @@ def manifest_exists(registry, owner, service, tag, timeout=20):
         raise OSError("registry ответил %d" % ex.code)
 
 
+def manifest_digest(registry, owner, service, tag, timeout=20):
+    """`sha256:...` из заголовка `Docker-Content-Digest` (DO-113) или "" если не отдал.
+
+    Digest — неизменяемая идентичность образа (ADR-027): тег можно перезаписать,
+    digest — нет. Берём то, что вернул реестр, и НЕ считаем сами.
+    """
+    import urllib.error
+    import urllib.request
+    token, _reason = _ghcr_token(registry, owner, service, timeout=timeout)
+    req = urllib.request.Request(
+        _registry_manifest_url(registry, owner, service, tag), method="HEAD",
+        headers={"Authorization": "Bearer " + token,
+                 "Accept": (",".join(["application/vnd.oci.image.index.v1+json",
+                                      "application/vnd.docker.distribution.manifest.list.v2+json",
+                                      "application/vnd.oci.image.manifest.v1+json",
+                                      "application/vnd.docker.distribution.manifest.v2+json"]))})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return (r.headers.get("Docker-Content-Digest") or "").strip()
+    except urllib.error.HTTPError:
+        return ""
+
+
+def lock_digests(text):
+    """{service: "sha256:..."} из строк lock (поле `digest=`)."""
+    out = {}
+    for line in text.splitlines():
+        st = line.strip()
+        if not st or st.startswith("#"):
+            continue
+        body = st.split("#", 1)[0].split()
+        if len(body) < 2:
+            continue
+        for field in body[2:]:
+            if field.startswith("digest="):
+                val = field.split("=", 1)[1].strip()
+                out[body[0]] = val
+    return out
+
+
 def parse_lock(text):
     """[(service, tag, path, unverified)] — строки без ведущего # и с >=2 полями.
 
@@ -170,7 +211,8 @@ def parse_lock(text):
                         "unverified" in comment))
     return out
 
-def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_exists, echo=print):
+def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_exists, echo=print,
+                    digest_check=None):
     """rc=0 всё опубликовано (в т.ч. если часть строк помечена `unverified`); rc=1 есть отсутствующие;
     rc=2 проверить не смогли.
 
@@ -180,11 +222,13 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
     if not os.path.exists(path):
         echo("check_images_lock: нет файла %s — проверять нечего" % path)
         return 2
-    entries = parse_lock(open(path, encoding="utf-8").read())
+    raw = open(path, encoding="utf-8").read()
+    entries = parse_lock(raw)
+    digests = lock_digests(raw)
     if not entries:
         echo("check_images_lock: в %s нет строк с тегами" % path)
         return 2
-    missing, errors, unverified = [], [], []
+    missing, errors, unverified, mutated = [], [], [], []
     for service, tag, _path, unv in entries:
         # 2026-11-10 (@TL 21:00, #1866/#1867/#1868): `front` не публикуется в GHCR по построению —
         # он едет через Pages (`ghcr.io` в `ci-front.yml`/`pages.yml` — 0 вхождений). Раньше это
@@ -201,6 +245,22 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
             continue
         if not ok:
             missing.append((service, tag))
+            continue
+        # DO-113: digest в lock — неизменяемая идентичность. Если реестр отдаёт другой
+        # digest для того же тега, значит тег ПЕРЕЗАПИСАН: это дефект, а не «мелочь».
+        want = digests.get(service, "")
+        if want.startswith("sha256:"):
+            got = ""
+            try:
+                got = (digest_check or manifest_digest)(registry, owner, service, tag)
+            except OSError as ex:
+                errors.append((service, tag, str(ex)))
+                continue
+            if got and got != want:
+                mutated.append((service, tag, want, got))
+    for service, tag, want, got in mutated:
+        echo("check_images_lock: ТЕГ ПЕРЕЗАПИСАН %s:%s — в lock %s, в реестре %s"
+             % (service, tag, want, got))
     total = len(entries)
     echo("check_images_lock --verify-registry: сервисов %d | опубликовано %d | отсутствует %d | "
          "не проверено %d (unverified — на rc не влияют)"
@@ -212,7 +272,7 @@ def verify_registry(path, registry="ghcr.io", owner="ekstrem", check=manifest_ex
         echo("  НЕ ПРОВЕРЕНО (unverified): %s:%s (403 на анонимный pull-token)" % (service, tag))
     for service, tag, msg in errors:
         echo("  НЕ ПРОВЕРЕНО: %s:%s (%s)" % (service, tag, msg[:80]))
-    if missing:
+    if missing or mutated:
         return 1
     if errors:
         return 2
@@ -317,6 +377,41 @@ def selftest():
     os.unlink(good)
 
     print("check_images_lock --selftest: %d/%d" % (ok, total))
+    # DO-113: digest в lock — неизменяемая идентичность.
+    # Каталог — внутри рабочей папки, не `tempfile`: в песочнице Windows очистка
+    # `TemporaryDirectory` падает на правах (WinError 5), и самопроверка краснеет не по делу.
+    import shutil as _shutil
+    d = os.path.join(os.getcwd(), ".tmp-genlock-selftest")
+    _shutil.rmtree(d, ignore_errors=True)
+    os.makedirs(d, exist_ok=True)
+    try:
+        def _lock(text):
+            path = os.path.join(d, "l.txt")
+            open(path, "w", encoding="utf-8").write(text)
+            return path
+        LOCK = "svc  single-abc  6-msa/BC-Svc  digest=sha256:aaaa\n"
+        total += 1
+        if verify_registry(_lock(LOCK), check=lambda *a, **k: True,
+                           digest_check=lambda *a, **k: "sha256:aaaa",
+                           echo=lambda *a, **k: None) == 0:
+            ok += 1
+        else:
+            print("  [FAIL] digest совпал, а гейт не зелёный")
+        total += 1
+        if verify_registry(_lock(LOCK), check=lambda *a, **k: True,
+                           digest_check=lambda *a, **k: "sha256:bbbb",
+                           echo=lambda *a, **k: None) == 1:
+            ok += 1
+        else:
+            print("  [FAIL] тег перезаписан (digest разошёлся), а гейт не красный")
+        total += 1
+        if verify_registry(_lock("svc single-abc 6-msa/BC-Svc\n"), check=lambda *a, **k: True,
+                           echo=lambda *a, **k: None) == 0:
+            ok += 1
+        else:
+            print("  [FAIL] digest нет (старый lock) — гейт должен быть зелёным по тегу")
+    finally:
+        _shutil.rmtree(d, ignore_errors=True)
     return 0 if ok == total else 1
 
 
@@ -466,8 +561,50 @@ def receipt(path, registry="ghcr.io", owner="ekstrem", echo=print):
     return 0
 
 
+
+def fill_digests(path, registry="ghcr.io", owner="ekstrem", digest=manifest_digest, echo=print):
+    """DO-113: дописать/обновить `digest=sha256:…` в существующем lock (idempotent)."""
+    if not os.path.exists(path):
+        echo("fill_digests: нет файла %s" % path)
+        return 2
+    raw = open(path, encoding="utf-8").read()
+    out, filled, missing = [], 0, []
+    for line in raw.splitlines():
+        st = line.strip()
+        if not st or st.startswith("#"):
+            out.append(line)
+            continue
+        body = st.split()
+        if len(body) < 2:
+            out.append(line)
+            continue
+        svc, tag = body[0], body[1]
+        got = ""
+        try:
+            got = digest(registry, owner, svc, tag)
+        except OSError:
+            got = ""
+        if not got:
+            missing.append(svc)
+            got = "-"
+        if "digest=" not in st:
+            line = line.rstrip() + "  digest=" + got
+            if got != "-":
+                filled += 1
+        else:
+            line = re.sub(r"digest=\S+", "digest=" + got, line, count=1)
+            if got != "-":
+                filled += 1
+        out.append(line)
+    open(path, "w", encoding="utf-8", newline="\n").write("\n".join(out) + "\n")
+    echo("fill_digests: digest проставлен у %d строк | без образа: %s" % (filled, missing))
+    return 0 if filled else 2
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--fill-digests", action="store_true",
+                    help="DO-113: дописать digest=sha256:… в существующий lock из реестра")
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--from-registry", action="store_true",
