@@ -53,6 +53,10 @@ request_rule: >-
   ставит сервер/маршрут (`ClientId` — из `sub`, `AggregateId` — из `:id` маршрута). Проверено на 6 POST подряд:
   `Catalog.Add` (`kind`,`name`), `Catalog.UpdateDetails` (`photo`,`notes`,`brand`,`fantasyPartner`), `AppleHealthGateway.Configure`
   (`metrics`), `AppleHealthGateway.ImportFile` (`fileName`), `Privacy.SetPin`/`ChangePin` (`pin` + `currentPin?`) — **0 расхождений**.
+  **Не-nullable `string` = обязательное поле.** Если в командном `record` поле объявлено как `string` (без `?`)
+  и в проекте `Nullable=enable`, ASP.NET Core трактует его как **implicit `[Required]`**: запрос без поля → `400`,
+  даже если логика эту ветку не использует (случай `Analytics.Events`: `date`/`t` в `optional` давали ложный контракт,
+  @TE `TE-100`). Проверка при правке: `git grep -n "public string " -- '*Commands.cs'` и сверка с `required`.
   **Особый случай — событие с дискриминатором:** `Analytics.Events` требовал 8 полей сразу и **не описывал `record`**; исправлено
   2026-11-10 (`required: [eventType]`, остальные в `optional`), проверено по `AnalyticsController.cs:70-80`.
 trace_rule: >-
@@ -123,8 +127,11 @@ operations:
       #   StressRecorded         -> date + stress
       # Ранее здесь стояло required: [eventType, id, date, stress, sleepScore, t, hr, bodyBattery] —
       # это требовало от клиента всех полей сразу и НЕ описывало `record` (он был только в note).
-      required: [eventType]
-      optional: [id, date, stress, sleepScore, t, hr, bodyBattery, record]
+      # Не-nullable `string` в командном record ⇒ фреймворк считает поле обязательным
+      # (Analytics.Api.csproj:6 `<Nullable>enable</Nullable>`): отсутствие `date`/`t` даёт 400
+      # даже в ветке, где поле не используется. Проверено @TE (гейт TE-100) и @AR по коду.
+      required: [eventType, date, t]
+      optional: [id, stress, sleepScore, hr, bodyBattery, record]
       types: {eventType: string, id: guid, date: string, stress: int, sleepScore: int, t: string, hr: int, bodyBattery: int, record: object}
       note: "AnalyticsEvent (Analytics.Api/Precompute/JournalRecord.cs:20-30); обязательность — по ветке `eventType`, см. комментарий выше"
 
