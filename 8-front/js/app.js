@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.108"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.109"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -240,7 +240,7 @@
   // ---- блокировка ----
   function ensureToken(pin) {
     // FE-042 / ADR-021: PIN — локальный замок устройства. Серверный PIN не заводим
-    // и не передаём: легаси-эндпоинты /privacy/pin/* остаются только в api.js (этап 3).
+    // и не передаём: обёртки /privacy/pin/* удалены из api.js в 0.109 (этап 3, FE-049); сами эндпоинты — этап 3 на стороне BE.
     return Api.auth.login(pin);
   }
   function showLockScreen() {
@@ -2502,7 +2502,7 @@
     confirmDialog("Удалить PIN-код?").then(function (ok) {
       if (!ok) return;
       // FE-042 / ADR-021: PIN локальный — проверяем его локально (раньше проверял сервер),
-      // затем снимаем только локально; серверные /privacy/pin/* больше не вызываются.
+      // затем снимаем только локально; серверные /privacy/pin/* фронт не вызывает с 0.90.
       Pin.verifyPin(cur).then(function (valid) {
         if (!valid) { toast("Текущий PIN неверен"); return; }
         Pin.removePin().then(function () {
