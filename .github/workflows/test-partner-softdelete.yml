@@ -43,12 +43,16 @@ jobs:
             --no-build --filter PartnerSoftDelete \
             --logger "console;verbosity=normal" 2>&1 | tee /tmp/test.log
           rc=${PIPESTATUS[0]}
-          line=$(grep -Eo 'Failed!|Passed!' /tmp/test.log | tail -1)
-          counts=$(grep -Eo 'Failed:[[:space:]]+[0-9]+, Passed:[[:space:]]+[0-9]+' /tmp/test.log | tail -1)
-          passed=$(echo "$counts" | grep -Eo 'Passed:[[:space:]]+[0-9]+' | grep -Eo '[0-9]+')
-          failed=$(echo "$counts" | grep -Eo 'Failed:[[:space:]]+[0-9]+' | grep -Eo '[0-9]+')
+          # DO: vstest печатает не только `Failed!/Passed!`, но и блок
+          # `Total tests: N / Passed: n / Failed: m` — прежний grep его не видел
+          # и печатал `passed=0 failed=0` при реальных 3/1 (прогон #11, TE-050).
+          line=$(grep -Eo 'Failed!|Passed!|Test Run (Failed|Successful)\.' /tmp/test.log | tail -1)
+          counts=$(grep -Eo '(Failed|Passed):[[:space:]]+[0-9]+' /tmp/test.log | tail -6)
+          passed=$(echo "$counts" | grep -oE 'Passed:[[:space:]]+[0-9]+' | grep -oE '[0-9]+' | tail -1)
+          failed=$(echo "$counts" | grep -oE 'Failed:[[:space:]]+[0-9]+' | grep -oE '[0-9]+' | tail -1)
+          total=$(grep -Eo 'Total tests:[[:space:]]+[0-9]+' /tmp/test.log | grep -oE '[0-9]+' | tail -1)
           echo "passed=${passed:-0} failed=${failed:-0} rc=$rc gate=$XDIARY_PARTNERS_DIRECTORY" >> "$GITHUB_OUTPUT"
-          echo "::notice title=TE-050 result::passed=${passed:-0} failed=${failed:-0} gate=$XDIARY_PARTNERS_DIRECTORY rc=$rc ($line)"
+          echo "::notice title=TE-050 result::passed=${passed:-0} failed=${failed:-0} total=${total:-?} gate=$XDIARY_PARTNERS_DIRECTORY rc=$rc ($line)"
           # Логи джобы по API недоступны (403), поэтому диагностику кладём в аннотацию:
           # многострочный текст через %0A, иначе CI съест переводы строк.
           # Берём не хвост, а строки, объясняющие причину.
