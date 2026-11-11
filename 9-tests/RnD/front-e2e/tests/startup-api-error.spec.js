@@ -49,19 +49,27 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
   // `.first()` здесь врал бы: `#pin-error` и `#toast` живут с классом `hidden`, и первый по DOM узел
   // может быть скрыт, пока настоящий текст ошибки виден в другом месте.
   const errorMatches = page.getByText(/не удалось|ошибк|нет связи|повторить/i);
-  const errorCount = await errorMatches.count().catch(() => 0);
-  let errorVisible = false;
-  for (let i = 0; i < errorCount; i += 1) {
-    if (await errorMatches.nth(i).isVisible().catch(() => false)) { errorVisible = true; break; }
-  }
 
-  const shown = (await onboarding.isVisible().catch(() => false))
-    || (await journal.isVisible().catch(() => false))
-    || errorVisible;
+  // Два числа критерия (решение @TL `2026-11-13 11:00`, вариант «б»): заставка ≤ 2 000 мс,
+  // а экран/ошибка — ≤ 3 000 мс. Ожидание, а не «мгновенный снимок»: иначе спека требует появления
+  // ошибки в тот же тик и падает на легальной задержке.
+  const screenOrError = async () => {
+    if (await onboarding.isVisible().catch(() => false)) return true;
+    if (await journal.isVisible().catch(() => false)) return true;
+    const n = await errorMatches.count().catch(() => 0);
+    for (let i = 0; i < n; i += 1) {
+      if (await errorMatches.nth(i).isVisible().catch(() => false)) return true;
+    }
+    return false;
+  };
 
-  if (!shown) {
-    await dumpViews(page, 'FE-046: после ошибки API не видно ни экрана, ни ошибки');
+  try {
+    await expect.poll(screenOrError, {
+      timeout: 3000,
+      message: 'за 3 с после скрытия заставки не показан ни экран, ни видимая ошибка (FE-046)',
+    }).toBe(true);
+  } catch (e) {
+    await dumpViews(page, 'FE-046: после ошибки API не видно ни экрана, ни ошибки за 3 с');
+    throw e;
   }
-  expect(shown, 'после ошибки API ни один экран и ни одна видимая ошибка не показаны — это «пусто и тихо»')
-    .toBe(true);
 });
