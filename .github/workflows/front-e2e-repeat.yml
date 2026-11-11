@@ -149,7 +149,7 @@ jobs:
           # Пишем list-вывод в файл: json-репортёр в этой связке файла не создавал,
           # и итоговый шаг молча выходил с кодом 0 без таблицы (02.11, #5).
           set -o pipefail
-          npx playwright test $SPECS --trace on 2>&1 | tee test-results/pw.log --repeat-each=$REPEAT --workers=$WORKERS \
+          npx playwright test $SPECS --repeat-each="$REPEAT" --workers="$WORKERS" --trace on 2>&1 | tee test-results/pw.log \
 
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
