@@ -345,9 +345,9 @@ operations:
     auth: jwt
     codes: {200: "ok", 401: "no-token", 403: "чужая запись: id != sub, сравнение ДО запроса", 404: "не найден"}
     codes_status: verified
-    verification: "код: `ClientsController.cs:105-112` — `if (id != clientId) return Forbid()` стоит **до** `_mediator.Send`, то есть ответ не зависит от существования чужой строки и 403 не раскрывает её наличие; `r is null ? NotFound()` — только для своего и отсутствующего. Правило §21 (`edm-canon`): 403 законен, если ответ не зависит от существования объекта. Решено 2026-11-10 (запрос @TL, подтверждено им же)."
-    codes_status: verified
-    verification: "код: ClientsController.cs (fallback deny-by-default в BC; [Authorize] :104 (сверено 2026-11-10 по коду; прежняя общая ссылка «:25/:28/:38» была копией)) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me, 2026-11-14 @AR"
+    # Дубль ключей устранён 2026-11-10 (@AR): до правки здесь было ДВА блока `codes_status`/`verification`,
+    # и YAML молча оставлял последний — первый (про порядок 403, `:105-112`) терялся. Оба факта сведены в один.
+    verification: "код: `ClientsController.cs:105-112` — `if (id != clientId) return Forbid()` стоит **до** `_mediator.Send`, то есть ответ не зависит от существования чужой строки и 403 не раскрывает её наличие; `r is null ? NotFound()` — только для своего и отсутствующего. Правило §21 (`edm-canon`): 403 законен, если ответ не зависит от существования объекта. Плюс по токену: fallback deny-by-default в BC, `[Authorize] :104` (прежняя общая ссылка «:25/:28/:38» была копией) — 401 без токена, 200/400 через Respond, Forbid/NotFound в Get и Me. Решено 2026-11-10 (@TL), сверено 2026-11-14 (@AR)."
   - bc: Client
     method: POST
     path: "/api/v1/clients/{id}/link-partner"
