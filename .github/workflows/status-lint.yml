@@ -20,7 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # 2026-11-12: грандфазеринг идёт по ДАТЕ КОММИТА (`git log --diff-filter=`),
+      # а мелкий клон истории не содержит — «до порога не проверяем» молча не
+      # срабатывает, и старые карточки краснеют как новые (status-lint #1400).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
