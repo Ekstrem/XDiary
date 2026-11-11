@@ -156,15 +156,6 @@ jobs:
 
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
-      - name: Артефакты падения (trace, скриншоты, error-context)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.workflow }}-failure-${{ github.run_id }}
-          path: |
-            9-tests/RnD/front-e2e/test-results
-            9-tests/RnD/front-e2e/playwright-report
-          retention-days: 7
 
       # 2026-11-10 (@TE 11:45): классы падений — в лог, а не только в артефакт.
       - name: Классы падений (e2e_triage)
@@ -221,3 +212,16 @@ jobs:
           print('::notice::падений нет: %d passed из %d' % (total['passed'], total['passed'] + total['skipped']))
           PY
 
+
+      # TE-105 (@TL 04:00): раньше этот шаг стоял ДО «Итог по спекам», а падал именно
+      # «Итог» — `if: failure()` на тот момент видел успех, артефакты не собирались,
+      # и краснота была немой. Теперь артефакты идут ПОСЛЕ итога: условие видит его исход.
+      - name: Артефакты падения (trace, скриншоты, error-context)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.workflow }}-failure-${{ github.run_id }}
+          path: |
+            9-tests/RnD/front-e2e/test-results
+            9-tests/RnD/front-e2e/playwright-report
+          retention-days: 7
