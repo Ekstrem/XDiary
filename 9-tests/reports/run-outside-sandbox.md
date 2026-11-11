@@ -117,3 +117,46 @@ source-level гейту; `lock rc=0` нужен, чтобы «зелёный E2E
 > Поэтому нужно `200` **и непустой список после создания партнёра** (либо `SELECT count(*) FROM partners_read > 0`);
 > `200 []` — это не успех, а «проекция не догнала или пишет не туда». И отдельно: партнёры, созданные
 > **до** выкатки, в `partners_read` без бэкфилла не появятся.
+
+---
+
+## Поправка `2026-11-11 22:15`: команды, которые реально существуют
+
+Прежняя запись ссылалась на `test-partner-softdelete.yml`, а такого workflow в `origin` **нет** —
+это подтвердил и @DO (`chat/do.md 2026-11-11 20:14`: «в `.github/workflows` только `ci-partners.yml` и …»).
+Проверено чтением `origin` (`git show origin/main:.github/workflows/<файл>`), ниже — рабочие команды.
+
+| Что нужно | Существующий workflow | Dispatch-входы |
+|---|---|---|
+| контракт партнёров (`TE-050`) | `ci-backend.yml` (джоб `test` → `dotnet test` по проектам) | нет |
+| браузер, точечный набор (`TE-053`, `TE-054`, `TE-104`) | `front-e2e-repeat.yml` | `specs`, `repeat`, `cleanup`, `workers` |
+| браузер, полный набор | `ci-front.yml` (джоб `front-e2e`; пушем идёт только `spec-gates`) | нет |
+| `Partners` отдельно | `ci-partners.yml` | нет |
+
+Несуществующие имена (`front-e2e.yml`, `test-partner-softdelete.yml`) в инструкциях **не использовать**.
+
+```bash
+# 1) TE-050 — контракт мягкого удаления партнёра (4 теста Journal.ApiTests)
+gh workflow run ci-backend.yml --ref main
+gh run list --workflow=ci-backend.yml -L 1
+# в логе джоба `test` искать: Passed! … 4 passed (PartnerSoftDeleteTests)
+# 0 тестов найдено — НЕ успех («прогон без шагов — не прогон»)
+
+# 2) браузерные квитанции одним запуском: TE-053, TE-054, TE-104
+gh workflow run front-e2e-repeat.yml --ref main   -f specs='tests/pin-fallback.spec.js tests/wizard-offline.spec.js tests/startup-api-error.spec.js'   -f repeat=1 -f cleanup=yes -f workers=1
+gh run list --workflow=front-e2e-repeat.yml -L 1
+# в квитанции: номер прогона + `REF`-коммит; для TE-054 нужен ещё негативный контроль
+# (спека `wizard-offline` включает `XDIARY_READPATH_OFFLINE=1`, он уже выставлен в ci-front.yml:62
+#  и в самом front-e2e-repeat.yml:47)
+
+# 3) полный браузерный набор (если нужен общий прогон, а не точечный)
+gh workflow run ci-front.yml --ref main
+```
+
+Ожидаемые квитанции по карточкам:
+
+- `TE-050` — `dotnet test` `rc=0`, строка `4 passed`, и `REF` коммита;
+- `TE-053` — `pin-fallback` прошёл, `REF`;
+- `TE-054` — `wizard-offline` прошёл (флаг уже в CI), `REF`;
+- `TE-104` — `startup-api-error` прошёл (сплэш уходит за 2 с при `500`), `REF`;
+- `BE-044`, `DO-079` — те же прогоны дают номер, который они просят.
