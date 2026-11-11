@@ -55,8 +55,11 @@
 
 ## Физические таблицы: **нет ни одной** (проверено 2026-11-11, REF `cc8edd566`, @AR)
 
-**Факт:** в `6-msa` нет ни одной миграции с таблицей `analytics_*` (`git grep "CreateTable(… name: \"analytics"` → 0),
-и у `BC-Analytics` **нет Storage-проекта** — только `Analytics.Api`. Проекция живёт **в памяти процесса**:
+**Факт (проверка по списку, а не по подстроке):** в миграциях `6-msa` **18** таблиц — `AggregateStates`, `DomainEvents`,
+`Snapshots`, `apple_import`, `catalog_items`, `clients`, `csv_documents`, `daily_metrics`, `garmin_sync`, `journal_defaults`,
+`journal_read`, `outbox`, `partners`, `partners_directory`, `partners_read`, `pin_credential`, `records`, `somatic_points` —
+и **ни одной** с префиксом `analytics_` (`grep` по списку `CreateTable(name: …)`); у `BC-Analytics` **нет Storage-проекта** —
+только `Analytics.Api` (25 `.cs`, включая `Precompute/AnalyticsSnapshot.cs`). Проекция живёт **в памяти процесса**:
 `Precompute/AnalyticsSnapshot.cs:11` — `Dictionary<Guid, ClientSnapshot>`, зарегистрирован синглтоном.
 
 **Что это значит для чтения таблицы выше:** `✅` в столбце «Статус» означает «правило проекции реализовано»,
