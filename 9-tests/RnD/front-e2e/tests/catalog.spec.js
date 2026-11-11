@@ -20,7 +20,7 @@ for (const kind of KINDS) {
       await page.click('#btn-catalog-add');
       await expect(page.locator('#view-catalog-edit')).toBeVisible();
       await page.fill('#ce-name', name);
-      // TE-065: поля показаны НЕ для всех видов — `app.js:1404/1407`: `ce-brand-wrap` виден только при
+      // правка: поля показаны НЕ для всех видов — `app.js:1404/1407`: `ce-brand-wrap` виден только при
       // `kind === "toy"`, `ce-partner-wrap` — только при `kind === "fantasy"`. Раньше спека заполняла
       // `#ce-brand` для всех четырёх видов: у costume/fantasy/contraception поле лежит в скрытой обёртке,
       // `page.fill` ждёт видимости и падает по общему лимиту («не дождались», три падения в CI).
@@ -39,7 +39,7 @@ for (const kind of KINDS) {
         // saveCatalogEdit сохраняет через API — 5с по умолчанию мало на dev (был красный contraception)
         await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 20000 });
       });
-      // TE-120: `#catalog-list` содержит и чужие записи, поэтому «имени нет в тексте контейнера»
+      // правка: `#catalog-list` содержит и чужие записи, поэтому «имени нет в тексте контейнера»
       // неотличимо от «список показывает не то». Утверждаем СТРОКУ (карточка — `button.partner-row`):
       await expect(page.locator('#catalog-list .partner-row', { hasText: name })).toHaveCount(1);
     } finally {
