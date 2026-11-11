@@ -36,7 +36,7 @@ public sealed class Aggregate
     public AggregateResult<IClients, IClientAnemicModel> VerifyOtp(string code)
     {
         if (Model.OtpCode == string.Empty) return Fail("Код уже использован.");
-        if (Model.OtpExpiresAt is DateTime exp && exp < DateTime.UtcNow) return Fail("Код истёк.");
+        if (Model.OtpExpiresAt is null || Model.OtpExpiresAt.Value < DateTime.UtcNow) return Fail("Код истёк.");
         if (Model.OtpAttempts >= MaxOtpAttempts) return Fail("Слишком много попыток, попробуйте позже.");
         if (Model.OtpCode != code) return Fail("Неверный код.");
         var m = Clone(); m.Verified = true; m.OtpCode = string.Empty; m.OtpExpiresAt = null; m.OtpAttempts = 0; return Success(m);

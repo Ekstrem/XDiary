@@ -117,4 +117,14 @@ public class RegisterClientHandlerTests
         Assert.False(res.Result.IsSuccess());   // BE-092 (@TL 08:02): валидация ДО отправки
         Assert.Equal(0, sender.SentCount);      // OTP не отправлен на пустой номер
     }
+
+    [Fact]
+    public void VerifyOtp_NullExpiry_ReturnsExpired()
+    {
+        // BE-047 (@AR 14:07): пустой otpExpiresAt (nullable) не должен проходить бессрочно — null = истёк.
+        var model = new AnemicModel { Id = Guid.NewGuid(), Root = ClientRoot.CreateInstance("+79990000000"), OtpCode = "123456", OtpExpiresAt = null };
+        var res = Aggregate.CreateInstance(model).VerifyOtp("123456");
+        Assert.False(res.IsSuccess());
+        Assert.Contains("истёк", res.ErrorMessage());
+    }
 }
