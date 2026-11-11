@@ -188,7 +188,8 @@
     "lm": {
       "core": [],
       "service": [
-        "5-tech-backlog/chat/lm.md"
+        "5-tech-backlog/chat/lm.md",
+        "LoopMaker/*"
       ]
     }
   },

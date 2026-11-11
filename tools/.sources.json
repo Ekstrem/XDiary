@@ -41,8 +41,8 @@
       "upstream": "tools/check_owner_chat.py"
     },
     "check_paths.py": {
-      "sha256": "880045ba648cb76b6a033d502f98eaa0269908fa6048a14d0ec0a252a77f3f40",
-      "synced_at": "2026-11-10",
+      "sha256": "263bb33a3aed169eb0a297e998e76f1bf304b0dd8ed4fbbde2d8ec0320b47534",
+      "synced_at": "2026-11-11",
       "upstream": "tools/check_paths.py"
     },
     "check_pdr.py": {

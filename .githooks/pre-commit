@@ -1,0 +1,5 @@
+#!/bin/sh
+# pre-commit (PDR-044): staged-файлы не должны пересекать зоны ролей.
+# Не блокируем, если python недоступен (иначе коммиты встанут у всех на машинах без python).
+command -v python >/dev/null 2>&1 || exit 0
+exec python tools/check_paths.py --index
