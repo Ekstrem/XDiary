@@ -22,10 +22,11 @@ public class DailyMetricsTests
     [Fact]
     public void RecordStress_RestingHrv_Sleep_Query_ReturnsAll()
     {
-        var m = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 35).Model();
-        m = Aggregate.CreateInstance(m).RecordRestingHr("2026-10-29", 55).Model();
-        m = Aggregate.CreateInstance(m).RecordHrv("2026-10-29", 37).Model();
-        m = Aggregate.CreateInstance(m).RecordSleep("2026-10-29", Sleep.CreateInstance(82, 371, 60, 214, 97, 3)).Model();
+        var clientId = Guid.NewGuid();
+        var m = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 35, clientId).Model();
+        m = Aggregate.CreateInstance(m).RecordRestingHr("2026-10-29", 55, clientId).Model();
+        m = Aggregate.CreateInstance(m).RecordHrv("2026-10-29", 37, clientId).Model();
+        m = Aggregate.CreateInstance(m).RecordSleep("2026-10-29", Sleep.CreateInstance(82, 371, 60, 214, 97, 3), clientId).Model();
 
         var read = ToRead(m);
         Assert.Equal("2026-10-29", read.Date);
@@ -47,21 +48,21 @@ public class DailyMetricsTests
     [InlineData("", false)]
     public void RecordStress_DateFormat_Validated(string date, bool expectedSuccess)
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordStress(date, 35);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordStress(date, 35, Guid.NewGuid());
         Assert.Equal(expectedSuccess, r.Result == DomainOperationResultEnum.Success);
     }
 
     [Fact]
     public void RecordStress_Negative_Fails()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", -1);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", -1, Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
     [Fact]
     public void RecordRestingHr_Zero_Succeeds()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).RecordRestingHr("2026-10-29", 0);
+        var r = Aggregate.CreateInstance(new AnemicModel()).RecordRestingHr("2026-10-29", 0, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
 
@@ -69,7 +70,7 @@ public class DailyMetricsTests
     public void MissingMetric_IsAbsent_NotGuessed()
     {
         // Если импортирован только стресс, остальные метрики остаются 0/пустыми (не подставляются).
-        var m = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 40).Model();
+        var m = Aggregate.CreateInstance(new AnemicModel()).RecordStress("2026-10-29", 40, Guid.NewGuid()).Model();
         var read = ToRead(m);
         Assert.Equal(40, read.Stress);
         Assert.Equal(0, read.RestingHr);
