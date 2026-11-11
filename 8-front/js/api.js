@@ -133,13 +133,9 @@
       refresh: function () { return authRefresh(); },
       logout: function () { storeSet(ACCESS_KEY, ""); storeSet(REFRESH_KEY, ""); }
     },
-    privacy: {
-      hasPin: function () { return get("/api/v1/privacy/pin/has"); },
-      setPin: function (pin, currentPin) { return post("/api/v1/privacy/pin/set", { pin: pin, currentPin: currentPin }); },
-      verifyPin: function (pin) { return post("/api/v1/privacy/pin/verify", { pin: pin }); },
-      removePin: function (currentPin) { return post("/api/v1/privacy/pin/remove", { currentPin: currentPin }); },
-      token: function (pin) { return post("/api/v1/privacy/token", { pin: pin }); }
-    },
+    // FE-042 этап 3 (фронтовая часть, 0.109): обёртки /privacy/pin/* удалены —
+    // живых вызовов не было с 0.90 (FE-042 этап 1). Устройство-токен (`auth.login` →
+    // /privacy/token) остаётся до этапа 3 со стороны BE: нужен контракт без device-PIN.
     somatic: {
       slice: function (fromT, toT) { return get("/api/v1/somatic-series/slice?fromT=" + encodeURIComponent(fromT) + "&toT=" + encodeURIComponent(toT)); }
     },
