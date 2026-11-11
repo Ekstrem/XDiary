@@ -29,7 +29,7 @@ public sealed class JournalDataMigrationRunner : BackgroundService
 
         using var scope = _sp.CreateScope();
         var migration = scope.ServiceProvider.GetRequiredService<JournalDataMigration>();
-        var migrated = await migration.MigrateAsync(stoppingToken);
-        _log.LogInformation("JournalDataMigration: готово, создано событий {Count}", migrated);
+        var (migrated, skippedNoOwner) = await migration.MigrateAsync(stoppingToken);
+        _log.LogInformation("JournalDataMigration: готово, создано событий {Count}, пропущено без владельца {SkippedNoOwner}", migrated, skippedNoOwner);
     }
 }
