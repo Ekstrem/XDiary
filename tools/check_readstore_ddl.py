@@ -54,6 +54,26 @@ def ddl_tables(text):
     return out
 
 
+def ddl_tables_from_migrations(text):
+    """{таблица: {колонки}} из EF-миграции `CreateTable(name: "…", columns: table => new { … })`.
+
+    DDL read-таблиц переехала из inline `CREATE TABLE IF NOT EXISTS` в Program.cs
+    в EF-миграции (AN-07 2026-11-11): каждый `name: "таблица"` помечает блок, а колонки
+    внутри — `Имя = table.Column<T>(type: "тип", …)` до следующего `name:`.
+    """
+    out = {}
+    for m in re.finditer(r'name:\s*"([a-z0-9_]+)"', text):
+        table = m.group(1).lower()
+        nxt = text.find('name:', m.end())
+        region = text[m.end(): nxt if nxt != -1 else len(text)]
+        cols = {}
+        for cm in re.finditer(r'([A-Za-z0-9_]+)\s*=\s*table\.Column<[^>]+>\(\s*type:\s*"([a-z0-9_]+)"', region):
+            cols[cm.group(1).lower()] = cm.group(2).lower()
+        if cols:
+            out[table] = cols
+    return out
+
+
 def class_body(text, class_name):
     """Тело класса по имени: от `class <name>` до парной закрывающей скобки (учёт вложенности).
 
@@ -193,6 +213,17 @@ def selftest():
     else:
         print('  [FAIL] неизвестная модель не должна разрешаться')
 
+    # разбор DDL из миграции (новый источник)
+    total += 1
+    mig = 'CreateTable(name: "journal_read", columns: table => new { '\
+        'Id = table.Column<Guid>(type: "uuid", nullable: false), '\
+        'ClientId = table.Column<Guid>(type: "uuid", nullable: true) });'
+    t2 = ddl_tables_from_migrations(mig)
+    if t2.get('journal_read') == {'id': 'uuid', 'clientid': 'uuid'}:
+        ok += 1
+    else:
+        print('  [FAIL] разбор миграции:', t2)
+
     # разбор DDL и свойств
     total += 2
     t = ddl_tables('CREATE TABLE IF NOT EXISTS journal_read ("Id" uuid PRIMARY KEY, "ClientId" uuid NULL);')
@@ -263,11 +294,18 @@ def main():
         return selftest()
 
     checked = bad = 0
+    # DDL теперь в EF-миграциях (ReadStore); inline в Program.cs остаётся fallback.
+    tables = {}
+    for mig in glob.glob(os.path.join(a.root, '**', 'Migrations', '**', '*.cs'), recursive=True):
+        if 'obj' + os.sep in mig or 'bin' + os.sep in mig or 'readstore' not in mig.lower():
+            continue
+        tables.update(ddl_tables_from_migrations(open(mig, encoding='utf-8', errors='replace').read()))
+
     for prog in glob.glob(os.path.join(a.root, '**', 'Program.cs'), recursive=True):
         if 'obj' + os.sep in prog or 'bin' + os.sep in prog:
             continue
         text = open(prog, encoding='utf-8', errors='replace').read()
-        tables = ddl_tables(text)
+        tables.update(ddl_tables(text))
         for m in REG.finditer(text):
             model = m.group(1).split('.')[-1]
             table = resolve_table(model, set(tables))
