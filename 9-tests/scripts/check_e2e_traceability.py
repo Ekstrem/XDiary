@@ -53,6 +53,27 @@ def evaluate(specs, cards=None):
     return issues, traced, legacy
 
 
+def missing_body_refs(specs_full, cards):
+    """Ссылки `TE-NNN` во всём тексте спеки, для которых нет карточки.
+
+    Шапка проверяется строже (там ссылка обязательна), но и в теле ссылка на несуществующую карточку —
+    это второй источник правды: читатель не найдёт критерий. Возвращает [(спека, ref)].
+    """
+    out = []
+    if not cards:
+        return out
+    for name, text in sorted(specs_full.items()):
+        for ref in sorted(set(TE.findall(text))):
+            if ref not in cards:
+                out.append((name, ref))
+    return out
+
+
+def load_full(specs_dir: pathlib.Path):
+    return {p.name: p.read_text(encoding="utf-8", errors="replace")
+            for p in sorted(specs_dir.glob("*.spec.js"))}
+
+
 def load(specs_dir: pathlib.Path):
     if not specs_dir.is_dir():
         return None, "нет каталога спек"
@@ -73,6 +94,8 @@ def output_lines(issues, traced, legacy, total):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
+    ap.add_argument("--strict", action="store_true",
+                    help="блокирующий режим: ссылка на несуществующую карточку ⇒ rc=1")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -95,7 +118,18 @@ def main(argv=None):
     issues, traced, legacy = evaluate(specs, cards if cards else None)
     for line in output_lines(issues, traced, legacy, len(specs)):
         print(line)
-    return 1 if issues else 0
+
+    # TE-(находка): ссылки в теле спеки на карточки, которых нет
+    specs_full = load_full(pathlib.Path(a.root) / "9-tests" / "RnD" / "front-e2e" / "tests")
+    missing = missing_body_refs(specs_full, cards if cards else None)
+    level = "::error::" if a.strict else "::warning::"
+    for name, ref in missing:
+        print(f"{level}check_e2e_traceability: {name} ссылается на `{ref}`, а карточки нет "
+              f"в `5-tech-backlog/tester/` (в шапке правило соблюдено)")
+    if missing:
+        print(f"квитанция (тела спек): ссылок на несуществующие карточки {len(missing)}"
+              f"{' — блокирует (--strict)' if a.strict else ' — отчёт, не блокирует'}")
+    return 1 if (issues or (a.strict and missing)) else 0
 
 
 def selftest():

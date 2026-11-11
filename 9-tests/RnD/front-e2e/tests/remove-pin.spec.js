@@ -63,7 +63,7 @@ test('E2E: снятие локального PIN через UI → журнал 
       expect(await hasPinLocal(page), 'window.Pin.hasPin() = false после снятия').toBe(false);
       await page.reload();
       await waitAppReady(page);
-      // Восстановлено (TE-063): это ожидание после reload — перезагрузка приложения, а не локальный переход.
+      // Восстановлено (правка): это ожидание после reload — перезагрузка приложения, а не локальный переход.
       await expect(page.locator('#view-lock')).toBeHidden({ timeout: 20000 });
     });
   } finally {
