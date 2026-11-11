@@ -35,6 +35,11 @@ CMD = re.compile(r"^(?:\s{0,8})(python|node|npx)\s+9?-?[\w./-]*", re.M)
 NEEDS_RUN = re.compile(r"(нужен\s+dispatch|только\s+прогоном|не\s+проверено|требует\s+прогона|без\s+браузерного\s+прогона)", re.I)
 
 
+# AGENTS.md §2 (2026-11-16): у `На проверке` обязательны `Проверяет:` + `На проверке с:` + ссылка на
+# артефакт. Гейт проверяет наличие поля, чтобы правило не держалось на памяти.
+REVIEW_SINCE = re.compile(r"^-\s*\*\*На проверке с:\*\*\s*(.+?)\s*$", re.M)
+
+
 def parse_card(name, text):
     st = STATUS.search(text)
     pr = PRIORITY.search(text)
@@ -55,6 +60,7 @@ def parse_card(name, text):
         "reviewer": (rv.group(1).strip().replace("*", "") if rv else ""),
         "command": cmd,
         "needs_run": bool(NEEDS_RUN.search(text)),
+        "review_since": (REVIEW_SINCE.search(text).group(1) if REVIEW_SINCE.search(text) else ""),
     }
 
 
@@ -89,9 +95,11 @@ def evaluate(cards):
     rows = [parse_card(n, t) for n, t in sorted(cards.items())]
     pending = [r for r in rows if r["status"].lower().startswith("на проверке")]
     missing = [r for r in pending if not r["command"] and not r["needs_run"]]
+    no_since = [r for r in pending if not r.get("review_since")]
     stats = {"cards": len(rows), "pending": len(pending), "missing": len(missing),
-             "needs_run": len([r for r in pending if r["needs_run"]])}
-    return rows, pending, missing, stats
+             "needs_run": len([r for r in pending if r["needs_run"]]),
+             "no_since": len(no_since)}
+    return rows, pending, missing, stats, no_since
 
 
 def table(pending):
@@ -106,7 +114,8 @@ def table(pending):
 
 def receipt_line(stats, missing):
     return (f"квитанция: карточек {stats['cards']} | на проверке {stats['pending']} | "
-            f"из них требуют прогона {stats['needs_run']} | без способа проверки: {len(missing)}")
+            f"из них требуют прогона {stats['needs_run']} | без способа проверки: {len(missing)} | "
+            f"без поля `На проверке с:` {stats.get('no_since', 0)}")
 
 
 # Класс прогона по команде из карточки. Порядок важен: браузер проверяем раньше «локально», иначе
@@ -169,11 +178,14 @@ def main(argv=None):
     if err:
         print(f"::error::te_review_packet: {err} (rc=2)")
         return 2
-    rows, pending, missing, stats = evaluate(cards)
+    rows, pending, missing, stats, no_since = evaluate(cards)
     print(table(rows if a.all else pending))
     for r in missing:
         print(f"::error::te_review_packet: {r['name']} — статус «На проверке», но нет ни команды проверки, "
               f"ни пометки «требует прогона»")
+    for r in no_since:
+        print(f"::warning::te_review_packet: {r['name']} — статус «На проверке», но нет поля "
+              f"`На проверке с:` (AGENTS.md §2)")
     print(receipt_line(stats, missing))
     if a.dispatch:
         print(dispatch_report(pending))
@@ -210,7 +222,7 @@ def selftest():
     def case(name, cards, check, want_rc, must=()):
         nonlocal ok, total
         total += 1
-        rows, pending, missing, stats = evaluate(cards)
+        rows, pending, missing, stats, _no_since = evaluate(cards)
         text = table(pending) + "\n" + receipt_line(stats, missing)
         rc = 1 if (check and missing) else 0
         miss = [m for m in must if m not in text]
@@ -221,6 +233,10 @@ def selftest():
 
     good = {"TE-001.md": "- **Статус:** На проверке\n- **Проверяет:** @TL\n"
                          "```\npython 9-tests/scripts/check_e2e_all.py\n```\n"}
+    case("нет поля «На проверке с» — видно числом",
+         {"TE-900.md": "- **Статус:** На проверке\n- **Проверяет:** @TL\npython 9-tests/scripts/x.py --selftest\n"},
+         True, 0, ["без поля `На проверке с:` 1"])
+
     case("карточка с командой — зелёная", good, True, 0, ["на проверке 1", "без способа проверки: 0"])
 
     bare = {"TE-002.md": "- **Статус:** На проверке\n- **Проверяет:** @TL\nПросто текст без команды.\n"}
