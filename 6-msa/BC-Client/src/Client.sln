@@ -7,6 +7,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client.Api", "Client.Api\Cl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client.IntegrationTests", "Client.IntegrationTests\Client.IntegrationTests.csproj", "{C7DDC0AE-C584-40E8-8B76-78FCA3EB510E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Client.ApiTests", "Client.ApiTests", "{B0FC716A-8BAA-4339-B66D-8020951D01D3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ContractClientJournal.IntegrationTests", "Client.ApiTests\ContractClientJournal.IntegrationTests\ContractClientJournal.IntegrationTests.csproj", "{7F817956-DC8D-4653-AE04-07EC709B45D1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "E2E.IntegrationTests", "Client.ApiTests\E2E.IntegrationTests\E2E.IntegrationTests.csproj", "{4CF8A160-8F44-49F6-B187-35B44370121F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +30,17 @@ Global
 		{C7DDC0AE-C584-40E8-8B76-78FCA3EB510E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C7DDC0AE-C584-40E8-8B76-78FCA3EB510E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C7DDC0AE-C584-40E8-8B76-78FCA3EB510E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F817956-DC8D-4653-AE04-07EC709B45D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F817956-DC8D-4653-AE04-07EC709B45D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F817956-DC8D-4653-AE04-07EC709B45D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F817956-DC8D-4653-AE04-07EC709B45D1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4CF8A160-8F44-49F6-B187-35B44370121F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4CF8A160-8F44-49F6-B187-35B44370121F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4CF8A160-8F44-49F6-B187-35B44370121F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4CF8A160-8F44-49F6-B187-35B44370121F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7F817956-DC8D-4653-AE04-07EC709B45D1} = {B0FC716A-8BAA-4339-B66D-8020951D01D3}
+		{4CF8A160-8F44-49F6-B187-35B44370121F} = {B0FC716A-8BAA-4339-B66D-8020951D01D3}
 	EndGlobalSection
 EndGlobal
