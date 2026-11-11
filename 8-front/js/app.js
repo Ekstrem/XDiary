@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.106"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.107"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1721,7 +1721,11 @@
   }
 
   function drawChart(canvas, points, metricKey, startMs, endMs, markerMs) {
+    // FE-048: canvas может быть null (вьюха перерисована / элемента нет в DOM) —
+    // getContext и parentElement бросали TypeError в браузере пользователя.
+    if (!canvas || !canvas.parentElement) return { min: null, avg: null, max: null, count: 0 };
     var ctx = canvas.getContext("2d");
+    if (!ctx) return { min: null, avg: null, max: null, count: 0 };
     var dpr = window.devicePixelRatio || 1;
     var cssW = canvas.parentElement.clientWidth || 320;
     var cssH = 200;

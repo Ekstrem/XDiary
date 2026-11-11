@@ -15,7 +15,12 @@ public sealed class PartnersController : ControllerBase
 {
     private readonly IMediator _mediator;
     public PartnersController(IMediator mediator) => _mediator = mediator;
-    private IActionResult Respond(AggregateResult<IPartners, IPartnerAnemicModel> r) => r.IsSuccess() ? Ok(r.Model()) : BadRequest(r.ErrorMessage());
+    private IActionResult Respond(AggregateResult<IPartners, IPartnerAnemicModel> r)
+    {
+        if (r.IsSuccess()) return Ok(r.Model());
+        // BE-080: «нет агрегата» → 404, а не 400; валидация/состояние — 400.
+        return r.ErrorMessage() == "Partner not found." ? NotFound() : BadRequest(r.ErrorMessage());
+    }
 
     // BE-085 (IDOR): единый путь владельца — sub → clientId, иначе чужой объект доступен по одному id.
     private Guid? ClientId() => Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
