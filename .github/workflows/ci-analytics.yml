@@ -10,6 +10,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - '6-msa/Shared/**'
       - '6-msa/BC-Analytics/**'
       - '.github/workflows/ci-analytics.yml'
   workflow_dispatch:

@@ -11,6 +11,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
+      - '6-msa/Shared/**'
       - '6-msa/BC-Journal/**'
       - '6-msa/BC-Client/src/Client.ApiTests/**'
       - '.github/workflows/ci-journal.yml'
