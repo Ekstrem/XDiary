@@ -85,6 +85,11 @@
       "synced_at": "2026-11-03",
       "upstream": "tools/cleanup_orphans.py"
     },
+    "commit_whip.py": {
+      "sha256": "c58a94c0345c5f3e65a27e529adf2f466ea92286a0069bd046cb1d18d7888a94",
+      "synced_at": "2026-11-11",
+      "upstream": "tools/commit_whip.py"
+    },
     "garmin_proxy.py": {
       "sha256": "65909a534242340c171fb7259b6a91b13d3fc4ec34adbac9b31448aac4d95b12",
       "synced_at": "2026-11-03",
