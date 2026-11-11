@@ -213,27 +213,6 @@
           }
         ]
       }
-    },
-    "/internal/daily-metrics/series": {
-      "get": {
-        "operationId": "DailyMetrics.InternalSeries",
-        "tags": [
-          "DailyMetrics"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok — серия по clientId"
-          },
-          "401": {
-            "description": "нет сервисного токена / снаружи"
-          },
-          "403": {
-            "description": "токен без требуемой роли"
-          }
-        },
-        "security": [],
-        "x-internal": true
-      }
     }
   },
   "components": {

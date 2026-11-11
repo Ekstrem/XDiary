@@ -82,6 +82,30 @@ jobs:
             python tools/gen_images_lock.py --write
           fi
 
+      # DO-113: lock не должен ТЕРЯТЬ digest при перегенерации. Это блокирующая проверка:
+      # если digest-строк стало меньше, чем в HEAD, файл возвращается как был и коммита нет.
+      # Состояние «теги этого коммита ещё не в GHCR» остаётся ИНФОРМАЦИОННЫМ: по решению
+      # (см. комментарий выше, строки 45-54) lock — производная от git, а «можно ли катить»
+      # решает `lock-published` в `deploy.yml`. Смешивать эти две ответственности нельзя.
+      - name: Guard — digest не уменьшился (DO-113)
+        run: |
+          set -uo pipefail
+          rc=0
+          python tools/gen_images_lock.py --check-digests || rc=$?
+          if [ "$rc" = "1" ]; then
+            echo "::error::lock-sync: digest-строк стало МЕНЬШЕ — откатываю lock, коммита не будет (DO-113)"
+            git checkout -- 7-deploy/images.lock
+            exit 1
+          fi
+          if [ "$rc" = "2" ]; then
+            echo "::warning::lock-sync: сравнить digest не с чем (rc=2) — проверить не удалось"
+          else
+            echo "::notice::lock-sync: digest не уменьшился"
+          fi
+          vrc=0
+          python tools/gen_images_lock.py --verify-registry || vrc=$?
+          echo "verify-registry rc=$vrc (информационно; выкатку блокирует lock-published)"
+
       - name: Проверить, что после записи гейт зелёный
         run: python tools/gen_images_lock.py --check
 

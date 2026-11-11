@@ -127,7 +127,10 @@ def build(groups, date):
             if o.get("deprecated"):
                 op["deprecated"] = True
             if o.get("internal"):
-                op["x-internal"] = True
+                # `internal_rule`: маршрут внутреннего контура НЕ публикуется в `openapi/*.json`
+                # (ADR-008, api-index.yaml). До 2026-11-11 генератор помечал его `x-internal`, но
+                # всё равно публиковал — правило и артефакт расходились (@AR, ревью BE-095).
+                continue
             paths.setdefault(o["path"], {})[method] = op
 
         title = TITLES.get(sl, g["bc"] + " Microservice API")
@@ -145,7 +148,9 @@ def build(groups, date):
             "rev": REV,
             "paths": len(paths),
             "title": title,
-            "operations": len(g["ops"]),
+            # считаем ОПУБЛИКОВАННЫЕ операции (без internal), иначе квитанция --check печатает 82,
+            # а в спеках 78 (нашёл @AR 2026-11-11 после своей же правки).
+            "operations": sum(len(v) for v in paths.values()),
             "derived_from": "04-architecture/api-index.yaml",
         }
     return specs, meta
