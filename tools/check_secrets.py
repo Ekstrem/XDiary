@@ -49,6 +49,13 @@ SCAN_EXTS = (".md", ".txt", ".json", ".yml", ".yaml", ".sh", ".ps1", ".py", ".en
 ALLOWLIST = {
     "tools/check_secrets.py": "собственные шаблоны сканера",
     "tools/check_rule_docs.py": "регэксп-паттерн проверки документации",
+    # DO-065 (2026-11-11): после починки `_glob` в скан впервые попали скрипты ВЕРХНЕГО
+    # уровня `7-deploy/` и `tools/*.py`, и гейт нашёл 7 «утечек» — все оказались фикстурами
+    # наших же самопроверок (образцы форм: JWT-подобная строка, `password: …`, `signingKey = …`).
+    # Это не секреты, а тестовые данные; файл-исключение с причиной — дешевле, чем 7 подавлений
+    # по строкам, и причина видна в коде. Реальные секреты в этих файлах искать нечего.
+    "tools/test_check_secrets.py": "фикстуры тестов сканера (образцы форм, не секреты)",
+    "tools/check_env_hosts.py": "фикстуры самопроверки (образцы строк .env, не секреты)",
 }
 
 SKIP_VALUE_PREFIXES = ("$", "os.", "process.env", "env.", "config.", "getenv", "{", "(")
@@ -180,12 +187,21 @@ def _glob(pattern):
         tail = pattern.split("**", 1)[1].lstrip("/\\")
         root_dir = base if os.path.isdir(base) else os.path.dirname(base)
         out = []
+        # DO-065 (2026-11-11): `fnmatch` по ПОЛНОМУ пути — а `*` в fnmatch матчит и `/`,
+        # поэтому шаблон `7-deploy/**/*.sh` требовал хотя бы один подкаталог: файлы ВЕРХНЕГО
+        # уровня (`7-deploy/deploy.sh`, `update.sh`, `heal-network.sh` — те самые, где живут
+        # токены) не попадали в скан вообще. Проверено подложенным `PGPASSWORD`: `rc=0` и
+        # «файлов проверено: 455» без изменений. Фикс: матчить ещё и вариант без `**/`.
+        pat = pattern.replace("\\", "/")
+        alts = {pat}
+        if "/**/" in pat:
+            alts.add(pat.replace("/**/", "/"))
         for dirpath, dirnames, filenames in os.walk(root_dir):
             dirnames[:] = [d for d in dirnames
                            if d not in (".git", "node_modules", "bin", "obj", ".loopmaker")]
             for fn in filenames:
-                full = os.path.join(dirpath, fn)
-                if fnmatch.fnmatch(full.replace("\\", "/"), pattern.replace("\\", "/")):
+                full = os.path.join(dirpath, fn).replace("\\", "/")
+                if any(fnmatch.fnmatch(full, a) for a in alts):
                     out.append(full)
         return out
     import glob as g
