@@ -44,11 +44,20 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
 
   const onboarding = page.locator('#view-onboarding');
   const journal = page.locator('#view-journal');
-  const errorText = page.getByText(/не удалось|ошибк|нет связи|повторить/i).first();
+
+  // «Видимая ошибка»: берём ВСЕ совпадения по тексту и проверяем, что хотя бы одно видимо.
+  // `.first()` здесь врал бы: `#pin-error` и `#toast` живут с классом `hidden`, и первый по DOM узел
+  // может быть скрыт, пока настоящий текст ошибки виден в другом месте.
+  const errorMatches = page.getByText(/не удалось|ошибк|нет связи|повторить/i);
+  const errorCount = await errorMatches.count().catch(() => 0);
+  let errorVisible = false;
+  for (let i = 0; i < errorCount; i += 1) {
+    if (await errorMatches.nth(i).isVisible().catch(() => false)) { errorVisible = true; break; }
+  }
 
   const shown = (await onboarding.isVisible().catch(() => false))
     || (await journal.isVisible().catch(() => false))
-    || (await errorText.isVisible().catch(() => false));
+    || errorVisible;
 
   if (!shown) {
     await dumpViews(page, 'FE-046: после ошибки API не видно ни экрана, ни ошибки');
