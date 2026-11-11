@@ -146,6 +146,16 @@ jobs:
           python tools/check_api_index.py --require-request
           python 04-architecture/gen_openapi.py --check
 
+      # AR-024 (@AR, @TL 22:30): YAML молча оставляет ПОСЛЕДНЕЕ значение при дубле ключа —
+      # файл «валиден», а половина данных исчезает. `safe_load` этого не видит, поэтому
+      # отдельный гейт через `yaml.compose()`. PyYAML ставим, только если его нет.
+      - name: Дубли ключей в YAML (AR-024)
+        run: |
+          set -uo pipefail
+          python -c "import yaml" 2>/dev/null || python -m pip install --quiet pyyaml
+          python tools/check_yaml_dups.py --selftest
+          python tools/check_yaml_dups.py
+
 
       # DO-079/BE-069: тот же класс, что BE-067 — `IPaging` передаётся null (`null!`
       # глушит только компилятор, а библиотека читает `paging.Page` сразу). За сутки
