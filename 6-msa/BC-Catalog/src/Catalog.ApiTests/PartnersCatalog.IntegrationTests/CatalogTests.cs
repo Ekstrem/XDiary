@@ -14,7 +14,7 @@ public class CatalogTests
 {
     private static ICatalogAnemicModel AddItem(string kind, string name)
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).AddItem(kind, name);
+        var r = Aggregate.CreateInstance(new AnemicModel()).AddItem(kind, name, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         return r.Model();
     }
@@ -41,14 +41,14 @@ public class CatalogTests
     [Fact]
     public void AddItem_InvalidKind_Fails()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).AddItem("unknown", "x");
+        var r = Aggregate.CreateInstance(new AnemicModel()).AddItem("unknown", "x", Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
     [Fact]
     public void AddItem_EmptyName_Fails()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", " ");
+        var r = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", " ", Guid.NewGuid());
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
     }
 
