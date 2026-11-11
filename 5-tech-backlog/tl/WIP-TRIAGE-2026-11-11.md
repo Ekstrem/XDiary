@@ -6,13 +6,13 @@
 
 | Карточка | В работе с | Чек-лист | Факт из `origin` | Что это значит |
 |---|---|---|---|---|
-| `BE-043` | 2026-11-07 | 1/3 | `Client.ApiTests` **в CI есть** — `.github/workflows/ci-client.yml:6`, `ci-journal.yml:4` | часть критериев закрыта; нужен второй: контракт OTP-канала |
+| `BE-043` | 2026-11-07 | 1/3 | замер `20:35`: `Client.ApiTests` в CI (`ci-client.yml:6`, `ci-journal.yml:4`); 11 тестовых файлов, среди них `OtpChannelGuardTests`, `TestOtpPolicyTests`; контракт пары — `ContractClientJournal.IntegrationTests.csproj`, `ContractChainTests.cs` | **готово к проверке**: осталось заполнить чек-лист |
 | `BE-044` | 2026-11-07 | 0/3 | в `6-msa/ApiGateway` **нет ни одного тестового проекта** | не начато; это единственная карточка, где «0» — честный ноль |
 | `BE-050` | 2026-11-09 | 0/4 | замер `20:15`: генератор `04-architecture/gen_openapi.py` (333 стр., `--selftest` 3/3), 13 спек + `_meta.json`, `--check` в CI (`ci-guards.yml:147`), индекс = `api-index.yaml` | **3 из 4 подтверждены**; не хватает версии генератора (в файле нет константы). `x-provenance` к этой карточке не относится — снял |
-| `BE-061` | 2026-11-15 | 0/4 | `JournalDataMigration(Runner)`, `PartnerDataMigration(Runner)` — миграции данных в Event Store **в коде есть** | артефакт есть, нужен прогон и заполненный чек-лист |
+| `BE-061` | 2026-11-15 | 0/4 | замер `20:35`: `JournalDataMigration(Runner)`, `PartnerDataMigration(Runner)` есть, но `git grep Migration` по тестовым проектам BC-Journal даёт **0** | нужен **тест миграции** «до/после», а не прогон руками |
 | `DO-052` | 2026-11-08 | 0/4 | `images.lock` используется: `deploy.yml` — **19** вхождений, `lock-sync.yml` — **8** | по-образный хеш реализован; нужен чек-лист и вердикт |
 | `DO-058` | 2026-11-04 | 0/3 | `tools/check_edm.py` есть и **подключён**: `ci-guards` `--selftest` + `--range` | гейт подключён — осталось заполнить критерии |
-| `DO-079` | 2026-11-05 | — | прогон вне песочницы: **раннера нет** | внешний блокер; карточку нельзя «доделать» кодом |
+| `DO-079` | 2026-11-05 | — | замер `20:35`: `ci-partners.yml` **имеет `workflow_dispatch`**, есть `front-e2e-repeat.yml` — запуск возможен | не «нет раннера», а **нужен dispatch `@DO`** |
 | `DO-100` | 2026-11-06 | — | **замер `19:55`: 3 из 4 краснот сняты** (шаг «Контракт журнала» переименован на `Journal.ApiTests`, `ci-backend` зона с `cat-file` и `ALL`-фолбэком, `stats --check rc=0`); живая одна — `read-model-check` из-за `environment: prod` | одна правка в `.github` (зона `@DO`) |
 | `DO-105` | 2026-11-06 | — | `otpCode` в `BC-Client` — **1 вхождение, и это комментарий** (`ClientsController.cs:37`); `BE-090` закрыта | **премиса закрыта другой карточкой** ⇒ предлагаю `Отклонена`/`Закрыта` владельцем со ссылкой на `BE-090` |
 | `DO-109` | 2026-11-06 | — | `tools/check_readstore_ddl.py` **в CI** (`--selftest` + `--root 6-msa`), `check_read_model_freshness.py` — **3** вхождения | гейт подключён; нужен прогон и вердикт |
