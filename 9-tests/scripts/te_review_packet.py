@@ -58,8 +58,28 @@ def parse_card(name, text):
     }
 
 
-def collect(root):
-    d = pathlib.Path(root) / "5-tech-backlog" / "tester"
+def collect(root, all_roles=False):
+    """Карточки для пакета. По умолчанию — только моя папка `tester/`; `all_roles` — все папки ролей.
+
+    `all_roles` нужен для плана прогонов (`--dispatch`): один `front-e2e` закрывает и `FE-*`, и `TE-*`,
+    и «совместно» должно считаться инструментом, а не памятью.
+    """
+    base = pathlib.Path(root) / "5-tech-backlog"
+    if not base.is_dir():
+        return None, "нет папки 5-tech-backlog — не измерено"
+    if all_roles:
+        cards = {}
+        for path in sorted(base.glob("*/*.md")):
+            if path.parent.name == "chat":
+                continue
+            # только карточки вида `XX-123.md`: `ERRATA.md`, `STATUS-*.md` — документы, не задачи
+            if not re.fullmatch(r"[A-Z]{2}-\d+\.md", path.name):
+                continue
+            cards[path.name] = path.read_text(encoding="utf-8", errors="replace")
+        if not cards:
+            return None, "в 5-tech-backlog нет карточек — не измерено"
+        return cards, None
+    d = base / "tester"
     if not d.is_dir():
         return None, "нет папки 5-tech-backlog/tester — не измерено"
     return {p.name: p.read_text(encoding="utf-8", errors="replace") for p in sorted(d.glob("TE-*.md"))}, None
@@ -89,16 +109,63 @@ def receipt_line(stats, missing):
             f"из них требуют прогона {stats['needs_run']} | без способа проверки: {len(missing)}")
 
 
+# Класс прогона по команде из карточки. Порядок важен: браузер проверяем раньше «локально», иначе
+# `npx playwright test` попадёт в статические и попросит не тот прогон.
+RUN_CLASSES = (
+    ("front-e2e (браузер, dispatch)", ("playwright", "npx playwright")),
+    ("ci-backend / dotnet test", ("dotnet test", "ApiTests", "IntegrationTests")),
+    ("сервер/стенд (--base)", ("--base", "https://", "accept_read_path", "accept_te_data_points")),
+    ("локально (статические гейты)", ("--selftest", "python", "node")),
+)
+
+
+def run_class(command):
+    """Класс прогона для команды проверки; `None`, если команды нет."""
+    if not command or command.strip() in ("—", ""):
+        return None
+    low = command.lower()
+    for label, needles in RUN_CLASSES:
+        for needle in needles:
+            if needle.lower() in low:
+                return label
+    return "локально (статические гейты)"
+
+
+def dispatch_plan(pending):
+    """{класс прогона: [имена карточек]} — «один прогон закрывает N карточек»."""
+    plan = {}
+    for r in pending:
+        label = run_class(r.get("command") or "")
+        if label is None:
+            continue
+        plan.setdefault(label, []).append(r["name"].replace(".md", ""))
+    return plan
+
+
+def dispatch_report(pending):
+    plan = dispatch_plan(pending)
+    if not plan:
+        return "план прогонов: карточек «На проверке» нет"
+    lines = ["план прогонов (одна команда закрывает несколько карточек):"]
+    for label, cards in sorted(plan.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        lines.append(f"  {label}: {len(cards)} → {', '.join(sorted(cards))}")
+    return "\n".join(lines)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--check", action="store_true", help="rc=1, если у карточки «На проверке» нет способа проверки")
     ap.add_argument("--all", action="store_true", help="показать все карточки, не только «На проверке»")
+    ap.add_argument("--all-roles", action="store_true",
+                    help="считать карточки всех ролей (для --dispatch: что закроет один прогон)")
+    ap.add_argument("--dispatch", action="store_true",
+                    help="сгруппировать «На проверке» по одному прогону (что запускать и что это закроет)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
-    cards, err = collect(a.root)
+    cards, err = collect(a.root, a.all_roles)
     if err:
         print(f"::error::te_review_packet: {err} (rc=2)")
         return 2
@@ -108,11 +175,37 @@ def main(argv=None):
         print(f"::error::te_review_packet: {r['name']} — статус «На проверке», но нет ни команды проверки, "
               f"ни пометки «требует прогона»")
     print(receipt_line(stats, missing))
+    if a.dispatch:
+        print(dispatch_report(pending))
     return 1 if (a.check and missing) else 0
 
 
 def selftest():
     ok = total = 0
+
+    # TE-101р: группировка по прогону — отдельный кейс, иначе `--dispatch` не проверен
+    _cards = [
+        {"name": "TE-001.md", "command": "npx playwright test tests/a.spec.js"},
+        {"name": "TE-002.md", "command": "npx playwright test tests/b.spec.js"},
+        {"name": "TE-003.md", "command": "dotnet test 6-msa/BC-X/src/X.ApiTests"},
+        {"name": "TE-004.md", "command": "python 9-tests/scripts/x.py --selftest"},
+    ]
+    plan = dispatch_plan(_cards)
+    total += 1
+    if (plan.get("front-e2e (браузер, dispatch)") == ["TE-001", "TE-002"]
+            and plan.get("ci-backend / dotnet test") == ["TE-003"]
+            and plan.get("локально (статические гейты)") == ["TE-004"]):
+        ok += 1
+        print("  [OK]   --dispatch: браузер / dotnet / локально разложены по классам")
+    else:
+        print(f"  [FAIL] --dispatch: неожиданная группировка {plan}")
+    total += 1
+    if run_class("—") is None and run_class("") is None:
+        ok += 1
+        print("  [OK]   --dispatch: карточка без команды не попадает в план")
+    else:
+        print("  [FAIL] --dispatch: пустая команда дала класс")
+
 
     def case(name, cards, check, want_rc, must=()):
         nonlocal ok, total
