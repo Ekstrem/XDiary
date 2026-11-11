@@ -115,8 +115,12 @@ def scan(root, patterns, allow_walk=False):
 def run(root, patterns, allow_walk=False):
     counts = scan(root, patterns, allow_walk=allow_walk)
     if counts is None:
-        print('::error::check_canon: НЕ ИЗМЕРЕНО — root не git-корень (обход дерева не используется: '
-              'он считает вложенные копии; см. DO-115)')
+        # DO-115: аннотация `::error::` — только для настоящего прогона. В `--selftest`
+        # этот же путь проверяется намеренно, и `::error::` в логе делал шаг CI красным
+        # (ci-guards #4382: «check_canon: НЕ ИЗМЕРЕНО» при rc=0 у самопроверки).
+        msg = ('check_canon: НЕ ИЗМЕРЕНО — root не git-корень (обход дерева не используется: '
+               'он считает вложенные копии; см. DO-115)')
+        print(msg if allow_walk else '::error::' + msg)
         return 2
     errors = 0
     if not counts:
