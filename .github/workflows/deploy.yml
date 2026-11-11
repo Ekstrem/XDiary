@@ -40,6 +40,28 @@ jobs:
       - name: Самопроверка гейта
         run: python3 tools/gen_images_lock.py --selftest
 
+      # 2026-11-11 (TE-093, критерий 5 «подключение в CI — зона @DO»):
+      # инструмент @TE отвечает на вопрос «сколько из N тегов lock реально скачать».
+      # `--selftest` — блокирующий (дешёвый, без сети: 5/5). `--available` — ОТЧЁТ, а не гейт:
+      # на текущем lock он даёт rc=1 из-за `front` (у фронта нет образа в GHCR — он идёт через
+      # Pages, а пакет отвечает 403 на анонимный pull-token). Блокировать этим нельзя: это
+      # структурное «нет образа», а не «тег не опубликован». В `gen_images_lock.py` такой сервис
+      # уже исключён по имени (`NO_REGISTRY_SERVICES`), здесь — тот же класс, но инструмент чужой.
+      - name: Самопроверка check_registry_tags (@TE, TE-093)
+        run: python3 9-tests/scripts/check_registry_tags.py --selftest
+
+      - name: Что реестр реально может дать (отчёт, не гейт)
+        run: |
+          set +e
+          python3 9-tests/scripts/check_registry_tags.py --available
+          rc=$?
+          if [ "$rc" = "0" ]; then
+            echo "::notice::реестр: все образы из lock доступны"
+          else
+            echo "::warning::реестр: check_registry_tags --available rc=$rc — это отчёт (front без образа в GHCR = норма); список выше"
+          fi
+          exit 0
+
       - name: Все теги из images.lock опубликованы
         run: |
           set -uo pipefail
@@ -458,15 +480,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 2026-11-11: CI запускал `tools/check_cors_entry.py` — копию на 6 314 байт, а артефакт
+      # @TE (TE-090) лежит в `9-tests/scripts/` и весит 9 641 (после него добавлены офлайн-режимы).
+      # То есть гейт был подключён, но проверял НЕ тот файл, который принимали — класс
+      # «гейт на месте, артефакт другой». Зовём артефакт напрямую: одна правка вместо копии.
       - name: Самопроверка гейта
-        run: python3 tools/check_cors_entry.py --selftest
+        run: python3 9-tests/scripts/check_cors_entry.py --selftest
 
       - name: CORS на прод-входе (preflight + ACAO)
         env:
           PROD_BASE: https://xdiary-vps1.taile0b6ee.ts.net
         run: |
           set -uo pipefail
-          python3 tools/check_cors_entry.py --base "$PROD_BASE"
+          python3 9-tests/scripts/check_cors_entry.py --base "$PROD_BASE"
           rc=$?
           echo "check_cors_entry rc=$rc"
           exit $rc
