@@ -17,6 +17,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Partners.Storage", "Partner
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Partners.InternalContracts", "Partners.InternalContracts\Partners.InternalContracts.csproj", "{11111111-2222-3333-4444-555555555507}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Partners.IntegrationTests", "Partners.IntegrationTests\Partners.IntegrationTests.csproj", "{4D375CF6-70C5-4114-BC64-D59EE84E627E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +53,10 @@ Global
 		{11111111-2222-3333-4444-555555555507}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11111111-2222-3333-4444-555555555507}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{11111111-2222-3333-4444-555555555507}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D375CF6-70C5-4114-BC64-D59EE84E627E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D375CF6-70C5-4114-BC64-D59EE84E627E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D375CF6-70C5-4114-BC64-D59EE84E627E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D375CF6-70C5-4114-BC64-D59EE84E627E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31911.196
@@ -16,6 +16,12 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Portability.Storage", "Portability.Storage\Portability.Storage.csproj", "{11111111-2222-3333-4444-555555555506}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Portability.InternalContracts", "Portability.InternalContracts\Portability.InternalContracts.csproj", "{11111111-2222-3333-4444-555555555507}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Portability.IntegrationTests", "Portability.IntegrationTests\Portability.IntegrationTests.csproj", "{F2178FB6-FB3E-4A73-87DB-3A2A141316F9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Portability.ApiTests", "Portability.ApiTests", "{75249D36-72AD-45F0-9A46-A612DB83AEFA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PortabilityGateway.IntegrationTests", "Portability.ApiTests\PortabilityGateway.IntegrationTests\PortabilityGateway.IntegrationTests.csproj", "{EE6D6871-93E4-48EF-B77A-ACD310558000}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,11 +57,22 @@ Global
 		{11111111-2222-3333-4444-555555555507}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11111111-2222-3333-4444-555555555507}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{11111111-2222-3333-4444-555555555507}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F2178FB6-FB3E-4A73-87DB-3A2A141316F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2178FB6-FB3E-4A73-87DB-3A2A141316F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2178FB6-FB3E-4A73-87DB-3A2A141316F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2178FB6-FB3E-4A73-87DB-3A2A141316F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE6D6871-93E4-48EF-B77A-ACD310558000}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE6D6871-93E4-48EF-B77A-ACD310558000}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE6D6871-93E4-48EF-B77A-ACD310558000}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE6D6871-93E4-48EF-B77A-ACD310558000}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2D0B6B1E-7A9C-4F0A-9C3D-4E5F6A7B8C9D}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{EE6D6871-93E4-48EF-B77A-ACD310558000} = {75249D36-72AD-45F0-9A46-A612DB83AEFA}
 	EndGlobalSection
 EndGlobal
