@@ -601,64 +601,6 @@
           }
         ]
       }
-    },
-    "/internal/journal/records": {
-      "get": {
-        "operationId": "Journal.ListAll",
-        "tags": [
-          "Journal"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok, с сервисным JWT (Analytics)"
-          },
-          "401": {
-            "description": "без токена / снаружи"
-          }
-        },
-        "security": []
-      }
-    },
-    "/internal/partners/events": {
-      "post": {
-        "operationId": "Journal.IngestPartnerEvent",
-        "tags": [
-          "Journal"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok — upsert в partners_directory"
-          },
-          "400": {
-            "description": "пустое имя (явный BadRequest `name required`, :34) + implicit required полей"
-          },
-          "401": {
-            "description": "нет токена"
-          },
-          "403": {
-            "description": "токен не sub=partners"
-          }
-        },
-        "security": []
-      }
-    },
-    "/internal/journal/client-ids": {
-      "get": {
-        "operationId": "Journal.ClientIds",
-        "tags": [
-          "Journal"
-        ],
-        "responses": {
-          "200": {
-            "description": "ok — список clientId, у которых есть записи"
-          },
-          "401": {
-            "description": "нет сервисного токена / снаружи"
-          }
-        },
-        "security": [],
-        "x-internal": true
-      }
     }
   }
 }
