@@ -149,7 +149,13 @@ jobs:
           # Пишем list-вывод в файл: json-репортёр в этой связке файла не создавал,
           # и итоговый шаг молча выходил с кодом 0 без таблицы (02.11, #5).
           set -o pipefail
-          npx playwright test $SPECS --repeat-each="$REPEAT" --workers="$WORKERS" --trace on 2>&1 | tee test-results/pw.log \
+          # 2026-11-12: парсеры («Классы падений», «Итог по спекам») читают
+          # `9-tests/RnD/front-e2e/test-results/pw.log`, а `tee` писал в каталог
+          # текущего шага — они не находили файл и печатали «измерение не состоялось».
+          # Путь один и тот же, и он создаётся заранее (tee не умеет mkdir).
+          LOG="9-tests/RnD/front-e2e/test-results/pw.log"
+          mkdir -p "$(dirname "$LOG")"
+          npx playwright test $SPECS --repeat-each="$REPEAT" --workers="$WORKERS" --trace on 2>&1 | tee "$LOG"
 
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
