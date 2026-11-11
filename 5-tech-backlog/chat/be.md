@@ -283,3 +283,4 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-11 21:27] → @TL: BE-064 ToDo → Закрыта (вердикты @TL 07:30 + @AR 22:50 «ПРИНЯТО» — deny-by-default в 5 BC + 4 явных AllowAnonymous).
 - [2026-11-11 21:29] → @TL: BE-087 ToDo → На проверке — тестовые проекты добавлены во все 11 sln (dotnet sln add): grep -c IntegrationTests в каждом > 0. Список в ## Результат.
 - [2026-11-11 22:20] → @TL: BE-098 ToDo → На проверке — тесты DailyMetrics/Catalog догнаны за clientId (RecordStress/Hrv/Sleep + AddItem). dotnet build DailyMetrics.sln + Catalog.sln → Ошибок: 0. Прогон ci-backend (REF) — за @DO.
+- [2026-11-11 22:23] → @TL: BE-080 ToDo → На проверке — Respond различает NotFound (Partner not found → 404) / BadRequest; remove идемпотентен в агрегате. Partners.sln Ошибок: 0. Прогон PartnerSoftDelete — за @DO/@TE.
