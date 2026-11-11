@@ -67,11 +67,36 @@ def ddl_tables_from_migrations(text):
         nxt = text.find('name:', m.end())
         region = text[m.end(): nxt if nxt != -1 else len(text)]
         cols = {}
-        for cm in re.finditer(r'([A-Za-z0-9_]+)\s*=\s*table\.Column<[^>]+>\(\s*type:\s*"([a-z0-9_]+)"', region):
+        for cm in re.finditer(r'([A-Za-z0-9_]+)\s*=\s*table\.Column<[^>]+>\(\s*type:\s*"([^"]+)"', region):
             cols[cm.group(1).lower()] = cm.group(2).lower()
         if cols:
             out[table] = cols
     return out
+
+
+def column_renames(root):
+    """{(модель, свойство): колонка} из `Entity<T>(e => e.Property(x => x.Id).HasColumnName("PartnerId"))`.
+
+    @AR 19:12: `partners_directory` объявляет `Id`, а колонка в DDL — `PartnerId`; без этого
+    гейт даёт ложное «в DDL нет колонки id» на ровном месте.
+    """
+    out = {}
+    for f in glob.glob(os.path.join(root, '**', '*.cs'), recursive=True):
+        if 'obj' + os.sep in f or 'bin' + os.sep in f or 'Migrations' in f:
+            continue
+        try:
+            text = open(f, encoding='utf-8', errors='replace').read()
+        except OSError:
+            continue
+        for ent in re.finditer(r"Entity<(?P<m>\w+)>\s*\([^)]*=>\s*\{(?P<body>.*?)\}\s*\)\s*;",
+                               text, re.S):
+            model = ent.group('m').lower()
+            for mm in re.finditer(
+                    r"Property\(\s*\w+\s*=>\s*\w+\.(?P<p>\w+)\s*\)\s*"
+                    r"\.HasColumnName\(\s*\"(?P<c>[^\"]+)\"", ent.group('body')):
+                out[(model, mm.group('p').lower())] = mm.group('c').lower()
+    return out
+
 
 
 def class_body(text, class_name):
@@ -115,6 +140,9 @@ def model_props(text, class_name=None):
             body = body[:m.start()] + body[i:]
     props, skip_next = set(), False
     for line in body.splitlines():
+        # @AR 19:12: `public Guid PartnerId => Id;` — вычисляемое свойство, НЕ колонка.
+        if '=>' in line and '{' not in line and 'get;' not in line:
+            continue
         if '[NotMapped]' in line:
             skip_next = True
             continue
@@ -294,6 +322,7 @@ def main():
         return selftest()
 
     checked = bad = 0
+    RENAMES = column_renames(a.root)
     # DDL теперь в EF-миграциях (ReadStore); inline в Program.cs остаётся fallback.
     tables = {}
     for mig in glob.glob(os.path.join(a.root, '**', 'Migrations', '**', '*.cs'), recursive=True):
@@ -320,6 +349,7 @@ def main():
             props = set()
             for f in files:
                 props |= model_props(open(f, encoding='utf-8', errors='replace').read(), model)
+            props = {RENAMES.get((model.lower(), p), p) for p in props}
             missing, extra = compare(model, props, tables[table])
             type_bad = type_mismatches(tables[table])
             if missing:
