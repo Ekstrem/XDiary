@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31911.196
@@ -16,6 +16,12 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Catalog.Storage", "Catalog.Storage\Catalog.Storage.csproj", "{11111111-2222-3333-4444-555555555506}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Catalog.InternalContracts", "Catalog.InternalContracts\Catalog.InternalContracts.csproj", "{11111111-2222-3333-4444-555555555507}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog.IntegrationTests", "Catalog.IntegrationTests\Catalog.IntegrationTests.csproj", "{5C94EAF9-CDE4-4747-BD96-7E96204F91C6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Catalog.ApiTests", "Catalog.ApiTests", "{71E3DBBB-AB50-40C6-AF83-9AECECA1C266}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PartnersCatalog.IntegrationTests", "Catalog.ApiTests\PartnersCatalog.IntegrationTests\PartnersCatalog.IntegrationTests.csproj", "{08889F5A-FF33-4741-8636-AEFFF77772ED}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,11 +57,22 @@ Global
 		{11111111-2222-3333-4444-555555555507}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{11111111-2222-3333-4444-555555555507}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{11111111-2222-3333-4444-555555555507}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C94EAF9-CDE4-4747-BD96-7E96204F91C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C94EAF9-CDE4-4747-BD96-7E96204F91C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C94EAF9-CDE4-4747-BD96-7E96204F91C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C94EAF9-CDE4-4747-BD96-7E96204F91C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08889F5A-FF33-4741-8636-AEFFF77772ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08889F5A-FF33-4741-8636-AEFFF77772ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08889F5A-FF33-4741-8636-AEFFF77772ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08889F5A-FF33-4741-8636-AEFFF77772ED}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2D0B6B1E-7A9C-4F0A-9C3D-4E5F6A7B8C9D}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{08889F5A-FF33-4741-8636-AEFFF77772ED} = {71E3DBBB-AB50-40C6-AF83-9AECECA1C266}
 	EndGlobalSection
 EndGlobal
