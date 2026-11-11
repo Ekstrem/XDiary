@@ -50,17 +50,22 @@ jobs:
       - name: Самопроверка check_registry_tags (@TE, TE-093)
         run: python3 9-tests/scripts/check_registry_tags.py --selftest
 
-      - name: Что реестр реально может дать (отчёт, не гейт)
+      # 2026-11-11 (TE-093 крит. 5, @TE 20:10): инструмент теперь различает «нет образа у front»
+      # (норма: фронт идёт через Pages, пакет отвечает 403) и «пропал образ у любого другого
+      # сервиса» (дефект) — `NO_REGISTRY_SERVICES` + `registry_rc()`. Поэтому шаг БЛОКИРУЮЩИЙ:
+      # норма даёт rc=0 (проверено: 13 сервисов | доступно 12 | без образа 1 = front),
+      # дефект — rc=1 (проверено подменой тега `journal` на несуществующий).
+      - name: "Что реестр реально может дать (не-front без образа → красный)"
         run: |
-          set +e
+          set -uo pipefail
           python3 9-tests/scripts/check_registry_tags.py --available
           rc=$?
           if [ "$rc" = "0" ]; then
-            echo "::notice::реестр: все образы из lock доступны"
+            echo "::notice::реестр: все образы из lock доступны (front — Pages, не GHCR)"
           else
-            echo "::warning::реестр: check_registry_tags --available rc=$rc — это отчёт (front без образа в GHCR = норма); список выше"
+            echo "::error::реестр: check_registry_tags --available rc=$rc — образ из lock недоступен в реестре (список выше); это блокирует деплой"
           fi
-          exit 0
+          exit "$rc"
 
       - name: Все теги из images.lock опубликованы
         run: |
