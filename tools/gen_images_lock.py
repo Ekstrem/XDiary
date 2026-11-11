@@ -194,6 +194,57 @@ def lock_digests(text):
     return out
 
 
+
+def merge_digests(rendered, existing):
+    """DO-113: сохранить digest при перегенерации — только для ТОГО ЖЕ тега.
+
+    Digest принадлежит конкретному образу (`repo@sha256:...`), а не сервису: сменился тег —
+    старый digest к нему не относится. Бот `lock-sync` перегенерирует lock на каждый пуш
+    в `6-msa/**`, а рендер из git digest не содержит — без этого правила бот затирал digest
+    через ~2 минуты (факт: 12 строк -> 0).
+    """
+    old = {}
+    for line in (existing or "").splitlines():
+        st = line.strip()
+        if not st or st.startswith("#"):
+            continue
+        body = st.split("#", 1)[0].split()
+        if len(body) < 2:
+            continue
+        dig = ""
+        for f in body[2:]:
+            if f.startswith("digest="):
+                dig = f.split("=", 1)[1]
+        if dig:
+            old[(body[0], body[1])] = dig
+    out = []
+    for line in rendered.splitlines():
+        st = line.strip()
+        if not st or st.startswith("#") or "digest=" in st:
+            out.append(line)
+            continue
+        body = st.split()
+        key = (body[0], body[1]) if len(body) >= 2 else ("", "")
+        dig = old.get(key, "")
+        out.append(line.rstrip() + ("  digest=" + dig if dig else "  digest=-"))
+    return "\n".join(out) + ("\n" if rendered.endswith("\n") else "")
+
+
+def check_digests_not_shrunk(file_path, git_ref="HEAD", cwd=None):
+    """DO-113: digest-строк стало меньше, чем в git_ref -> rc=1 (rc=2 — не с чем сравнивать)."""
+    import subprocess as _sp
+    cwd = cwd or os.getcwd()
+    cp = _sp.run(["git", "show", "%s:%s" % (git_ref, file_path)], cwd=cwd,
+                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if cp.returncode != 0:
+        return 2, 0, 0
+    old = cp.stdout or ""
+    fp = os.path.join(cwd, file_path)
+    new = open(fp, encoding="utf-8").read() if os.path.exists(fp) else ""
+    n_old, n_new = old.count("digest=sha256:"), new.count("digest=sha256:")
+    return (0 if n_new >= n_old else 1), n_old, n_new
+
+
 def parse_lock(text):
     """[(service, tag, path, unverified)] — строки без ведущего # и с >=2 полями.
 
@@ -607,6 +658,8 @@ def main():
                     help="DO-113: дописать digest=sha256:… в существующий lock из реестра")
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--check-digests", action="store_true",
+                    help="DO-113: digest-строк стало меньше, чем в HEAD -> rc=1")
     ap.add_argument("--from-registry", action="store_true",
                     help="DO-108: собрать lock из опубликованных образов (набор смешанный)")
     ap.add_argument("--file", default="7-deploy/images.lock")
@@ -623,6 +676,21 @@ def main():
     if a.selftest:
         return selftest()
 
+    if getattr(a, "fill_digests", False):
+        return fill_digests(a.file, registry=a.registry, owner=a.owner)
+
+    if getattr(a, "check_digests", False):
+        rc, n_old, n_new = check_digests_not_shrunk(a.file, "HEAD")
+        if rc == 2:
+            print("::error::check_images_lock: НЕ ИЗМЕРЕНО — нет %s в HEAD" % a.file)
+            return 2
+        if rc == 1:
+            print("::error::check_images_lock: digest-строк стало МЕНЬШЕ — было %d, стало %d "
+                  "(перегенерация стёрла digest; DO-113)" % (n_old, n_new))
+            return 1
+        print("check_images_lock: digest-строк %d (в HEAD %d) — не уменьшилось" % (n_new, n_old))
+        return 0
+
     if a.receipt:
         return receipt(a.file, registry=a.registry, owner=a.owner)
 
@@ -638,6 +706,8 @@ def main():
             return 2
         text = render_registry(rows)
         if a.write:
+            _prev = open(a.file, encoding="utf-8").read() if os.path.exists(a.file) else ""
+            text = merge_digests(text, _prev)
             open(a.file, "w", encoding="utf-8", newline="\n").write(text)
             print("записано (из реестра, набор смешанный): %s (%d строк)"
                   % (a.file, len(text.splitlines())))
@@ -661,6 +731,7 @@ def main():
 
     text = render()
     if a.write:
+        text = merge_digests(text, current)
         open(a.file, "w", encoding="utf-8", newline="\n").write(text)
         print("записано: %s (%d строк)" % (a.file, len(text.splitlines())))
         return 0
