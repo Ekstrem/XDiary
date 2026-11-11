@@ -152,7 +152,7 @@ jobs:
           # 2026-11-12: шаг уже идёт в `9-tests/RnD/front-e2e` (working-directory), поэтому
           # лог кладём ОТНОСИТЕЛЬНО — `test-results/pw.log`. Абсолютный/удвоенный путь
           # сломал бы парсеры («Классы падений», «Итог по спекам»).
-          npx playwright test $SPECS --repeat-each="$REPEAT" --workers="$WORKERS" --trace on 2>&1 | tee test-results/pw.log
+          npx playwright test $SPECS --repeat-each="$REPEAT" --workers="$WORKERS" --reporter=list --trace on 2>&1 | tee test-results/pw.log | tee /tmp/repeat-list.txt
 
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
@@ -172,8 +172,6 @@ jobs:
         run: |
           f=9-tests/RnD/front-e2e/test-results/pw.log
           if [ -f "$f" ]; then python 9-tests/scripts/e2e_triage.py --input "$f" || true; else echo "нет $f — триаж не нужен"; fi
-          if-no-files-found: ignore
-            --reporter=list 2>&1 | tee /tmp/repeat-list.txt || true
 
       - name: Итог по спекам
         if: always()
