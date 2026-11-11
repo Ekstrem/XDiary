@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.109"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.110"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -173,7 +173,13 @@
       var el = $("view-" + VIEWS[i]);
       if (el && !el.classList.contains("hidden")) { any = true; break; }
     }
-    if (!any) { showView("lock"); lock(); return; }
+    if (!any) {
+      try { showView("lock"); lock(); } catch (e) {
+        console.error("ensureView/lock:", e);
+        forceVisibleScreen("ensureView: lock() бросил");
+      }
+      return;
+    }
     var lockEl = $("view-lock");
     if (lockEl && !lockEl.classList.contains("hidden")) {
       // FE-032: неизвестный hasPin (сбой IndexedDB) считаем «PIN нет», иначе вечный экран без выхода
@@ -280,13 +286,23 @@
   function openOnboarding() {
     onbClientId = "";
     showView("onboarding");
-    $("onb-phone").classList.remove("hidden");
-    $("onb-otp").classList.add("hidden");
-    $("onb-link").classList.add("hidden");
+    // startup-api-error (#25): при отсутствии элемента функция падала и экран не появлялся —
+    // поэтому каждый доступ защищён, а не «мы уверены, что разметка на месте».
+    if ($("onb-phone")) $("onb-phone").classList.remove("hidden");
+    if ($("onb-otp")) $("onb-otp").classList.add("hidden");
+    if ($("onb-link")) $("onb-link").classList.add("hidden");
     if ($("onb-profile")) $("onb-profile").classList.add("hidden");
-    $("onb-phone-input").value = "";
-    $("onb-otp-input").value = "";
-    $("onb-otp-phone").textContent = "";
+    if ($("onb-phone-input")) $("onb-phone-input").value = "";
+    if ($("onb-otp-input")) $("onb-otp-input").value = "";
+    if ($("onb-otp-phone")) $("onb-otp-phone").textContent = "";
+  }
+  // Крайняя страховка: экран ОБЯЗАН быть, и ошибка ОБЯЗАНА быть видимой (критерий 3 FE-046).
+  function forceVisibleScreen(why) {
+    console.log("forceVisibleScreen:", why);
+    try { showView("onboarding"); } catch (e) { console.error("forceVisibleScreen/showView:", e); }
+    try {
+      toast("Нет связи с сервером: не удалось загрузить данные. Проверьте сеть и нажмите «Повторить».", 8000);
+    } catch (e2) { console.error("forceVisibleScreen/toast:", e2); }
   }
   // FE-038 (0.88): шаг «Кто вы?» — имя и пол в профиль клиента, партнёра не создаём
   var onbGender = "";
@@ -2695,6 +2711,18 @@
     // а спека требует, чтобы заставка ушла ЗА 2000 мс при API=500 — это была гонка.
     // 1400 мс даёт запас: ensureView прячет splash сразу, как только не видно другого экрана.
     setTimeout(ensureView, 1400);
+    // startup-api-error (#25): если и после этого ни один экран не виден (API=500 на старте,
+    // разметка не догрузилась), показываем экран и ВИДИМУЮ ошибку, а не пустоту.
+    setTimeout(function () {
+      try { ensureView(); } catch (e) { console.error("watchdog/ensureView:", e); }
+      var any = false;
+      for (var i = 0; i < VIEWS.length; i++) {
+        if (VIEWS[i] === "splash") continue;
+        var el = $("view-" + VIEWS[i]);
+        if (el && !el.classList.contains("hidden")) { any = true; break; }
+      }
+      if (!any) forceVisibleScreen("watchdog 2600ms: ни одного экрана");
+    }, 2600);
     window.addEventListener("pageshow", function (e) { if (e.persisted) ensureView(); });
   }
 
