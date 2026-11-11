@@ -69,6 +69,33 @@ def index_rev():
     return hashlib.sha256(raw).hexdigest()
 
 
+def _walk_dups(node, out, where):
+    """Ищет повтор ключа в одном mapping-блоке (ВЛОЖЕННЫЕ одинаковые имена — не дубль)."""
+    import yaml as _y
+    if isinstance(node, _y.MappingNode):
+        seen = set()
+        for k, v in node.value:
+            name = getattr(k, "value", None)
+            if name in seen:
+                out.append((k.start_mark.line + 1, str(name)))
+            seen.add(name)
+            _walk_dups(v, out, where)
+    elif isinstance(node, _y.SequenceNode):
+        for item in node.value:
+            _walk_dups(item, out, where)
+
+
+def dups_in_yaml(path):
+    """[(строка, ключ)] — повтор ключа внутри одного блока. `safe_load` для этого не годится:
+    он уже потерял информацию и молча оставляет последнее значение (AR-024, найдено @AR 2026-11-10
+    на `Client.Get`: два `codes_status`/`verification`, первое доказательство исчезло без ошибки)."""
+    node = yaml.compose(io.open(path, encoding="utf-8").read())
+    out = []
+    if node is not None:
+        _walk_dups(node, out, path)
+    return out
+
+
 def load_index():
     d = yaml.safe_load(io.open(INDEX, encoding="utf-8"))
     date = d.get("x-derived-date") or d.get("date") or ""
@@ -253,8 +280,33 @@ def selftest():
     else:
         print("  [FAIL] пустой индекс не распознан")
 
-    print("gen_openapi --selftest: %d/3" % ok)
-    return 0 if ok == 3 else 1
+    # 4) дубль ключа в одном блоке обязан находиться
+    fd, path = tempfile.mkstemp(suffix=".yaml")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("operations:\n  - operationId: X\n    codes_status: verified\n    codes_status: derived\n")
+        dups = dups_in_yaml(path)
+        if len(dups) == 1 and dups[0][1] == "codes_status":
+            print("  [OK ] дубль ключа найден: строка %d, ключ %s" % dups[0])
+            ok += 1
+        else:
+            print("  [FAIL] дубль ключа не найден: %s" % (dups,))
+
+        # 5) одинаковые имена под РАЗНЫМИ родителями — не дубль (эталон: Partners.UpdateProfile)
+        with io.open(path, "w", encoding="utf-8") as f:
+            f.write("operations:\n  - operationId: Y\n    request:\n      required: [a]\n"
+                    "    target_request:\n      required: [b]\n")
+        dups2 = dups_in_yaml(path)
+        if not dups2:
+            print("  [OK ] вложенные одинаковые ключи не считаются дублем")
+            ok += 1
+        else:
+            print("  [FAIL] ложное срабатывание на вложенных ключах: %s" % (dups2,))
+    finally:
+        os.remove(path)
+
+    print("gen_openapi --selftest: %d/5" % ok)
+    return 0 if ok == 5 else 1
 
 
 def main(argv):
@@ -264,6 +316,13 @@ def main(argv):
     check = "--check" in argv or not write
     global REV
     REV = index_rev()
+    dups = dups_in_yaml(INDEX)
+    if dups:
+        for line, key in dups:
+            print("::error::(openapi) %s:%d: дубль ключа «%s» — YAML молча оставит последнее значение (AR-024)"
+                  % (os.path.basename(INDEX), line, key))
+        print("openapi: дублей ключей %d" % len(dups))
+        return 1
     _d, groups, date = load_index()
     specs, meta = build(groups, date)
 

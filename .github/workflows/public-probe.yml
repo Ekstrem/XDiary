@@ -40,6 +40,15 @@ jobs:
           python3 tools/check_public_entry.py \
             --base "${{ inputs.base || 'https://xdiary-vps1.taile0b6ee.ts.net' }}"
 
+      # DO-080: отметка успеха — машиночитаемая строка для сторожа `probe-watchdog`.
+      # Шаг идёт ТОЛЬКО при успехе пробы: упавшая/отменённая проба `last_ok` не обновляет.
+      - name: Отметка успеха в summary (last_ok)
+        if: success()
+        run: |
+          ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "last_ok=$ts age=0 state=OK — проба входа отчиталась успехом" >> "$GITHUB_STEP_SUMMARY"
+          echo "last_ok=$ts"
+
       - name: Рецепт отката в summary (если проба красная)
         if: failure()
         run: |

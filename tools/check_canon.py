@@ -112,11 +112,15 @@ def scan(root, patterns, allow_walk=False):
     return counts
 
 
-def run(root, patterns, allow_walk=False):
+def run(root, patterns, allow_walk=False, annotate=True):
     counts = scan(root, patterns, allow_walk=allow_walk)
     if counts is None:
-        print('::error::check_canon: НЕ ИЗМЕРЕНО — root не git-корень (обход дерева не используется: '
-              'он считает вложенные копии; см. DO-115)')
+        # DO-115: аннотация `::error::` — только для настоящего прогона. В `--selftest`
+        # этот же путь проверяется намеренно, и `::error::` в логе делал шаг CI красным
+        # (ci-guards #4382: «check_canon: НЕ ИЗМЕРЕНО» при rc=0 у самопроверки).
+        msg = ('check_canon: НЕ ИЗМЕРЕНО — root не git-корень (обход дерева не используется: '
+               'он считает вложенные копии; см. DO-115)')
+        print(msg if (allow_walk or not annotate) else '::error::' + msg)
         return 2
     errors = 0
     if not counts:
@@ -148,7 +152,7 @@ def selftest():
         open(os.path.join(d2, 'a.md'), 'w', encoding='utf-8').write('<!-- canon: y -->\n')
         r2 = run(d2, ['*.md'], allow_walk=True)
         # 3) DO-115: не git-корень -> rc=2 «не измерено» (а не обход с враньём)
-        r3 = run(d, ['*.md'])
+        r3 = run(d, ['*.md'], annotate=False)
         # 4) DO-115: вложенный каталог с .git не учитывается при обходе
         d4 = os.path.join(tmp, 'd4')
         nested = os.path.join(d4, 'origin', 'main')

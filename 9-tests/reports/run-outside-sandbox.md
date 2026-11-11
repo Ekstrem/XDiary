@@ -160,3 +160,20 @@ gh workflow run ci-front.yml --ref main
 - `TE-054` — `wizard-offline` прошёл (флаг уже в CI), `REF`;
 - `TE-104` — `startup-api-error` прошёл (сплэш уходит за 2 с при `500`), `REF`;
 - `BE-044`, `DO-079` — те же прогоны дают номер, который они просят.
+
+### Третий путь: ночное расписание (уже настроено) — бесплатный REF
+
+Проверено по `origin` (`.github/workflows/ci-front.yml`):
+
+- `:34-35` — `schedule: - cron: '0 4 * * *'` (04:00 UTC);
+- `:48-50` — `front-e2e: needs: spec-gates` и `if: github.event_name != 'push' && github.event_name != 'pull_request'`
+  ⇒ **ни один пуш не даёт браузерного `REF`**, входы — `workflow_dispatch` и `schedule` (это `DO-103`, P0);
+- `:54-56` — `concurrency` с `cancel-in-progress: false` ⇒ пуш **не прерывает** идущий браузерный прогон.
+
+**Следствие для шести карточек** (`TE-050`, `TE-053`, `TE-054`, `TE-104`, `BE-044`, `DO-079`): если ночной
+прогон завершился сам, `REF` уже есть и dispatch не нужен — достаточно взять номер из списка прогонов
+(`gh run list --workflow=ci-front.yml -L 5`). Dispatch — ускоритель, а не единственный путь.
+
+**Что важно проверить в квитанции ночного прогона:** `spec-gates` прошёл (иначе `front-e2e` не стартует
+из-за `needs`), прогон **завершился сам** (не `cancelled`), и в логе исполнены нужные спеки
+(`pin-fallback`, `wizard-offline`, `startup-api-error`).

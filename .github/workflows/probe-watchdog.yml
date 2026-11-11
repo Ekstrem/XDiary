@@ -1,0 +1,40 @@
+name: probe-watchdog
+
+# DO-080: «кто проверяет проверку». public-probe ходит каждые 15 минут и проверяет вход
+# из интернета, но если сам workflow умрёт (расписание снято, раннер не поднялся, файл
+# отключён) — ТИШИНА будет выглядеть как успех. Сторож живёт в ОТДЕЛЬНОМ workflow, чтобы
+# не умереть вместе с объектом, и отвечает: «когда проба последний раз отчиталась успехом».
+#
+# Правило: последний успешный прогон старше 45 минут (3 x интервал) ⇒ НЕИЗВЕСТНО (rc=1).
+# Отменённый/пустой прогон last_ok не обновляет («прогон без шагов — не прогон»).
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read    # читать прогоны public-probe
+  contents: read
+
+concurrency:
+  group: probe-watchdog
+  cancel-in-progress: false
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Самопроверка сторожа (правило 45 мин, отменённый прогон не считается)
+        run: python tools/check_probe_freshness.py --selftest
+      - name: Свежесть пробы входа (молчание != ОК)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          python tools/check_probe_freshness.py --workflow public-probe.yml --max-age-minutes 45
