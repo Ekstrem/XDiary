@@ -148,7 +148,9 @@ def build(groups, date):
             "rev": REV,
             "paths": len(paths),
             "title": title,
-            "operations": len(g["ops"]),
+            # считаем ОПУБЛИКОВАННЫЕ операции (без internal), иначе квитанция --check печатает 82,
+            # а в спеках 78 (нашёл @AR 2026-11-11 после своей же правки).
+            "operations": sum(len(v) for v in paths.values()),
             "derived_from": "04-architecture/api-index.yaml",
         }
     return specs, meta

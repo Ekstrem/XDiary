@@ -38,7 +38,7 @@
     "rev": "b6a787ccf639c2e09ae3ef514512f7d6460e49e72f1d561d8205225f129f0a47",
     "paths": 5,
     "title": "Daily Metrics API",
-    "operations": 6,
+    "operations": 5,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "garmin-gateway": {
@@ -52,7 +52,7 @@
     "rev": "b6a787ccf639c2e09ae3ef514512f7d6460e49e72f1d561d8205225f129f0a47",
     "paths": 17,
     "title": "Journal Microservice API",
-    "operations": 21,
+    "operations": 18,
     "derived_from": "04-architecture/api-index.yaml"
   },
   "partners": {
