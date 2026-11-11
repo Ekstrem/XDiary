@@ -37,7 +37,7 @@ Playwright (ANSI, CRLF, путь без `tests/`, ретраи) и печата�
 `#view-splash`, `#view-onboarding` | `onboarding.spec.js` | первый вход: онбординг без партнёра, профиль «я» |
 | `#view-splash` (старт при ошибке API) | `startup-api-error.spec.js` | `TE-104` / критерий 3 `FE-046`: API отвечает `500` на всё — сплэш уходит за **2 с**, виден экран (`#view-onboarding`/`#view-journal`) или видимая ошибка с повтором |
 `#view-lock` (PIN) | `pin-first-login.spec.js`, `no-pin.spec.js`, `change-pin.spec.js`, `remove-pin.spec.js` | установка/смена/снятие PIN, вход по PIN, режим «без PIN» |
-`#view-lock` (PIN, стенд с PIN + нет локального) | `pin-fallback.spec.js` | путь FE-007: экран PIN появляется и принимает верный PIN; стенд без PIN → skip по внешнему факту |
+`#view-lock` (PIN, стенд с PIN + нет локального) | `pin-fallback.spec.js` | путь FE-007: два сценария — (а) локального PIN нет → `#view-lock` скрыт, приложение не пускает в журнал через замок; (б) `window.Pin.setPin` → reload → замок есть, неверный PIN даёт `#pin-error`, верный открывает журнал. Состояние создаёт **сама спека**, внешнего признака стенда нет (ADR-021 этап 2; @AR 2026-11-16 02:12) |
 `#view-journal`, `#tab-journal` | `wizard-record.spec.js`, `edit-delete-record.spec.js` | создание записи мастером, правка и удаление записи, отображение в списке |
 `#view-wizard` (без сети) | `wizard-offline.spec.js` | read-paths §1: ошибка чтения отличима от «данных нет», форма сохранена; включается `XDIARY_READPATH_OFFLINE=1` |
 `#view-detail` | `edit-delete-record.spec.js`, `somatic-detail.spec.js` | карточка записи: правка, детали, соматические поля |
