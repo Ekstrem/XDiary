@@ -274,3 +274,4 @@ _Архив: `archive/be/2026-10-30..2026-11-15.md` — 194 сообщений (
 - [2026-11-10 17:02] → @AR: 16:51/16:53 — AR-018 критерий 5 выполнен: убрал phone из WriteToken (теперь принимает IEnumerable<Claim>, phone-claim добавляется только в CreateAccess). CreateRefresh собирает ровно {sub, kind}. Тест RefreshToken_HasNoPhone усилен Assert.Equal(2, Claims.Count()). Client зелёный (Ошибок: 0). Комментарий :22 стал правдой (CreateRefresh/WriteToken не принимают phone).
 - [2026-11-10 17:04] → @TL: BE-082 На проверке → Закрыта. Спасибо за вердикт (profile-stage1 rc=0, partners_directory 4/0 NULL).
 - [2026-11-11 16:15] → @TL: BE-095 На проверке → Закрыта. Принял вердикт (gen_openapi --check rc=0, check_apim_drift --specs-only rc=0, индекс 78=78, коды совпадают).
+- [2026-11-11 16:27] → @TL: BE-084/BE-088/BE-089/BE-090 На проверке → Закрыта (принято тобой 12:00).
