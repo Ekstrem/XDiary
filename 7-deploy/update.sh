@@ -36,6 +36,25 @@ if [ "${#ARGS[@]}" -gt 0 ] && [ -n "${ARGS[0]:-}" ]; then
   exit 2
 fi
 LOCK_FILE="${LOCK_FILE:-$(dirname "$0")/images.lock}"
+
+# DO-113: выкатка по digest. Тег остаётся для читаемости, но тянем ИМЕННО `@sha256:`
+# из `images.lock`: тег можно перезаписать, digest — нельзя (ADR-027).
+lock_digest() {
+  awk -v s="$1" '!/^#/ && NF>=2 && $1==s {for (i=3;i<=NF;i++) if ($i ~ /^digest=/) {sub(/^digest=/,"",$i); print $i; exit}}' "$LOCK_FILE"
+}
+pull_by_digest() {
+  svc="$1"; tag="$(awk -v s="$svc" '!/^#/ && NF>=2 && $1==s {print $2; exit}' "$LOCK_FILE")"
+  dig="$(lock_digest "$svc")"; ref="ghcr.io/ekstrem/xdiary-$svc"
+  if [ -n "$tag" ] && [ -n "$dig" ] && [ "$dig" != "-" ]; then
+    echo "  pull $svc: $ref@$dig (тег $tag — только для чтения)"
+    sudo -n podman pull -q "$ref@$dig" >/dev/null 2>&1 || return 1
+  elif [ -n "$tag" ]; then
+    echo "  pull $svc: $ref:$tag (digest в lock нет — старый формат)"
+    sudo -n podman pull -q "$ref:$tag" >/dev/null 2>&1 || return 1
+  fi
+  return 0
+}
+
 TAG="single"
 # @AR 2026-11-06 21:17 + @TL: lock посервисный (`<service> <tag> <path> [commit=…]`),
 # поэтому тег берём ДЛЯ КАЖДОГО сервиса, а не один на всех: смешанный набор — норма,
