@@ -25,7 +25,10 @@ except Exception:  # noqa: BLE001
     pass
 
 PROBE_PATH = "/api/v1/clients"
-CONTRACT = "04-architecture/api-index.yaml"
+# TE-094: путь к контракту считаем от КОРНЯ РЕПОЗИТОРИЯ, а не от cwd — иначе `--selftest`
+# проходит только когда его зовут из корня (в CI так и зовут, поэтому дефект был невидим).
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+CONTRACT = str(REPO_ROOT / "04-architecture" / "api-index.yaml")
 OPERATION = "Client.Register"
 # Ключи, похожие на секрет: их в теле быть не должно НИКОГДА, независимо от контракта.
 SECRET_KEYS = ("otpcode", "otp_code", "otpattempts", "code", "pin", "password", "secret", "token")
@@ -277,7 +280,7 @@ def selftest():
         print(f"  [FAIL] поля вне контракта: unexpected={st.get('unexpected')}, issues={iss}")
 
     total += 1
-    checked, where = contract_allowed_fields(pathlib.Path("04-architecture/api-index.yaml"))
+    checked, where = contract_allowed_fields(pathlib.Path(CONTRACT))
     if checked and "otpexpiresat" in checked and "delivery" in checked:
         ok += 1
     else:
