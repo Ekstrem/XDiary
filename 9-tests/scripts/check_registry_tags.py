@@ -46,6 +46,17 @@ def parse_lock(text):
     return rows
 
 
+# Сервисы, которых в GHCR не будет ПО АРХИТЕКТУРЕ: `front` публикуется в Pages, а не образом.
+# Список совпадает с `gen_images_lock.py` (@DO `2026-11-11 16:17`), чтобы два инструмента не спорили.
+NO_REGISTRY_SERVICES = {"front"}
+
+
+def registry_rc(missing_services):
+    """`rc` для режима `--available`: 0, если без образа только ожидаемые сервисы."""
+    unexpected = [s for s in missing_services if s not in NO_REGISTRY_SERVICES]
+    return 1 if unexpected else 0
+
+
 def evaluate(rows, tags_by_service):
     """tags_by_service: {service: list[str] | None} (None = пакет недоступен анонимно)."""
     present, missing, unknown = [], [], []
@@ -183,7 +194,7 @@ def main(argv=None):
             note = f" | без образа: {', '.join(missing_svcs)}"
         print(f"квитанция (from-registry): сервисов {len(avail)} | доступно {len(have)} | "
               f"без образа {len(avail) - len(have)}{note}")
-        return 0 if len(have) == len(avail) else 1
+        return registry_rc([svc for svc, tag in avail.items() if not tag])
 
     present, missing, unknown, stats = evaluate(rows, tags_by_service)
     for svc, tag in missing:
@@ -209,6 +220,14 @@ def selftest():
             ok += 1
         else:
             print(f"  [FAIL] {name}: rc={rc} (ждали {want_rc}), нет {miss}; text={text[:200]}")
+
+    # @DO `2026-11-11 16:17`: `front` в GHCR не публикуется по архитектуре (Pages). Режим `--available`
+    # не должен из-за него возвращать 1, но остальные сервисы без образа остаются красными.
+    total += 1
+    if registry_rc(["front"]) == 0 and registry_rc(["journal"]) == 1 and registry_rc([]) == 0:
+        ok += 1
+    else:
+        print("  [FAIL] registry_rc: front должен давать 0, journal — 1")
 
     lock = ("# коммент\n"
             "journal              single-2ba8f0c  6-msa/BC-Journal\n"
