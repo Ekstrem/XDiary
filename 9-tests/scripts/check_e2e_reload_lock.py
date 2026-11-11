@@ -33,6 +33,10 @@ MIN_AFTER_RELOAD_MS = 15000
 # Спеки, где «слепой» reload допустим по смыслу, с причиной.
 EXEMPT = {
     "onboarding.spec.js": "чистый профиль без локального PIN: замка после reload не бывает (ADR-021)",
+    # TE-104 / FE-046: 2 000 мс здесь — НЕ догадка о времени, а требование критерия карточки
+    # («сплэш снимается в пределах 2 с при ошибке API»). Замок проверяется явно (`#view-lock` скрыт),
+    # профиль чистый, поэтому «слепого» reload тут нет.
+    "startup-api-error.spec.js": "TE-104 / FE-046: 2 с — требование карточки; замок проверен явно",
     "no-pin.spec.js": "LEGACY describe.skip: контракт «PIN выдаёт токен» отменён (ADR-021)",
     "pin-first-login.spec.js": "чистое устройство: до онбординга локального PIN нет, замок проверяется "
                                "внутри того же шага (строки с `#view-lock` дальше 12 строк)",
@@ -44,6 +48,12 @@ def evaluate(specs):
     issues, checked, exempt = [], 0, 0
     for name, text in sorted(specs.items()):
         lines = text.splitlines()
+        # TE-104: исключение действует на ВЕСЬ файл, включая проверку «короткое ожидание после reload».
+        # Иначе причина исключения («2 с — требование карточки») не работала бы ровно в той проверке,
+        # к которой относится. Причина всё равно печатается числом `исключений N`.
+        if name in EXEMPT:
+            exempt += 1
+            continue
         local_hits = 0
         for i, line in enumerate(lines):
             if not RELOAD.search(line):
@@ -58,9 +68,6 @@ def evaluate(specs):
                 continue
             local_hits += 1
         if not local_hits:
-            continue
-        if name in EXEMPT:
-            exempt += 1
             continue
         checked += 1
         issues.append(f"{name}: {local_hits} `reload` без снятия/проверки замка — после входа приложение "
@@ -116,6 +123,13 @@ def selftest():
     case("слепой reload",
          {"b.spec.js": "await page.reload();\nawait expect(page.locator('#view-journal')).toBeVisible();"},
          1, ["b.spec.js", "не дождались"])
+
+    # TE-104: исключение обязано снимать ОБА замечания — и слепой reload, и «короткое ожидание после
+    # reload». Без этого кейса правка «исключение действует на весь файл» не проверена.
+    case("исключение снимает короткое ожидание после reload",
+         {"startup-api-error.spec.js": "await page.goto('/');\n"
+                                       "await expect(page.locator('#view-splash')).toBeHidden({ timeout: 2000 });"},
+         0, ["исключений 1", "нарушено: 0"])
 
     case("явная проверка замка тоже считается",
          {"c.spec.js": "await page.reload();\nawait expect(page.locator('#view-lock')).toBeVisible();"},
