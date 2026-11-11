@@ -56,8 +56,8 @@
       "upstream": "tools/check_rule_docs.py"
     },
     "check_secrets.py": {
-      "sha256": "0aada1154f7b236ad3c859805d646a04e66c76bc461ae82c25fe06108877c922",
-      "synced_at": "2026-11-07",
+      "sha256": "34bdae2957e9acc64f7abab295ff47b4f4cf62a996d570b16a0aa5859942cd68",
+      "synced_at": "2026-11-11",
       "upstream": "tools/check_secrets.py"
     },
     "check_test_map.py": {
