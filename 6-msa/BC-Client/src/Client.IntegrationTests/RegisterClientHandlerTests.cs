@@ -135,6 +135,7 @@ public class RegisterClientHandlerTests
     [InlineData("123")]
     [InlineData("не телефон")]
     [InlineData("+0123456789")]
+    [InlineData("+7900000000")]  // +7 + 9 цифр (всего 10) — несуществующий номер (@AR 23:53)
     public async Task Register_InvalidPhoneFormat_FailsBeforeSend(string phone)
     {
         var sender = new FakeSender();
@@ -148,7 +149,6 @@ public class RegisterClientHandlerTests
     [Theory]
     [InlineData("+7 900 000-00-00", "+79000000000")]
     [InlineData("8 (900) 000-00-00", "+79000000000")]
-    [InlineData("+7900000000", "+7900000000")]
     public async Task Register_Formats_NormalizedBeforeSend(string input, string expected)
     {
         var sender = new FakeSender();
