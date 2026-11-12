@@ -39,7 +39,18 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
   // `goto('/')` в том запуске не сработал, и все ассерты проверяли пустую страницу. Адрес задаём
   // абсолютно и сразу требуем, чтобы документ открылся.
   const appUrl = process.env.XDIARY_E2E_APP_URL || 'http://127.0.0.1:4173/';
-  const navResp = await page.goto(appUrl, { waitUntil: 'domcontentloaded' });
+  // Диагноз `#31`/`43301132233`: в trace **ноль действий**, ошибка — «Test timeout of 90000ms
+  // exceeded». То есть прогон висел **на навигации**: `goto` ждал документ 90 с. Ставим явный
+  // таймаут навигации и печатаем «до/после» в аннотации, чтобы следующее падение называло шаг.
+  page.setDefaultNavigationTimeout(15000);
+  console.log('::warning::T104: goto -> ' + appUrl);
+  let navResp = null;
+  try {
+    navResp = await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  } catch (e) {
+    console.log('::error::T104: goto упал: ' + appUrl + ' ;; ' + String(e && e.message || e).slice(0, 300));
+    throw e;
+  }
   const navStatus = navResp ? navResp.status() : -1;
   const navViews = await page.evaluate(() => document.querySelectorAll('[id^="view-"]').length)
     .catch(() => -1);
