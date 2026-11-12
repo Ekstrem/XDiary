@@ -1,22 +1,19 @@
 # images.lock — какие образы считаются текущими (ADR-027, DO-066)
 #
-# ВНИМАНИЕ: набор смешанный — это последние ДОСТУПНЫЕ образы, а НЕ сборка HEAD.
-# Причина: у части сервисов красные тесты, образа «последнего коммита» нет (DO-108).
-# Провенанс: `commit=<sha>` — коммит, из которого образ собран; он всегда предок HEAD.
-# Вывести этот режим после появления `release.yml` (13 сервисов на одном коммите).
-#
-# Формат: <service> <tag> <путь>  commit=<sha>
-# Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-4b90af9     6-msa/BC-Journal  commit=4b90af9  digest=sha256:e75d1e5d3406b8ca67b6bdf29aa765643f1abf10b3b979d37ccccd977a2d09ea
-partners             single-2003cf5     6-msa/BC-Partners  commit=2003cf5  digest=sha256:1eb501796c9bca9556a9b97873c6c085bb0f96fac9040d80a905e77ace8e23cd
-catalog              single-4d9b2f5     6-msa/BC-Catalog  commit=4d9b2f5  digest=sha256:d6d7c2d940b08fdb08ea2e38536f6748186e2b640999132cb693e28660fcdb80
-somatic-series       single-c47ac4c     6-msa/BC-SomaticSeries  commit=c47ac4c  digest=sha256:5c76a75385473a4d56d201144c25ed7622c80afa62c65a470b640f3438852284
-daily-metrics        single-4d9b2f5     6-msa/BC-DailyMetrics  commit=4d9b2f5  digest=sha256:ef0233003fd677c5706e2455c9cc0640b4103bbdd1ccd353bf09e26c9e050722
-garmin-gateway       single-c47ac4c     6-msa/BC-GarminGateway  commit=c47ac4c  digest=sha256:b65f1dcefa2a2f7a0265fb8c0bbf288dd323bd7229adcec82c1254e57467f97c
-apple-health-gateway single-c47ac4c     6-msa/BC-AppleHealthGateway  commit=c47ac4c  digest=sha256:e9cddc4fd2707a3425248cc69a86027f899d68fd67384ecab9c5bf4f206a707a
-analytics            single-c47ac4c     6-msa/BC-Analytics  commit=c47ac4c  digest=sha256:9a8815c490132c6af81e43ea46e6896bf9c880517955d1ffe8a5e537a0278f66
-privacy              single-c47ac4c     6-msa/BC-Privacy  commit=c47ac4c  digest=sha256:23282709c5ad8197e173e7419b190df935f4425ef21ef79002097ef4fcc50c72
-portability          single-07a2426     6-msa/BC-Portability  commit=07a2426  digest=sha256:8f24194df2a71afd6321567898a86661edcbb65fd76a987be3bd9b0c857c9d75
-client               single-33c226c     6-msa/BC-Client  commit=33c226c  digest=sha256:69254102d1562b99493ef6f9ac5e59ad41a4daa13833472cb3250ef0fdae47fa
-api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5  digest=sha256:c982de697f8420734c980ca873c37bb5a3b63b626659c0961d7dcfbd4ae2a2ca
-front                single-3461dfa     8-front  commit=3461dfa  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
+# Формат: <service> <tag> <путь> — по строке на образ. Ручной тег при деплое запрещён:
+# деплой читает только этот файл, откат = revert коммита, изменившего строку.
+# Генератор: python tools/gen_images_lock.py --write
+# Проверка:  python tools/gen_images_lock.py --check
+journal              single-ae29f58  6-msa/BC-Journal  digest=-
+partners             single-ad2fc57  6-msa/BC-Partners  digest=-
+catalog              single-983a9c4  6-msa/BC-Catalog  digest=-
+somatic-series       single-ae29f58  6-msa/BC-SomaticSeries  digest=-
+daily-metrics        single-983a9c4  6-msa/BC-DailyMetrics  digest=-
+garmin-gateway       single-ae29f58  6-msa/BC-GarminGateway  digest=-
+apple-health-gateway single-ae29f58  6-msa/BC-AppleHealthGateway  digest=-
+analytics            single-ae29f58  6-msa/BC-Analytics  digest=-
+privacy              single-ae29f58  6-msa/BC-Privacy  digest=-
+portability          single-ae29f58  6-msa/BC-Portability  digest=-
+client               single-ae29f58  6-msa/BC-Client  digest=-
+api-gateway          single-50961be  6-msa/ApiGateway  digest=-
+front                single-3461dfa  8-front  digest=-
