@@ -32,20 +32,27 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
         if (!phoneCheck.IsSatisfiedBy(new AnemicModel { Root = ClientRoot.CreateInstance(r.Phone) }))
             return new RegisterClientResult(ClientResults.Fail(phoneCheck.Reason), false, null, channel, false);
 
+        // TE-097 (канон AR-025): нормализация и проверка ФОРМАТА — до лимитера и отправки OTP.
+        // «abc»/«123» проходят PhoneRequiredValidator (он про пустоту), поэтому без этой
+        // проверки OTP уходит на невалидный номер. Уникальность считается по нормализованной форме.
+        var phone = PhoneFormatValidator.Normalize(r.Phone);
+        if (!PhoneFormatValidator.IsValid(phone))
+            return new RegisterClientResult(ClientResults.Fail("Номер телефона неверного формата."), false, null, channel, false);
+
         // BE-092: лимит переотправки — до отправки, иначе OTP-бомбинг.
-        if (!_rateLimiter.TryAcquire(r.Phone, DateTime.UtcNow))
+        if (!_rateLimiter.TryAcquire(phone!, DateTime.UtcNow))
             return new RegisterClientResult(ClientResults.Fail("Слишком много запросов, попробуйте позже."), false, null, channel, true);
 
         // BE-092 (@TL 08:02): существующий номер — тоже ДО отправки (не шлём повторный код, пока не знаем номера).
-        var existing = await _query.GetByPhoneAsync(r.Phone, ct);
+        var existing = await _query.GetByPhoneAsync(phone!, ct);
 
         var otp = _testOtp ?? Random.Shared.Next(100000, 1000000).ToString();
         bool? deliveryOk = null;
         if (_testOtp is null)
         {
             // BE-092: недоступный канал — штатное delivery.ok=false, а не отказ регистрации.
-            try { deliveryOk = await _sender.SendAsync(r.Phone, otp, ct); }
-            catch (Exception ex) { _log.LogWarning(ex, "OTP send failed for {Phone} (delivery.ok=false).", r.Phone); deliveryOk = false; }
+            try { deliveryOk = await _sender.SendAsync(phone!, otp, ct); }
+            catch (Exception ex) { _log.LogWarning(ex, "OTP send failed for {Phone} (delivery.ok=false).", phone); deliveryOk = false; }
         }
 
         if (existing is not null)
@@ -63,7 +70,7 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
             }
         }
 
-        var res = Aggregate.CreateInstance(new AnemicModel()).Register(r.Phone, otp);
+        var res = Aggregate.CreateInstance(new AnemicModel()).Register(phone!, otp);
         if (res.IsSuccess())
         {
             try { await _repo.SaveAsync(res, ct); }

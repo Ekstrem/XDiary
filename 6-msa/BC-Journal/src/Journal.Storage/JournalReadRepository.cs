@@ -31,6 +31,10 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         var list = models.ToList();
         if (list.Count == 0) return;
         var dir = await _dir.GetAllAsync(new Paging(1, int.MaxValue), ct);
+        // BE-099 (@TL): фильтр `DeletedAt is null` здесь СНЯТ намеренно — имя партнёра
+        // в ИСТОРИИ журнала есть факт прошлого: после мягкого удаления запись остаётся
+        // читаемой («с кем»), иначе `TE-050` краснеет (`Remove_PartnerInExistingJournalRecord_StillResolvable`).
+        // НЕ унифицировать с `GetRecentAsync` ниже: там фильтр обязателен.
         var byId = dir
             .ToDictionary(x => x.PartnerId, x => x.Name);
         foreach (var m in list)
@@ -92,7 +96,10 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         if (last.Partners.Count > 0 && Guid.TryParse(last.Partners[0], out var pid))
         {
             var dir = await _dir.GetAllAsync(new Paging(1, int.MaxValue), ct);
-            lastPartnerName = dir.Where(x => x.PartnerId == pid)
+            // BE-099 (@TL): фильтр `DeletedAt is null` здесь ОСТАВЛЕН намеренно — это
+            // «последние партнёры» для НОВОЙ записи, то есть выбор из ДОСТУПНЫХ сейчас.
+            // Снятие фильтра вернуло бы удалённого партнёра в подсказки (регрессия).
+            lastPartnerName = dir.Where(x => x.DeletedAt is null && x.PartnerId == pid)
                 .Select(x => x.Name)
                 .FirstOrDefault();
         }
