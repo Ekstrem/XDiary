@@ -45,6 +45,10 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
     .catch(() => -1);
   if (page.url() === 'about:blank' || navViews === 0) {
     await dumpViews(page, 'FE-046: навигация не состоялась (TE-107)');
+    // @TL 2026-11-12 23:20: падение должно быть видно в аннотациях как ОШИБКА, а не только как
+    // «assert failed» — иначе следующая красная строка снова читается как дефект app.js.
+    console.log('::error::навигация не состоялась: url=' + page.url() + ', status=' + navStatus +
+      ', #view-*=' + navViews + ' — проверять нечего');
     throw new Error('после goto(' + appUrl + ') url=' + page.url() + ', status=' + navStatus +
       ', #view-*=' + navViews + ' — документ не открылся, проверять нечего');
   }
