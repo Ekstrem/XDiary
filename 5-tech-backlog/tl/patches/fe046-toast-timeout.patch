@@ -1,0 +1,34 @@
+diff --git a/9-tests/RnD/front-e2e/tests/api.js b/9-tests/RnD/front-e2e/tests/api.js
+index e0f79fa30..4ca6b1d26 100644
+--- a/9-tests/RnD/front-e2e/tests/api.js
++++ b/9-tests/RnD/front-e2e/tests/api.js
+@@ -749,7 +749,10 @@ try {
+ async function reportStep(page, where) {
+   try {
+     const toast = page.locator('#toast');
+-    const text = ((await toast.innerText().catch(() => '')) || '').trim();
++    // FE-046 (@TL 2026-11-13 01:52): без явного timeout `innerText()` ждёт до таймаута
++    // ТЕСТА (90 с), если `#toast` не существует. Это и вешало спеку: дамп views
++    // показывал about:blank уже после закрытия контекста по таймауту.
++    const text = ((await toast.innerText({ timeout: 1500 }).catch(() => '')) || '').trim();
+     const state = await toast.evaluate((el) => ({
+       hidden: el.classList.contains('hidden'),
+       cls: String(el.className || ''),
+@@ -787,7 +790,7 @@ async function expectScreen(page, selector, where, timeout) {
+   try {
+     await page.locator(selector).waitFor({ state: 'visible', timeout: ms });
+   } catch (e) {
+-    const toast = ((await page.locator('#toast').innerText().catch(() => '')) || '').trim();
++    const toast = ((await page.locator('#toast').innerText({ timeout: 1500 }).catch(() => '')) || '').trim();
+     const views = await dumpViews(page, 'НЕ ДОШЛИ: ' + where).catch(() => null);
+     // @TL 2026-11-02 17:28: при падении нужен снимок хранилища — иначе при 401 снова не видно,
+     // что лежит в localStorage. Хук afterEach печатает его в stdout, но в аннотацию CI попадает
+@@ -852,7 +855,7 @@ async function stepGuard(page, label, fn, apiLog) {
+   } catch (e) {
+     const views = await dumpViews(page, 'stepGuard').catch(() => null);
+     const ls = await snapshotStorage(page, 'stepGuard').catch(() => null);
+-    const toast = await page.locator('#toast').innerText().catch(() => '');
++    const toast = await page.locator('#toast').innerText({ timeout: 1500 }).catch(() => '');
+     const tail = Array.isArray(apiLog) ? apiLog.slice(-10).join(' | ') : '';
+     throw new Error(
+       'ШАГ: ' + label + ' ;; ТОСТ: ' + JSON.stringify((toast || '').slice(0, 200)) +

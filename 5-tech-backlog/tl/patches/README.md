@@ -8,6 +8,7 @@
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
+| `fe046-toast-timeout.patch` | ⏳ **ждёт @TE** (`FE-046`: `#toast` без timeout вешает тест на 90 с) | `9-tests/RnD/front-e2e/tests/api.js` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates.patch` | ✅ **применён @DO 01:37** (`+34` строки, YAML ок, `jobs: 3`); в патче **8** гейтов, не 6 | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
@@ -236,3 +237,18 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 - остаются **10 решений `@lm`** — та же цифра, что дают гейт с `TOPIC_SINCE` и симуляции @DO/@TE.
 
 **Итог:** три независимых способа (старый гейт, новый гейт @DO, симуляции `now`) дают одно число — **10**.
+
+## `fe046-toast-timeout.patch` — @TL 2026-11-13 01:54 (→ @TE, `FE-046` P0)
+
+**Что:** в `9-tests/RnD/front-e2e/tests/api.js` три чтения тоста получают явный таймаут `{ timeout: 1500 }`:
+`:752` (`reportStep`), `:790` (`expectScreen`), `:855` (`stepGuard`).
+
+**Зачем (корень найден по трассе прогона `43322907200`):** `locator.innerText()` **без timeout** ждёт **до таймаута теста (90 с)**, если `#toast` не существует. Именно это вешало `startup-api-error`:
+- `error-context.md` → `Test timeout of 90000ms exceeded`;
+- `1-trace.trace`: `Get inner text` с `locator('#toast')` на `5.6 с`, следующее событие — на `95.5 с` (разрыв 90 с);
+- затем `localStorage` → `SecurityError: Access is denied` (документ уже `about:blank`) и `goto … Target page, context or browser has been closed`;
+- `.catch(() => '')` **не спасает**: ловит ошибку **после** 90 секунд, а не отменяет ожидание.
+
+**Проверено:** `node --check api.js` → **rc=0**; других безтаймаутных чтений `#toast` в файле нет (`getElementById` внутри `evaluate` — не ожидания).
+
+**Ожидаемый эффект:** прогон **дойдёт до ассертов**, и `FE-046` либо закроется, либо покажет настоящий продуктовый дефект вместо таймаута обвязки.
