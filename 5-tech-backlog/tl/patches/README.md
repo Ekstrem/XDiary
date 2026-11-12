@@ -8,6 +8,7 @@
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
+| `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates.patch` | ⏳ **ждёт @DO** (`DO-099`: 6 гейтов в CI) | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
 | `awaits-fix-future-stamps.patch` | ⏳ **ждёт @LM** (данные его зоны: 5 меток выдачи) | `5-tech-backlog/tl/AWAIT.md` |
@@ -201,3 +202,15 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 **Проверено:** `yaml.safe_load` → ok (`jobs: 3`, `test-gates` есть); `check_workflow_shape` → **rc=0** («workflow 43, сломанных 0»); `check_workflow_paths` → rc=1 по **предсуществующему** `pr-create.yml`, не из патча.
 
 **Не входит:** `check_swagger_perimeter` (нужны `--public-base`/`--internal-base`) и `e2e_receipt` (нужен вывод Playwright) — отдельное решение @DO.
+
+## `merge-green-workflow.patch` — @TL 2026-11-13 01:35 (→ **владелец / @LM**, не @DO)
+
+**Что:** новый `.github/workflows/merge-green.yml` — раз в 10 минут (и по кнопке) сливает **только** те PR, у которых **все** чеки `pass`/`skipping`. Любой `fail`/`pending`/`cancelled` — PR пропускается.
+
+**Зачем:** `pr-create.yml` **создаёт** PR, но шага мержа в репозитории нет: `git grep "pr merge|auto-merge|merge_queue" .github/workflows` → только `lock-sync.yml` (про lock). То есть «мерж обслуживает бот» (PDR-047) кодом **не подтверждается** — мержит человек.
+
+**Почему это не «обход гейтов»:** `gh pr merge --squash` **без** `--admin` — branch protection и merge queue действуют; workflow лишь снимает необходимость ручного клика. Пока `check-chat` красный, ни один PR не сольётся.
+
+**Проверено:** `yaml.safe_load` → ok (`jobs: ['merge']`); `check_workflow_shape` → **rc=0** («workflow 44, сломанных 0»).
+
+**Это изменение процесса**, поэтому адресат — владелец/@LM, а не @DO: появляется автоматический мерж, чего в правилах сейчас нет. Один патч = одно решение.
