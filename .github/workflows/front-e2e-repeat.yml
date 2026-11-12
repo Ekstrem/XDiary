@@ -149,8 +149,12 @@ jobs:
           BASE: ${{ inputs.base_url || 'http://127.0.0.1:8080' }}
         run: |
           set -uo pipefail
+          # @AR 2026-11-13 02:14 (канон «снимок ≠ состояние»): диагностика обязана печатать МОМЕНТ,
+          # а не только значение. Иначе `about:blank`/`status: 0` читаются как состояние продукта,
+          # хотя это состояние снимка в конкретной точке жизненного цикла теста.
+          echo "preflight: момент $(date -u +%H:%M:%SZ) | шаг=preflight | запуск ${GITHUB_RUN_ID:-local}"
           code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$BASE/health" || echo 000)"
-          echo "preflight: стенд $BASE/health -> $code"
+          echo "preflight: стенд $BASE/health -> $code (момент $(date -u +%H:%M:%SZ))"
           if [ "$code" != "200" ]; then
             echo "::error::стенд недоступен: $BASE/health вернул $code — это инфраструктура, а не продукт; спеки не запускаем"
             exit 1
@@ -159,7 +163,7 @@ jobs:
           # Прогоны #36/#37: dev-стенд зелёный, а goto падал именно на 4173 — проверка только
           # dev-стенда этого не видела.
           local_code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' http://127.0.0.1:4173/ || echo 000)"
-          echo "preflight: локальная статика http://127.0.0.1:4173/ -> $local_code"
+          echo "preflight: локальная статика http://127.0.0.1:4173/ -> $local_code (момент $(date -u +%H:%M:%SZ))"
           if [ "$local_code" != "200" ]; then
             echo "::error::локальная статика 4173 не отвечает ($local_code) — спека навигируется на неё; это харнесс/стенд, а не продукт"
             exit 1
