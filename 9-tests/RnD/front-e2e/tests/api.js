@@ -750,7 +750,9 @@ async function reportStep(page, where) {
   try {
     const toast = page.locator('#toast');
     // FE-046 (@TL 01:52): без явного timeout `innerText()` ждёт до таймаута ТЕСТА (90 с).
-    const text = ((await toast.innerText({ timeout: 1500 }).catch(() => '')) || '').trim();
+    // verify-ветка: `.catch` снят намеренно — иначе дефект «нет #toast» не падает и таймаут
+    // (1500 / 15000 / 90 000) нельзя различить по аннотации (@AR 02:05).
+    const text = ((await toast.innerText({ timeout: 1500 })) || '').trim();
     const state = await toast.evaluate((el) => ({
       hidden: el.classList.contains('hidden'),
       cls: String(el.className || ''),
