@@ -1,5 +1,16 @@
 
 
+## Статус применения на 2026-11-13 01:10 (читать ПЕРВЫМ)
+
+| Патч | Статус | Куда |
+|---|---|---|
+| `check-awaits-future.patch` | ✅ **применён** @DO (`role/do` `f5401dd13`) | `tools/check_awaits.py` |
+| `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
+| `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
+| `awaits-fix-future-stamps.patch` | ⏳ **ждёт @LM** (данные его зоны: 5 меток выдачи) | `5-tech-backlog/tl/AWAIT.md` |
+
+**Порядок (если применять с нуля):** `check-adr-refs-mention` → `ci-guards-adr-include-arch` → `check-awaits-future` (независим) → `awaits-fix-future-stamps` (@LM).
+
 ## `check-adr-refs-mention.patch` — @TL 2026-11-13 01:05 (→ @DO)
 
 **Что:** `tools/check_adr_refs.py` перестаёт считать **опорой** ссылку, рядом с которой сказано, что решение снято.
