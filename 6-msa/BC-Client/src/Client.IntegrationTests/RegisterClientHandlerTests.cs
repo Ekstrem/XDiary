@@ -38,7 +38,8 @@ public class RegisterClientHandlerTests
     {
         public bool Ok { get; set; } = true;
         public int SentCount { get; private set; }
-        public Task<bool> SendAsync(string phone, string otp, CancellationToken ct = default) { SentCount++; return Task.FromResult(Ok); }
+        public string? LastPhone { get; private set; }
+        public Task<bool> SendAsync(string phone, string otp, CancellationToken ct = default) { SentCount++; LastPhone = phone; return Task.FromResult(Ok); }
     }
     private sealed class FakeRateLimiter : IOtpRateLimiter
     {
@@ -126,5 +127,34 @@ public class RegisterClientHandlerTests
         var res = Aggregate.CreateInstance(model).VerifyOtp("123456");
         Assert.False(res.IsSuccess());
         Assert.Contains("истёк", res.ErrorMessage());
+    }
+
+    // TE-097 (канон AR-025): мусорный номер не должен доезжать до отправки OTP.
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("123")]
+    [InlineData("не телефон")]
+    [InlineData("+0123456789")]
+    public async Task Register_InvalidPhoneFormat_FailsBeforeSend(string phone)
+    {
+        var sender = new FakeSender();
+        var handler = MakeHandler(new FakeRepo(), new FakeQuery { ExistingId = null }, sender, new FakeRateLimiter());
+        var res = await handler.Handle(new RegisterClientCommand(phone), CancellationToken.None);
+        Assert.False(res.Result.IsSuccess());
+        Assert.Equal(0, sender.SentCount);
+    }
+
+    // TE-097: уникальность считается по НОРМАЛИЗОВАННОЙ форме — иначе форматирование обходит инвариант.
+    [Theory]
+    [InlineData("+7 900 000-00-00", "+7900000000")]
+    [InlineData("8 (900) 000-00-00", "+7900000000")]
+    [InlineData("+7900000000", "+7900000000")]
+    public async Task Register_Formats_NormalizedBeforeSend(string input, string expected)
+    {
+        var sender = new FakeSender();
+        var handler = MakeHandler(new FakeRepo(), new FakeQuery { ExistingId = null }, sender, new FakeRateLimiter());
+        var res = await handler.Handle(new RegisterClientCommand(input), CancellationToken.None);
+        Assert.True(res.Result.IsSuccess());
+        Assert.Equal(expected, sender.LastPhone);
     }
 }
