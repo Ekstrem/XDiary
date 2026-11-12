@@ -11,6 +11,8 @@
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
+| `ci-guards-test-gates-fetch.patch` | ⏳ **ждёт @DO** (`DO-099`: `fetch-depth: 0` иначе `origin/main` не резолвится) | `.github/workflows/ci-guards.yml` |
+| `guard-paths-pyyaml.patch` | ⏳ **ждёт @DO** (`guard`: `check_workflow_paths` без PyYAML → rc=2) | `.github/workflows/guard-paths.yml` |
 | `ci-guards-test-gates.patch` | ✅ **применён @DO 01:37** (`+34` строки, YAML ок, `jobs: 3`); в патче **8** гейтов, не 6 | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
 | `awaits-fix-future-stamps.patch` | ✅ **применён напрямую @TL 01:44 в `role/tl`** (5 меток → `01:09` + строка «Переиздано»); файл-патч оставлен для `main` — он там применяется по `--check rc=0` | `5-tech-backlog/tl/AWAIT.md` |
@@ -336,3 +338,18 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 | синхронизация шага в `next()` (пропуск лишнего клика, когда виден `#w-dur-grid`) | `next()` |
 
 **Проверено:** `node --check` rc=0; прогон **`43329396963`** (ветка `verify/wizard5`, спека `wizard-record`) → **`success`**. То есть и «класс 4 из 4», и падение `smoke-front` закрываются одним патчем.
+
+## Разбор 4 красных на `#2165` (02:40) — три механические, одна содержательная
+
+`gh pr checks 2165` → `guard-tools`, `guard`, `test-gates`, `check-chat`. Причины, по логам, а не по догадке:
+
+| Чек | Причина (дословно из лога) | Чей | Фикс |
+|---|---|---|---|
+| **`test-gates`** | `::error:: ADR-028: REF='origin/main' не резолвится в этом репозитории` → rc=2 | **мой патч** (`ci-guards-test-gates`) | **`ci-guards-test-gates-fetch.patch`**: `fetch-depth: 0` в checkout этого job |
+| **`guard`** | `check_workflow_paths: PyYAML не установлен — НЕ ИЗМЕРЕНО (rc=2), гейт не проверил ни одного workflow` | зависимость: `guard-paths.yml` **не ставит PyYAML** (раньше гейт молча возвращал 0 — ровно то, что мой патч и вскрыл) | **`guard-paths-pyyaml.patch`**: `setup-python` + `pip install pyyaml` в этом job |
+| **`guard-tools`** | `sync_tools: расхождение с манифестом (1): check_workflow_paths.py: правлен без sync` | @DO | `python tools/sync_tools.py` / обновить `tools/.sources.json` |
+| **`check-chat`** | `AWAIT.md` (10 решений `@lm`) + норма «статус ↔ строка чата» | @LM | содержательное, не механическое |
+
+**Важно:** `guard` красный **не из-за находки**, а из-за отсутствия PyYAML — это ровно та «зелёная на пустоте» дыра, которую закрывал `check-workflow-paths-no-yaml.patch`. То есть патч работает: он превратил молчаливое `rc=0` в честное `rc=2`, и сразу вылезла незакрытая зависимость.
+
+**Проверено:** оба патча — `yaml.safe_load` ok (`ci-guards: jobs [check-chat, guard-secrets, test-gates]`, `guard-paths: steps 7`).
