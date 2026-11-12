@@ -19,11 +19,16 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Лёгкие guard'ы (без test/front-e2e). Отменять их можно: результата у них нет,
-# пока они не дошли до шага (см. §5.1 про окно 5 минут — оно про тяжёлые джобы).
+# Лёгкие guard'ы (без test/front-e2e).
+#
+# DO-122 (@TL 2026-11-13 00:39, P0): `cancel-in-progress: true` делал так, что при пуше
+# поверх пуша чек оставался `cancelled`, а не `success` — и PR нельзя было смержить по
+# required checks (на #2165 так «покраснели» `check-chat` и `guard-secrets`, хотя код был
+# чист). Отменять лёгкий прогон смысла нет: он занимает секунды. Поэтому `false`:
+# очередь последовательная, а не «последний пуш отменяет чужую проверку».
 concurrency:
   group: ci-guards
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check-chat:
