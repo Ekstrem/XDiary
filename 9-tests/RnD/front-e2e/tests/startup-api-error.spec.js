@@ -35,7 +35,19 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
   );
 
   await reportStep(page, 'старт с API=500 (FE-046 критерий 3)');
-  await page.goto('/');
+  // TE-107/109: прогон #29 показал `url: about:blank`, `status: 0`, `htmlLen: 0` — относительный
+  // `goto('/')` в том запуске не сработал, и все ассерты проверяли пустую страницу. Адрес задаём
+  // абсолютно и сразу требуем, чтобы документ открылся.
+  const appUrl = process.env.XDIARY_E2E_APP_URL || 'http://127.0.0.1:4173/';
+  const navResp = await page.goto(appUrl, { waitUntil: 'domcontentloaded' });
+  const navStatus = navResp ? navResp.status() : -1;
+  const navViews = await page.evaluate(() => document.querySelectorAll('[id^="view-"]').length)
+    .catch(() => -1);
+  if (page.url() === 'about:blank' || navViews === 0) {
+    await dumpViews(page, 'FE-046: навигация не состоялась (TE-107)');
+    throw new Error('после goto(' + appUrl + ') url=' + page.url() + ', status=' + navStatus +
+      ', #view-*=' + navViews + ' — документ не открылся, проверять нечего');
+  }
 
   // Разбор #27: `views:{}` = в документе НОЛЬ элементов `#view-*`, при этом ассерты «splash скрыт»
   // и «lock скрыт» на пустой странице проходят сами собой. Проверяем документ явно.
