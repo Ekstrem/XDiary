@@ -89,7 +89,13 @@ def count_attr(ref: str, pattern: str) -> int:
     return total
 
 
-KNOWN_FLAGS = ("--pre", "--post", "--selftest", "--ref")
+KNOWN_FLAGS = ("--pre", "--post", "--selftest", "--ref", "--timeout-build")
+
+
+def _selftest_timeout():
+    """Кейс на таймаут: команда «спит» дольше лимита — expect timed_out=True и rc=None."""
+    rc, out, timed = run_build([sys.executable, "-c", "import time; time.sleep(3)"], timeout=1.0)
+    return (rc is None and timed and "таймаут" in out)
 
 
 def selftest() -> int:
@@ -135,7 +141,6 @@ def selftest() -> int:
                        ("неизвестный флаг", ["--nonsense-flag"])):
         total += 1
         r = run(args)
-        out = (r.stdout or "") + (r.stderr or "")
         if r.returncode == 2 and "::error::" in out and "PASS:" not in out:
             ok += 1
         else:
@@ -143,6 +148,20 @@ def selftest() -> int:
 
     print(f"check_adr028_move --selftest: {ok}/{total} (baseline против ref; rc=2 и ::error:: на невалидном ref/флаге)")
     return 0 if ok == total else 1
+
+
+def run_build(cmd, timeout=300.0):
+    """Запуск сборки с таймаутом. Возвращает (rc, output, timed_out).
+
+    Таймаут нужен, потому что `dotnet build` без сети/кэша может не отвечать: гейт не должен висеть до
+    таймаута джоба — это «гейт сжигает прогон» (в CI шаг висит 20 минут и падает по общей границе).
+    """
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or ""), False
+    except subprocess.TimeoutExpired:
+        return None, "таймаут %.0f с" % timeout, True
 
 
 def main() -> int:
@@ -155,6 +174,14 @@ def main() -> int:
     if "--selftest" in args:
         return selftest()
 
+    timeout_build = 300.0
+    if "--timeout-build" in args:
+        i = args.index("--timeout-build")
+        try:
+            timeout_build = float(args[i + 1])
+        except (IndexError, ValueError):
+            print("::error::check_adr028_move: --timeout-build ждёт число секунд — rc=2")
+            return 2
     mode = "pre" if "--pre" in args else "post"
     ref = (os.environ.get("REF") or "").strip()
     if "--ref" in args:
@@ -298,9 +325,14 @@ def main() -> int:
             if not os.path.exists(proj):
                 build_skip += 1
                 continue
-            r = _sp.run(["dotnet", "build", proj, "-v", "q", "--nologo"], capture_output=True, text=True, encoding="utf-8", errors="replace")
-            out = (r.stdout or "") + (r.stderr or "")
-            if r.returncode == 0:
+            rc_b, out, timed_out = run_build(["dotnet", "build", proj, "-v", "q", "--nologo"],
+                                             timeout=timeout_build)
+            if timed_out:
+                build_skip += 1
+                print("::warning::ADR-028: %s — сборка не ответила за %.0f с (SKIP, не PASS)"
+                      % (proj, timeout_build))
+                continue
+            if rc_b == 0:
                 build_ok += 1
                 continue
             if "error CS2001" in out:
