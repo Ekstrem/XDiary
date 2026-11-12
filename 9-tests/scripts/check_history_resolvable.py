@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""`check_history_resolvable.py` — инвариант `HistoryStaysResolvable` на контуре (приёмка `BE-099`).
+
+Что проверяется (одно поведение, но ключевое): после **мягкого** удаления партнёра запись журнала
+продолжает показывать его **имя**, а не `id`.
+
+Дефект `BE-099`: в `6-msa/BC-Journal/src/Journal.Storage/JournalReadRepository.cs:34` резолв имён фильтрует
+`dir.Where(x => x.DeletedAt is null)` (то же `:95` для `lastPartnerName`) — удалённый партнёр выпадает из
+справочника, и имя деградирует до `id`.
+
+Коды: `0` — имя сохранилось (норма); `1` — имя подменено `id` (дефект, `BE-099`); `2` — не измерено
+(стенд/авторизация/данные недоступны).
+
+Использование:
+    python 9-tests/scripts/check_history_resolvable.py                 # dev по умолчанию
+    python 9-tests/scripts/check_history_resolvable.py --base https://…
+    python 9-tests/scripts/check_history_resolvable.py --selftest
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+
+DEFAULT_BASE = "https://xdiary-vps2.taile0b6ee.ts.net"
+OTP = "000000"
+
+
+def name_of(recent_payload, partner_id: str) -> str:
+    """Имя партнёра из ответа `/journal/recent` (dict `lastPartner` или список записей)."""
+    if isinstance(recent_payload, dict):
+        lp = recent_payload.get("lastPartner") or {}
+        if isinstance(lp, dict) and str(lp.get("id") or "") == partner_id:
+            return str(lp.get("name") or "")
+        items = recent_payload.get("items") or recent_payload.get("records") or []
+    elif isinstance(recent_payload, list):
+        items = recent_payload
+    else:
+        items = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for key in ("partnerName", "partner"):
+            v = item.get(key)
+            if isinstance(v, str) and v:
+                return v
+    return ""
+
+
+def verdict(name: str, partner_id: str, expected: str) -> int:
+    """0 — имя на месте; 1 — деградировало до id; 2 — не измерено (имени нет вовсе)."""
+    if not name:
+        return 2
+    if name == partner_id or name.startswith(partner_id[:8]):
+        return 1
+    return 0 if expected in name or name != partner_id else 1
+
+
+def _call(base, method, path, body=None, token=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(base + path, data=data, method=method,
+                                headers={"Content-Type": "application/json",
+                                         **({"Authorization": "Bearer " + token} if token else {})})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")
+    except Exception as e:  # noqa: BLE001
+        return None, "%s: %s" % (type(e).__name__, e)
+
+
+def measure(base: str) -> int:
+    phone = "+7999" + str(int(time.time() * 1000) % 10_000_000).zfill(7)
+    name = "TE-E2E-Hist"
+    st, raw = _call(base, "POST", "/api/v1/clients", {"phone": phone})
+    if st != 200:
+        print("::warning::check_history_resolvable: регистрация -> %s — не измерено (rc=2)" % st)
+        return 2
+    cid = (json.loads(raw) or {}).get("id")
+    st, raw = _call(base, "POST", "/api/v1/clients/%s/verify" % cid, {"code": OTP})
+    token = (json.loads(raw) if st == 200 else {}).get("accessToken") if st == 200 else None
+    if not token:
+        print("::warning::check_history_resolvable: verify -> %s, токена нет — не измерено (rc=2)" % st)
+        return 2
+    st, raw = _call(base, "POST", "/api/v1/partners", {"name": name, "kind": "person"}, token)
+    pid = (json.loads(raw) if st == 200 else {}).get("id") if st == 200 else None
+    if not pid:
+        print("::warning::check_history_resolvable: создание партнёра -> %s — не измерено (rc=2)" % st)
+        return 2
+    st, raw = _call(base, "POST", "/api/v1/journal/records", {"date": "2026-11-12"}, token)
+    rid = (json.loads(raw) if st == 200 else {}).get("id") if st == 200 else None
+    if not rid:
+        print("::warning::check_history_resolvable: создание записи -> %s — не измерено (rc=2)" % st)
+        return 2
+    _call(base, "POST", "/api/v1/journal/records/%s/partners" % rid, {"partnerId": pid}, token)
+    st, raw = _call(base, "POST", "/api/v1/partners/%s/remove" % pid, {}, token)
+    if st != 200:
+        print("::warning::check_history_resolvable: remove -> %s — не измерено (rc=2)" % st)
+        return 2
+    st, raw = _call(base, "GET", "/api/v1/journal/recent", None, token)
+    try:
+        payload = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        payload = None
+    got = name_of(payload, pid)
+    code = verdict(got, pid, name)
+    print("партнёр: %s | имя в журнале после удаления: %r" % (pid, got))
+    if code == 0:
+        print("квитанция: имя сохранилось | rc=0")
+    elif code == 1:
+        print("::error::check_history_resolvable: имя подменено id — дефект BE-099 "
+              "(JournalReadRepository.cs:34/:95), rc=1")
+    else:
+        print("::warning::check_history_resolvable: имени в ответе нет — не измерено (rc=2)")
+    return code
+
+
+def selftest() -> int:
+    ok = total = 0
+
+    def case(label, got, pid, expected, want):
+        nonlocal ok, total
+        total += 1
+        rc = verdict(got, pid, expected)
+        if rc == want:
+            ok += 1
+            print("  [OK]   %s -> rc=%d" % (label, rc))
+        else:
+            print("  [FAIL] %s -> rc=%d (ждали %d)" % (label, rc, want))
+
+    pid = "64635485-add4-4187-9ccb-b7b77d322a3a"
+    case("имя на месте", "TE-E2E-Hist", pid, "TE-E2E-Hist", 0)
+    case("имя = id (дефект BE-099)", pid, pid, "TE-E2E-Hist", 1)
+    case("имени нет", "", pid, "TE-E2E-Hist", 2)
+
+    total += 1
+    if name_of({"lastPartner": {"id": pid, "name": "TE-E2E-Hist"}}, pid) == "TE-E2E-Hist":
+        ok += 1
+        print("  [OK]   разбор lastPartner")
+    else:
+        print("  [FAIL] разбор lastPartner")
+
+    print("check_history_resolvable --selftest: %d/%d (имя / id / нет имени / разбор)" % (ok, total))
+    return 0 if ok == total else 1
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="инвариант HistoryStaysResolvable на контуре")
+    ap.add_argument("--base", default=DEFAULT_BASE)
+    ap.add_argument("--selftest", action="store_true")
+    a = ap.parse_args(argv)
+    if a.selftest:
+        return selftest()
+    return measure(a.base.rstrip("/"))
+
+
+if __name__ == "__main__":
+    sys.exit(main())
