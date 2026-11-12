@@ -141,6 +141,21 @@ jobs:
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright install --with-deps chromium
 
+      # DO (@FE 23:32, прогоны #29/#31/#33): при недоступном стенде `page.goto` оставляет
+      # `about:blank`, и это читается как «дефект продукта». Проверяем, что стенд отвечает,
+      # до всяких ассертов спеки — иначе причина падения неотличима от дефекта продукта.
+      - name: Стенд отвечает (preflight)
+        env:
+          BASE: ${{ inputs.base_url || 'http://127.0.0.1:8080' }}
+        run: |
+          set -uo pipefail
+          code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$BASE/health" || echo 000)"
+          echo "preflight: $BASE/health -> $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::стенд недоступен: $BASE/health вернул $code — это инфраструктура, а не продукт; спеки не запускаем"
+            exit 1
+          fi
+
       - name: Repeat run (list)
         working-directory: 9-tests/RnD/front-e2e
         continue-on-error: true

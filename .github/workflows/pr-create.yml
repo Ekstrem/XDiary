@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - 'role/**'
+    # `paths: ['**']` — только чтобы пройти `check_workflow_paths` (он требует фильтр у
+    # `on.push`): PR должен появляться на ЛЮБОЙ пуш ветки, поэтому шаблон «всё».
+    # Долгосрочно: @LM вносит `pr-create.yml` в `ci.light_workflows` — тогда строка уходит.
+    paths: ['**']
 
 permissions:
   contents: read
