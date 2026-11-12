@@ -409,6 +409,10 @@ jobs:
             9-tests/RnD/front-e2e/test-results
             9-tests/RnD/front-e2e/playwright-report
           retention-days: 7
+          # DO-120 (@TL 2026-11-13 00:24): этот вход был ОШИБОЧНО вставлен внутрь `run:` шага
+          # «Классы падений» → `line 2: if-no-files-found:: command not found` → exit 127 →
+          # красный smoke-front на каждом прогоне → deploy-prod skipped.
+          if-no-files-found: ignore
 
       # 2026-11-10 (@TE 11:45): у @TE нет доступа к артефактам и к контуру, поэтому классы
       # падений печатаются прямо в лог прогона — без скачивания.
@@ -416,7 +420,6 @@ jobs:
         if: failure()
         run: |
           python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
-          if-no-files-found: ignore
 
   deploy-prod:
     # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
