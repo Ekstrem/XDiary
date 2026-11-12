@@ -241,8 +241,23 @@ def selftest():
         print("  [FAIL] строка @EX зачтена висящей: hanging=%s" % hanging)
 
     shutil.rmtree(base, ignore_errors=True)
-    print("check_awaits --selftest: %d/6" % ok)
-    return 0 if ok == 6 else 1
+    # --- кейсы «метка выдачи в будущем» (@TL 01:05: в патче не было самотеста) ---
+    from datetime import datetime as _dt
+    fut = future_rows([("do", "гейт awaited", "2026-11-14 05:10", 21, False)],
+                      now=_dt(2026, 11, 13, 1, 0))
+    if len(fut) == 1 and fut[0][4] > 1000:
+        ok += 1
+    else:
+        print("  [FAIL] будущая метка не поймана: %s" % (fut,))
+    fut2 = future_rows([("do", "старое", "2026-11-12 10:00", 22, False)],
+                       now=_dt(2026, 11, 13, 1, 0))
+    if fut2 == []:
+        ok += 1
+    else:
+        print("  [FAIL] прошедшая метка принята за будущую: %s" % (fut2,))
+
+    print("check_awaits --selftest: %d/8" % ok)
+    return 0 if ok == 8 else 1
 
 
 def _utf8_stdout():

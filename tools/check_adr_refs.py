@@ -164,6 +164,34 @@ def selftest():
     else:
         print('  [FAIL] в результате нет пары заявлено/факт: %s' % (problems[:1],))
 
+    # --- кейсы для логики «опора vs упоминание» (@TL 01:05: в патче не было самотеста) ---
+    def acase(label, src_body, tgt_status, want_problems, want_stale):
+        nonlocal ok, total
+        total += 1
+        repo = os.path.join(base, label)
+        os.makedirs(os.path.join(repo, '04-architecture', 'ADL'), exist_ok=True)
+        open(os.path.join(repo, '04-architecture', 'ADL', 'adr-901.md'),
+             'w', encoding='utf-8', newline='\n').write(
+                 '- **Статус:** Принято\n\n' + src_body + '\n')
+        open(os.path.join(repo, '04-architecture', 'ADL', 'adr-902.md'),
+             'w', encoding='utf-8', newline='\n').write(
+                 '- **Статус:** %s\n' % tgt_status)
+        p, stl = accepted_refs_rejected(repo)
+        if len(p) == want_problems and len(stl) == want_stale:
+            ok += 1
+        else:
+            print('  [FAIL] %s: ошибок %d (ждали %d), stale %d (ждали %d) | %s'
+                  % (label, len(p), want_problems, len(stl), want_stale, (p + stl)[:2]))
+
+    acase('a1_reliance', 'Опираемся на `ADR-902` как на действующее решение.',
+          'Отклонено (2026-11-05)', 1, 0)
+    acase('a2_mention_same_line', 'Уточнение: «`ADR-902` отклонён (2026-11-14)».',
+          'Отклонено (2026-11-05)', 0, 1)
+    acase('a3_mention_next_line', 'См. `ADR-902`.\nОн отклонён (2026-11-14), копий не делаем.',
+          'Отклонено (2026-11-05)', 0, 1)
+    acase('a4_replaced', 'Ранее: `ADR-902` (см. решение-замену).',
+          'Отклонено (2026-11-05) — заменён ADR-903', 0, 1)
+
     shutil.rmtree(base, ignore_errors=True)
     print('check_adr_refs --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
