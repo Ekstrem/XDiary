@@ -18,6 +18,14 @@
 const { test, expect } = require('@playwright/test');
 const { installBase, reportStep, dumpViews } = require('./api');
 
+// TE-107/104: шаги помечаются аннотациями — при падении видно последний пройденный шаг
+// (аннотации в CI доступны без лога; так же читали `TE-053`).
+const mark = (label) => {
+  try {
+    test.info().annotations.push({ type: 'step', description: 'T104: ' + label });
+  } catch (e) { /* заглушка dryrun может не иметь test.info */ }
+};
+
 test('E2E: FE-046 — ошибка API на старте: сплэш уходит за 2 с, экран или ошибка видны', async ({ page }) => {
   await installBase(page);
   // «Сервис сломан, сеть есть»: все запросы к API отвечают 500. Именно так выглядит падение бэка,
@@ -29,6 +37,20 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
   await reportStep(page, 'старт с API=500 (FE-046 критерий 3)');
   await page.goto('/');
 
+  // Разбор #27: `views:{}` = в документе НОЛЬ элементов `#view-*`, при этом ассерты «splash скрыт»
+  // и «lock скрыт» на пустой странице проходят сами собой. Проверяем документ явно.
+  mark('a0 документ: #view-* присутствуют');
+  const viewCount = await page.evaluate(() => document.querySelectorAll('[id^="view-"]').length)
+    .catch(() => -1);
+  // В заглушке dryrun `evaluate` возвращает не число — тогда проверку не измерить, пропускаем.
+  // В браузере `0` значит «документ без разметки экранов» — это падение с ясной причиной.
+  if (viewCount === 0) {
+    await dumpViews(page, 'FE-046: документ без разметки экранов (TE-107)');
+    throw new Error('документ не содержит ни одного #view-* (viewCount=' + viewCount +
+      '); смотри url/status/htmlLen в аннотации views');
+  }
+
+  mark('a1 старт: splash ≤ 2000 мс');
   try {
     await expect(page.locator('#view-splash'), 'заставка не ушла за 2 с при ошибке API (FE-046)')
       .toBeHidden({ timeout: 2000 });
@@ -39,6 +61,7 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
 
   // `check_e2e_reload_lock` требует не «слепой» переход после старта: на свежем устройстве PIN нет,
   // значит замок обязан быть скрыт (FE-036). Это утверждение, а не предположение.
+  mark('a2 замок скрыт ≤ 5000 мс');
   await expect(page.locator('#view-lock'), 'на свежем устройстве показан замок (FE-036)')
     .toBeHidden({ timeout: 5000 });
 
@@ -63,6 +86,7 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
     return false;
   };
 
+  mark('a3 экран или видимая ошибка ≤ 3000 мс');
   try {
     await expect.poll(screenOrError, {
       timeout: 3000,
