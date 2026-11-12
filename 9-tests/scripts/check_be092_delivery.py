@@ -188,7 +188,11 @@ def main(argv=None):
         print("::warning::check_be092_delivery: нет --base — не измерено (rc=2)")
         return 2
 
-    phone = a.phone or f"+7999{int(time.time()) % 10000000:07d}"
+    phone = a.phone or f"+7998{int(time.time()) % 10000000:07d}"
+    # DO-121 (@TL 2026-11-13 00:32): префикс +7998, а не +7999 — иначе очистка E2E
+    # (cleanup-e2e-dev.sh --apply --clients, phone LIKE '+7999%') удаляет только что
+    # созданного клиента между пробами, и вторая проба даёт 200 вместо 409.
+
 
     def one(label):
         st, body, err = post(a.base, {"phone": phone})
