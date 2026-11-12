@@ -10,6 +10,8 @@ on:
     paths:
       - 'tools/**'
       - '.github/workflows/guard-tools.yml'
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 concurrency:

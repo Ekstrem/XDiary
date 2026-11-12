@@ -16,6 +16,8 @@ on:
       - 'tools/check_adr.py'
       - '04-architecture/ADL/**'
       - '.github/workflows/docs-budget.yml'
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 concurrency:
