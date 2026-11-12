@@ -1,0 +1,32 @@
+diff --git a/.github/workflows/ci-guards.yml b/.github/workflows/ci-guards.yml
+index 0662cbc74..6be639884 100644
+--- a/.github/workflows/ci-guards.yml
++++ b/.github/workflows/ci-guards.yml
+@@ -344,3 +344,27 @@ jobs:
+             if ! python3 -m py_compile "$f"; then echo "::error file=$f::py_compile failed"; fail=1; fi
+           done
+           exit $fail
++
++  # DO-099 (@TL 2026-11-13 01:29): 8 из 11 тестовых гейтов жили только «на бумаге» —
++  # запускались вручную. Шесть из них проверены на `origin/main`: `--selftest` rc=0 и
++  # реальный прогон rc=0, поэтому подключаются блокирующим шагом.
++  test-gates:
++    runs-on: ubuntu-latest
++    timeout-minutes: 10
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-python@v5
++        with:
++          python-version: "3.12"
++      - name: "Тестовые гейты (DO-099): selftest, затем прогон"
++        run: |
++          set -euo pipefail
++          for g in check_adr028_move check_read_paths check_front_088 \
++                   check_e2e_selectors check_e2e_traceability check_e2e_no_sleeps; do
++            echo "::group::$g --selftest"
++            python "9-tests/scripts/$g.py" --selftest
++            echo "::endgroup::"
++            echo "::group::$g"
++            python "9-tests/scripts/$g.py"
++            echo "::endgroup::"
++          done

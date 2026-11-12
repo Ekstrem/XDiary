@@ -8,6 +8,7 @@
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
+| `ci-guards-test-gates.patch` | ⏳ **ждёт @DO** (`DO-099`: 6 гейтов в CI) | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
 | `awaits-fix-future-stamps.patch` | ⏳ **ждёт @LM** (данные его зоны: 5 меток выдачи) | `5-tech-backlog/tl/AWAIT.md` |
 
@@ -190,3 +191,13 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 **Охват шестого патча — 2 из 2 безопасных** (`ci-guards`, `ci-backend`); `ci-front` — намеренно глобальная (`DO-032`), остальные 15 не создают PR-чеков.
 
 > Исправление: в моих сообщениях `01:20–01:21` числа не сходились («13 без привязки», «остальные 10» при перечисленных 15 файлах) — это были три разных счёта. Канон — **18 = 3 + 6 + 9**; на действие это не влияет, но в реестре должно стоять одно число.
+
+## `ci-guards-test-gates.patch` — @TL 2026-11-13 01:29 (→ @DO, `DO-099` P1)
+
+**Что:** добавляет в `ci-guards.yml` job `test-gates` — шесть тестовых гейтов, каждый сначала `--selftest`, затем реальный прогон.
+
+**Зачем:** из 11 гейтов `9-tests/scripts` в CI запускались **3**; остальные 8 жили «на бумаге» (ручная дисциплина). Шесть из них проверены на `origin/main` — `--selftest` **rc=0** и прогон **rc=0**: `check_adr028_move`, `check_read_paths`, `check_front_088`, `check_e2e_selectors`, `check_e2e_traceability`, `check_e2e_no_sleeps`.
+
+**Проверено:** `yaml.safe_load` → ok (`jobs: 3`, `test-gates` есть); `check_workflow_shape` → **rc=0** («workflow 43, сломанных 0»); `check_workflow_paths` → rc=1 по **предсуществующему** `pr-create.yml`, не из патча.
+
+**Не входит:** `check_swagger_perimeter` (нужны `--public-base`/`--internal-base`) и `e2e_receipt` (нужен вывод Playwright) — отдельное решение @DO.
