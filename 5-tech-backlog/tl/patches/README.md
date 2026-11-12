@@ -176,3 +176,30 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 | `concurrency-group-per-pr.patch` | **0** |
 
 То есть ни один патч не устарел, несмотря на десятки коммитов бота в `main` после их создания. Тот, кто берёт патч по реестру, получит `rc=0` на применении, а не конфликт.
+
+### Полный инвентарь групп (замер @TL 01:21, файл:строка)
+
+Групп **без** привязки к PR/ref — **13**; из них триггер `pull_request` есть только у **трёх**:
+
+| Workflow | Строка | Группа | PR-триггер | В патче |
+|---|---|---|---|---|
+| `ci-guards.yml` | **25** | `ci-guards` | да | **да** |
+| `ci-backend.yml` | **36** (job-level) | `ci-tests-test` | да | **да** |
+| `ci-front.yml` | **55** | `front-e2e-stand` | да | **нет** — намеренно глобальная (`DO-032`: мутирует общий dev-стенд) |
+| `apim-drift` | 18 | `apim-drift` | — | не нужно: push/расписание, PR-чеков не создаёт |
+| `backup-check` | 18 | `backup-freshness` | — | то же |
+| `canon-stability` | 28 | `canon-stability` | — | то же |
+| `deploy` | 31 | `deploy-dev-prod` | — | то же (и деплой должен быть строго серийным) |
+| `front-e2e-repeat` | 40 | `front-e2e-${{ github.event_name }}` | — | то же |
+| `health` | 19 | `health` | — | то же |
+| `lock-sync` | 24 | `lock-sync` | — | то же |
+| `openapi-registry` | 23 | `openapi-registry` | — | то же |
+| `pages` | 17 | `"pages"` | — | то же |
+| `probe-watchdog` | 21 | `probe-watchdog` | — | то же |
+| `public-probe` | 25 | `public-probe` | — | то же |
+| `read-model-check` | 17 | `read-model-check` | — | то же |
+| `stats` | 23 | `stats` | — | то же |
+| `sweep` | 22 | `"sweep"` | — | то же |
+| `sync-board` | 24 | `sync-board` | — | то же (это класс `DO-118`, не мерж) |
+
+**Вывод:** шестой патч закрывает **2 из 2** PR-триггерных не-стендовых случая, а не «2 из 18». Остальные 10 групп живут на push/расписании: они могут вытеснять друг друга, но чеков на PR не создают, поэтому мерж не блокируют.
