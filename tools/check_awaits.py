@@ -119,11 +119,12 @@ def _topic_tokens(what):
     строка про маркеры в `role/tl` закрывала `AWAIT` про `check-adr028-move.sh --post`
     и `TE-049`, потому что `chat_accepts` смотрел только роль и метку.
     """
+    # Только ID (`TE-049`, `DO-022`, `AR-023`) — они уникальны. Свободные слова
+    # («актуальном», `origin/main`) давали ложную привязку и turning 15 -> 69 висящих:
+    # строка без ID — без ключа, для неё действует прежнее правило (роль + метка).
     text = what or ""
-    toks = re.findall(r"[A-Z]{2,3}-\d{2,4}", text)
-    toks += [w for w in re.findall(r"[A-Za-zА-Яа-я_][\w.\-]{4,}", text)]
     out = []
-    for t in toks:
+    for t in re.findall(r"[A-Z]{2,3}-\d{2,4}", text):
         t = t.lower()
         if t not in out:
             out.append(t)
