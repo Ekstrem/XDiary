@@ -300,7 +300,10 @@ jobs:
   # Условие промоушена в блокирующие (снять `continue-on-error` и добавить этот job в
   # `needs` `deploy-prod`) — первый прогон, где контракт dev выполнен целиком (0), см. `DO-112`.
   receipt-be092:
-    needs: deploy-dev
+    # DO-121 ч.1 (@TL 2026-11-13 00:39): без этого `receipt-be092` шёл ПАРАЛЛЕЛЬНО со
+    # `smoke-front`, и его проба (test-otp: 200/409/429) гонялась с очисткой стенда —
+    # отсюда «старый образ» и ложные 404. Ставим после `smoke-front`: гонка уходит классом.
+    needs: [deploy-dev, smoke-front]
     runs-on: ubuntu-latest
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net

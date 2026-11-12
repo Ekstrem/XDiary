@@ -35,6 +35,34 @@ on:
     - cron: '0 4 * * *'
 
 jobs:
+  changes:
+    # DO-103 (@TL 2026-11-13 00:39 «да» на безопасный вариант @DO): браузерный джоб нужен
+    # на PR, но не на каждый — только если тронуты фронт или спеки. Так очередь живого
+    # стенда не занимается зря (причина DO-032), а auto-проверка UI появляется.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      front: ${{ steps.filter.outputs.front }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -uo pipefail
+          base="${BASE_SHA:-}"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "front=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$base" HEAD | grep -qE '^(8-front/|9-tests/RnD/front-e2e/|9-tests/scripts/check_e2e_all)'; then
+            echo "front=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "front=false" >> "$GITHUB_OUTPUT"
+          fi
+
   spec-gates:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -46,8 +74,13 @@ jobs:
     - name: E2E-гейты по спекам (check_e2e_all)
       run: python 9-tests/scripts/check_e2e_all.py
   front-e2e:
-    needs: spec-gates
-    if: github.event_name != 'push' && github.event_name != 'pull_request'
+    needs: [spec-gates, changes]
+    # DO-103: ручной запуск и ночное расписание — всегда; PR — только при изменениях
+    # фронта/спек (`changes`); push в main — как и было, не гоняем (там ci-front дешёвый).
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'pull_request' && needs.changes.outputs.front == 'true')
     runs-on: ubuntu-latest
     # @TE 2026-11-06 08:26: 19 падений × 90 с съедают бюджет — 60 -> 75 минут.
     timeout-minutes: 75
