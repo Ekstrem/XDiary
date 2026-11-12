@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.111"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.112"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -104,6 +104,9 @@
   }
   function toast(msg, ms) {
     var t = $("toast");
+    // FE-046 (#27): в документе без #toast (не наша разметка / недогруженная страница)
+    // эта функция бросала TypeError и «тост пуст» выглядел как отсутствие текста.
+    if (!t) { console.log("toast (нет #toast):", msg); return; }
     t.textContent = msg;
     t.classList.remove("hidden");
     clearTimeout(t._timer);

@@ -20,6 +20,11 @@ on:
       # 2026-11-10: очередь не пустела 10 проверок подряд именно из-за доков.
       - '**/*.md'
   workflow_dispatch:
+    inputs:
+      stop_before_prod:
+        description: 'Остановиться до deploy-prod (dev + smoke-api + контракт журнала, без прода)'
+        type: boolean
+        default: false
 
 # Один деплой за раз (несколько пушей агентов не гоняют параллельно).
 concurrency:
@@ -418,6 +423,7 @@ jobs:
     # при условии, что фронт в этом пуше не менялся и smoke-api зелёный.
     needs: [smoke-api, smoke-front, diff-paths, receipt-be092]
     if: |
+      (!inputs.stop_before_prod) &&
       always() &&
       needs.smoke-api.result == 'success' &&
       (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')

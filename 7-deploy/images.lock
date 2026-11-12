@@ -1,19 +1,22 @@
 # images.lock — какие образы считаются текущими (ADR-027, DO-066)
 #
-# Формат: <service> <tag> <путь> — по строке на образ. Ручной тег при деплое запрещён:
-# деплой читает только этот файл, откат = revert коммита, изменившего строку.
-# Генератор: python tools/gen_images_lock.py --write
-# Проверка:  python tools/gen_images_lock.py --check
-journal              single-ae29f58  6-msa/BC-Journal  digest=-
-partners             single-ad2fc57  6-msa/BC-Partners  digest=-
-catalog              single-983a9c4  6-msa/BC-Catalog  digest=-
-somatic-series       single-ae29f58  6-msa/BC-SomaticSeries  digest=-
-daily-metrics        single-983a9c4  6-msa/BC-DailyMetrics  digest=-
-garmin-gateway       single-ae29f58  6-msa/BC-GarminGateway  digest=-
-apple-health-gateway single-ae29f58  6-msa/BC-AppleHealthGateway  digest=-
-analytics            single-ae29f58  6-msa/BC-Analytics  digest=-
-privacy              single-ae29f58  6-msa/BC-Privacy  digest=-
-portability          single-ae29f58  6-msa/BC-Portability  digest=-
-client               single-ae29f58  6-msa/BC-Client  digest=-
-api-gateway          single-50961be  6-msa/ApiGateway  digest=-
-front                single-3461dfa  8-front  digest=-
+# ВНИМАНИЕ: набор смешанный — это последние ДОСТУПНЫЕ образы, а НЕ сборка HEAD.
+# Причина: у части сервисов красные тесты, образа «последнего коммита» нет (DO-108).
+# Провенанс: `commit=<sha>` — коммит, из которого образ собран; он всегда предок HEAD.
+# Вывести этот режим после появления `release.yml` (13 сервисов на одном коммите).
+#
+# Формат: <service> <tag> <путь>  commit=<sha>
+# Проверка: python tools/gen_images_lock.py --verify-registry
+journal              single-e059b2f     6-msa/BC-Journal  commit=e059b2f  digest=-
+partners             single-2003cf5     6-msa/BC-Partners  commit=2003cf5  digest=-
+catalog              single-4d9b2f5     6-msa/BC-Catalog  commit=4d9b2f5  digest=-
+somatic-series       single-c47ac4c     6-msa/BC-SomaticSeries  commit=c47ac4c  digest=-
+daily-metrics        single-4d9b2f5     6-msa/BC-DailyMetrics  commit=4d9b2f5  digest=-
+garmin-gateway       single-c47ac4c     6-msa/BC-GarminGateway  commit=c47ac4c  digest=-
+apple-health-gateway single-c47ac4c     6-msa/BC-AppleHealthGateway  commit=c47ac4c  digest=-
+analytics            single-c47ac4c     6-msa/BC-Analytics  commit=c47ac4c  digest=-
+privacy              single-c47ac4c     6-msa/BC-Privacy  commit=c47ac4c  digest=-
+portability          single-07a2426     6-msa/BC-Portability  commit=07a2426  digest=-
+client               single-33c226c     6-msa/BC-Client  commit=33c226c  digest=-
+api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5  digest=-
+front                single-0a7c463     8-front  commit=0a7c463  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
