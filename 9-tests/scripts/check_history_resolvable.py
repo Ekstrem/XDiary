@@ -109,29 +109,30 @@ def _call(base, method, path, body=None, token=None):
         return None, "%s: %s" % (type(e).__name__, e)
 
 
-def measure(base: str, call=None) -> int:
+def measure(base: str, call=None, quiet=False) -> int:
+    say = (lambda *a, **k: None) if quiet else print
     call = call or (lambda method, path, body=None, token=None: _call(base, method, path, body, token))
     phone = "+7999" + str(int(time.time() * 1000) % 10_000_000).zfill(7)
     name = "TE-E2E-Hist"
     st, raw = call("POST", "/api/v1/clients", {"phone": phone})
     if st != 200:
-        print("::warning::check_history_resolvable: регистрация -> %s — не измерено (rc=2)" % st)
+        say("::warning::check_history_resolvable: регистрация -> %s — не измерено (rc=2)" % st)
         return 2
     cid = (json.loads(raw) or {}).get("id")
     st, raw = call("POST", "/api/v1/clients/%s/verify" % cid, {"code": OTP})
     token = (json.loads(raw) if st == 200 else {}).get("accessToken") if st == 200 else None
     if not token:
-        print("::warning::check_history_resolvable: verify -> %s, токена нет — не измерено (rc=2)" % st)
+        say("::warning::check_history_resolvable: verify -> %s, токена нет — не измерено (rc=2)" % st)
         return 2
     st, raw = call("POST", "/api/v1/partners", {"name": name, "kind": "person"}, token)
     pid = (json.loads(raw) if st == 200 else {}).get("id") if st == 200 else None
     if not pid:
-        print("::warning::check_history_resolvable: создание партнёра -> %s — не измерено (rc=2)" % st)
+        say("::warning::check_history_resolvable: создание партнёра -> %s — не измерено (rc=2)" % st)
         return 2
     st, raw = call("POST", "/api/v1/journal/records", {"date": "2026-11-12"}, token)
     rid = (json.loads(raw) if st == 200 else {}).get("id") if st == 200 else None
     if not rid:
-        print("::warning::check_history_resolvable: создание записи -> %s — не измерено (rc=2)" % st)
+        say("::warning::check_history_resolvable: создание записи -> %s — не измерено (rc=2)" % st)
         return 2
     # без `when` запись не попадает в список (проверено замером), поэтому ставим начало
     call("POST", "/api/v1/journal/records/%s/when" % rid,
@@ -139,7 +140,7 @@ def measure(base: str, call=None) -> int:
     call("POST", "/api/v1/journal/records/%s/partners" % rid, {"partnerId": pid}, token)
     st, raw = call("POST", "/api/v1/partners/%s/remove" % pid, {}, token)
     if st != 200:
-        print("::warning::check_history_resolvable: remove -> %s — не измерено (rc=2)" % st)
+        say("::warning::check_history_resolvable: remove -> %s — не измерено (rc=2)" % st)
         return 2
     st, raw = call("GET", "/api/v1/journal/recent", None, token)
     try:
@@ -157,9 +158,9 @@ def measure(base: str, call=None) -> int:
     got_records = names_in_records(payload2, pid)
     code_records = verdict(got_records, pid, name)
 
-    print("партнёр: %s" % pid)
-    print("  /journal/recent  (резолв :95): %r -> rc=%d" % (got, code_recent))
-    print("  /journal/records (резолв :34): %r -> rc=%d" % (got_records, code_records))
+    say("партнёр: %s" % pid)
+    say("  /journal/recent  (резолв :95): %r -> rc=%d" % (got, code_recent))
+    say("  /journal/records (резолв :34): %r -> rc=%d" % (got_records, code_records))
 
     st3, raw3 = call("GET", "/api/v1/journal/records/%s" % rid, None, token)
     try:
@@ -168,17 +169,17 @@ def measure(base: str, call=None) -> int:
         payload3 = None
     got_one = names_in_record(payload3, pid)
     code_one = verdict(got_one, pid, name)
-    print("  /journal/records/{id} (резолв :47): %r -> rc=%d" % (got_one, code_one))
+    say("  /journal/records/{id} (резолв :47): %r -> rc=%d" % (got_one, code_one))
 
     codes = (code_recent, code_records, code_one)
     code = 1 if (1 in codes) else (0 if 0 in codes else 2)
     if code == 0:
-        print("квитанция: имя сохранилось | rc=0")
+        say("квитанция: имя сохранилось | rc=0")
     elif code == 1:
-        print("::error::check_history_resolvable: имя подменено id — дефект BE-099 "
+        say("::error::check_history_resolvable: имя подменено id — дефект BE-099 "
               "(JournalReadRepository.cs:34/:95), rc=1")
     else:
-        print("::warning::check_history_resolvable: имени в ответе нет — не измерено (rc=2)")
+        say("::warning::check_history_resolvable: имени в ответе нет — не измерено (rc=2)")
     return code
 
 
@@ -263,7 +264,7 @@ def selftest() -> int:
 
     for mode, want in (("ok", 0), ("defect", 1), ("no-name", 2), ("create-fails", 2)):
         total += 1
-        got = measure("http://fake", fake(mode))
+        got = measure("http://fake", fake(mode), quiet=True)
         if got == want:
             ok += 1
             print("  [OK]   поток %-12s -> rc=%d" % (mode, got))
@@ -282,7 +283,16 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
-    return measure(a.base.rstrip("/"))
+    rc = measure(a.base.rstrip("/"))
+    # @DO 2026-11-12 23:58: итог должен быть ОДНОЙ последней строкой, иначе аннотация читается
+    # как «два не измерено + дефект» одновременно. Пробы выше — контекст, вердикт — здесь.
+    reasons = {
+        0: "имя партнёра разрешимо во всех трёх путях",
+        1: "имя подменено id (BE-099) — см. строку с адресом выше",
+        2: "не измерено: стенд или регистрация недоступны (rc=2)",
+    }
+    print("ИТОГ: rc=%d — %s" % (rc, reasons.get(rc, "неизвестный код")))
+    return rc
 
 
 if __name__ == "__main__":
