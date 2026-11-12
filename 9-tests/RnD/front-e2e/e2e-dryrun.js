@@ -10,6 +10,7 @@
 // (нет исключений, есть навигация до действий). Запуск:
 //   node e2e-dryrun.js            # все спеки
 //   node e2e-dryrun.js wizard-offline.spec.js
+//   node e2e-dryrun.js wizard-offline.spec.js --all-flags --hidden '#view-wizard'  # негативный контроль
 //
 // rc=0 — все тела исполнены без исключений; rc=1 — есть падения; rc=2 — нет node_modules
 // (заглушке нужен только `@playwright/test` в require.cache, но каталог спек обязателен).
@@ -22,6 +23,12 @@ const ROOT = __dirname;
 // все `XDIARY_*` включены, поэтому на заглушках исполняются ВСЕ тела тестов (28 из 28),
 // то есть проверяется отсутствие исключений/опечаток в коде ранее пропускавшихся спек.
 // Это НЕ поведение продукта: заглушки проверяют только исполнимость кода спек.
+// TE-054/104: `--hidden '<sel>'` — селектор, который «не виден» (негативный контроль спеки).
+const HIDDEN = [];
+for (let i = 0; i < process.argv.length; i += 1) {
+  if (process.argv[i] === '--hidden' && process.argv[i + 1]) HIDDEN.push(process.argv[i + 1]);
+}
+
 if (process.argv.includes('--all-flags')) {
   for (const flag of ['XDIARY_BUSY', 'XDIARY_STALENOTE', 'XDIARY_READPATH_OFFLINE', 'XDIARY_READPARITY', 'XDIARY_CHANGE_PIN']) {
     process.env[flag] = '1';
@@ -118,7 +125,9 @@ function fakeDownload() {
 }
 
 function makeFakePage(log, opts) {
-  const optsRef = opts;
+  const optsRef = opts || {};
+  const hiddenList = Array.isArray(optsRef.hidden) ? optsRef.hidden : [];
+  const isHiddenSel = (sel) => hiddenList.some((h) => String(sel).includes(h));
   const callable = (name) => {
     const fn = (...args) => {
       log.push(name + (args.length ? '(' + args.map((a) => describeArg(a)).join(', ') + ')' : ''));
@@ -157,14 +166,21 @@ function makeFakePage(log, opts) {
       locator: (child) => locatorNode(sel + ' ' + String(child)),
       getByRole: (r) => locatorNode(sel + ' role=' + String(r)),
       getByText: (t) => locatorNode(sel + ' text=' + String(t)),
-      isVisible: async () => true,
-      isHidden: async () => false,
+      isVisible: async () => !isHiddenSel(sel),
+      isHidden: async () => isHiddenSel(sel),
       textContent: async () => '',
       innerText: async () => '',
       inputValue: async () => '',
       getAttribute: async () => null,
       waitFor: () => Promise.resolve(null),
-      toBeVisible: async () => true,
+      toBeVisible: async () => {
+        if (isHiddenSel(sel)) {
+          throw new Error('dryrun: "' + sel + '" спрятан флагом --hidden (негативный контроль)');
+        }
+        return true;
+      },
+      // 	oBeHidden НЕ бросает: в заглушке «скрыто» означает «не проверяем видимость»,
+      // иначе обычные спеки падают на собственных ассертах (проверено: 11 упавших).
       toBeHidden: async () => true,
       toHaveCount: async () => true,
       toContainText: async () => true,
@@ -255,7 +271,24 @@ function makeExpect() {
       toBeTruthy: () => true, toBeFalsy: () => true, toBeGreaterThan: () => true,
       toBeLessThan: () => true, toBeGreaterThanOrEqual: () => true, toBeUndefined: () => true,
       toBeDefined: () => true, toBeNull: () => true, toHaveLength: () => true,
-      toBeVisible: async () => true, toBeHidden: async () => true, toHaveCount: async () => true,
+      // Делегируем узлу, если он умеет: так работает негативный контроль `--hidden`.
+      // expect.poll(fn, {timeout}).toBe(x) — вызываем fn один раз и сравниваем: иначе
+      // негативный контроль ассертов на poll (startup-api-error, TE-104) физически не срабатывает.
+      poll: (fn, opts) => ({
+        toBe: async (want) => {
+          const got = await fn();
+          if (got !== want) {
+            throw new Error('dryrun: poll вернул ' + String(got) + ', ожидалось ' + String(want) +
+              ' (timeout=' + String((opts && opts.timeout) || '?') + ')');
+          }
+          return true;
+        },
+      }),
+      toBeVisible: async (a) => (value && typeof value.toBeVisible === 'function')
+        ? value.toBeVisible(a) : true,
+      toBeHidden: async (a) => (value && typeof value.toBeHidden === 'function')
+        ? value.toBeHidden(a) : true,
+      toHaveCount: async () => true,
       toContainText: async () => true, toHaveText: async () => true, toHaveValue: async () => true,
       toHaveAttribute: async () => true, toHaveClass: async () => true,
       toBeEnabled: async () => true, toBeDisabled: async () => true,
@@ -334,7 +367,7 @@ async function runSpec(file) {
   const full = path.join(dir, file);
   const { stub, registry } = makePlaywrightStub();
   const log = [];
-  const page = makeFakePage(log, {});
+  const page = makeFakePage(log, { hidden: (typeof HIDDEN !== 'undefined' ? HIDDEN : []) });
   const apiStub = stubApi(registry, page, log);
 
   // подменяем модули через require.cache до загрузки спеки
