@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
       - name: Create PR (если ещё нет)
         env:
-          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # PAT не годится: у него нет scope на PR
         run: |
           if gh pr view "$GITHUB_REF_NAME" --json number >/dev/null 2>&1; then
             echo "PR уже есть — пропускаю"
