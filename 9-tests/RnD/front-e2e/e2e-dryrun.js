@@ -11,6 +11,7 @@
 //   node e2e-dryrun.js            # все спеки
 //   node e2e-dryrun.js wizard-offline.spec.js
 //   node e2e-dryrun.js wizard-offline.spec.js --all-flags --hidden '#view-wizard'  # негативный контроль
+//   node e2e-dryrun.js startup-api-error.spec.js --all-flags --empty-ui  # «ни экрана, ни текста»
 //
 // rc=0 — все тела исполнены без исключений; rc=1 — есть падения; rc=2 — нет node_modules
 // (заглушке нужен только `@playwright/test` в require.cache, но каталог спек обязателен).
@@ -28,6 +29,9 @@ const HIDDEN = [];
 for (let i = 0; i < process.argv.length; i += 1) {
   if (process.argv[i] === '--hidden' && process.argv[i + 1]) HIDDEN.push(process.argv[i + 1]);
 }
+
+// TE-104: `--empty-ui` — «ни экрана, ни видимого текста» (негативный контроль).
+const EMPTY_UI = process.argv.includes('--empty-ui');
 
 if (process.argv.includes('--all-flags')) {
   for (const flag of ['XDIARY_BUSY', 'XDIARY_STALENOTE', 'XDIARY_READPATH_OFFLINE', 'XDIARY_READPARITY', 'XDIARY_CHANGE_PIN']) {
@@ -127,6 +131,7 @@ function fakeDownload() {
 function makeFakePage(log, opts) {
   const optsRef = opts || {};
   const hiddenList = Array.isArray(optsRef.hidden) ? optsRef.hidden : [];
+  const emptyUI = Boolean(optsRef.emptyUI);
   const isHiddenSel = (sel) => hiddenList.some((h) => String(sel).includes(h));
   const callable = (name) => {
     const fn = (...args) => {
@@ -166,7 +171,7 @@ function makeFakePage(log, opts) {
       locator: (child) => locatorNode(sel + ' ' + String(child)),
       getByRole: (r) => locatorNode(sel + ' role=' + String(r)),
       getByText: (t) => locatorNode(sel + ' text=' + String(t)),
-      isVisible: async () => !isHiddenSel(sel),
+      isVisible: async () => (emptyUI ? false : !isHiddenSel(sel)),
       isHidden: async () => isHiddenSel(sel),
       textContent: async () => '',
       innerText: async () => '',
@@ -174,6 +179,9 @@ function makeFakePage(log, opts) {
       getAttribute: async () => null,
       waitFor: () => Promise.resolve(null),
       toBeVisible: async () => {
+        if (emptyUI) {
+          throw new Error('dryrun: UI пуст (--empty-ui) — "' + sel + '" невидим');
+        }
         if (isHiddenSel(sel)) {
           throw new Error('dryrun: "' + sel + '" спрятан флагом --hidden (негативный контроль)');
         }
@@ -301,7 +309,23 @@ function makeExpect() {
     chain.toPass = async () => true;
     return new Proxy(chain, { get: (t, p) => (p in t ? t[p] : () => true) });
   };
-  expectFn.poll = () => new Proxy({}, { get: () => () => true });
+  // ВАЖНО: expect.poll должен РЕАЛЬНО вызывать fn, иначе негативный контроль ассертов на poll
+  // (startup-api-error, TE-104) физически не срабатывает — проверено: 0 упавших при пустом UI.
+  expectFn.poll = (fn, opts) => ({
+    toBe: async (want) => {
+      const got = await fn();
+      // `undefined` = заглушка не умеет измерить это условие (значение читается из состояния DOM).
+      // Это НЕ дефект спеки: честно пропускаем, иначе dryrun даёт ложный красный (проверено: remove-pin).
+      // Заглушка умеет измерять только булевы условия (`toBe(true|false)`). Строки/числа/``
+      // приходят из DOM-состояния, которого в dryrun нет → это НЕ дефект спеки.
+      if (typeof got !== 'boolean') return true;
+      if (got !== want) {
+        throw new Error('dryrun: poll вернул ' + String(got) + ', ожидалось ' + String(want) +
+          ' (timeout=' + String((opts && opts.timeout) || '?') + ')');
+      }
+      return true;
+    },
+  });
   expectFn.soft = expectFn;
   expectFn.configure = () => {};
   expectFn.any = () => ({});
@@ -367,7 +391,8 @@ async function runSpec(file) {
   const full = path.join(dir, file);
   const { stub, registry } = makePlaywrightStub();
   const log = [];
-  const page = makeFakePage(log, { hidden: (typeof HIDDEN !== 'undefined' ? HIDDEN : []) });
+  const page = makeFakePage(log, { hidden: (typeof HIDDEN !== 'undefined' ? HIDDEN : []),
+    emptyUI: (typeof EMPTY_UI !== 'undefined' ? EMPTY_UI : false) });
   const apiStub = stubApi(registry, page, log);
 
   // подменяем модули через require.cache до загрузки спеки
