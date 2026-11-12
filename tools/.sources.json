@@ -335,6 +335,11 @@
       "synced_at": "2026-11-13",
       "upstream": "tools/resource-usage.py"
     },
+    "restore_chat.py": {
+      "sha256": "4cd0543a2283d2f24fb2b1caa6d59567892a058d09f8251b486091409d3ac6fa",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/restore_chat.py"
+    },
     "review_whip.py": {
       "sha256": "d39a1bfb13df85bbbb7a6abb8d570c5cba19bb920c3b81b7c5cbddb036cd5725",
       "synced_at": "2026-11-13",
