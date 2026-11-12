@@ -31,7 +31,7 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         var list = models.ToList();
         if (list.Count == 0) return;
         var dir = await _dir.GetAllAsync(new Paging(1, int.MaxValue), ct);
-        var byId = dir.Where(x => x.DeletedAt is null)
+        var byId = dir
             .ToDictionary(x => x.PartnerId, x => x.Name);
         foreach (var m in list)
         {
@@ -92,7 +92,7 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         if (last.Partners.Count > 0 && Guid.TryParse(last.Partners[0], out var pid))
         {
             var dir = await _dir.GetAllAsync(new Paging(1, int.MaxValue), ct);
-            lastPartnerName = dir.Where(x => x.DeletedAt is null && x.PartnerId == pid)
+            lastPartnerName = dir.Where(x => x.PartnerId == pid)
                 .Select(x => x.Name)
                 .FirstOrDefault();
         }

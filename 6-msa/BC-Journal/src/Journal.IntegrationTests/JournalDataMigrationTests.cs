@@ -1,5 +1,6 @@
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.SeedWorks.Definition;
 using DigiTFactory.Libraries.SeedWorks.Events;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -17,7 +18,8 @@ public class JournalDataMigrationTests
     private sealed class FakeBus : IEventBusProducer
     {
         public int Published;
-        public Task PublishAsync(IDomainEvent<IJournal> e, CancellationToken ct = default) { Published++; return Task.CompletedTask; }
+        public void Publish<TBoundedContext>(IDomainEvent<TBoundedContext> e) where TBoundedContext : IBoundedContext { Published++; }
+        public Task PublishAsync<TBoundedContext>(IDomainEvent<TBoundedContext> e) where TBoundedContext : IBoundedContext { Published++; return Task.CompletedTask; }
     }
 
     private sealed class FakeStore : IEventStoreRepository<IJournal, IJournalAnemicModel>
