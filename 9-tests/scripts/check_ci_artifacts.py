@@ -28,25 +28,36 @@ FAIL_IF = re.compile(r"if:\s*.*failure\(\)", re.I)
 
 
 def evaluate(files: dict[str, str]) -> list[str]:
+    """Артефакт под `if: failure()` бесполезен, если до него нет шага, который реально падает.
+
+    `TE-105` (`f465e473`): шаг «Repeat run (list)» — `continue-on-error: true`, поэтому падение тестов его
+    не помечает; детектор — следующий шаг «Итог по спекам» с `if: always()`. Артефакты должны стоять
+    **после** детектора. Если `if: always()`-шага нет вовсе — падение никому не видно, тоже дефект.
+    """
     issues = []
     for name, text in sorted(files.items()):
         lines = text.splitlines()
-        first_continue, upload_rows = None, []
+        continue_rows = [i for i, ln in enumerate(lines) if CONTINUE.search(ln)]
+        always_rows = [i for i, ln in enumerate(lines) if re.search(r"if:\s*\**\s*always\(\)", ln, re.I)]
         for i, line in enumerate(lines):
-            if first_continue is None and CONTINUE.search(line):
-                first_continue = i + 1
-            if UPLOAD.search(line):
-                # `if:` стоит ПЕРЕД `uses:` (так пишут в step-блоках) — смотрим назад и немного вперёд
-                window = "\n".join(lines[max(0, i - 3):i + 4])
-                if FAIL_IF.search(window):
-                    upload_rows.append(i + 1)
-        for row in upload_rows:
-            if first_continue is not None and first_continue < row:
-                issues.append(
-                    "%s:%d — `upload-artifact` под `if: failure()`, но раньше стоит "
-                    "`continue-on-error: true` (строка %d): падение тестов не пометит шаг failed, "
-                    "артефакт не сохранится (класс TE-105)" % (name, row, first_continue)
-                )
+            if not UPLOAD.search(line):
+                continue
+            window = "\n".join(lines[max(0, i - 3):i + 4])
+            if not FAIL_IF.search(window):
+                continue
+            prev_continue = [c for c in continue_rows if c < i]
+            if not prev_continue:
+                continue  # падению есть что пометить - артефакт сработает
+            last_continue = max(prev_continue)
+            detector = [a for a in always_rows if last_continue < a < i]
+            if detector:
+                continue  # детектор между continue-on-error и артефактами - порядок верный
+            issues.append(
+                "%s:%d — `upload-artifact` под `if: failure()` стоит раньше детектора падений "
+                "(`if: always()`); до него единственный «виновный» шаг имеет `continue-on-error: true` "
+                "(строка %d), поэтому артефакт не сохранится (класс TE-105)"
+                % (name, i + 1, last_continue + 1)
+            )
     return issues
 
 
@@ -62,11 +73,15 @@ def load(dirpath: pathlib.Path):
 FIXTURES = {
     "ok.yml": """
 jobs:
-  test:
+  repeat:
     steps:
-      - name: Run tests
-        run: dotnet test
-      - name: Upload on failure
+      - name: Repeat run
+        continue-on-error: true
+        run: npx playwright test
+      - name: Итог по спекам
+        if: always()
+        run: python summary.py
+      - name: Артефакты падения
         if: failure()
         uses: actions/upload-artifact@v4
 """,
@@ -91,6 +106,9 @@ jobs:
       - name: build
         continue-on-error: true
         run: dotnet build
+      - name: Итог
+        if: always()
+        run: echo done
 """,
 }
 
