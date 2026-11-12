@@ -1,20 +1,35 @@
+diff --git a/9-tests/RnD/front-e2e/playwright.config.js b/9-tests/RnD/front-e2e/playwright.config.js
+index 04ebbb9be..22358806b 100644
+--- a/9-tests/RnD/front-e2e/playwright.config.js
++++ b/9-tests/RnD/front-e2e/playwright.config.js
+@@ -23,6 +23,12 @@ module.exports = defineConfig({
+     headless: true,
+     screenshot: 'only-on-failure',
+     trace: 'retain-on-failure',
++    // FE-046 (@AR 01:51, @TL 01:54): без `actionTimeout` ЛЮБОЕ действие без явного
++    // таймаута ждёт таймаут ТЕСТА (90 с) — так `innerText()` на несуществующем
++    // `#toast` вешал спеку, а дамп показывал `about:blank` уже после закрытия
++    // контекста. 15 с: отсутствующий элемент падает по-английски «элемента нет»,
++    // а страница к моменту дампа ещё жива.
++    actionTimeout: Number(process.env.XDIARY_E2E_ACTION_TIMEOUT || 15000),
+   },
+   webServer: {
+     command: 'node serve.js',
 diff --git a/9-tests/RnD/front-e2e/tests/api.js b/9-tests/RnD/front-e2e/tests/api.js
-index e0f79fa30..4ca6b1d26 100644
+index e0f79fa30..926217e78 100644
 --- a/9-tests/RnD/front-e2e/tests/api.js
 +++ b/9-tests/RnD/front-e2e/tests/api.js
-@@ -749,7 +749,10 @@ try {
+@@ -749,7 +749,8 @@ try {
  async function reportStep(page, where) {
    try {
      const toast = page.locator('#toast');
 -    const text = ((await toast.innerText().catch(() => '')) || '').trim();
-+    // FE-046 (@TL 2026-11-13 01:52): без явного timeout `innerText()` ждёт до таймаута
-+    // ТЕСТА (90 с), если `#toast` не существует. Это и вешало спеку: дамп views
-+    // показывал about:blank уже после закрытия контекста по таймауту.
++    // FE-046 (@TL 01:52): без явного timeout `innerText()` ждёт до таймаута ТЕСТА (90 с).
 +    const text = ((await toast.innerText({ timeout: 1500 }).catch(() => '')) || '').trim();
      const state = await toast.evaluate((el) => ({
        hidden: el.classList.contains('hidden'),
        cls: String(el.className || ''),
-@@ -787,7 +790,7 @@ async function expectScreen(page, selector, where, timeout) {
+@@ -787,7 +788,7 @@ async function expectScreen(page, selector, where, timeout) {
    try {
      await page.locator(selector).waitFor({ state: 'visible', timeout: ms });
    } catch (e) {
@@ -23,7 +38,7 @@ index e0f79fa30..4ca6b1d26 100644
      const views = await dumpViews(page, 'НЕ ДОШЛИ: ' + where).catch(() => null);
      // @TL 2026-11-02 17:28: при падении нужен снимок хранилища — иначе при 401 снова не видно,
      // что лежит в localStorage. Хук afterEach печатает его в stdout, но в аннотацию CI попадает
-@@ -852,7 +855,7 @@ async function stepGuard(page, label, fn, apiLog) {
+@@ -852,7 +853,7 @@ async function stepGuard(page, label, fn, apiLog) {
    } catch (e) {
      const views = await dumpViews(page, 'stepGuard').catch(() => null);
      const ls = await snapshotStorage(page, 'stepGuard').catch(() => null);

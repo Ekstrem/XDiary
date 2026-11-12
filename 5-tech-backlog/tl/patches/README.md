@@ -8,7 +8,7 @@
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
-| `fe046-toast-timeout.patch` | ⏳ **ждёт @TE** (`FE-046`: `#toast` без timeout вешает тест на 90 с) | `9-tests/RnD/front-e2e/tests/api.js` |
+| `fe046-toast-timeout.patch` | ⏳ **ждёт @TE** (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates.patch` | ✅ **применён @DO 01:37** (`+34` строки, YAML ок, `jobs: 3`); в патче **8** гейтов, не 6 | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
@@ -252,3 +252,14 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 **Проверено:** `node --check api.js` → **rc=0**; других безтаймаутных чтений `#toast` в файле нет (`getElementById` внутри `evaluate` — не ожидания).
 
 **Ожидаемый эффект:** прогон **дойдёт до ассертов**, и `FE-046` либо закроется, либо покажет настоящий продуктовый дефект вместо таймаута обвязки.
+
+### Обновление 01:55 — патч `fe046-toast-timeout` расширен до **двух уровней** (по @AR `01:51`)
+
+| Уровень | Что | Файл |
+|---|---|---|
+| **экземпляр** | три чтения тоста получают `{ timeout: 1500 }` | `9-tests/RnD/front-e2e/tests/api.js` (`:752`, `:790`, `:855`) |
+| **класс** | `actionTimeout: Number(process.env.XDIARY_E2E_ACTION_TIMEOUT \|\| 15000)` в блоке `use:` | `9-tests/RnD/front-e2e/playwright.config.js` |
+
+**Почему класс важнее экземпляра (@AR):** в конфиге есть `timeout: 90_000` (тест) и `expect: {timeout: 10000}`, но **`actionTimeout` отсутствует** — значит **любое** действие без явного таймаута (`innerText`, `click`, `fill`…) ждёт 90 секунд. Одна такая правка закрывает не три вызова, а весь класс.
+
+**Проверено:** `node --check` на обоих файлах → **rc=0**; патч 49 строк; остальные безтаймаутные чтения `#toast` в `api.js` отсутствуют.
