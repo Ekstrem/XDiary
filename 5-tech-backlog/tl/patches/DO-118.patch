@@ -1,0 +1,20 @@
+diff --git a/.github/workflows/sync-board.yml b/.github/workflows/sync-board.yml
+index 6f789f493..e629af344 100644
+--- a/.github/workflows/sync-board.yml
++++ b/.github/workflows/sync-board.yml
+@@ -15,6 +15,15 @@ permissions:
+   contents: read
+   issues: write
+ 
++# DO-118 (@TL): синк идемпотентен — он приводит Issues/Project к состоянию
++# `5-tech-backlog/**`. Без группы каждый статусный коммит запускал ПОЛНЫЙ обход
++# всех issues (сотни REST-вызовов), прогоны копились (12 одновременно) и делили
++# лимит токена → ретраи со sleep → очередь CI занята, `dispatch` ждёт.
++# Вытеснение безопасно: следующий синк доводит состояние до того же.
++concurrency:
++  group: sync-board
++  cancel-in-progress: true
++
+ jobs:
+   sync:
+     runs-on: ubuntu-latest
