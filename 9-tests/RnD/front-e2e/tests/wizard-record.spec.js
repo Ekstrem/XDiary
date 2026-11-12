@@ -98,6 +98,18 @@ test('E2E: запись через визард — создаётся и вид
     const stepText = () => page.locator('#view-wizard').innerText();
     const next = async (label) => {
       console.log('::notice::wizard next: ' + label);
+      // Шаг «Сколько длилось?» (`#w-dur-grid`): продукт (8-front/js/app.js:801) не
+      // пускает дальше без durationMin >= 1. Метки шагов в логе опережают фактический
+      // шаг: спека считает, что идёт `5 -> 6`, а мастер уже на шаге длительности.
+      // Поэтому клик «далее» на этом переходе пропускаем — длительность заполняет
+      // следующая строка (`fill #w-dur-custom`), а `6 -> 7` уже пройдёт.
+      if (!label.startsWith('6 -> 7')) {
+        const durGrid = page.locator('#w-dur-grid');
+        if (await durGrid.isVisible().catch(() => false)) {
+          console.log('::notice::wizard next: уже на шаге «Сколько длилось?» — клик пропущен (' + label + ')');
+          return;
+        }
+      }
       const before = await stepText().catch(() => '');
       await page.click('#btn-wizard-next', NEXT);
       await page.waitForFunction(
