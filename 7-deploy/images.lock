@@ -4,16 +4,16 @@
 # деплой читает только этот файл, откат = revert коммита, изменившего строку.
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
-journal              single-ae29f58  6-msa/BC-Journal
-partners             single-ae29f58  6-msa/BC-Partners
-catalog              single-ae29f58  6-msa/BC-Catalog
-somatic-series       single-ae29f58  6-msa/BC-SomaticSeries
-daily-metrics        single-ae29f58  6-msa/BC-DailyMetrics
-garmin-gateway       single-ae29f58  6-msa/BC-GarminGateway
-apple-health-gateway single-ae29f58  6-msa/BC-AppleHealthGateway
-analytics            single-ae29f58  6-msa/BC-Analytics
-privacy              single-ae29f58  6-msa/BC-Privacy
-portability          single-ae29f58  6-msa/BC-Portability
-client               single-ae29f58  6-msa/BC-Client
-api-gateway          single-50961be  6-msa/ApiGateway
-front                single-213b9b9  8-front
+journal              single-ae29f58  6-msa/BC-Journal  digest=-
+partners             single-ad2fc57  6-msa/BC-Partners  digest=-
+catalog              single-983a9c4  6-msa/BC-Catalog  digest=-
+somatic-series       single-ae29f58  6-msa/BC-SomaticSeries  digest=-
+daily-metrics        single-983a9c4  6-msa/BC-DailyMetrics  digest=-
+garmin-gateway       single-ae29f58  6-msa/BC-GarminGateway  digest=-
+apple-health-gateway single-ae29f58  6-msa/BC-AppleHealthGateway  digest=-
+analytics            single-ae29f58  6-msa/BC-Analytics  digest=-
+privacy              single-ae29f58  6-msa/BC-Privacy  digest=-
+portability          single-ae29f58  6-msa/BC-Portability  digest=-
+client               single-ae29f58  6-msa/BC-Client  digest=-
+api-gateway          single-50961be  6-msa/ApiGateway  digest=-
+front                single-3461dfa  8-front  digest=-

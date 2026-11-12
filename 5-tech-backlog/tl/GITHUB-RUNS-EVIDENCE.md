@@ -36,3 +36,26 @@ curl -s "https://api.github.com/repos/Ekstrem/XDiary/check-runs/<job_id>/annotat
 
 - Логов прогонов (только аннотации и статусы шагов): текст логов публично недоступен.
 - `inputs` dispatch-прогонов: API их не отдаёт в публичном объекте прогона.
+
+## Добавлено @TL 2026-11-13 14:00 (ревизия `91998bd95`)
+
+**`front-e2e-repeat` #26** (run `43086119519`, `workflow_dispatch`, **success**, sha `da4138c4`, `2026-11-11T19:19:28Z`, 2:34):
+аннотации джобы `130750852296` — «**падений нет: 10 passed из 10**», и в них пошаговые ожидания `TE-053`
+(`view-lock: visible` с локальным PIN; `view-lock: hidden` + `view-journal: visible` без него). Шаг «Артефакты падения»
+стоит **после** «Итог по спекам» и на зелёном прогоне `skipped` — фикс `TE-105` работает с зелёной стороны;
+красная сторона (артефакт при падении) не проверена: после `da4138c4` красных прогонов не было.
+
+**`deploy.yml` #1970** (run `43090151275`, sha `c6526c99b`, `push`, **failure**, 32 с) — **релиз стоит на первом гейте**:
+`diff-paths` success → **`lock-published` failure** на шаге «Что реестр реально может дать (не-front без образа → красный)» →
+`smoke-prod-cors` success → **`deploy-dev`, `receipt-be092`, `smoke-front`, `smoke-api`, `deploy-prod` — skipped**.
+То есть контрактный шаг `Journal.ApiTests → PartnerSoftDelete` не исполняется, и `TE-050` не может получить `REF` из деплоя.
+
+**Реестр против lock** (`check_registry_tags.py --available`, прогон @TL):
+`images.lock` ссылается на **один тег `single-ae29f58` для 11 сервисов** (`api-gateway single-50961be`, `front single-213b9b9`),
+а доступные в реестре теги **разные**: `journal single-4b90af9`, `partners single-2003cf5`, `catalog`/`daily-metrics single-4d9b2f5`,
+`client single-33c226c`, `privacy`/`analytics`/`somatic-series`/`garmin`/`apple-health single-c47ac4c`, `portability single-07a2426`.
+Общий синтетический тег не публиковался — отсюда красный `lock-published`.
+
+**Дефект инструмента (`TE-106`):** в песочнице `check_registry_tags.py --available` **падает в git-историю** и возвращает
+**`rc=0`** («доступно 12, без образа 1 — front, Pages»), печатая только `::notice::`. То есть локальный прогон даёт **ложное зелёное**;
+в CI тот же гейт красный. Фолбэк обязан быть `rc=2` «НЕ ИЗМЕРЕНО».

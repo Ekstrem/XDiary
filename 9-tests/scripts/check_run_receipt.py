@@ -29,6 +29,10 @@ FAIL = re.compile(r"[✘✗×]\s+(.+)")
 SPEC_FILE = re.compile(r"([\w.-]+\.spec\.js)")
 SUMMARY_RUN = re.compile(r"Running\s+(\d+)\s+tests?", re.I)
 SUMMARY_RESULT = re.compile(r"(\d+)\s+(passed|failed|flaky|skipped)", re.I)
+
+# VSTest/`dotnet test` (TE-050): `Passed!  - Failed: 0, Passed: 4, Skipped: 0, Total: 4`
+VSTEST = re.compile(r"(Passed|Failed)!\s*-\s*Failed:\s*(\d+),\s*Passed:\s*(\d+),"
+                    r"\s*Skipped:\s*(\d+),\s*Total:\s*(\d+)", re.I)
 # шаг CI: «Front E2E» исполняется, а «front-e2e … skipped» — нет
 STEP_SKIPPED = re.compile(r"front-e2e.*(?:skipped|Skipped)", re.I)
 
@@ -39,7 +43,12 @@ def parse(text: str) -> dict:
     specs = set()
     running = None
     counts = {}
+    vstest = None
     for line in text.splitlines():
+        mv = VSTEST.search(line)
+        if mv:
+            vstest = {"failed": int(mv.group(2)), "passed": int(mv.group(3)),
+                      "skipped": int(mv.group(4)), "total": int(mv.group(5))}
         m = PASS.search(line)
         if m:
             passed.append(m.group(1).strip()[:120])
@@ -55,7 +64,8 @@ def parse(text: str) -> dict:
             # «1 passed» / «2 failed» — берём максимум по классу: у Playwright итог идёт последним
             n, kind = int(m.group(1)), m.group(2).lower()
             counts[kind] = max(counts.get(kind, 0), n)
-    measured = bool(passed or failed or running or counts.get("passed") or counts.get("failed"))
+    measured = bool(vstest or passed or failed or running or counts.get("passed")
+                    or counts.get("failed"))
     return {
         "measured": measured,
         "passed": len(passed),
@@ -64,6 +74,7 @@ def parse(text: str) -> dict:
         "counts": counts,
         "specs": sorted(specs),
         "failed_names": failed[:10],
+        "vstest": vstest,
         "skipped_step": bool(STEP_SKIPPED.search(text)),
     }
 
@@ -74,6 +85,8 @@ def totals(result: dict) -> tuple[int, int]:
     Сводка авторитетнее: `1 failed` печатается и тогда, когда подробностей в логе меньше
     (retry, `--reporter=dot`). Но если сводки нет (усечённый лог) — считаем по строкам.
     """
+    if result.get("vstest"):
+        return result["vstest"]["passed"], result["vstest"]["failed"]
     passed = result["counts"].get("passed") or result["passed"]
     failed = result["counts"].get("failed") or result["failed"]
     return passed, failed
@@ -81,11 +94,13 @@ def totals(result: dict) -> tuple[int, int]:
 
 def receipt(result: dict, run: str, sha: str) -> str:
     passed, failed = totals(result)
+    src = "dotnet-test" if result.get("vstest") else "playwright"
     parts = [
         "REF=%s" % (sha or "нет-ref"),
         "run=%s" % (run or "локальный"),
         "спек в логе %d" % len(result["specs"]),
         "тестов исполнено %s" % (result["running"] if result["running"] is not None else "?"),
+        "источник %s" % src,
         "passed %d" % passed,
         "failed %d" % failed,
     ]
@@ -94,6 +109,11 @@ def receipt(result: dict, run: str, sha: str) -> str:
 
 def verdict(result: dict, run: str, sha: str) -> tuple[int, list[str]]:
     lines = []
+    vs = result.get("vstest")
+    if vs and vs["total"] == 0:
+        lines.append("::warning::НЕ ИЗМЕРЕНО: `dotnet test` не исполнил ни одного теста (Total: 0)")
+        lines.append(receipt(result, run, sha))
+        return 2, lines
     if not result["measured"]:
         lines.append("::warning::не измерено: в логе нет признаков прогона (ни ✓/✘, ни «Running N tests»)")
         if result["skipped_step"]:
@@ -104,10 +124,13 @@ def verdict(result: dict, run: str, sha: str) -> tuple[int, list[str]]:
         lines.append("::warning::шаг `front-e2e` skipped, тестов нет — зелёным это не считать")
         lines.append(receipt(result, run, sha))
         return 2, lines
+    _passed, failed_total = totals(result)
     for name in result["failed_names"]:
         lines.append("::error::упал: %s" % name)
+    if failed_total and not result["failed_names"]:
+        lines.append("::error::падений %d (имена в логе не найдены — смотри сводку)" % failed_total)
     lines.append(receipt(result, run, sha))
-    return (1 if result["failed"] else 0), lines
+    return (1 if failed_total else 0), lines
 
 
 FIXTURE_PASS = """
@@ -123,6 +146,18 @@ Running 3 tests using 1 worker
 ✓  E2E: FE-014 — дефолты записи (9.1s)
 ✘  E2E: FE-016 — окно после клика (30.0s)
 2 failed
+"""
+
+FIXTURE_VSTEST_PASS = """
+Passed!  - Failed:     0, Passed:     4, Skipped:     0, Total:     4, Duration: 1 s
+"""
+
+FIXTURE_VSTEST_FAIL = """
+Failed!  - Failed:     2, Passed:     2, Skipped:     0, Total:     4, Duration: 1 s
+"""
+
+FIXTURE_VSTEST_ZERO = """
+Passed!  - Failed:     0, Passed:     0, Skipped:     0, Total:     0, Duration: 0 s
 """
 
 FIXTURE_JUNK = """
@@ -152,7 +187,11 @@ def selftest() -> int:
     case("норма: три теста зелёные", FIXTURE_PASS, 0, ["passed 3", "failed 0", "спек в логе"])
     case("дефект: один упал", FIXTURE_FAIL, 1, ["упал:", "failed 2"])
     case("пустой лог (skipped) — не измерено", FIXTURE_JUNK, 2, ["НЕ ИЗМЕРЕНО", "skipped"])
-    print("check_run_receipt --selftest: %d/%d (норма / падение / skipped)" % (ok, total))
+    case("dotnet test: 4 passed", FIXTURE_VSTEST_PASS, 0, ["passed 4", "источник dotnet-test"])
+    case("dotnet test: 2 failed", FIXTURE_VSTEST_FAIL, 1, ["failed 2", "падений 2"])
+    case("dotnet test: Total 0 - не измерено", FIXTURE_VSTEST_ZERO, 2, ["НЕ ИЗМЕРЕНО", "Total: 0"])
+    print("check_run_receipt --selftest: %d/%d (playwright: норма/падение/skipped; dotnet test: 0/1/2)"
+          % (ok, total))
     return 0 if ok == total else 1
 
 

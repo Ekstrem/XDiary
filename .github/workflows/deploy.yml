@@ -35,7 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # `check_registry_tags --available` строит «последних опубликованных предков»
+      # через `git log`; в мелком клоне истории нет → у всех сервисов «НЕТ опубликованных
+      # предков» → красный гейт при верном lock (deploy #1974). Нужна полная история.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Самопроверка гейта
         run: python3 tools/gen_images_lock.py --selftest
