@@ -74,12 +74,17 @@ jobs:
       - name: Перегенерировать lock
         run: |
           set -uo pipefail
-          if grep -q "набор смешанный" 7-deploy/images.lock; then
-            echo "lock смешанный — перегенерирую из реестра"
-            python tools/gen_images_lock.py --from-registry --write
-          else
-            echo "lock обычный — перегенерирую из git"
-            python tools/gen_images_lock.py --write
+          # @TL 12:00/12:30: lock из git-SHA ссылается на теги, которых нет в реестре
+          # (`single-ae29f58` — ни у одного сервиса), и деплой стоит на первом гейте
+          # `lock-published`. Поэтому источник lock — ОПУБЛИКОВАННЫЕ образы, а не git.
+          # Если реестр не отдал часть сервисов — lock не трогаем (иначе снова невыкатываемый).
+          set +e
+          python tools/gen_images_lock.py --from-registry --write
+          rc=$?
+          set -e
+          if [ "$rc" != "0" ]; then
+            echo "::warning::lock-sync: реестр отдал не все образы (rc=$rc) — lock оставляю как был"
+            git checkout -- 7-deploy/images.lock
           fi
 
       # DO-113: lock не должен ТЕРЯТЬ digest при перегенерации. Это блокирующая проверка:
