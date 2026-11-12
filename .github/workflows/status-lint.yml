@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: status-lint
+  group: status-lint-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

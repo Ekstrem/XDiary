@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: docs-budget
+  group: docs-budget-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
