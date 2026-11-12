@@ -146,8 +146,8 @@ public class RegisterClientHandlerTests
 
     // TE-097: уникальность считается по НОРМАЛИЗОВАННОЙ форме — иначе форматирование обходит инвариант.
     [Theory]
-    [InlineData("+7 900 000-00-00", "+7900000000")]
-    [InlineData("8 (900) 000-00-00", "+7900000000")]
+    [InlineData("+7 900 000-00-00", "+79000000000")]
+    [InlineData("8 (900) 000-00-00", "+79000000000")]
     [InlineData("+7900000000", "+7900000000")]
     public async Task Register_Formats_NormalizedBeforeSend(string input, string expected)
     {
