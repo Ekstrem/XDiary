@@ -23,6 +23,12 @@ module.exports = defineConfig({
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    // FE-046 (@AR 01:51, @TL 01:54): без `actionTimeout` ЛЮБОЕ действие без явного
+    // таймаута ждёт таймаут ТЕСТА (90 с) — так `innerText()` на несуществующем
+    // `#toast` вешал спеку, а дамп показывал `about:blank` уже после закрытия
+    // контекста. 15 с: отсутствующий элемент падает по-английски «элемента нет»,
+    // а страница к моменту дампа ещё жива.
+    actionTimeout: Number(process.env.XDIARY_E2E_ACTION_TIMEOUT || 15000),
   },
   webServer: {
     command: 'node serve.js',

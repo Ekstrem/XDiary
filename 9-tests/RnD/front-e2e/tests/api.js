@@ -749,7 +749,8 @@ try {
 async function reportStep(page, where) {
   try {
     const toast = page.locator('#toast');
-    const text = ((await toast.innerText().catch(() => '')) || '').trim();
+    // FE-046 (@TL 01:52): без явного timeout `innerText()` ждёт до таймаута ТЕСТА (90 с).
+    const text = ((await toast.innerText({ timeout: 1500 }).catch(() => '')) || '').trim();
     const state = await toast.evaluate((el) => ({
       hidden: el.classList.contains('hidden'),
       cls: String(el.className || ''),
@@ -787,7 +788,7 @@ async function expectScreen(page, selector, where, timeout) {
   try {
     await page.locator(selector).waitFor({ state: 'visible', timeout: ms });
   } catch (e) {
-    const toast = ((await page.locator('#toast').innerText().catch(() => '')) || '').trim();
+    const toast = ((await page.locator('#toast').innerText({ timeout: 1500 }).catch(() => '')) || '').trim();
     const views = await dumpViews(page, 'НЕ ДОШЛИ: ' + where).catch(() => null);
     // @TL 2026-11-02 17:28: при падении нужен снимок хранилища — иначе при 401 снова не видно,
     // что лежит в localStorage. Хук afterEach печатает его в stdout, но в аннотацию CI попадает
@@ -852,7 +853,7 @@ async function stepGuard(page, label, fn, apiLog) {
   } catch (e) {
     const views = await dumpViews(page, 'stepGuard').catch(() => null);
     const ls = await snapshotStorage(page, 'stepGuard').catch(() => null);
-    const toast = await page.locator('#toast').innerText().catch(() => '');
+    const toast = await page.locator('#toast').innerText({ timeout: 1500 }).catch(() => '');
     const tail = Array.isArray(apiLog) ? apiLog.slice(-10).join(' | ') : '';
     throw new Error(
       'ШАГ: ' + label + ' ;; ТОСТ: ' + JSON.stringify((toast || '').slice(0, 200)) +
