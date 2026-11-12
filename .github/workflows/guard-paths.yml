@@ -3,6 +3,10 @@ name: Guard (роль не вышла за зону)
 on:
   push:
     branches: ["main"]
+  # PDR-047: guard обязан идти на КАЖДЫЙ PR без фильтра путей — иначе
+  # required status check можно включить только для части PR.
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:

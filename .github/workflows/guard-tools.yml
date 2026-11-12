@@ -10,6 +10,10 @@ on:
     paths:
       - 'tools/**'
       - '.github/workflows/guard-tools.yml'
+  # PDR-047: guard обязан идти на КАЖДЫЙ PR без фильтра путей — иначе
+  # required status check можно включить только для части PR.
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 concurrency:
