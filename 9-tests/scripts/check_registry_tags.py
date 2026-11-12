@@ -57,23 +57,6 @@ def registry_rc(missing_services):
     return 1 if unexpected else 0
 
 
-def available_rc(errors, missing_services, allow_fallback=False):
-    """`rc` для `--available`: отказ реестра — это «не измерено» (`2`), а не «всё хорошо».
-
-    errors — список ошибок доступа (по одной на сервис). Если они есть, «доступное» считается по
-    git-истории, а не по реестру; выдавать это за измерение нельзя: `deploy.yml` проверяет именно реестр
-    (`lock-published`), и расхождение уже случалось (#1970 красный при локальном `rc=0`).
-    `allow_fallback=True` — осознанное исключение для отладки: тогда считаем как раньше, но гейт об этом
-    печатает предупреждение.
-    """
-    # `front` в GHCR не публикуется (Pages) — его 403 не «не измерено», это ожидаемое архитектурное
-    # исключение (@DO 2026-11-11 16:17). Ошибки остальных сервисов = измерение не состоялось.
-    real_errors = [e for e in errors if e.split(":", 1)[0].strip() not in NO_REGISTRY_SERVICES]
-    if real_errors and not allow_fallback:
-        return 2
-    return registry_rc(missing_services)
-
-
 def evaluate(rows, tags_by_service):
     """tags_by_service: {service: list[str] | None} (None = пакет недоступен анонимно)."""
     present, missing, unknown = [], [], []
@@ -164,9 +147,6 @@ def main(argv=None):
                          "с коммитом из origin/main (то, что запишет gen_images_lock.py --from-registry)")
     ap.add_argument("--repo-root", default=".")
     ap.add_argument("--ref", help="ветка для истории (по умолчанию origin/main, затем gh/main, HEAD)")
-    ap.add_argument("--allow-git-fallback", action="store_true",
-                    help="разрешить считать по git-истории, когда реестр недоступен "
-                         "(отладка; по умолчанию это НЕ ИЗМЕРЕНО, rc=2)")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -194,16 +174,6 @@ def main(argv=None):
         return 2
 
     if a.available:
-        real_errors = [e for e in errors if e.split(":", 1)[0].strip() not in NO_REGISTRY_SERVICES]
-        if real_errors and not a.allow_git_fallback:
-            print("::error::check_registry_tags: НЕ ИЗМЕРЕНО: реестр недоступен для %d сервис(ов): %s"
-                  % (len(real_errors), "; ".join(real_errors[:3])))
-            print("квитанция (НЕ ИЗМЕРЕНО): реестр недоступен | сервисов %d | ошибок %d"
-                  % (len(rows), len(real_errors)))
-            return 2
-        if real_errors:
-            print("::warning::check_registry_tags: реестр недоступен для %d сервис(ов) — считаю по "
-                  "git-истории по флагу --allow-git-fallback (это НЕ измерение реестра)" % len(errors))
         dates, used_ref = git_commit_dates(a.repo_root, a.ref)
         if not dates:
             print("::error::check_registry_tags: не удалось прочитать историю git — не измерено (rc=2)")
@@ -224,8 +194,7 @@ def main(argv=None):
             note = f" | без образа: {', '.join(missing_svcs)}"
         print(f"квитанция (from-registry): сервисов {len(avail)} | доступно {len(have)} | "
               f"без образа {len(avail) - len(have)}{note}")
-        return available_rc(errors, [svc for svc, tag in avail.items() if not tag],
-                            allow_fallback=a.allow_git_fallback)
+        return registry_rc([svc for svc, tag in avail.items() if not tag])
 
     present, missing, unknown, stats = evaluate(rows, tags_by_service)
     for svc, tag in missing:
@@ -259,17 +228,6 @@ def selftest():
         ok += 1
     else:
         print("  [FAIL] registry_rc: front должен давать 0, journal — 1")
-
-    # TE-106: три исхода `--available` — норма 0 / тега нет 1 / реестр недоступен 2
-    total += 1
-    if available_rc([], []) == 0 and available_rc([], ["journal"]) == 1 \
-            and available_rc(["journal: HTTPError"], []) == 2 \
-            and available_rc(["front: HTTPError 403"], []) == 0 \
-            and available_rc(["journal: HTTPError"], [], allow_fallback=True) == 0:
-        ok += 1
-    else:
-        print("  [FAIL] available_rc: ждали 0/1/2 и 0 при --allow-git-fallback, получили %s/%s/%s"
-              % (available_rc([], []), available_rc([], ["journal"]), available_rc(["x"], [])))
 
     lock = ("# коммент\n"
             "journal              single-2ba8f0c  6-msa/BC-Journal\n"
