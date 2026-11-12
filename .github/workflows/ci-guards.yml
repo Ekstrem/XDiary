@@ -375,3 +375,37 @@ jobs:
             if ! python3 -m py_compile "$f"; then echo "::error file=$f::py_compile failed"; fail=1; fi
           done
           exit $fail
+
+  # DO-099 (@TL 2026-11-13 01:30): из 11 гейтов `9-tests/scripts` в CI работали 3 — остальные
+  # «на бумаге». Здесь восемь, у которых на `origin/main` `--selftest` rc=0 И прогон rc=0.
+  # Не включены сознательно: check_swagger_perimeter/check_5xx_correlation/check_otp_leak/
+  # check_be093_stale_fields (нужен стенд или --base-адрес API), check_run_receipt (нужен лог
+  # Playwright), check_shell_blocks (нужны пути) — у них нет входа, а не «нет проверки».
+  test-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: "Тестовые гейты (DO-099): selftest, затем прогон"
+        run: |
+          set -euo pipefail
+          run_gate() {
+            g="$1"; shift
+            echo "::group::$g --selftest"
+            python "9-tests/scripts/$g.py" --selftest
+            echo "::endgroup::"
+            echo "::group::$g"
+            python "9-tests/scripts/$g.py" "$@"
+            echo "::endgroup::"
+          }
+          run_gate check_adr028_move
+          run_gate check_read_paths
+          run_gate check_front_088
+          run_gate check_e2e_selectors
+          run_gate check_e2e_traceability
+          run_gate check_e2e_no_sleeps
+          run_gate check_api_index_optional --strict
+          run_gate check_ci_artifacts

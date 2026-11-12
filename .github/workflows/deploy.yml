@@ -394,6 +394,16 @@ jobs:
             sleep 2
           done
           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
+      # DO-099 (@TL 2026-11-13 01:34): `check_otp_leak` был сиротой — не запускался нигде.
+      # Его место здесь: после `deploy-dev` туннель 127.0.0.1:8080 уже поднят, и утечку OTP
+      # в ответах видно на живом контуре. В `ci-guards` он бессмысленен (нет стенда -> rc=2).
+      - name: Утечка OTP в ответах (check_otp_leak)
+        run: |
+          set -uo pipefail
+          python 9-tests/scripts/check_otp_leak.py --selftest
+          python 9-tests/scripts/check_otp_leak.py --base http://127.0.0.1:8080 \
+            --contract 04-architecture/api-index.yaml
+
       - name: UI smoke (add-partner, wizard-record, change-pin)
         working-directory: 9-tests/RnD/front-e2e
         run: |
