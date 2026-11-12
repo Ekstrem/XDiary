@@ -47,6 +47,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # 2026-11-13 (@DO, лог job 131515457401): шаг «Реестр API ↔ код» падал с `нужен pyyaml`
+      # и `exit code 2` — PyYAML не ставился в этом job'е, а его требуют `gen_openapi.py --check`
+      # и `check_yaml_dups.py`. Локально всё было зелено именно потому, что PyYAML стоял.
+      - name: Зависимости гейтов (PyYAML)
+        run: python -m pip install --quiet --disable-pip-version-check pyyaml
       - name: Check chat format (нет молча потерянных сообщений)
         # --strict-times: метка из будущего или нарушенный порядок (после строки-маркера
         # «метка = часы машины») — ошибка. Легаси до маркера не проверяется.

@@ -54,6 +54,9 @@ jobs:
           set -uo pipefail
           base="${BASE_SHA:-}"
           if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            # @TL 00:43: пропуск E2E не должен выглядеть как «не нужно» — если база неизвестна,
+            # это НЕ ИЗМЕРЕНО, а не «фронт не менялся».
+            echo "::warning::changes: база сравнения неизвестна ('${base:-пусто}') — фронт не измерен, E2E на PR пропущен"
             echo "front=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
