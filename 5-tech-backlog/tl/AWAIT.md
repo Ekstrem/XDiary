@@ -160,7 +160,7 @@
 | # | Что решает @LM | Проверка @TL |
 |---|---|---|
 | 1 | `chat_lint`: допуски future/порядок + `--strict-times` блокирующий | `tolerance_min = 120` (`tools/chat_lint.py:354,632`); `--strict-times` уже в `ci-guards` — норма выражена конфигом `loop.config.json → chat_time.tolerance_min` |
-| 2 | `check_openapi`: коды реестра vs канон | `04-architecture/gen_openapi.py` — 5 вхождений `codes`; `--check` → «спек 12, операций 78, расхождений 0» |
+| 2 | `check_openapi`: сравнивать коды реестра с каноном | **дефект-плечо @AR `00:54`:** норма `origin/main` → `gen_openapi.py --check` **rc=0** «12 спек, 78 операций, 0 расхождений»; дефект — поменял один код `200`→`218` в `api-index.yaml` → **rc=1** «расхождений 1», а `check_apim_drift.py --specs-only` → **rc=1** «коды расходятся на 1 путях»; восстановил → rc=0 |
 | 4 | `check_adr_refs`: «Принято → Отклонено» → `rc=1` | `tools/check_adr_refs.py` — 5 вхождений `Отклонено` |
 | 12 | правило «комментарий объясняет **почему**, а не **что**» в `edm-canon` | `04-architecture/edm-canon.md:455` — «## 19. Комментарий объясняет **почему**, а не описывает **что** (2026-11-10)» |
 | 13 | `README`/`stats` — конфликт при параллельных коммитах | `.github/workflows/stats.yml:43` — `python tools/stats.py --write` в CI; роли таблицу не правят |
