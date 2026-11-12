@@ -1,0 +1,57 @@
+name: PR из role/* в main (PDR-047 B1)
+
+# PDR-047: роли пушат в `role/<name>`, а в `main` — только через PR + merge queue.
+# Этот workflow делает PR автоматически: заголовок `<role>: <последний коммит>`, тело —
+# список коммитов ветки относительно `main`. Повторный пуш ветки **обновляет** тот же PR,
+# а не создаёт второй (idempotent, поэтому `cancel-in-progress: false`).
+#
+# Required checks и merge queue настраивает владелец в GitHub UI — здесь их нет.
+#
+# Почему `paths: ['**']` в on.push: PR нужен на ЛЮБОЙ пуш в ветку (в т.ч. документацию),
+# а `check_workflow_paths` требует у `on.push` фильтр путей либо место в
+# `ci.light_workflows` (это `loop.config.json`, зона @LM). Запрос @LM отправлен; после
+# внесения в allowlist строку `paths` можно убрать без изменения поведения.
+
+on:
+  push:
+    branches: ['role/*']
+    paths: ['**']
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Ветка role/<name>'
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-create-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # История нужна: список коммитов `main..ветка`; без неё PR был бы пустым.
+          fetch-depth: 0
+          ref: ${{ inputs.branch || github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Самопроверка инструмента (роль из ветки, заголовок, тело)
+        run: python tools/pr_from_branch.py --selftest
+
+      - name: Создать или обновить PR в main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ inputs.branch || github.ref_name }}
+        run: |
+          set -uo pipefail
+          python tools/pr_from_branch.py --branch "$BRANCH" --base main
