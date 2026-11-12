@@ -7,7 +7,7 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-4b90af9     6-msa/BC-Journal  commit=4b90af9  digest=-
+journal              single-e059b2f     6-msa/BC-Journal  commit=e059b2f  digest=-
 partners             single-2003cf5     6-msa/BC-Partners  commit=2003cf5  digest=-
 catalog              single-4d9b2f5     6-msa/BC-Catalog  commit=4d9b2f5  digest=-
 somatic-series       single-c47ac4c     6-msa/BC-SomaticSeries  commit=c47ac4c  digest=-
@@ -19,4 +19,4 @@ privacy              single-c47ac4c     6-msa/BC-Privacy  commit=c47ac4c  digest
 portability          single-07a2426     6-msa/BC-Portability  commit=07a2426  digest=-
 client               single-33c226c     6-msa/BC-Client  commit=33c226c  digest=-
 api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5  digest=-
-front                single-3461dfa     8-front  commit=3461dfa  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
+front                single-0a7c463     8-front  commit=0a7c463  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
