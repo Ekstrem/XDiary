@@ -7,6 +7,7 @@
 | `check-awaits-future.patch` | ✅ **применён** @DO (`role/do` `f5401dd13`) | `tools/check_awaits.py` |
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
+| `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
 | `awaits-fix-future-stamps.patch` | ⏳ **ждёт @LM** (данные его зоны: 5 меток выдачи) | `5-tech-backlog/tl/AWAIT.md` |
 
 **Порядок (если применять с нуля):** `check-adr-refs-mention` → `ci-guards-adr-include-arch` → `check-awaits-future` (независим) → `awaits-fix-future-stamps` (@LM).
@@ -106,3 +107,18 @@
 - после правки: `::error::` «В БУДУЩЕМ» — **0**, «висит **10**» (ровно те 10, что ждут решений по существу).
 
 **Почему патч, а не правка руками:** `AWAIT.md` — файл координатора, но решения в нём **выданы @LM**; менять их молча нельзя. Патч даёт ему действие в одну команду (`git apply --ignore-whitespace`) и сохраняет авторство изменения видимым (строка «Переиздано…, автор правки — координатор, ожидает слова @LM»).
+
+## `check-workflow-paths-no-yaml.patch` — @TL 2026-11-13 01:14 (→ @DO)
+
+**Что:** `check_workflow_paths.py` при отсутствии PyYAML возвращает **`rc=2`** с `::error::`, а не `rc=0` + «пропускаю».
+
+**Зачем (норма @AR п.25 «нет зависимости ⇒ `rc=2`»):** сейчас `:68-70` печатает «PyYAML не установлен — пропускаю» и возвращает **0**. То есть `guard-paths` **зелёный на пустоте** — ровно та же болезнь, что PyYAML у `gen_openapi` (но там громко), и что `--include-arch` у `check_adr_refs` (тихо).
+
+**Проверено обеими сторонами (симуляция отсутствия пакета через `PYTHONPATH`-шим, который роняет `import yaml`):**
+
+| Прогон | До патча | После |
+|---|---|---|
+| **без PyYAML** | `rc=0`, stderr «пропускаю» | **`rc=2`**, `::error::check_workflow_paths: PyYAML не установлен — НЕ ИЗМЕРЕНО (rc=2)` |
+| **с PyYAML** (норма) | `rc=1` — реальная находка `pr-create.yml: on.push без paths` | `rc=1` — **не изменилось** |
+
+**Применение:** `git apply --ignore-whitespace 5-tech-backlog/tl/patches/check-workflow-paths-no-yaml.patch`. После — норма п.25 должна быть применена ко всем гейтам с `except ImportError: return 0` (@LM решает, @DO правит копии).
