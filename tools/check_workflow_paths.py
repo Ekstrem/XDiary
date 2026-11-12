@@ -23,6 +23,7 @@ import argparse
 import glob
 import json
 import os
+import shutil
 import sys
 
 try:
@@ -59,11 +60,82 @@ def push_trigger(doc):
     return on.get("push")
 
 
+def scan_workflows(wf_dir, light):
+    """[(имя, причина)] — тяжёлые workflow без фильтра путей в on.push."""
+    bad = []
+    for path in sorted(glob.glob(os.path.join(wf_dir, "*.yml"))):
+        name = os.path.basename(path)
+        try:
+            with open(path, encoding="utf-8") as f:
+                doc = yaml.safe_load(f)
+        except Exception as e:
+            bad.append((name, "не парсится (%s)" % e))
+            continue
+        push = push_trigger(doc)
+        if push is None:
+            continue
+        if isinstance(push, dict) and (push.get("paths") or push.get("paths-ignore")):
+            continue
+        if name in light:
+            continue
+        bad.append((name, "on.push без paths/paths-ignore"))
+    return bad
+
+
+def selftest():
+    """Самопроверка гейта (AR-023: у этого гейта не было `--selftest`).
+
+    Обе стороны: дефект (тяжёлый workflow без фильтра) ловится, норма (с фильтром,
+    лёгкий из allow-list, dispatch-only) — нет. Без yaml честно rc=2 (норма @AR).
+    """
+    if yaml is None:
+        print("::error::check_workflow_paths --selftest: PyYAML не установлен — НЕ ИЗМЕРЕНО (rc=2)",
+              file=sys.stderr)
+        return 2
+    base = os.path.join(os.getcwd(), ".tmp-workflow-paths-selftest")
+    shutil.rmtree(base, ignore_errors=True)
+    wf = os.path.join(base, ".github", "workflows")
+    os.makedirs(wf)
+
+    def write(name, text):
+        with open(os.path.join(wf, name), "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+
+    write("heavy-no-paths.yml", "on:\n  push:\n    branches: [main]\n")
+    write("heavy-with-paths.yml",
+          "on:\n  push:\n    branches: [main]\n    paths:\n      - 'src/**'\n")
+    write("light-no-paths.yml", "on:\n  push:\n    branches: [main]\n")
+    write("dispatch-only.yml", "on:\n  workflow_dispatch:\n")
+
+    cases = []
+    got = [n for n, _ in scan_workflows(wf, set())]
+    cases.append(("дефект: тяжёлые без путей пойманы (оба)",
+                  got == ["heavy-no-paths.yml", "light-no-paths.yml"]))
+    got2 = [n for n, _ in scan_workflows(wf, {"light-no-paths.yml"})]
+    cases.append(("лёгкий из allow-list не считается дефектом", got2 == ["heavy-no-paths.yml"]))
+    got3 = [n for n, _ in scan_workflows(wf, {"heavy-no-paths.yml", "light-no-paths.yml"})]
+    cases.append(("оба в allow-list -> пусто", got3 == []))
+    cases.append(("workflow с paths не попадает", "heavy-with-paths.yml" not in got))
+    cases.append(("dispatch-only не попадает", "dispatch-only.yml" not in got))
+
+    shutil.rmtree(base, ignore_errors=True)
+    passed = sum(1 for _, ok in cases if ok)
+    for name, ok in cases:
+        print("  [%s] %s" % ("OK " if ok else "FAIL", name))
+    print("check_workflow_paths --selftest: %d/%d" % (passed, len(cases)))
+    return 0 if passed == len(cases) else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description="Фильтры путей у workflow")
     ap.add_argument("--root", default=None)
     ap.add_argument("--config", default=None)
+    ap.add_argument("--selftest", action="store_true",
+                    help="самопроверка гейта (AR-023)")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     if yaml is None:
         # @TL 2026-11-13 01:13 (норма @AR «нет зависимости ⇒ rc=2»): «пропускаю и 0» — тихое
@@ -82,29 +154,13 @@ def main():
         print("check_workflow_paths: нет .github/workflows — пропускаю")
         return 0
 
-    bad = []
-    for path in sorted(glob.glob(os.path.join(wf_dir, "*.yml"))):
-        name = os.path.basename(path)
-        try:
-            with open(path, encoding="utf-8") as f:
-                doc = yaml.safe_load(f)
-        except Exception as e:
-            print("  ! %s: не парсится (%s)" % (name, e), file=sys.stderr)
-            bad.append(name)
-            continue
-        push = push_trigger(doc)
-        if push is None:
-            continue                      # dispatch-only / расписание — не наш случай
-        if isinstance(push, dict) and (push.get("paths") or push.get("paths-ignore")):
-            continue                      # фильтр есть
-        if name in light:
-            continue                      # лёгкий guard — можно на каждый пуш
-        bad.append(name)
+    found = scan_workflows(wf_dir, light)
+    bad = [n for n, _ in found]
 
     if bad:
-        for n in bad:
-            print("  ! %s: on.push без paths/paths-ignore — будет гонять тяжёлое "
-                  "на любой коммит (в т.ч. сообщение в чат)" % n, file=sys.stderr)
+        for n, why in found:
+            print("  ! %s: %s — будет гонять тяжёлое "
+                  "на любой коммит (в т.ч. сообщение в чат)" % (n, why), file=sys.stderr)
         print("check_workflow_paths: FAIL (%d)" % len(bad))
         return 1
 
