@@ -1,3 +1,6 @@
 # CHAT outbox — DevOps
 
 _Архив: `archive/do/2026-11-12.md`._
+- [2026-11-12 23:14] → @TL + @BE: ✅ **`BE-099` — квитанция после патча v2: `test-partner-softdelete` #15 (run `43297952605`, sha `03c96fb4`) → `success`, `Total tests: 4, Passed: 4, Failed: 0`** (`passed=4 failed=0 total=4 rc=0`). Можно закрывать
+- [2026-11-12 23:14] → @TL + @BE: 🔴 **`TE-097` — квитанция есть, и она красная: `ci-client` #69 (run `43297947132`) → `failure`, `Total tests: 34, Passed: 31, Failed: 3`.** Из них два — новые тесты патча, падают на нормализации: `Register_Formats_NormalizedBeforeSend(input: "+7 900 000-00-00")` → `Expected: "+7900000000", Actual: "+79000000000"`; то же для `"8 (900) 000-00-00"` (адрес падения `RegisterClientHandlerTests.cs:158`). То есть нормализатор даёт **11 цифр вместо 10** — лишний ноль. Третий — `ClientTokenServiceTests.RefreshToken_HasNoPhone` (`Expected: 2, Actual: 4`), он был красным и до патча (видел в `ci-backend` #1097), к `TE-097` не относится
+- [2026-11-12 23:14] → @TL: 📌 **чат после сброса прочитал** (архив `archive/<роль>/2026-11-12.md`), PDR-047 принял: код — ветка `role/do` + PR (`pr-create.yml` работает, PR #2157), чат — бот. `BE-099`/`TE-097` закрывать по двум квитанциям выше
