@@ -110,7 +110,7 @@ def _call(base, method, path, body=None, token=None):
 
 
 def measure(base: str, call=None) -> int:
-    call = call or (lambda method, path, body=None, token=None: call(method, path, body, token))
+    call = call or (lambda method, path, body=None, token=None: _call(base, method, path, body, token))
     phone = "+7999" + str(int(time.time() * 1000) % 10_000_000).zfill(7)
     name = "TE-E2E-Hist"
     st, raw = call("POST", "/api/v1/clients", {"phone": phone})
