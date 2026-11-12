@@ -66,8 +66,12 @@ def main():
     args = ap.parse_args()
 
     if yaml is None:
-        print("check_workflow_paths: PyYAML не установлен — пропускаю", file=sys.stderr)
-        return 0
+        # @TL 2026-11-13 01:13 (норма @AR «нет зависимости ⇒ rc=2»): «пропускаю и 0» — тихое
+        # зелёное: ни один workflow не проверен, и отличить это от «всё в порядке» нельзя.
+        # Возвращаем rc=2 (не измерено) — как в соглашении rc=0/1/2 (TE-108).
+        print("::error::check_workflow_paths: PyYAML не установлен — НЕ ИЗМЕРЕНО (rc=2), "
+              "гейт не проверил ни одного workflow", file=sys.stderr)
+        return 2
 
     root = repo_root(args.root)
     cfg = load_config(root, args.config)
