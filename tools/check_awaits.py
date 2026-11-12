@@ -22,6 +22,9 @@ import sys
 
 AWAIT = os.path.join("5-tech-backlog", "tl", "AWAIT.md")
 ACCEPT = re.compile(r"(принято|принял|принимаю|делаю|взял|беру)", re.I)
+# С этой метки подтверждение обязано называть тему (ID из `what`), иначе
+# «принял» по другому поводу закрывает чужой AWAIT (дефект @TE 2026-11-13 01:35).
+TOPIC_SINCE = "2026-11-13 00:00"
 STAMP = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
 ROLE = re.compile(r"@?([a-z]{2})\b")
 ROLE_PREFIX = {"ar": "ar:", "be": "be:", "do": "do:", "fe": "fe:", "te": "te:", "tl": "tl:"}
@@ -182,7 +185,12 @@ def check(root, use_git=True, max_age_minutes=60, now=None):
             continue  # владелец — не роль пайплайна, outbox-обязанности нет (AN-03)
         if max_age_minutes is not None and 0 <= _age_minutes(stamp, now) < max_age_minutes:
             continue  # свежая выдача — окно отсрочки, не «висит» (AN-03)
-        ok = chat_accepts(root, role, stamp, what)
+        # Привязка к теме — для НОВЫХ выдач (после TOPIC_SINCE): дефект @TE 01:35
+        # («принял» про маркеры закрыл TE-049) относится к ним. Легаси-строки (до cutoff)
+        # закрывались без ID, и переоткрывать их — отдельная работа с данными (@LM), а не
+        # побочный эффект фикса.
+        topic = what if stamp >= TOPIC_SINCE else None
+        ok = chat_accepts(root, role, stamp, topic)
         if not ok and use_git:
             ok = commit_artifacts(root, role, what)
         if not ok:
