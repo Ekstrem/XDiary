@@ -48,6 +48,24 @@ jobs:
         # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
         # --strict-times — то есть на одном и том же пуше проверки расходились.
         run: python tools/chat_lint.py --config loop.config.json --check --strict-times
+      - name: "Чат не усыхал: ни одного потерянного сообщения (@AR 2026-11-13 00:36)"
+        # Инцидент: бот закоммитил устаревший снимок и стёр сообщения — у @AR 17 (41 -> 24),
+        # у @DO 15 (41 -> 26). chat_lint формат видит, потерю — нет. Гейт сравнивает число
+        # сообщений `- [YYYY-MM-DD HH:mm]` в родителе и в коммите; усыхание = rc=1.
+        if: always()
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -uo pipefail
+          python tools/check_chat_shrink.py --selftest
+          if [ -z "${BASE_SHA:-}" ] || ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            RANGE="HEAD~1..HEAD"
+          else
+            RANGE="${BASE_SHA}..HEAD"
+          fi
+          echo "check_chat_shrink range: $RANGE"
+          python tools/check_chat_shrink.py --range "$RANGE"
+
       - name: "Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)"
         # Норма владельца: карточка и чат меняются вместе; без строки `→ @TL: <ID> было → стало`
         # смена статуса не считается. Гейт ловит это в последнем коммите.
