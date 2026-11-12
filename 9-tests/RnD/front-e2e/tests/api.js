@@ -853,7 +853,8 @@ async function stepGuard(page, label, fn, apiLog) {
   } catch (e) {
     const views = await dumpViews(page, 'stepGuard').catch(() => null);
     const ls = await snapshotStorage(page, 'stepGuard').catch(() => null);
-    const toast = await page.locator('#toast').innerText({ timeout: 1500 }).catch(() => '');
+    // ДЕФЕКТ-ПЛЕЧО (@AR 02:12): пробрасываем ошибку, чтобы таймаут был виден.
+    const toast = await page.locator('#toast').innerText({ timeout: 1500 });
     const tail = Array.isArray(apiLog) ? apiLog.slice(-10).join(' | ') : '';
     throw new Error(
       'ШАГ: ' + label + ' ;; ТОСТ: ' + JSON.stringify((toast || '').slice(0, 200)) +
