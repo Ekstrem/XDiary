@@ -141,6 +141,7 @@ def selftest() -> int:
                        ("неизвестный флаг", ["--nonsense-flag"])):
         total += 1
         r = run(args)
+        out = (r.stdout or "") + (r.stderr or "")
         if r.returncode == 2 and "::error::" in out and "PASS:" not in out:
             ok += 1
         else:
