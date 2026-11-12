@@ -8,6 +8,7 @@
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
+| `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ **проверен прогоном `43324408782` (`success`)**, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates.patch` | ✅ **применён @DO 01:37** (`+34` строки, YAML ок, `jobs: 3`); в патче **8** гейтов, не 6 | `.github/workflows/ci-guards.yml` |
@@ -267,3 +268,19 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 ### Проверен прогоном 43324408782 (2026-11-13 02:02)
 
 Ветка `verify/fe046` (от `main` + этот патч), `front-e2e-repeat` на спеке `tests/startup-api-error.spec.js` → **`success`**, шаг «Repeat run (list)» **`success`**, шаг «Артефакты падения» **`skipped`**. До патча тот же прогон (`43322907200`) — `failure` с `Test timeout of 90000ms exceeded`. То есть патч не «теоретически верный», а **проверенный на стенде**.
+
+## `wizard-record-duration.patch` — @TL 2026-11-13 02:12 (→ @TE, `smoke-front` / `wizard-record`)
+
+**Что:** в `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` в хелпер `next()` добавлена синхронизация шага: если виден `#w-dur-grid` (шаг «Сколько длилось?»), клик «далее» на переходе, отличном от `6 -> 7`, **пропускается** с записью в лог.
+
+**Зачем:** продукт (`8-front/js/app.js:801`) не пускает дальше без `durationMin >= 1` — `toast("Укажите длительность")`. Спека считает, что делает `5 -> 6`, но мастер **уже** на шаге длительности, поэтому клик блокировался тостом, а `fill #w-dur-custom` (следующая строка) до своего шага не доходил.
+
+**Проверено прогонами (без мержа, `gh workflow run --ref`):**
+
+| Ветка | Что | Результат |
+|---|---|---|
+| `main` | без правок | `failure`: «ШАГ ВИЗАРДА: 5 -> 6 ;; ТОСТЫ: ["Укажите длительность"]» |
+| `verify/wizard3` | автозаполнение чипом | `failure` дальше: «fill #w-dur-custom» (шаг уже уехал вперёд) |
+| **`verify/wizard4`** | **пропуск лишнего клика** | **`success`** — `run 43326449735` |
+
+`node --check` → rc=0. Это и есть падение `smoke-front` (та же спека, `wizard-record.spec.js:46`).
