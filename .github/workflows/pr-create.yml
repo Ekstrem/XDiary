@@ -59,4 +59,4 @@ jobs:
           BRANCH: ${{ inputs.branch || github.ref_name }}
         run: |
           set -uo pipefail
-          python tools/pr_from_branch.py --branch "$BRANCH" --base origin/main
+          python tools/pr_from_branch.py --branch "$BRANCH" --base main

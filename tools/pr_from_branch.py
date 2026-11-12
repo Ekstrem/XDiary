@@ -143,7 +143,7 @@ def selftest():
 def main(argv=None):
     ap = argparse.ArgumentParser(description="PR из role/* в main (PDR-047 B1)")
     ap.add_argument("--branch", default=os.environ.get("GITHUB_REF_NAME", ""))
-    ap.add_argument("--base", default="origin/main")
+    ap.add_argument("--base", default="main")
     ap.add_argument("--root", default=".")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")
@@ -173,6 +173,9 @@ def main(argv=None):
         print("::notice::pr_from_branch: в ветке нет коммитов относительно %s — PR не нужен" % a.base)
         return 0
 
+    # База PR — ИМЯ ветки на GitHub (`main`), а не локальная ссылка `origin/main`:
+    # `gh pr create --base origin/main` падает «Base ref must be a branch» (прогон #2).
+    # Для списка коммитов локальная `main` может отсутствовать — тогда берётся `origin/main`.
     if a.dry_run:
         print("--- тело PR ---")
         print(body)
