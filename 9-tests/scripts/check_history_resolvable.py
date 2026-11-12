@@ -51,23 +51,39 @@ def name_of(recent_payload, partner_id: str) -> str:
     return ""
 
 
-def names_in_records(payload, partner_id: str) -> str:
-    """Имя партнёра из списка записей (`GET /journal/records`): `partnerName`/`partner`/`partners[].name`."""
-    items = payload if isinstance(payload, list) else ((payload or {}).get("items") or (payload or {}).get("records") or [])
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        for key in ("partnerName", "partner"):
-            v = item.get(key)
+def name_from_item(item, partner_id: str) -> str:
+    """Имя партнёра из записи: `partnersNames` (список, как отдаёт Journal), `partnerName`, `partner`, `partners[]`."""
+    if not isinstance(item, dict):
+        return ""
+    for key in ("partnerName", "partner"):
+        v = item.get(key)
+        if isinstance(v, str) and v:
+            return v
+    names = item.get("partnersNames")
+    if isinstance(names, list):
+        for v in names:
             if isinstance(v, str) and v:
                 return v
-        for part in item.get("partners") or []:
-            if isinstance(part, dict):
-                pid = str(part.get("id") or "")
-                nm = str(part.get("name") or "")
-                if nm and (not partner_id or pid == partner_id):
-                    return nm
+    for part in item.get("partners") or []:
+        if isinstance(part, dict):
+            pid = str(part.get("id") or "")
+            nm = str(part.get("name") or "")
+            if nm and (not partner_id or pid == partner_id):
+                return nm
     return ""
+
+
+def names_in_records(payload, partner_id: str) -> str:
+    items = payload if isinstance(payload, list) else ((payload or {}).get("items") or (payload or {}).get("records") or [])
+    for item in items:
+        nm = name_from_item(item, partner_id)
+        if nm:
+            return nm
+    return ""
+
+
+def names_in_record(payload, partner_id: str) -> str:
+    return name_from_item(payload, partner_id)
 
 
 def verdict(name: str, partner_id: str, expected: str) -> int:
@@ -116,6 +132,9 @@ def measure(base: str) -> int:
     if not rid:
         print("::warning::check_history_resolvable: создание записи -> %s — не измерено (rc=2)" % st)
         return 2
+    # без `when` запись не попадает в список (проверено замером), поэтому ставим начало
+    _call(base, "POST", "/api/v1/journal/records/%s/when" % rid,
+          {"startedAt": "2026-11-12T10:00:00Z"}, token)
     _call(base, "POST", "/api/v1/journal/records/%s/partners" % rid, {"partnerId": pid}, token)
     st, raw = _call(base, "POST", "/api/v1/partners/%s/remove" % pid, {}, token)
     if st != 200:
@@ -140,7 +159,18 @@ def measure(base: str) -> int:
     print("партнёр: %s" % pid)
     print("  /journal/recent  (резолв :95): %r -> rc=%d" % (got, code_recent))
     print("  /journal/records (резолв :34): %r -> rc=%d" % (got_records, code_records))
-    code = 1 if (1 in (code_recent, code_records)) else (0 if 0 in (code_recent, code_records) else 2)
+
+    st3, raw3 = _call(base, "GET", "/api/v1/journal/records/%s" % rid, None, token)
+    try:
+        payload3 = json.loads(raw3)
+    except Exception:  # noqa: BLE001
+        payload3 = None
+    got_one = names_in_record(payload3, pid)
+    code_one = verdict(got_one, pid, name)
+    print("  /journal/records/{id} (резолв :47): %r -> rc=%d" % (got_one, code_one))
+
+    codes = (code_recent, code_records, code_one)
+    code = 1 if (1 in codes) else (0 if 0 in codes else 2)
     if code == 0:
         print("квитанция: имя сохранилось | rc=0")
     elif code == 1:
@@ -183,8 +213,15 @@ def selftest() -> int:
         print("  [OK]   разбор /journal/records")
     else:
         print("  [FAIL] разбор /journal/records")
+    total += 1
+    one = {"id": "r1", "partners": [{"id": pid, "name": "TE-E2E-Hist"}]}
+    if names_in_record(one, pid) == "TE-E2E-Hist":
+        ok += 1
+        print("  [OK]   разбор одной записи")
+    else:
+        print("  [FAIL] разбор одной записи")
     print("check_history_resolvable --selftest: %d/%d "
-          "(имя / id / нет имени / lastPartner / records)" % (ok, total))
+          "(имя / id / нет имени / lastPartner / records / one)" % (ok, total))
     return 0 if ok == total else 1
 
 
