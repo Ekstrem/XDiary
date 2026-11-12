@@ -109,38 +109,39 @@ def _call(base, method, path, body=None, token=None):
         return None, "%s: %s" % (type(e).__name__, e)
 
 
-def measure(base: str) -> int:
+def measure(base: str, call=None) -> int:
+    call = call or (lambda method, path, body=None, token=None: call(method, path, body, token))
     phone = "+7999" + str(int(time.time() * 1000) % 10_000_000).zfill(7)
     name = "TE-E2E-Hist"
-    st, raw = _call(base, "POST", "/api/v1/clients", {"phone": phone})
+    st, raw = call("POST", "/api/v1/clients", {"phone": phone})
     if st != 200:
         print("::warning::check_history_resolvable: регистрация -> %s — не измерено (rc=2)" % st)
         return 2
     cid = (json.loads(raw) or {}).get("id")
-    st, raw = _call(base, "POST", "/api/v1/clients/%s/verify" % cid, {"code": OTP})
+    st, raw = call("POST", "/api/v1/clients/%s/verify" % cid, {"code": OTP})
     token = (json.loads(raw) if st == 200 else {}).get("accessToken") if st == 200 else None
     if not token:
         print("::warning::check_history_resolvable: verify -> %s, токена нет — не измерено (rc=2)" % st)
         return 2
-    st, raw = _call(base, "POST", "/api/v1/partners", {"name": name, "kind": "person"}, token)
+    st, raw = call("POST", "/api/v1/partners", {"name": name, "kind": "person"}, token)
     pid = (json.loads(raw) if st == 200 else {}).get("id") if st == 200 else None
     if not pid:
         print("::warning::check_history_resolvable: создание партнёра -> %s — не измерено (rc=2)" % st)
         return 2
-    st, raw = _call(base, "POST", "/api/v1/journal/records", {"date": "2026-11-12"}, token)
+    st, raw = call("POST", "/api/v1/journal/records", {"date": "2026-11-12"}, token)
     rid = (json.loads(raw) if st == 200 else {}).get("id") if st == 200 else None
     if not rid:
         print("::warning::check_history_resolvable: создание записи -> %s — не измерено (rc=2)" % st)
         return 2
     # без `when` запись не попадает в список (проверено замером), поэтому ставим начало
-    _call(base, "POST", "/api/v1/journal/records/%s/when" % rid,
+    call("POST", "/api/v1/journal/records/%s/when" % rid,
           {"startedAt": "2026-11-12T10:00:00Z"}, token)
-    _call(base, "POST", "/api/v1/journal/records/%s/partners" % rid, {"partnerId": pid}, token)
-    st, raw = _call(base, "POST", "/api/v1/partners/%s/remove" % pid, {}, token)
+    call("POST", "/api/v1/journal/records/%s/partners" % rid, {"partnerId": pid}, token)
+    st, raw = call("POST", "/api/v1/partners/%s/remove" % pid, {}, token)
     if st != 200:
         print("::warning::check_history_resolvable: remove -> %s — не измерено (rc=2)" % st)
         return 2
-    st, raw = _call(base, "GET", "/api/v1/journal/recent", None, token)
+    st, raw = call("GET", "/api/v1/journal/recent", None, token)
     try:
         payload = json.loads(raw)
     except Exception:  # noqa: BLE001
@@ -148,7 +149,7 @@ def measure(base: str) -> int:
     got = name_of(payload, pid)
     code_recent = verdict(got, pid, name)
 
-    st2, raw2 = _call(base, "GET", "/api/v1/journal/records", None, token)
+    st2, raw2 = call("GET", "/api/v1/journal/records", None, token)
     try:
         payload2 = json.loads(raw2)
     except Exception:  # noqa: BLE001
@@ -160,7 +161,7 @@ def measure(base: str) -> int:
     print("  /journal/recent  (резолв :95): %r -> rc=%d" % (got, code_recent))
     print("  /journal/records (резолв :34): %r -> rc=%d" % (got_records, code_records))
 
-    st3, raw3 = _call(base, "GET", "/api/v1/journal/records/%s" % rid, None, token)
+    st3, raw3 = call("GET", "/api/v1/journal/records/%s" % rid, None, token)
     try:
         payload3 = json.loads(raw3)
     except Exception:  # noqa: BLE001
@@ -220,6 +221,55 @@ def selftest() -> int:
         print("  [OK]   разбор одной записи")
     else:
         print("  [FAIL] разбор одной записи")
+    # --- поток на фейковом транспорте: без сети, но через весь measure() ---
+    def fake(mode):
+        state = {"pid": "pid-1", "rid": "rid-1", "removed": False}
+
+        def call(method, path, body=None, token=None):
+            if path == "/api/v1/clients":
+                if mode == "create-fails":
+                    return 500, "{}"
+                return 200, '{"id":"cid-1"}'
+            if path.endswith("/verify"):
+                return 200, '{"accessToken":"tok"}'
+            if path == "/api/v1/partners":
+                return 200, '{"id":"pid-1"}'
+            if path == "/api/v1/journal/records":
+                return 200, '{"id":"rid-1"}'
+            if path.endswith("/when") or path.endswith("/partners"):
+                return 200, "{}"
+            if path.endswith("/remove"):
+                state["removed"] = True
+                return 200, "{}"
+            if path == "/api/v1/journal/recent":
+                name = "TE-E2E-Hist"
+                if mode == "defect":
+                    name = "pid-1"
+                if mode == "no-name":
+                    name = ""
+                return 200, '{"lastPartner":{"id":"pid-1","name":"%s"}}' % name
+            if path == "/api/v1/journal/records":
+                return 200, "[]"
+            if path.startswith("/api/v1/journal/records/"):
+                name = "TE-E2E-Hist"
+                if mode == "defect":
+                    name = "pid-1"
+                if mode == "no-name":
+                    name = ""
+                return 200, '{"id":"rid-1","partnersNames":["%s"]}' % name
+            return 404, "{}"
+
+        return call
+
+    for mode, want in (("ok", 0), ("defect", 1), ("no-name", 2), ("create-fails", 2)):
+        total += 1
+        got = measure("http://fake", fake(mode))
+        if got == want:
+            ok += 1
+            print("  [OK]   поток %-12s -> rc=%d" % (mode, got))
+        else:
+            print("  [FAIL] поток %-12s -> rc=%d (ждали %d)" % (mode, got, want))
+
     print("check_history_resolvable --selftest: %d/%d "
           "(имя / id / нет имени / lastPartner / records / one)" % (ok, total))
     return 0 if ok == total else 1
