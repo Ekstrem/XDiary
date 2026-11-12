@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.112"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.113"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -133,7 +133,9 @@
 
   var VIEWS = ["splash", "lock", "onboarding", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"];
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
+  var bootSettled = false; // FE-046: сторож сплэша работает только до первого настоящего экрана
   function showView(name) {
+    if (name !== "splash") bootSettled = true;
     VIEWS.forEach(function (v) {
       var el = $("view-" + v);
       if (el) el.classList.toggle("hidden", v !== name);
@@ -2713,10 +2715,11 @@
     // FE-046 критерий 3 (спека startup-api-error, TE-104): страховка стояла ровно на 2000 мс,
     // а спека требует, чтобы заставка ушла ЗА 2000 мс при API=500 — это была гонка.
     // 1400 мс даёт запас: ensureView прячет splash сразу, как только не видно другого экрана.
-    setTimeout(ensureView, 1400);
+    setTimeout(function () { if (!bootSettled) ensureView(); }, 1400);
     // startup-api-error (#25): если и после этого ни один экран не виден (API=500 на старте,
     // разметка не догрузилась), показываем экран и ВИДИМУЮ ошибку, а не пустоту.
     setTimeout(function () {
+      if (bootSettled) return; // экран уже показан — сторож не вмешивается
       try { ensureView(); } catch (e) { console.error("watchdog/ensureView:", e); }
       var any = false;
       for (var i = 0; i < VIEWS.length; i++) {
