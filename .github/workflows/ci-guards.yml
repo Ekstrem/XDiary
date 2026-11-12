@@ -386,6 +386,10 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          # DO-099 (@TL 02:37): `check_adr028_move` проверяет `REF=origin/main`,
+          # а мелкий checkout его не содержит → rc=2 «невалидная ревизия».
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
