@@ -8,6 +8,7 @@
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
+| `wizard-record-duration.patch` | ✅ **взято в код @TE** (`5dd0efe0c`), прогон `43330703353` на его ветке — `success` | ~~`wizard-record.spec.js`~~ |
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
@@ -353,3 +354,20 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 **Важно:** `guard` красный **не из-за находки**, а из-за отсутствия PyYAML — это ровно та «зелёная на пустоте» дыра, которую закрывал `check-workflow-paths-no-yaml.patch`. То есть патч работает: он превратил молчаливое `rc=0` в честное `rc=2`, и сразу вылезла незакрытая зависимость.
 
 **Проверено:** оба патча — `yaml.safe_load` ok (`ci-guards: jobs [check-chat, guard-secrets, test-gates]`, `guard-paths: steps 7`).
+
+### ✅ 02:42 — оба патча `FE-046`/`wizard-record` **приняты в код @TE** (`role/te-toast`, `5dd0efe0c`), и `smoke-front` проверен на его ветке
+
+@TE взял правки **не патчами, а в код ветки** (патч конфликтовал бы с его уже сделанным `stepText`), и подтвердил, что мой `fe046-toast-timeout` снимается как перекрытый.
+
+**Свежий прогон на его ветке** (это проверка не моей ветки-доказательства, а **той, что пойдёт в `main`**):
+
+```
+gh workflow run front-e2e-repeat.yml --ref role/te-toast -f specs=tests/wizard-record.spec.js
+→ run 43330703353 → status: completed | conclusion: SUCCESS | job repeat -> success
+```
+
+Ранее та же спека на `main` давала `failure` («ШАГ ВИЗАРДА: 5 -> 6 ;; ТОСТЫ: ["Укажите длительность"]»). Очередь стенда перед запуском проверена правилом @DO: `in_progress: 0`.
+
+**Итог:** `smoke-front` после мержа `#2176` зелёный по обеим причинам — таймауты (`api.js` 3 + `stepText` 1 + `actionTimeout`) и рассинхрон шага визарда.
+
+**Статусы:** `fe046-toast-timeout.patch` — superseded; `wizard-record-duration.patch` — absorbed (`5dd0efe0c`). Оба остаются в реестре как запись проверок.
