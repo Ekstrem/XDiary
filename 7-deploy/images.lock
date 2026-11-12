@@ -19,4 +19,4 @@ privacy              single-c47ac4c     6-msa/BC-Privacy  commit=c47ac4c  digest
 portability          single-07a2426     6-msa/BC-Portability  commit=07a2426  digest=sha256:8f24194df2a71afd6321567898a86661edcbb65fd76a987be3bd9b0c857c9d75
 client               single-33c226c     6-msa/BC-Client  commit=33c226c  digest=sha256:69254102d1562b99493ef6f9ac5e59ad41a4daa13833472cb3250ef0fdae47fa
 api-gateway          single-5075ab5     6-msa/ApiGateway  commit=5075ab5  digest=sha256:c982de697f8420734c980ca873c37bb5a3b63b626659c0961d7dcfbd4ae2a2ca
-front                single-bd91883     8-front  commit=bd91883  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
+front                single-3461dfa     8-front  commit=3461dfa  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
