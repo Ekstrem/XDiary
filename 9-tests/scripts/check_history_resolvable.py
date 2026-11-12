@@ -51,6 +51,25 @@ def name_of(recent_payload, partner_id: str) -> str:
     return ""
 
 
+def names_in_records(payload, partner_id: str) -> str:
+    """Имя партнёра из списка записей (`GET /journal/records`): `partnerName`/`partner`/`partners[].name`."""
+    items = payload if isinstance(payload, list) else ((payload or {}).get("items") or (payload or {}).get("records") or [])
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        for key in ("partnerName", "partner"):
+            v = item.get(key)
+            if isinstance(v, str) and v:
+                return v
+        for part in item.get("partners") or []:
+            if isinstance(part, dict):
+                pid = str(part.get("id") or "")
+                nm = str(part.get("name") or "")
+                if nm and (not partner_id or pid == partner_id):
+                    return nm
+    return ""
+
+
 def verdict(name: str, partner_id: str, expected: str) -> int:
     """0 — имя на месте; 1 — деградировало до id; 2 — не измерено (имени нет вовсе)."""
     if not name:
@@ -108,8 +127,20 @@ def measure(base: str) -> int:
     except Exception:  # noqa: BLE001
         payload = None
     got = name_of(payload, pid)
-    code = verdict(got, pid, name)
-    print("партнёр: %s | имя в журнале после удаления: %r" % (pid, got))
+    code_recent = verdict(got, pid, name)
+
+    st2, raw2 = _call(base, "GET", "/api/v1/journal/records", None, token)
+    try:
+        payload2 = json.loads(raw2)
+    except Exception:  # noqa: BLE001
+        payload2 = None
+    got_records = names_in_records(payload2, pid)
+    code_records = verdict(got_records, pid, name)
+
+    print("партнёр: %s" % pid)
+    print("  /journal/recent  (резолв :95): %r -> rc=%d" % (got, code_recent))
+    print("  /journal/records (резолв :34): %r -> rc=%d" % (got_records, code_records))
+    code = 1 if (1 in (code_recent, code_records)) else (0 if 0 in (code_recent, code_records) else 2)
     if code == 0:
         print("квитанция: имя сохранилось | rc=0")
     elif code == 1:
@@ -145,7 +176,15 @@ def selftest() -> int:
     else:
         print("  [FAIL] разбор lastPartner")
 
-    print("check_history_resolvable --selftest: %d/%d (имя / id / нет имени / разбор)" % (ok, total))
+    total += 1
+    recs = {"items": [{"id": "r1", "partners": [{"id": pid, "name": "TE-E2E-Hist"}]}]}
+    if names_in_records(recs, pid) == "TE-E2E-Hist":
+        ok += 1
+        print("  [OK]   разбор /journal/records")
+    else:
+        print("  [FAIL] разбор /journal/records")
+    print("check_history_resolvable --selftest: %d/%d "
+          "(имя / id / нет имени / lastPartner / records)" % (ok, total))
     return 0 if ok == total else 1
 
 
