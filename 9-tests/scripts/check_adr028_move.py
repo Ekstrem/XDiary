@@ -158,6 +158,13 @@ def selftest() -> int:
         ok += 1
     else:
         print(f"  [FAIL] build_fail_detail: ждали CS0246 один раз + NU1101, получили: {detail[:160]}")
+    total += 1
+    # нет кодов, но есть текст ошибки: строка не должна быть пустой (@TL 02:45)
+    fallback_detail = build_fail_detail("Определение проектов…\nОшибка сборки.\nОшибок: 0")
+    if "код CS/NU не найден" in fallback_detail and "Ошибка сборки" in fallback_detail:
+        ok += 1
+    else:
+        print(f"  [FAIL] build_fail_detail fallback: получили {fallback_detail[:160]}")
     print(f"check_adr028_move --selftest: {ok}/{total} "
           "(baseline против ref; rc=2 и ::error:: на невалидном ref/флаге; вывод компилятора в §6)")
     return 0 if ok == total else 1
@@ -177,6 +184,13 @@ def build_fail_detail(out: str) -> str:
             seen.add(c)
             uniq.append(c)
     if not uniq:
+        # @TL 2026-11-13 02:45 + локальный замер: бывает «Ошибка сборки. Ошибок: 0» без `error CS…`
+        # (restore/сеть). Печатаем текст, иначе строка бесполезна для разбора.
+        fallback = [ln.strip() for ln in (out or "").splitlines()
+                    if ln.strip() and ("error" in ln.lower() or "ошибка" in ln.lower())
+                    and "Ошибок: 0" not in ln]
+        if fallback:
+            return "код CS/NU не найден; " + " | ".join(x[:160] for x in fallback[:3])
         return "код ошибки в выводе не найден"
     more = (" (+%d ещё)" % (len(uniq) - 5)) if len(uniq) > 5 else ""
     return "; ".join(uniq[:5]) + more
