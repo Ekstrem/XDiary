@@ -419,11 +419,11 @@ jobs:
           if-no-files-found: ignore
 
   deploy-prod:
-    if: ${{ !inputs.stop_before_prod }}
     # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
     # при условии, что фронт в этом пуше не менялся и smoke-api зелёный.
     needs: [smoke-api, smoke-front, diff-paths, receipt-be092]
     if: |
+      (!inputs.stop_before_prod) &&
       always() &&
       needs.smoke-api.result == 'success' &&
       (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
