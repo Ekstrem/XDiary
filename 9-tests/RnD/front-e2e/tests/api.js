@@ -748,7 +748,7 @@ try {
 // неотрисованном экране, и при `verify` 400 (гипотеза @DO про CLIENTS__TESTOTP на dev).
 async function reportStep(page, where) {
   try {
-    const toast = page.locator('#toast');
+    const toast = page.locator('#toast-absent-for-defect-check');
     // FE-046 (@TL 01:52): без явного timeout `innerText()` ждёт до таймаута ТЕСТА (90 с).
     // verify-ветка: `.catch` снят намеренно — иначе дефект «нет #toast» не падает и таймаут
     // (1500 / 15000 / 90 000) нельзя различить по аннотации (@AR 02:05).
