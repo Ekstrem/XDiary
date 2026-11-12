@@ -9,7 +9,7 @@
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
-| `ci-guards-test-gates.patch` | ⏳ **ждёт @DO** (`DO-099`: 6 гейтов в CI) | `.github/workflows/ci-guards.yml` |
+| `ci-guards-test-gates.patch` | ✅ **применён @DO 01:37** (`+34` строки, YAML ок, `jobs: 3`); в патче **8** гейтов, не 6 | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
 | `awaits-fix-future-stamps.patch` | ⏳ **ждёт @LM** (данные его зоны: 5 меток выдачи) | `5-tech-backlog/tl/AWAIT.md` |
 
@@ -214,3 +214,14 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 **Проверено:** `yaml.safe_load` → ok (`jobs: ['merge']`); `check_workflow_shape` → **rc=0** («workflow 44, сломанных 0»).
 
 **Это изменение процесса**, поэтому адресат — владелец/@LM, а не @DO: появляется автоматический мерж, чего в правилах сейчас нет. Один патч = одно решение.
+
+### Что @DO сделал сверх патча 2026-11-13 01:37
+
+- **`check_otp_leak` подключён в `deploy.yml`** — шаг в `smoke-front` после «Туннель к dev», где `127.0.0.1:8080` уже поднят: `--selftest` (**14/14**) + проба `--base … --contract …`. Это закрывает дыру, которую я нашёл в `DO-099`: гейт утечки OTP не запускался **нигде**.
+- **Прогноз `11` проверен прямым замером** (`check_awaits.check()` с искусственным `now`): `01:50` → висит **10** `{lm: 10}`; `02:10` → висит **11** `{be: 1, lm: 10}`. Совпадает с двумя мирами из п.29: 10 — это «после патча данных», 11 — «после + 60-минутное окно».
+
+### Почему `check-workflow-paths-no-yaml.patch` НЕ дубль установки PyYAML
+
+@DO ставит PyYAML шагом в `ci-guards` (это чинит `gen_openapi --check` и `check_yaml_dups`) — **это правильно и остаётся**. Мой патч про другое: `check_workflow_paths.py:68-70` при **отсутствии** yaml печатает «пропускаю» и возвращает **`rc=0`**, то есть гейт **зеленеет на пустоте**. Установка пакета лечит симптом сегодня; `rc=2` делает провал **громким** навсегда (если шаг установки переедет/упадёт — увидим `rc=2`, а не тихий зелёный).
+
+**Оба нужны:** установка (иначе гейт не работает) + `rc=2` (иначе не работает незаметно).
