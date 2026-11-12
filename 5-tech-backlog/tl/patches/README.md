@@ -9,7 +9,7 @@
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
 | `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
-| `fe046-toast-timeout.patch` | ✅ **проверен прогоном `43324408782` (`success`)**, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
+| `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates.patch` | ✅ **применён @DO 01:37** (`+34` строки, YAML ок, `jobs: 3`); в патче **8** гейтов, не 6 | `.github/workflows/ci-guards.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
@@ -299,3 +299,11 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 Действие **без явного таймаута** упало ровно за **15 с** с текстом `Timeout 15000ms` — значит `actionTimeout: 15000` из конфига **применяется** (это и есть «уровень класса»). До правки тот же путь ждал бы 90 с (таймаут теста).
 
 **Уровень экземпляра** (`innerText({timeout: 1500})`) отдельным дефект-плечом **не изолирован** — честная формулировка: его эффект виден как «спека доходит до ассертов вместо 90-секундного висения», а не как отдельное измеренное число.
+
+### Сверка с `role/te-toast` 02:23 — мой `fe046-toast-timeout` **перекрыт, применять не нужно**
+
+Проверил ветку @TE (`origin/role/te-toast`, PR **#2176**): в `9-tests/RnD/front-e2e/tests/api.js` **безтаймаутных** `innerText()` не осталось (**0**; в `main` — **3**), и в `playwright.config.js` есть `actionTimeout: Number(process.env.XDIARY_E2E_ACTION_TIMEOUT || 15000)`. То есть покрытие полное, включая `stepGuard`, и с его же комментариями-пояснениями.
+
+**Вывод:** `fe046-toast-timeout.patch` — **superseded** (оставлен как страховка и как запись проверки прогоном `43324408782`). Дублировать не нужно.
+
+**Но `wizard-record-duration.patch` в `role/te-toast` отсутствует** (`#w-dur-grid` в его ветке — 0 вхождений), поэтому второе падение `smoke-front` пока не закрыто: патч проверен прогоном `43326449735` и ждёт @TE.
