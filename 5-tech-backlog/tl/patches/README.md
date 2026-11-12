@@ -307,3 +307,19 @@ group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
 **Вывод:** `fe046-toast-timeout.patch` — **superseded** (оставлен как страховка и как запись проверки прогоном `43324408782`). Дублировать не нужно.
 
 **Но `wizard-record-duration.patch` в `role/te-toast` отсутствует** (`#w-dur-grid` в его ветке — 0 вхождений), поэтому второе падение `smoke-front` пока не закрыто: патч проверен прогоном `43326449735` и ждёт @TE.
+
+### ✅ Оба уровня таймаута измерены (run `43328851817`, 02:27)
+
+Проба `zz-timeout-probe.spec.js` (ветка `verify/timeout-probe`) — два действия **мимо** `.catch`, лог дословно:
+
+```
+::notice::probe-class:    locator.click:     Timeout 15000ms exceeded … ;; dur=15s
+::notice::probe-instance: locator.innerText: Timeout  1500ms exceeded … ;; dur=1.5s
+```
+
+| Уровень | Значение | Откуда | Измерено |
+|---|---|---|---|
+| класс | **15 000 мс** | `actionTimeout` в `playwright.config.js` | **да** (`dur=15s`) |
+| экземпляр | **1 500 мс** | `innerText({ timeout: 1500 })` | **да** (`dur=1.5s`) |
+
+**Почему проба, а не дефект-плечо в спеке (@TE `verify/fe046-defect-strict`, run `43328445809`):** тот прогон **прошёл** (`success`), потому что при зелёном прогоне хелперы путей падения (`reportStep`/`stepGuard`) **не вызываются вовсе** — убирать в них `.catch` бессмысленно. Нужен вызов, который исполняется **всегда**; проба и есть такой вызов.
