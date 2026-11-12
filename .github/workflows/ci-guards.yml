@@ -264,7 +264,10 @@ jobs:
         if: always()
         run: |
           python tools/check_adr_refs.py --selftest
-          python tools/check_adr_refs.py
+          # @AR 01:00: без `--include-arch` правило ADR→ADR не проверялось вовсе
+          # (7 ссылок вместо 19), поэтому 4 живые ошибки CI не видел. Включаем после
+          # патча `check-adr-refs-mention`, иначе красный навсегда на 4 ложных.
+          python tools/check_adr_refs.py --include-arch
       - name: "ADR: структура по шаблону (граница 2026-11-05)"
         if: always()
         run: |

@@ -102,7 +102,11 @@ def accepted_refs_rejected(root):
         src = m.group(1)
         if statuses.get(src) not in ('Принято', 'Пересмотрен'):
             continue
-        for no, line in enumerate(open(path, encoding='utf-8', errors='replace'), 1):
+        all_lines = open(path, encoding='utf-8', errors='replace').read().splitlines()
+        for no, line in enumerate(all_lines, 1):
+            # @TL 2026-11-13 01:04: пометка «отклонён/снят» может стоять на СЛЕДУЮЩЕЙ строке
+            # (в adr-005.md ссылка на `ADR-029` на :21, а «отклонён» — на :22). Смотрим окно.
+            window = line + " " + (all_lines[no] if no < len(all_lines) else "")
             for ref in re.finditer(r'ADR\s?-?(\d{3})', line):
                 tgt = ref.group(1)
                 if tgt == src:
@@ -111,7 +115,13 @@ def accepted_refs_rejected(root):
                     continue
                 rel = os.path.relpath(path, root).replace(os.sep, '/')
                 replaced = 'замен' in (raw.get(tgt) or '').lower()
-                (stale if replaced else problems).append((rel, no, src, tgt, statuses[tgt]))
+                # @TL (дефект-плечо @AR 00:59): ссылка — ОПОРА только если рядом нет пометки,
+                # что решение снято. «ADR-029 отклонён» — упоминание, а не опора.
+                marker = re.search(r'отклон[её]н|отмен[её]н|снят|не действует', window, re.I)
+                if replaced or marker:
+                    stale.append((rel, no, src, tgt, statuses[tgt]))
+                else:
+                    problems.append((rel, no, src, tgt, statuses[tgt]))
     return problems, stale
 
 

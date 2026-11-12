@@ -68,6 +68,25 @@ def parse_awaits(path):
     return rows
 
 
+
+def future_rows(rows, now=None):
+    """[(role, what, stamp, line_no, minutes_ahead)] — метки выдачи В БУДУЩЕМ.
+
+    `chat_accepts(role, after=stamp)` ищет подтверждение ПОСЛЕ метки, поэтому строка
+    с меткой из будущего висит по построению: ответить на неё нельзя.
+    Худший вид красного — когда «не ответили» и «ответить нельзя» неразличимы.
+    """
+    now = now or datetime.now()
+    out = []
+    for role, what, stamp, n, _done in rows:
+        try:
+            ts = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+        except ValueError:
+            continue
+        if ts > now:
+            out.append((role, what, stamp, n, int((ts - now).total_seconds() // 60)))
+    return out
+
 def bad_stamps(path):
     """[(stamp, line_no)] — метки с часом вне 0..23 (дефект данных генератора)."""
     out = []
@@ -259,11 +278,15 @@ def main():
     bad = bad_stamps(os.path.join(root, AWAIT))
     for stamp, n in bad:
         print("::error::AWAIT.md:%d — метка вне диапазона (час>23): %s" % (n, stamp))
+    future = future_rows(rows)
+    for role, what, stamp, n, ahead in future:
+        print("::error::AWAIT.md:%d — метка выдачи В БУДУЩЕМ: %s (+%d мин, @%s) — "
+              "подтверждение невозможно, строка висит по построению" % (n, stamp, ahead, role))
     for role, what, stamp in hanging:
         print("::warning::висит: @%s — «%s» (выдано %s, подтверждения нет)" % (role, what, stamp))
     print("check_awaits: решений в AWAIT.md %d (закрыто по статусу %d), висит %d"
           % (len(rows), done_rows, len(hanging)))
-    if a.strict and (hanging or bad):
+    if a.strict and (hanging or bad or future):
         return 1
     return 0
 
