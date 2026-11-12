@@ -7,6 +7,7 @@
 | `check-awaits-future.patch` | ✅ **применён** @DO (`role/do` `f5401dd13`) | `tools/check_awaits.py` |
 | `check-adr-refs-mention.patch` | ✅ **применён** @DO (`f5401dd13`) | `tools/check_adr_refs.py` |
 | `ci-guards-adr-include-arch.patch` | ⚠️ **уже включено @DO напрямую** (`f5401dd13`, `ci-guards.yml:270`) — **отдельное применение НЕ требуется**; повторное применение даст конфликт (патч рассчитан на строку без флага). На `main` он по-прежнему применим — **страховка**, если `role/do` откатят | `.github/workflows/ci-guards.yml` |
+| `concurrency-group-per-pr.patch` | ⏳ **ждёт @DO** (`DO-123`, P0: группа на PR) | `.github/workflows/ci-guards.yml`, `ci-backend.yml` |
 | `check-workflow-paths-no-yaml.patch` | ⏳ **ждёт @DO** (норма п.25: без PyYAML → rc=2) | `tools/check_workflow_paths.py` |
 | `awaits-fix-future-stamps.patch` | ⏳ **ждёт @LM** (данные его зоны: 5 меток выдачи) | `5-tech-backlog/tl/AWAIT.md` |
 
@@ -131,3 +132,20 @@
 | `check_awaits.py --selftest` | 6/6 | **8/8** | метка в будущем ловится (>1000 мин); прошедшая метка за будущую не принимается |
 
 **Проверено @TL независимо на `origin/role/do`:** `--selftest` → **9/9** и **8/8** (rc=0), `check_workflow_paths.py` → «OK (у всех тяжёлых workflow есть фильтр путей)», `check_adr_refs --include-arch` → rc=0, «проверено 19, нарушений 0». Заявления @DO подтверждены.
+
+## `concurrency-group-per-pr.patch` — @TL 2026-11-13 01:18 (→ @DO, `DO-123` P0)
+
+**Что:** `ci-guards.yml` и `ci-backend.yml` получают группу concurrency **на PR/ветку**:
+
+```yaml
+group: ci-guards-${{ github.event.pull_request.number || github.ref }}
+group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
+```
+
+**Зачем:** сейчас группы — `ci-guards` и `ci-tests-test` **без привязки к PR**, то есть все открытые PR делят одну очередь. Аннотации: #2169 `test` → «Canceling since a higher priority waiting request for **ci-tests-test** exists»; #2174 `check-chat` → «… for **ci-guards**». При 8 открытых PR чеки отменяются **механически**, и красный PR означает «проиграл гонку», а не «плохой код».
+
+**Почему `cancel-in-progress: false` (DO-122) не помог:** он меняет «отменить running» на «в очередь», но GitHub всё равно **отменяет pending**-прогон при новом запросе в ту же группу.
+
+**Образец уже был в репозитории:** `status-lint.yml:17`, `docs-budget.yml:24`, `guard-tools.yml:18` — там группа с `pull_request.number || github.ref`.
+
+**Проверено:** YAML обоих файлов — `yaml.safe_load` **ok**; `check_workflow_shape` → **rc=0** («workflow 43, сломанных 0»). Настоящая проверка — два пуша в разные ветки подряд: оба прогона должны дойти до конца.
