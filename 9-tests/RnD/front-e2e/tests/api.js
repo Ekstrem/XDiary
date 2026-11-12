@@ -80,8 +80,27 @@ async function dumpViews(page, where) {
       });
       return out;
     });
-    // TE-036: ::warning:: — гарантированная аннотация (docs/CI-RULES.md, @LM 22:35). ::notice:: в прогонах не наблюдался.
-    console.log('::warning::' + JSON.stringify({ title: 'views' + (where ? ' (' + where + ')' : ''), views }));
+    // TE-107 (@TL 2026-11-13 17:30): `views:{}` читалось двояко — «документ не загрузился»
+    // или «разметка экранов не создана». Контекст печатаем ВСЕГДА.
+    const diag = await page.evaluate(() => {
+      const nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
+      const ids = Array.from(document.querySelectorAll('[id]')).slice(0, 5).map((el) => el.id);
+      return {
+        url: location.href,
+        status: typeof nav.responseStatus === 'number' ? nav.responseStatus : -1,
+        readyState: document.readyState,
+        htmlLen: document.body ? document.body.innerHTML.length : -1,
+        ids,
+        viewEls: document.querySelectorAll('[id^="view-"]').length,
+      };
+    }).catch(() => null);
+    // TE-036: ::warning:: — гарантированная аннотация (docs/CI-RULES.md, @LM 22:35).
+    const payload = Object.assign(
+      { title: 'views' + (where ? ' (' + where + ')' : ''), views },
+      diag || {},
+      { viewsCount: Object.keys(views || {}).length }
+    );
+    console.log('::warning::' + JSON.stringify(payload));
     return views;
   } catch (e) {
     return null;
