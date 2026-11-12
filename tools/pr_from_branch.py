@@ -66,13 +66,31 @@ def build_body(role, commits, base="main", branch=""):
     return "\n".join(lines) + "\n"
 
 
+def _ref_exists(ref, cwd="."):
+    cp = subprocess.run(["git", "rev-parse", "--verify", "--quiet", ref],
+                        cwd=cwd, capture_output=True, text=True)
+    return cp.returncode == 0
+
+
 def git_commits(branch, base, cwd="."):
-    """[(sha, subject)] от base до branch (свежие сверху)."""
-    cp = subprocess.run(["git", "log", "--format=%h %s", "%s..%s" % (base, branch)],
+    """[(sha, subject)] от base до branch (свежие сверху).
+
+    В CI `actions/checkout` с `ref: <ветка>` не создаёт локальную `main`, поэтому
+    `main..role/do` падает с `ambiguous argument` (прогон #1). База — `origin/main`,
+    а если переданной ветки нет локально, берём `HEAD` (мы уже на нужном коммите).
+    """
+    base_ref = base
+    if not _ref_exists(base_ref, cwd) and _ref_exists("origin/" + base, cwd):
+        base_ref = "origin/" + base
+    branch_ref = branch
+    if not _ref_exists(branch_ref, cwd):
+        branch_ref = "HEAD"
+    cp = subprocess.run(["git", "log", "--format=%h %s", "%s..%s" % (base_ref, branch_ref)],
                         cwd=cwd, capture_output=True, text=True, encoding="utf-8",
                         errors="replace")
     if cp.returncode != 0:
-        raise OSError((cp.stderr or "").strip()[:200])
+        raise OSError("git log %s..%s: %s" % (base_ref, branch_ref,
+                                             (cp.stderr or "").strip()[:160]))
     return parse_commits(cp.stdout)
 
 
@@ -125,7 +143,7 @@ def selftest():
 def main(argv=None):
     ap = argparse.ArgumentParser(description="PR из role/* в main (PDR-047 B1)")
     ap.add_argument("--branch", default=os.environ.get("GITHUB_REF_NAME", ""))
-    ap.add_argument("--base", default="main")
+    ap.add_argument("--base", default="origin/main")
     ap.add_argument("--root", default=".")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--selftest", action="store_true")

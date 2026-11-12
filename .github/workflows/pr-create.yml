@@ -48,10 +48,15 @@ jobs:
       - name: Самопроверка инструмента (роль из ветки, заголовок, тело)
         run: python tools/pr_from_branch.py --selftest
 
+      # В CI нет локальной `main`: checkout с `ref: <ветка>` не создаёт её, и
+      # `git log main..ветка` падает (прогон #1). Приносим базу явно.
+      - name: Принести базу main (для списка коммитов)
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+
       - name: Создать или обновить PR в main
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ inputs.branch || github.ref_name }}
         run: |
           set -uo pipefail
-          python tools/pr_from_branch.py --branch "$BRANCH" --base main
+          python tools/pr_from_branch.py --branch "$BRANCH" --base origin/main
