@@ -1,0 +1,33 @@
+name: Review whip (WIP-лимит ревью)
+
+# Кнут координатору: если задач в «На проверке» больше лимита — пишет в chat/lm.md
+# → @TL «разберись со связями и запуши команду» и пушит. Двигатель — tools/review_whip.py.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  review-whip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Кнут за WIP-лимит ревью
+        run: python tools/review_whip.py --config loop.config.json
+      - name: Закоммитить кнут (если лимит нарушен)
+        run: |
+          if git diff --quiet -- 5-tech-backlog/chat/lm.md; then
+            echo "кнута нет"
+          else
+            git config user.name "review-whip"
+            git config user.email "review-whip@loopmaker"
+            git add 5-tech-backlog/chat/lm.md
+            git commit -m "chat(lm): review-whip - knut @TL (WIP-limit revyu)"
+            git push
+          fi
