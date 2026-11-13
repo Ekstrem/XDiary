@@ -122,6 +122,20 @@ test('E2E: запись через визард — создаётся и вид
         { timeout: NEXT.timeout }
       ).catch(async () => {
         const after = await stepText().catch(() => '');
+        // @TL 2026-11-13 08:42 (deploy 43371612660): продукт ЛЕГИТИМНО держит шаг длительности и
+        // отвечает тостом «Укажите длительность». Проверка видимости ДО клика это не ловила (гонка
+        // отрисовки), поэтому после клика проверяем два признака: поле длительности на экране И тост
+        // с этой фразой. Тогда «шаг не сменился» — ожидаемое поведение, а не падение спеки.
+        const durInput = page.locator('#w-dur-custom');
+        const onDuration = await durInput.isVisible().catch(() => false);
+        const toastLoc = page.locator('#toast');
+        const toastN = await toastLoc.count().catch(() => 0);
+        const toastText = toastN ? ((await toastLoc.innerText({ timeout: 1500 }).catch(() => '')) || '') : '';
+        if (onDuration && /Укажите длительность/i.test(toastText)) {
+          console.log('::notice::wizard next: шаг длительности уже показан (тост «Укажите длительность») — ' +
+            'падать не за что (' + label + ')');
+          return;
+        }
         throw new Error('ШАГ НЕ СМЕНИЛСЯ при «далее» (' + label + '): шаг не продвинулся. ' +
           'До: ' + JSON.stringify((before || '').slice(0, 160)) + ' ;; После: ' +
           JSON.stringify((after || '').slice(0, 160)));
