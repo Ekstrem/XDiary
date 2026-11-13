@@ -74,6 +74,20 @@ DRY="${DRY:-0}"
 DEPLOY_DIR=/opt/xdiary/7-deploy
 DEPLOY_SH=/home/deploy/deploy.sh
 RECREATE=/opt/xdiary/7-deploy/recreate-service.sh
+# DO-130 (@DO 2026-11-13 19:2x): на VPS-1 podman — ROOTLESS (18 контейнеров у `deploy`), а root-podman
+# не имеет сети `xdiary` (0 контейнеров, только сеть `podman`). `sudo -n bash recreate-service.sh`
+# уводил пересоздание в root-пространство, где `podman run --network xdiary` падает → «не поднялся»
+# 3 раза, откат падал так же, и прод оставался на старых контейнерах (Up 9 days).
+# Выбираем режим по ФАКТУ: видит ли текущий пользователь контейнеры.
+PODMAN_SUDO=""
+if [ "$(id -u)" -ne 0 ]; then
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'xdiary-pg'; then
+    PODMAN_SUDO=""          # контейнеры наши (rootless) — sudo не нужен
+  else
+    PODMAN_SUDO="sudo -n"   # rootless пусто — среда root
+  fi
+  say "podman-режим: ${PODMAN_SUDO:-rootless (без sudo)}"
+fi
 HASHFILE="$HOME/.xdiary-images.sha256"
 IDFILE="$HOME/.xdiary-image-ids"
 DEPLOY_HASH_FILE="$HOME/.xdiary-deploy-sh.sha256"
@@ -122,7 +136,7 @@ if [ "${1:-}" = "--rollback" ]; then
   [ -n "$svc" ] && [ -n "$img" ] || die "нужно: --rollback <service> <image-id>"
   [ -x "$RECREATE" ] || die "нет $RECREATE"
   say "ОТКАТ $svc на $img"
-  sudo -n bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
+  $PODMAN_SUDO bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
   exit 0
 fi
 
@@ -291,7 +305,7 @@ for svc in $ORDER; do
   # тогда запись тела падает (PermissionError), тело пустое, сервис «не поднимается».
   # Чистим заранее; пишем те же файлы тоже через sudo, чтобы владелец был один.
   sudo -n rm -f "/tmp/recreate-$svc.body" "/tmp/recreate-$svc.sh" 2>/dev/null || true
-  if ! sudo -n bash "$RECREATE" "$svc"; then
+  if ! $PODMAN_SUDO bash "$RECREATE" "$svc"; then
     say "  $svc не поднялся — прекращаю и откатываю остальные"
     FAILED="$svc"
     break
@@ -306,7 +320,7 @@ if [ -n "$FAILED" ]; then
     old_id="$(printf '%s' "$OLD_STATE" | awk -v s="$svc" '$1==s {print $2}')"
     [ -n "$old_id" ] || continue
     say "  откат $svc → $old_id"
-    sudo -n bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
+    $PODMAN_SUDO bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
   done
   exit 1
 fi
