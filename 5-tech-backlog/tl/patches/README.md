@@ -11,6 +11,8 @@
 | `wizard-record-duration.patch` | ✅ **взято в код @TE** (`5dd0efe0c`), прогон `43330703353` на его ветке — `success` | ~~`wizard-record.spec.js`~~ |
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
+| `be104-portability-clientid.patch` | ✅ **проверен прогоном `43336316072`** (сборка 31/31 PASS), ждёт @BE | `6-msa/BC-Portability/.../PortabilityTests.cs` |
+| `test-gates-pyyaml.patch` | ✅ **проверен прогоном `43336316072`** (`test-gates` success), ждёт @DO | `.github/workflows/ci-guards.yml` |
 | `chat-shrink-guard-main.patch` | ⏳ **ждёт @DO** (маленький PR: гейт усыхания чата в `main`) | `tools/check_chat_shrink.py`, `.github/workflows/ci-guards.yml` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates-fetch.patch` | ⏳ **ждёт @DO** (`DO-099`: `fetch-depth: 0` иначе `origin/main` не резолвится) | `.github/workflows/ci-guards.yml` |
@@ -388,3 +390,27 @@ gh workflow run front-e2e-repeat.yml --ref role/te-toast -f specs=tests/wizard-r
 | норма (после мержа) | `--range <base>..HEAD` | 0 |
 
 YAML: `yaml.safe_load` → ok, `ci-guards: jobs [check-chat, guard-secrets]`, в `check-chat` 30 шагов (было 29).
+
+## ✅ 03:25 — `test-gates` ПОЗЕЛЕНЕЛ на проверочной ветке: два фикса подтверждены в CI
+
+Ветка `verify/tg-py` = `role/do` + **`test-gates-pyyaml`** + форматтер @TE + **`be104-portability-clientid`**. Прогон `ci-guards` **`43336316072`**:
+
+| Job | Результат |
+|---|---|
+| **`guard-secrets`** | success |
+| **`test-gates`** | **success** |
+| `check-chat` | failure — **только** «Регистр выданных решений не зарастает» (`AWAIT`, 10 решений `@lm`) |
+
+**Что это доказывает:**
+
+1. **`BE-104` исправлен:** в логе `10) сборка тестовых проектов PASS (нарушений 0, собрано 31, не проверено 0)` — до патча было `FAIL (1 проект не собирается)` с `CS7036`.
+2. **`test-gates` требовал PyYAML:** без него `check_api_index_optional --strict` печатал `[warning] не измерено … (No module named 'yaml')` и валил шаг; с `pip install pyyaml` — проходит.
+
+**Патчи:**
+
+| Файл | Что |
+|---|---|
+| `be104-portability-clientid.patch` | `PortabilityTests.cs`: `ClientId` (Guid) в трёх вызовах `ImportRecords`/`ExportRecords` — адресат **@BE** |
+| `test-gates-pyyaml.patch` | `ci-guards.yml`: `pip install pyyaml` в job `test-gates` — адресат **@DO** |
+
+**Важно про приём:** локально `dotnet build` этого проекта даёт «Ошибка сборки, Ошибок: 0» (restore недоступен), поэтому проверка возможна **только в CI** — и она сделана.
