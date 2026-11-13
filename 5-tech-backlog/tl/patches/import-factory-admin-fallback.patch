@@ -1,0 +1,30 @@
+diff --git a/7-deploy/apim/import.sh b/7-deploy/apim/import.sh
+index a7691dfd7..1f8973159 100644
+--- a/7-deploy/apim/import.sh
++++ b/7-deploy/apim/import.sh
+@@ -81,6 +81,25 @@ PY
+     --data-binary @/tmp/body.json \
+     "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/import" 2>/dev/null)
+   code=$(printf '%s' "$resp" | tail -1)
++  # DO-098 п.8 / AR-160 (@TL 2026-11-14 00:1x): креды из `apim.env` дают 401 (они нерабочие с 04.11).
++  # Причина известна: админ Gravitee задаётся монтированием `/opt/xdiary/secrets/apim-gravitee.yml`
++  # (up.sh:83-84). Если файл потерян при пересоздании контейнера, Gravitee возвращается к ЗАВОДСКОМУ
++  # `admin/admin` — тогда старый `apim.env` заведомо неверен. Пробуем заводскую пару ОДИН раз:
++  # если она сработала, продолжаем под ней и печатаем это явно (значение в лог не попадает).
++  if [ "$code" = "401" ] && [ "${TRIED_FACTORY:-0}" = "0" ]; then
++    TRIED_FACTORY=1
++    resp=$(podman exec "$MG" curl -s -m 90 -w '\n%{http_code}' -X POST \
++      -u "admin:admin" -H 'Content-Type: application/json' \
++      --data-binary @/tmp/body.json \
++      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/import" 2>/dev/null)
++    code=$(printf '%s' "$resp" | tail -1)
++    if [ "$code" = "200" ] || [ "$code" = "201" ]; then
++      echo "  ВНИМАНИЕ: креды из apim.env не приняты (401), импорт идёт под ЗАВОДСКИМИ admin/admin — обнови секреты (DO-098 п.8)"
++      USER="admin"; PASS="admin"
++    else
++      echo "  креды НЕ подошли: и apim.env, и заводские admin/admin дают 401 — нужен актуальный админ Gravitee (DO-098 п.8)" >&2
++    fi
++  fi
+   api_id=$(printf '%s' "$resp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+   if [ "$code" = "200" ] || [ "$code" = "201" ]; then
+     echo "  импортирован $svc (id=${api_id:0:8}…)"
