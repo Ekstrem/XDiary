@@ -497,3 +497,17 @@ APIM_PREFLIGHT_OK
 **Проверено:** `yaml.safe_load` ok (steps: Tag → Подготовить → Deploy; `envs: TAG, CODE_TS, UPDATE_B64`), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
 
 **После применения:** первый `deploy` на `main` должен дать `deploy-prod` **success**; если сторож эталона всё ещё ругается — прогнать `bash /opt/xdiary/7-deploy/legacy-shims.sh` (пересоберёт шим и эталон детерминированно, файл бэкапится в `/home/deploy/legacy-<ts>/`).
+
+## 19. `smoke-front-api-readiness.patch` — ждать готовность API dev, а не только `/health` (TE-110, P1)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 11:5x. **Статус:** ждёт применения.
+
+**Дефект (замер):** `front-e2e-repeat` на `main`, `add-partner`, `repeat=3` → **1 passed / 2 failed**; оба падения с текстом
+`Вход не завершился … views={"view-onboarding":"visible"} ошибки=["http 502 http://127.0.0.1:8080/api/v1/clients", "502 (Bad Gateway)"]`.
+Механизм: `deploy-dev` пересоздаёт контейнеры, `Туннель к dev` ждёт `/health` (**Caddy**), а сервис в это время ещё не готов → `/api/v1/clients` отдаёт 502; красный `smoke-front` через `needs` гасит `receipt-be092`.
+
+**Что делает патч:** новый шаг `Готовность API dev (не 5xx на /api/v1/clients/me)` сразу после туннеля: до 60 попыток по 3 с, готовность = любой код кроме `5xx`/`000` (`GET /api/v1/clients/me` анонимно → `401`, это и есть «сервис жив»), без создания данных.
+
+**Проверено:** `yaml.safe_load` ok (**8 jobs**, `smoke-front` — 12 шагов), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
+
+**После применения:** первый `deploy` на `main` должен дать `smoke-front` **success** без повторов; в логе появится строка `API dev готов: GET /api/v1/clients/me -> 401 (попытка N)`.
