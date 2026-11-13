@@ -502,7 +502,11 @@ jobs:
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
           # нельзя: правка в `7-deploy/`/`.github/` не пересобирает образы, но выглядит
           # «код новее образов» — прод вставал на каждом инфраструктурном коммите.
-          code_ts="$(git log -1 --format=%cI -- 6-msa 8-front 2>/dev/null || true)"
+          # Только `6-msa`: `8-front` — статика PWA (Pages), в образы контейнеров НЕ входит.
+          # С `8-front` в пути `CODE_TS` = время фронт-коммита, и сторож сравнивал его с
+          # образами бэкенда — ложное «образы старше кода» (run #2038: `код 13:39`
+          # при последнем коммите 6-msa `02:52`).
+          code_ts="$(git log -1 --format=%cI -- 6-msa 2>/dev/null || true)"
           [ -n "$code_ts" ] || code_ts="$(git log -1 --format=%cI)"
           echo "CODE_TS=$code_ts" >> "$GITHUB_ENV"
           echo "CODE_TS (по коду, не по инфре): $code_ts"
