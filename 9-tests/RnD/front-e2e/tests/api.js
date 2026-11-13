@@ -197,10 +197,44 @@ let SEED_PARTNER = null;
 // `401/404` он сбрасывается и сессия засевается заново — «удалили клиента» по-прежнему лечится.
 let SEED_SESSION = null;
 
+async function waitApiReady(attempts, delayMs) {
+  // TE-110 (@TL 2026-11-13 11:49): проба готовности dev-стенда ДО кэш-проверки и онбординга.
+  // Готовность = любой код кроме 5xx и 000 (401 — это «сервис жив, аноним не авторизован»).
+  // Данные не создаются: GET без тела.
+  const n = attempts || 20;
+  const gap = delayMs || 3000;
+  let last = 'нет ответа';
+  for (let i = 1; i <= n; i += 1) {
+    try {
+      const r = await fetch(API_BASE + '/api/v1/clients/me', { headers: {} });
+      last = String(r.status);
+      if (!(r.status >= 500) && r.status !== 0) {
+        if (i > 1) {
+          console.log('::notice::' + JSON.stringify({
+            title: 'login: стенд поднялся', attempts: i, status: r.status,
+          }));
+        }
+        return r.status;
+      }
+    } catch (e) {
+      last = String((e && e.message) || e).slice(0, 120);
+    }
+    console.log('::warning::' + JSON.stringify({
+      title: 'login: стенд ещё поднимается (5xx), ждём', attempt: i + '/' + n, last,
+    }));
+    await new Promise((res) => setTimeout(res, gap)); // backoff: проба готовности стенда
+  }
+  throw new Error('Вход не начат: стенд не готов за ' + n + ' попыток по ' + gap / 1000 +
+    ' с (последний ответ: ' + last + ') — это стенд, а не спека');
+}
+
 async function seedSessionOnce(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
   await installBase(page);
+  // 2) затем — готовность API (см. waitApiReady): иначе 502 из окна пересоздания контейнеров
+  //    маскируется под «вход не завершился» (прогон 43395691243, 2 из 3).
+  await waitApiReady();
   // TE-059: сессия уже засеяна в этом процессе — не проходить онбординг заново.
   if (SEED_SESSION) {
     const cached = SEED_SESSION;
