@@ -62,7 +62,15 @@ def build(rows, sha, registry='ghcr.io', owner='ekstrem', dry_run=False, only=No
         # `COPY . .` + `dotnet restore BC-Journal/src/...`, то есть внутри контекста ждут
         # `BC-Journal/...`. Со `path` в контексте dotnet падал `MSB1009: Project file does not exist`
         # (первый прогон release #1 — упал на journal).
-        ctx = path.split('/')[0] if '/' in path else path
+        # Контекст зависит от Dockerfile, а не от «одного правила»:
+        #  - BC-*: `dotnet restore BC-Journal/src/...` -> контекст = группа (`6-msa`);
+        #  - ApiGateway: `COPY nuget.config` + `dotnet restore ApiGateway.csproj` -> контекст = его папка.
+        # Иначе `COPY nuget.config`/`ApiGateway.csproj` не находятся (`/nuget.config: not found`,
+        # release #3 упал уже после того, как 12 сервисов собрались).
+        with open(df, encoding='utf-8') as fh:
+            df_text = fh.read()
+        m = re.search(r'dotnet (?:restore|publish)\s+(\S+\.csproj)', df_text)
+        ctx = path.split('/')[0] if (m and '/' in m.group(1)) else path
         print('::group::build %s -> %s (context=%s)' % (svc, tag, ctx))
         r = subprocess.run(['docker', 'build', '-f', df, '-t', tag, ctx])
         if r.returncode != 0:
