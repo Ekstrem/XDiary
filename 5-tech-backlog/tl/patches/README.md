@@ -584,3 +584,14 @@ Process exited with status 1
 **Что делает патч:** в `gen_expected` берём IP сервиса из `deploy.sh` (`--ip`) и вычитаем **любой псевдоним, указывающий на свой IP** — закрывает и `clients:`, и будущие такие же алиасы.
 
 **Проверка:** файл — bash-скрипт; локального bash в этой среде нет, поэтому `bash -n` не выполнялся. Изменение — только внутри функции `gen_expected` (heredoc и awk в отдельных строках), логика фильтра — три `grep -v` в одном конвейере.
+
+## 24. `prod-gen-hosts-and-mktemp.patch` — доставить `gen-hosts.py` на прод + уникальные tmp-файлы (DO-129, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 18:5x.
+
+**Два дефекта из прод-прогона `43455070581`** (он впервые дошёл до пересоздания сервисов: все теги `single-c0552f2` прочитаны из lock):
+
+1. **`gen-hosts.py` не доставлялся на VPS-1.** Локально `python tools/gen-hosts.py --add-host` даёт **12** записей (10 сервисов + `clients:10.89.9.31` + `client:10.89.9.31`), а на dev в прогоне было 11 (Journal → «10 хостов»), на проде — 12 (journal → «11 хостов»). То есть генератор на стендах **разный**: он живёт только на VPS (`/opt/xdiary/tools/gen-hosts.py`) и никогда не доставлялся. Патч добавляет `GENHOSTS_B64` и запись `/opt/xdiary/tools/gen-hosts.py` из git в прод-джобе.
+2. **Откат падал на фиксированных путях:** `PermissionError: [Errno 13] Permission denied: '/tmp/recreate-partners.body'` → `откат partners не удался (нужно вручную)`, и то же для `catalog`. Файл остаётся от прошлого запуска с другим владельцем. Патч заменяет фиксированные `BODY`/`RUNNER` на `mktemp "/tmp/recreate-$SVC.*.XXXXXX"`.
+
+**Проверено:** `yaml.safe_load` ok, `envs` содержит `GENHOSTS_B64`, `check_workflow_shape` ok, `bash -n 7-deploy/recreate-service.sh` → rc=0.
