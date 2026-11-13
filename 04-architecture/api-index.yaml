@@ -306,7 +306,7 @@ operations:
     request:
       required: [phone]
       optional: []
-      note: "формат `phone` — канон `03-ddd/BC-Client/02-aggregate-canvas.md` (AR-025): нормализация → E.164 `^\\+[1-9][0-9]{6,14}$`; невалидный → 400 `phone_invalid` ДО 429 и отправки OTP. Здесь правило НЕ пересказывается (один канон — ссылка)."
+      note: "формат `phone` — канон `03-ddd/BC-Client/02-aggregate-canvas.md` (AR-025): нормализация → E.164 `^\\+[1-9][0-9]{6,14}$` → уточнение `+7`: ровно 10 национальных цифр (всего 12 символов); невалидный → 400 `phone_invalid` ДО 429 и отправки OTP. Здесь правило НЕ пересказывается (один канон — ссылка)."
     response: {always: ["id", "version", "phone", "otpExpiresAt", "verified"], note: "тело 200 — whitelist-проекция ClientsController.cs:47-49 (otpCode НЕ отдаётся, BE-090); 409 — {error, clientId} (:43-45); `delivery` присутствует ТОЛЬКО в реальном режиме, в тестовом отсутствует намеренно (:38-39)"}
   - bc: Client
     method: GET
