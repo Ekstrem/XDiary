@@ -22,7 +22,11 @@ on:
 # Лёгкие guard'ы (без test/front-e2e). Отменять их можно: результата у них нет,
 # пока они не дошли до шага (см. §5.1 про окно 5 минут — оно про тяжёлые джобы).
 concurrency:
-  group: ci-guards
+  # DO-123 (восстановлено 2026-11-13 08:2x): группа ПРИВЯЗАНА к PR. Правка была потеряна
+  # при мерже `main` в ветку. Без привязки все PR делят одну группу и GitHub отменяет
+  # чеки друг друга («Canceling since a higher priority waiting request for ci-guards exists»),
+  # из-за чего мерж невозможен при >=2 открытых PR.
+  group: ci-guards-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
