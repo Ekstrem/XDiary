@@ -129,8 +129,12 @@ if [ "${2:-}" = "--image" ]; then IMAGE_OVERRIDE="${3:-}"; [ -n "$IMAGE_OVERRIDE
 CONTAINER="xdiary-$SVC"
 cd "$DEPLOY_DIR" || die "нет $DEPLOY_DIR"
 
-BODY="/tmp/recreate-$SVC.body"
-RUNNER="/tmp/recreate-$SVC.sh"
+# DO-129 (@TL 2026-11-13 18:5x): фиксированные `/tmp/recreate-<svc>.*` ломали ОТКАТ:
+# в логе прод-прогона 43455070581 — `PermissionError: [Errno 13] Permission denied:
+# '/tmp/recreate-partners.body'`, из-за чего «откат partners не удался (нужно вручную)».
+# Файл остаётся от предыдущего запуска (другой пользователь/владелец) — берём mktemp.
+BODY="$(mktemp "/tmp/recreate-$SVC.body.XXXXXX")"
+RUNNER="$(mktemp "/tmp/recreate-$SVC.sh.XXXXXX")"
 
 python3 - "$DEPLOY_SH" "$SVC" "$BODY" <<'PY'
 import re

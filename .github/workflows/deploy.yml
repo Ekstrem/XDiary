@@ -137,6 +137,7 @@ jobs:
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+          echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
@@ -530,7 +531,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64
           script: |
             set -euo pipefail
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
@@ -572,6 +573,12 @@ jobs:
             # стороже «разошёлся со снимком» (sha256 9173778a != 7b62a233) ДО вызова живого скрипта.
             # Доставляем его из git и пересоздаём шимы детерминированно.
             [ -n "${LEGACY_B64:-}" ] || { echo "::error::LEGACY_B64 пуст — шаг подготовки не передал legacy-shims.sh"; exit 1; }
+            # DO-129 (@TL): `gen-hosts.py` НЕ доставлялся на VPS-1, поэтому список
+            # `--add-host` там отличался от dev (в прогоне 43455070581 у journal вышло
+            # «11 хостов» против 10 на dev). Генератор должен быть один и тот же.
+            mkdir -p /opt/xdiary/tools
+            echo "$GENHOSTS_B64" | base64 -d > /opt/xdiary/tools/gen-hosts.py
+            echo "DO-129: gen-hosts.py доставлен из git ($(wc -l < /opt/xdiary/tools/gen-hosts.py) строк)"
             echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
             [ -s legacy-shims.sh ] || { echo "::error::legacy-shims.sh пуст после декода — base64 повреждён"; exit 1; }
             chmod +x legacy-shims.sh
