@@ -79,7 +79,7 @@ def selftest():
     base = os.path.join(os.getcwd(), '.tmp-direct-push-selftest')
     shutil.rmtree(base, ignore_errors=True)
     repo = os.path.join(base, 'r')
-    os.makedirs(repo)
+    os.makedirs(repo, exist_ok=True)
 
     def r(*a):
         return subprocess.run(['git'] + list(a), cwd=repo, capture_output=True, text=True,
