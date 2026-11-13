@@ -102,7 +102,11 @@ def accepted_refs_rejected(root):
         src = m.group(1)
         if statuses.get(src) not in ('Принято', 'Пересмотрен'):
             continue
-        for no, line in enumerate(open(path, encoding='utf-8', errors='replace'), 1):
+        all_lines = open(path, encoding='utf-8', errors='replace').read().splitlines()
+        for no, line in enumerate(all_lines, 1):
+            # @TL 2026-11-13 01:04: пометка «отклонён/снят» может стоять на СЛЕДУЮЩЕЙ строке
+            # (в adr-005.md ссылка на `ADR-029` на :21, а «отклонён» — на :22). Смотрим окно.
+            window = line + " " + (all_lines[no] if no < len(all_lines) else "")
             for ref in re.finditer(r'ADR\s?-?(\d{3})', line):
                 tgt = ref.group(1)
                 if tgt == src:
@@ -111,7 +115,13 @@ def accepted_refs_rejected(root):
                     continue
                 rel = os.path.relpath(path, root).replace(os.sep, '/')
                 replaced = 'замен' in (raw.get(tgt) or '').lower()
-                (stale if replaced else problems).append((rel, no, src, tgt, statuses[tgt]))
+                # @TL (дефект-плечо @AR 00:59): ссылка — ОПОРА только если рядом нет пометки,
+                # что решение снято. «ADR-029 отклонён» — упоминание, а не опора.
+                marker = re.search(r'отклон[её]н|отмен[её]н|снят|не действует', window, re.I)
+                if replaced or marker:
+                    stale.append((rel, no, src, tgt, statuses[tgt]))
+                else:
+                    problems.append((rel, no, src, tgt, statuses[tgt]))
     return problems, stale
 
 
@@ -153,6 +163,34 @@ def selftest():
         ok += 1
     else:
         print('  [FAIL] в результате нет пары заявлено/факт: %s' % (problems[:1],))
+
+    # --- кейсы для логики «опора vs упоминание» (@TL 01:05: в патче не было самотеста) ---
+    def acase(label, src_body, tgt_status, want_problems, want_stale):
+        nonlocal ok, total
+        total += 1
+        repo = os.path.join(base, label)
+        os.makedirs(os.path.join(repo, '04-architecture', 'ADL'), exist_ok=True)
+        open(os.path.join(repo, '04-architecture', 'ADL', 'adr-901.md'),
+             'w', encoding='utf-8', newline='\n').write(
+                 '- **Статус:** Принято\n\n' + src_body + '\n')
+        open(os.path.join(repo, '04-architecture', 'ADL', 'adr-902.md'),
+             'w', encoding='utf-8', newline='\n').write(
+                 '- **Статус:** %s\n' % tgt_status)
+        p, stl = accepted_refs_rejected(repo)
+        if len(p) == want_problems and len(stl) == want_stale:
+            ok += 1
+        else:
+            print('  [FAIL] %s: ошибок %d (ждали %d), stale %d (ждали %d) | %s'
+                  % (label, len(p), want_problems, len(stl), want_stale, (p + stl)[:2]))
+
+    acase('a1_reliance', 'Опираемся на `ADR-902` как на действующее решение.',
+          'Отклонено (2026-11-05)', 1, 0)
+    acase('a2_mention_same_line', 'Уточнение: «`ADR-902` отклонён (2026-11-14)».',
+          'Отклонено (2026-11-05)', 0, 1)
+    acase('a3_mention_next_line', 'См. `ADR-902`.\nОн отклонён (2026-11-14), копий не делаем.',
+          'Отклонено (2026-11-05)', 0, 1)
+    acase('a4_replaced', 'Ранее: `ADR-902` (см. решение-замену).',
+          'Отклонено (2026-11-05) — заменён ADR-903', 0, 1)
 
     shutil.rmtree(base, ignore_errors=True)
     print('check_adr_refs --selftest: %d/%d' % (ok, total))

@@ -1,203 +1,418 @@
 {
   "tools": {
+    "canon_per_probe.py": {
+      "sha256": "9afcc9337b2804023b04f20671b71fb30a8ea634bcbc68b8e00b837416a6004a",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/canon_per_probe.py"
+    },
     "chat_inbox.py": {
       "sha256": "4c5e72e99dbc0342b175a7e783f8868ca970b69bc778c23cc594516f81b30135",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "21480a37adc59d0a150f614bfaea7a706acb06ba666149e8e3b7200b990f93ca",
-      "synced_at": "2026-11-11",
+      "sha256": "7b228e2e85b7cef8bbb54e56a4fb866b074d247b55505be58355ac57d8556c1a",
+      "synced_at": "2026-11-13",
       "upstream": "tools/chat_lint.py"
     },
     "chat_rotate.py": {
       "sha256": "ba86e22af8cd9eafc007affd7543e0b5325d9e69a3453b41c4fa9db0960d29ca",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/chat_rotate.py"
     },
     "check_adr.py": {
       "sha256": "a1eddfe88927418e9ed76bb5d2fe1a4a76b7872efe5a7ffd561ddab4c59da2de",
-      "synced_at": "2026-11-07",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_adr.py"
+    },
+    "check_adr_refs.py": {
+      "sha256": "5b87b41e59759b393dc8ec5669b2ec81bc23f5ed375620b128a6e1fd17bc4bb6",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_adr_refs.py"
+    },
+    "check_adr_status.py": {
+      "sha256": "cd9f811bc38768695e7b42091ed16e60f6a16a162dce34a1516e74f6b2b75674",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_adr_status.py"
+    },
+    "check_api_index.py": {
+      "sha256": "52fd5812c0b8c7c7e582840940dc5930abb5544579ff4d99fd59fce7b796929d",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_api_index.py"
+    },
+    "check_apim_drift.py": {
+      "sha256": "a3f749c4d7e8bdf7d7c22d0508646d6c6b2ab476fc76fc57a9074ce3765eb71e",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_apim_drift.py"
+    },
+    "check_apim_health.py": {
+      "sha256": "a0b0a9171cf99ad1ff18ed8aafe86c95639be1c7014f04067bbf54b41ff4b2a6",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_apim_health.py"
+    },
+    "check_awaits.py": {
+      "sha256": "34f4ac1c61f31cd48897275a3e9cdaafa04899fc4cb1a3675efaab967405ff8c",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_awaits.py"
+    },
+    "check_backup_freshness.py": {
+      "sha256": "1e6de39abadc7d86e3f8d0a4eeb0e13154420e2909b82c8e7b14b568b14ec23b",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_backup_freshness.py"
+    },
+    "check_canon.py": {
+      "sha256": "68f8fdc595c437fd5927c819e9b61999b0d7fe998a912e042d5e376402a76454",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_canon.py"
+    },
+    "check_chat_shrink.py": {
+      "sha256": "344a12af9305756a47254d5418a02c3bb1462b9a614c09f4ea11996a14fc6208",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_chat_shrink.py"
     },
     "check_docs_size.py": {
       "sha256": "1b62432080dfa6448736ebc2608369159d854df61a41801f7e1646936eb585d5",
-      "synced_at": "2026-11-07",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_docs_size.py"
+    },
+    "check_edm.py": {
+      "sha256": "7b36183553681043a1e9a7d6fa233bb0ac32a4427e6078b0ce6d2504a00a20b4",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_edm.py"
+    },
+    "check_env_drift.py": {
+      "sha256": "93eeaea93a7cb8f5d6e99be9a369f8f6bb2ad2bd2bd08aa4f6f6a74a55853640",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_env_drift.py"
+    },
+    "check_env_hosts.py": {
+      "sha256": "61e4adcd0090f894128d46455f7dd4c568645c0de9761c5a02cf7f583aa7c7ba",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_env_hosts.py"
+    },
+    "check_eventstore_ready.py": {
+      "sha256": "5063be43afe9216881f9ce9925c8986a915e7cc711fdf807c0a45897c0d2f3be",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_eventstore_ready.py"
+    },
+    "check_eventstore_registration.py": {
+      "sha256": "0f8d51feeeeb8f4d152ee9a5104f9c2cc67859989dd1b0aa29595d2823bd7b8b",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_eventstore_registration.py"
+    },
+    "check_front_e2e.py": {
+      "sha256": "1c3a12d56e2bc35b8e280e484dee387f0e708ab5de4816982b1e4218b9a771fc",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_front_e2e.py"
+    },
+    "check_keepalive.py": {
+      "sha256": "6a536278162cd2443f3ebce62b1671a28d3a3d1910a0038d7474542b493c7ac5",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_keepalive.py"
+    },
+    "check_lock.py": {
+      "sha256": "799a6354701aae40496e87c851ef529987bd68e6f2e4f926ccd2fe3b342cd479",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_lock.py"
     },
     "check_nul.py": {
       "sha256": "e8ae894c2edeaf742dc6022eaab40843dc9c6ece7f7841c1ea600e8a6ebd121d",
-      "synced_at": "2026-11-07",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_nul.py"
+    },
+    "check_null_paging.py": {
+      "sha256": "d1bb09ce62c9d28a88b8da9d05226a82e410c3eb0b20207d87b22f1d7788eca8",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_null_paging.py"
     },
     "check_openapi.py": {
       "sha256": "18130be2d64d25db00157fdf724c1bf0ac6b6829d7988d7f4e9101a47b659bc5",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_openapi.py"
     },
     "check_owner_chat.py": {
       "sha256": "4c78f33178be286a1b4868e535c1a11c4fe96f27f7023784c302b844f9461824",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_owner_chat.py"
     },
     "check_paths.py": {
       "sha256": "263bb33a3aed169eb0a297e998e76f1bf304b0dd8ed4fbbde2d8ec0320b47534",
-      "synced_at": "2026-11-11",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_paths.py"
     },
     "check_pdr.py": {
       "sha256": "3bb3ebeaac17aea52ddddd163cdaca5e8165ed60ad0ad9830c9952fca425270f",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_pdr.py"
+    },
+    "check_ports.py": {
+      "sha256": "fa052c2e960136bd23a0e6be96ff02d21d7b9ebf460ed7aa4620af58408bdfc6",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_ports.py"
+    },
+    "check_probe_freshness.py": {
+      "sha256": "e773defb443d74f6711ae1318d0a4bc963b4ee109bc413844701f183192d21d0",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_probe_freshness.py"
+    },
+    "check_public_entry.py": {
+      "sha256": "934e71aefe1e81bd29c437107d98c52d276da3d2bf510dffc9ebbae5daed67a2",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_public_entry.py"
+    },
+    "check_read_model_freshness.py": {
+      "sha256": "38cae079f8681cc5d8beb411e5da4fd6fdea34140c14e6562ef832b9b6752c1c",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_read_model_freshness.py"
+    },
+    "check_readstore_ddl.py": {
+      "sha256": "b45ea5d45999ac8f41e6d322f3203ace337e4188ae277c66e42dd74082c8f52a",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_readstore_ddl.py"
+    },
+    "check_readstore_live.py": {
+      "sha256": "e8048db9c4711e1f79d7874fd7a873e0039168b71b91af789b5c9c50fc68e9e3",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_readstore_live.py"
+    },
+    "check_readstore_mapping.py": {
+      "sha256": "b463bd418e029be2e63a5e4af4c622966dd69e4d3c71252cce48efc420b4e5c6",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_readstore_mapping.py"
     },
     "check_rule_docs.py": {
       "sha256": "2c9ae26dab18b0e7f2d2ba56a7e5934d8ba325711eb049a91d5ed7332712d6de",
-      "synced_at": "2026-11-07",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_rule_docs.py"
+    },
+    "check_schema.py": {
+      "sha256": "a97ffbeb6f36c2c7f0d9bed3246574f29c65439adb30385cd8f6ee3ffacf5c45",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_schema.py"
     },
     "check_secrets.py": {
       "sha256": "1b858fdaf3b86e69959aa128f7b5a8564798966b0a55456f2c68e30afa2ac17f",
-      "synced_at": "2026-11-11",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_secrets.py"
+    },
+    "check_service_auth.py": {
+      "sha256": "78eee33e39be85b6f6a41f50917225eefe476690dcd6ee8c29b561d5986b991f",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_service_auth.py"
+    },
+    "check_status_chat.py": {
+      "sha256": "272622cb0967465bbea87f759a81c79d5efe9f9c799f87b525fc5d3c5b18eff9",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_status_chat.py"
+    },
+    "check_test_isolation.py": {
+      "sha256": "21057addbcb000223a3094e85ae7b9b1d136e3c3df1003fdf06c0ae52c6bebbd",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_test_isolation.py"
     },
     "check_test_map.py": {
       "sha256": "51f128ed33ac096744f1ab1fed966e87bc9a699a7cf4a8a3ff454a635a7e1bdb",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_test_map.py"
     },
+    "check_tests_build.py": {
+      "sha256": "5517185c422448146b2510f65220d33a2ee13865bc4ba601e632a228689a9dce",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_tests_build.py"
+    },
     "check_workflow_paths.py": {
-      "sha256": "a8e1176771901d444b85e50079c4dd69eacba8dc18e7c0e2519cd9fe8f73ebd7",
-      "synced_at": "2026-11-10",
+      "sha256": "4413de147e63ae67ae0d7423c114502a4aeade27da7a046335477ec70374ab72",
+      "synced_at": "2026-11-13",
       "upstream": "tools/check_workflow_paths.py"
+    },
+    "check_workflow_shape.py": {
+      "sha256": "9039d7257973948a7368f8f9810854532fc1a475dcef9c8920d1a68a1093e9c1",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_workflow_shape.py"
+    },
+    "check_yaml_dups.py": {
+      "sha256": "f8248b8b3f0f650bef8dd1ac0c3ea9c985221b7c629e00961e3f8890fd2992fa",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_yaml_dups.py"
     },
     "ci-metrics.py": {
       "sha256": "6fc53bcb172f3939ae4e69d2c49eebf20e6fe2d08861341d402f614482557cd5",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/ci-metrics.py"
     },
     "cleanup_board.py": {
       "sha256": "4af11606c136048af95906e1047335fb5d5d5af2d850e4e1d140860bec559989",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/cleanup_board.py"
     },
     "cleanup_orphans.py": {
       "sha256": "ec90b33f7fa20ed09e7dc0decc3a8fde7c6e4a307c1c2973bccda1666485ebad",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/cleanup_orphans.py"
     },
     "commit_whip.py": {
       "sha256": "c58a94c0345c5f3e65a27e529adf2f466ea92286a0069bd046cb1d18d7888a94",
-      "synced_at": "2026-11-11",
+      "synced_at": "2026-11-13",
       "upstream": "tools/commit_whip.py"
     },
     "garmin_proxy.py": {
       "sha256": "65909a534242340c171fb7259b6a91b13d3fc4ec34adbac9b31448aac4d95b12",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/garmin_proxy.py"
     },
     "garmin_sync.py": {
       "sha256": "09fedf85b53d9253a8534423425c833aee4734d92b217fd5b1ad43b06b3c4623",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/garmin_sync.py"
     },
     "gen-hosts.py": {
       "sha256": "3f3c34b524f613293f065137605b82d1e989bf44f3f636baf7d171b42a3cb7c7",
-      "synced_at": "2026-11-07",
+      "synced_at": "2026-11-13",
       "upstream": "tools/gen-hosts.py"
     },
     "gen_icons.py": {
       "sha256": "4f04b5e5bd3a2dab8606f37f54dbfd8fdf2de23c9a2e325e68f539c921e59e30",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/gen_icons.py"
+    },
+    "gen_images_lock.py": {
+      "sha256": "d4af5e817d9048ad4bfe4705aa86896f0942533328e86bdd1bdc72a18f7c1b91",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/gen_images_lock.py"
     },
     "gen_sample.py": {
       "sha256": "d7d9b5e20daedcc845bd0baa291fea60a5630e5f04dbef78b289a7e3ef99ac96",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/gen_sample.py"
     },
     "git_sync.py": {
       "sha256": "d9a818625f52cd76b08827bb6af2725e1f59f4144b3360c4e827ec21c6b0c601",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/git_sync.py"
     },
     "health.py": {
       "sha256": "2734acaaab1ab9c8b793b956af061dc0adc21e1302bd9353c222de705cda71ad",
-      "synced_at": "2026-11-12",
+      "synced_at": "2026-11-13",
       "upstream": "tools/health.py"
     },
     "keycmp.py": {
       "sha256": "f50a9b0bd05559f74d0807ce20399c72e74a93a5cc19f3883f7ddd76aa138a3e",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/keycmp.py"
     },
     "latency.py": {
       "sha256": "f018ec5e52aeab3e13079adb405fe1f56e0494146f2d7bb0dedbae36bec7cd2d",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/latency.py"
     },
     "migrate_statuses.py": {
       "sha256": "be76cc0b665b71ab4ff0c4d4fd2db8db28a1655fd7e17f90f722c8d163a21478",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/migrate_statuses.py"
+    },
+    "notify_owner.py": {
+      "sha256": "7b1faf01bad9c681880c7bfe5f16b92479986bbb46d1fa3fc7ef656a647a58bf",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/notify_owner.py"
+    },
+    "openapi_from_index.py": {
+      "sha256": "6d1260d9b9c62ddfe556745a7cb747debcb2e7e9243fb8dfe71cdf367db05191",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/openapi_from_index.py"
+    },
+    "pr_from_branch.py": {
+      "sha256": "aea5719112dcaa8fe04f2a9f422e83f6ba35ec7cdb772afb0152d3fb9c070f25",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/pr_from_branch.py"
+    },
+    "release.py": {
+      "sha256": "e98c251b4f852d560c6f83d6beef3f39c1c4db88c63524750c10b60c0f3444fc",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/release.py"
     },
     "resource-usage.py": {
       "sha256": "73ef6dcdf210512ca89d020a625df94cde00cf29774e45c82ff2b44d043b0c01",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/resource-usage.py"
+    },
+    "restore_chat.py": {
+      "sha256": "4cd0543a2283d2f24fb2b1caa6d59567892a058d09f8251b486091409d3ac6fa",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/restore_chat.py"
+    },
+    "review_whip.py": {
+      "sha256": "d39a1bfb13df85bbbb7a6abb8d570c5cba19bb920c3b81b7c5cbddb036cd5725",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/review_whip.py"
+    },
+    "rollout_service.py": {
+      "sha256": "cc9fb127809a8b8da314644568004ce27b29aec68cbc2b6cb8554fc79bc06970",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/rollout_service.py"
+    },
+    "snapshot_openapi.py": {
+      "sha256": "4a4136c9a339866af51790c671c964c82a6bae6c1420cee3a0f908c10a0beeea",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/snapshot_openapi.py"
     },
     "stats.py": {
       "sha256": "29650e46d0e76efdfc705aab66d3fdbcd5ff050ddc48e1ca9f0cf35542e18d3e",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/stats.py"
     },
     "status_lint.py": {
       "sha256": "2324dfb11a894a81e645bab65906b33677c50ec4c5a8bd3fc0e5ca7af358875d",
-      "synced_at": "2026-11-11",
+      "synced_at": "2026-11-13",
       "upstream": "tools/status_lint.py"
     },
     "sweep.py": {
       "sha256": "0be7e39a006019ce6fb3dbf567e52997de21d4875ea8718ce1d65ad85b509d56",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/sweep.py"
     },
     "sync_board.py": {
       "sha256": "b3fbe73cd9e1bfb771621eeac47dd26ca5c763392791d4605f75fdbdcf668fc4",
-      "synced_at": "2026-11-07",
+      "synced_at": "2026-11-13",
       "upstream": "tools/sync_board.py"
     },
     "sync_tools.py": {
       "sha256": "4dead7885adcbd512bc974493549ab050d319aa25857f1a85942e6135f5cfa43",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/sync_tools.py"
     },
     "test_check_secrets.py": {
       "sha256": "25210af0620ab96b2978e8eca04376f338ba5ca21db706a2a187b7e5ed4dfb49",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/test_check_secrets.py"
     },
     "test_git_sync.py": {
       "sha256": "93b89ebdbbb5f7a91d70f752e76d24885526d8b3d498d96630150693f89028a0",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/test_git_sync.py"
     },
     "test_git_sync_state.py": {
       "sha256": "bbc317cffdb5c5f93af8060db72551677e29b6a675ef6d038b44a87d788c3713",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/test_git_sync_state.py"
     },
     "test_stats_ref.py": {
       "sha256": "9c8bf37800e8e745c8eef166bbe6370cb5e6da5fbe76930789344dc55fc52ea4",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/test_stats_ref.py"
     },
     "what_triggers.py": {
       "sha256": "1d27944a197e6fd755c0233cd95a8947cb730f64718fb4bacc42409ff45ec03e",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/what_triggers.py"
+    },
+    "whip.py": {
+      "sha256": "fefcdaf73edcba7674d9137df89e5149cb9e2ac34c1dd07bfac7b39eb3466e11",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/whip.py"
     },
     "wip.py": {
       "sha256": "6c8a2a96de67e74aad9ae478e655d5812ef16151c9e209e037ba6eb96213a64e",
-      "synced_at": "2026-11-03",
+      "synced_at": "2026-11-13",
       "upstream": "tools/wip.py"
     }
   },

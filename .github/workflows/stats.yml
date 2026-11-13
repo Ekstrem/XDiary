@@ -14,6 +14,10 @@ on:
       - "tools/stats.py"
       # DO-101: `README.md` намеренно НЕ в paths — иначе бот-коммит снова триггерит workflow
       # и получается петля «бот правит README → бот правит README».
+  # PDR-047: guard обязан идти на КАЖДЫЙ PR без фильтра путей — иначе
+  # required status check можно включить только для части PR.
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -39,10 +43,18 @@ jobs:
           echo "--- до: ---"
           python tools/stats.py --check || echo "::notice::таблица отставала — пересчитываю"
 
+      # На PR ничего не пишем (иначе бот-коммит в ветку PR снова запустит workflow
+      # и получится петля): только проверяем, что README соответствует задачам.
+      - name: Проверка README на PR (read-only)
+        if: github.event_name == 'pull_request'
+        run: python tools/stats.py --check
+
       - name: Пересчитать таблицу статусов
+        if: github.event_name != 'pull_request'
         run: python tools/stats.py --write
 
       - name: Закоммитить README, если изменился
+        if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           if git diff --quiet -- README.md; then

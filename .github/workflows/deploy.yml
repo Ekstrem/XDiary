@@ -300,7 +300,10 @@ jobs:
   # Условие промоушена в блокирующие (снять `continue-on-error` и добавить этот job в
   # `needs` `deploy-prod`) — первый прогон, где контракт dev выполнен целиком (0), см. `DO-112`.
   receipt-be092:
-    needs: deploy-dev
+    # DO-121 ч.1 (@TL 2026-11-13 00:39): без этого `receipt-be092` шёл ПАРАЛЛЕЛЬНО со
+    # `smoke-front`, и его проба (test-otp: 200/409/429) гонялась с очисткой стенда —
+    # отсюда «старый образ» и ложные 404. Ставим после `smoke-front`: гонка уходит классом.
+    needs: [deploy-dev, smoke-front]
     runs-on: ubuntu-latest
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
@@ -391,6 +394,16 @@ jobs:
             sleep 2
           done
           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
+      # DO-099 (@TL 2026-11-13 01:34): `check_otp_leak` был сиротой — не запускался нигде.
+      # Его место здесь: после `deploy-dev` туннель 127.0.0.1:8080 уже поднят, и утечку OTP
+      # в ответах видно на живом контуре. В `ci-guards` он бессмысленен (нет стенда -> rc=2).
+      - name: Утечка OTP в ответах (check_otp_leak)
+        run: |
+          set -uo pipefail
+          python 9-tests/scripts/check_otp_leak.py --selftest
+          python 9-tests/scripts/check_otp_leak.py --base http://127.0.0.1:8080 \
+            --contract 04-architecture/api-index.yaml
+
       - name: UI smoke (add-partner, wizard-record, change-pin)
         working-directory: 9-tests/RnD/front-e2e
         run: |
@@ -409,6 +422,10 @@ jobs:
             9-tests/RnD/front-e2e/test-results
             9-tests/RnD/front-e2e/playwright-report
           retention-days: 7
+          # DO-120 (@TL 2026-11-13 00:24): этот вход был ОШИБОЧНО вставлен внутрь `run:` шага
+          # «Классы падений» → `line 2: if-no-files-found:: command not found` → exit 127 →
+          # красный smoke-front на каждом прогоне → deploy-prod skipped.
+          if-no-files-found: ignore
 
       # 2026-11-10 (@TE 11:45): у @TE нет доступа к артефактам и к контуру, поэтому классы
       # падений печатаются прямо в лог прогона — без скачивания.
@@ -416,7 +433,6 @@ jobs:
         if: failure()
         run: |
           python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
-          if-no-files-found: ignore
 
   deploy-prod:
     # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
