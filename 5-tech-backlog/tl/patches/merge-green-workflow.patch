@@ -1,0 +1,61 @@
+diff --git a/.github/workflows/merge-green.yml b/.github/workflows/merge-green.yml
+new file mode 100644
+index 000000000..c357bf079
+--- /dev/null
++++ b/.github/workflows/merge-green.yml
+@@ -0,0 +1,55 @@
++# PDR-047: транспорт «ветка роли → main». @TL 2026-11-13 01:35.
++#
++# Зачем: `pr-create.yml` СОЗДАЁТ PR, но шага мержа в репозитории нет —
++# `git grep "pr merge|auto-merge|merge_queue" .github/workflows` даёт только `lock-sync.yml`
++# (он про lock, не про PR). То есть «мерж обслуживает бот» кодом не подтверждается.
++#
++# Что делает: раз в 10 минут (и по кнопке) сливает ТОЛЬКО те PR, у которых ВСЕ чеки
++# в состоянии `pass` (или `skipping`). Любой `fail`/`pending`/`cancelled` — PR пропускается,
++# то есть гейты остаются гейтами.
++#
++# Безопасность: `gh pr merge --squash` без `--admin` — branch protection и merge queue
++# продолжают действовать; workflow лишь снимает необходимость ручного клика.
++name: Merge green PRs (PDR-047)
++
++on:
++  workflow_dispatch:
++  schedule:
++    - cron: "*/10 * * * *"
++
++permissions:
++  contents: write
++  pull-requests: write
++
++concurrency:
++  group: merge-green
++  cancel-in-progress: false
++
++jobs:
++  merge:
++    runs-on: ubuntu-latest
++    timeout-minutes: 10
++    steps:
++      - name: Merge PRs whose checks are all green
++        env:
++          GH_TOKEN: ${{ github.token }}
++        run: |
++          set -uo pipefail
++          merged=0; skipped=0
++          while read -r num; do
++            [ -z "$num" ] && continue
++            buckets="$(gh pr checks "$num" --json bucket --jq '.[].bucket' 2>/dev/null | sort -u | tr '\n' ' ')"
++            echo "PR #$num: buckets = [$buckets]"
++            case "$buckets" in
++              *fail*|*pending*|*cancel*)
++                echo "  skip #$num (не все зелёные)"; skipped=$((skipped+1)); continue ;;
++              "")
++                echo "  skip #$num (чеков нет)"; skipped=$((skipped+1)); continue ;;
++            esac
++            if gh pr merge "$num" --squash 2>&1; then
++              echo "  merged #$num"; merged=$((merged+1))
++            else
++              echo "  merge не удался для #$num (protection/merge queue?)"; skipped=$((skipped+1))
++            fi
++          done <<< "$(gh pr list --state open --limit 50 --json number --jq '.[].number')"
++          echo "::notice::merge-green: слито $merged, пропущено $skipped"

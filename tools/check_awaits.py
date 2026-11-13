@@ -22,6 +22,9 @@ import sys
 
 AWAIT = os.path.join("5-tech-backlog", "tl", "AWAIT.md")
 ACCEPT = re.compile(r"(принято|принял|принимаю|делаю|взял|беру)", re.I)
+# С этой метки подтверждение обязано называть тему (ID из `what`), иначе
+# «принял» по другому поводу закрывает чужой AWAIT (дефект @TE 2026-11-13 01:35).
+TOPIC_SINCE = "2026-11-13 00:00"
 STAMP = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
 ROLE = re.compile(r"@?([a-z]{2})\b")
 ROLE_PREFIX = {"ar": "ar:", "be": "be:", "do": "do:", "fe": "fe:", "te": "te:", "tl": "tl:"}
@@ -68,6 +71,25 @@ def parse_awaits(path):
     return rows
 
 
+
+def future_rows(rows, now=None):
+    """[(role, what, stamp, line_no, minutes_ahead)] — метки выдачи В БУДУЩЕМ.
+
+    `chat_accepts(role, after=stamp)` ищет подтверждение ПОСЛЕ метки, поэтому строка
+    с меткой из будущего висит по построению: ответить на неё нельзя.
+    Худший вид красного — когда «не ответили» и «ответить нельзя» неразличимы.
+    """
+    now = now or datetime.now()
+    out = []
+    for role, what, stamp, n, _done in rows:
+        try:
+            ts = datetime.strptime(stamp, "%Y-%m-%d %H:%M")
+        except ValueError:
+            continue
+        if ts > now:
+            out.append((role, what, stamp, n, int((ts - now).total_seconds() // 60)))
+    return out
+
 def bad_stamps(path):
     """[(stamp, line_no)] — метки с часом вне 0..23 (дефект данных генератора)."""
     out = []
@@ -93,17 +115,43 @@ def _age_minutes(stamp, now):
         return float("inf")
 
 
-def chat_accepts(root, role, after):
-    """Есть ли в chat/<role>.md сообщение после `after` со словом принятия."""
+def _topic_tokens(what):
+    """Ключи темы строки AWAIT: ID (`TE-049`, `DO-022`) и значимые слова.
+
+    Нужны, чтобы «принял» зачитывалось только по теме. Дефект @TE 2026-11-13 01:35:
+    строка про маркеры в `role/tl` закрывала `AWAIT` про `check-adr028-move.sh --post`
+    и `TE-049`, потому что `chat_accepts` смотрел только роль и метку.
+    """
+    # Только ID (`TE-049`, `DO-022`, `AR-023`) — они уникальны. Свободные слова
+    # («актуальном», `origin/main`) давали ложную привязку и turning 15 -> 69 висящих:
+    # строка без ID — без ключа, для неё действует прежнее правило (роль + метка).
+    text = what or ""
+    out = []
+    for t in re.findall(r"[A-Z]{2,3}-\d{2,4}", text):
+        t = t.lower()
+        if t not in out:
+            out.append(t)
+    return out[:8]
+
+
+def chat_accepts(root, role, after, what=None):
+    """Есть ли в chat/<role>.md сообщение после `after` со словом принятия ПО ТЕМЕ.
+
+    `what=None` — прежнее поведение (только роль+метка), для обратной совместимости.
+    """
     path = os.path.join(root, "5-tech-backlog", "chat", role + ".md")
     if not os.path.exists(path):
         return False
+    toks = _topic_tokens(what) if what else []
     for line in open(path, encoding="utf-8").read().splitlines():
         m = STAMP.search(line)
         if not m or m.group(1) <= after:
             continue
-        if ACCEPT.search(line):
-            return True
+        if not ACCEPT.search(line):
+            continue
+        if toks and not any(t in line.lower() for t in toks):
+            continue          # «принял» не по этой теме — не подтверждение (@TE 01:35)
+        return True
     return False
 
 
@@ -137,7 +185,12 @@ def check(root, use_git=True, max_age_minutes=60, now=None):
             continue  # владелец — не роль пайплайна, outbox-обязанности нет (AN-03)
         if max_age_minutes is not None and 0 <= _age_minutes(stamp, now) < max_age_minutes:
             continue  # свежая выдача — окно отсрочки, не «висит» (AN-03)
-        ok = chat_accepts(root, role, stamp)
+        # Привязка к теме — для НОВЫХ выдач (после TOPIC_SINCE): дефект @TE 01:35
+        # («принял» про маркеры закрыл TE-049) относится к ним. Легаси-строки (до cutoff)
+        # закрывались без ID, и переоткрывать их — отдельная работа с данными (@LM), а не
+        # побочный эффект фикса.
+        topic = what if stamp >= TOPIC_SINCE else None
+        ok = chat_accepts(root, role, stamp, topic)
         if not ok and use_git:
             ok = commit_artifacts(root, role, what)
         if not ok:
@@ -156,7 +209,7 @@ def selftest():
     open(os.path.join(base, AWAIT), "w", encoding="utf-8").write(
         "| кому | что | метка |\n|---|---|---|\n| @TE | ADR-028 перенос | 2026-11-13 19:00 |\n")
     open(os.path.join(base, "5-tech-backlog", "chat", "te.md"), "w", encoding="utf-8").write(
-        "- [2026-11-13 19:30] → @TL: принял, делаю\n")
+        "- [2026-11-13 19:30] → @TL: принял ADR-028, делаю\n")
     rows, hanging, _done = check(base, use_git=False)
     if len(rows) == 1 and not hanging:
         ok += 1
@@ -175,7 +228,7 @@ def selftest():
         "| кому | что | метка |\n|---|---|---|\n| @TE | ADR-028 перенос | 2026-11-13 19:00 |\n"
         "| @DO | гейт awaited | 2026-11-13 19:30 |\n")
     open(os.path.join(base, "5-tech-backlog", "chat", "do.md"), "w", encoding="utf-8").write(
-        "- [2026-11-13 19:40] → @TL: принято, беру\n")
+        "- [2026-11-13 19:40] → @TL: принято awaited, беру\n")
     rows, hanging, _done = check(base, use_git=False)
     if len(rows) == 2 and len(hanging) == 1 and hanging[0][0] == "te":
         ok += 1
@@ -222,8 +275,45 @@ def selftest():
         print("  [FAIL] строка @EX зачтена висящей: hanging=%s" % hanging)
 
     shutil.rmtree(base, ignore_errors=True)
-    print("check_awaits --selftest: %d/6" % ok)
-    return 0 if ok == 6 else 1
+    # --- кейсы «метка выдачи в будущем» (@TL 01:05: в патче не было самотеста) ---
+    from datetime import datetime as _dt
+    fut = future_rows([("do", "гейт awaited", "2026-11-14 05:10", 21, False)],
+                      now=_dt(2026, 11, 13, 1, 0))
+    if len(fut) == 1 and fut[0][4] > 1000:
+        ok += 1
+    else:
+        print("  [FAIL] будущая метка не поймана: %s" % (fut,))
+    fut2 = future_rows([("do", "старое", "2026-11-12 10:00", 22, False)],
+                       now=_dt(2026, 11, 13, 1, 0))
+    if fut2 == []:
+        ok += 1
+    else:
+        print("  [FAIL] прошедшая метка принята за будущую: %s" % (fut2,))
+
+    # --- дефект @TE 01:35: «принял» не по теме не должен закрывать AWAIT ---
+    shutil.rmtree(base, ignore_errors=True)
+    os.makedirs(os.path.join(base, "5-tech-backlog", "tl"), exist_ok=True)
+    os.makedirs(os.path.join(base, "5-tech-backlog", "chat"), exist_ok=True)
+    open(os.path.join(base, AWAIT), "w", encoding="utf-8").write(
+        "| кому | что | метка |\n|---|---|---|\n| @TE | ADR-028 перенос | 2026-11-13 19:00 |\n")
+    open(os.path.join(base, "5-tech-backlog", "chat", "te.md"), "w", encoding="utf-8").write(
+        "- [2026-11-13 19:30] → @TL: принял маркеры в role/tl, делаю\n")
+    rows, hanging, _done = check(base, use_git=False, max_age_minutes=0)
+    if len(hanging) == 1:
+        ok += 1
+    else:
+        print("  [FAIL] «принял» не по теме закрыл AWAIT: hanging=%s" % (hanging,))
+
+    open(os.path.join(base, "5-tech-backlog", "chat", "te.md"), "w", encoding="utf-8").write(
+        "- [2026-11-13 19:30] → @TL: принято: ADR-028 — беру\n")
+    rows, hanging, _done = check(base, use_git=False, max_age_minutes=0)
+    if not hanging:
+        ok += 1
+    else:
+        print("  [FAIL] подтверждение ПО ТЕМЕ не зачтено: hanging=%s" % (hanging,))
+
+    print("check_awaits --selftest: %d/10" % ok)
+    return 0 if ok == 10 else 1
 
 
 def _utf8_stdout():
@@ -259,11 +349,15 @@ def main():
     bad = bad_stamps(os.path.join(root, AWAIT))
     for stamp, n in bad:
         print("::error::AWAIT.md:%d — метка вне диапазона (час>23): %s" % (n, stamp))
+    future = future_rows(rows)
+    for role, what, stamp, n, ahead in future:
+        print("::error::AWAIT.md:%d — метка выдачи В БУДУЩЕМ: %s (+%d мин, @%s) — "
+              "подтверждение невозможно, строка висит по построению" % (n, stamp, ahead, role))
     for role, what, stamp in hanging:
         print("::warning::висит: @%s — «%s» (выдано %s, подтверждения нет)" % (role, what, stamp))
     print("check_awaits: решений в AWAIT.md %d (закрыто по статусу %d), висит %d"
           % (len(rows), done_rows, len(hanging)))
-    if a.strict and (hanging or bad):
+    if a.strict and (hanging or bad or future):
         return 1
     return 0
 

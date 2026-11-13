@@ -1,0 +1,16 @@
+diff --git a/.github/workflows/ci-guards.yml b/.github/workflows/ci-guards.yml
+index 0662cbc74..bc5898456 100644
+--- a/.github/workflows/ci-guards.yml
++++ b/.github/workflows/ci-guards.yml
+@@ -236,7 +236,10 @@ jobs:
+         if: always()
+         run: |
+           python tools/check_adr_refs.py --selftest
+-          python tools/check_adr_refs.py
++          # @TL/@AR 2026-11-13: без `--include-arch` связность ADR→ADR (опора на снятое)
++          # НЕ проверяется: `accepted_refs_rejected` вызывается только при флаге (7 ссылок вместо 19).
++          # Зависимость: сначала `check-adr-refs-mention.patch`, иначе 4 ложных.
++          python tools/check_adr_refs.py --include-arch
+       - name: "ADR: структура по шаблону (граница 2026-11-05)"
+         if: always()
+         run: |

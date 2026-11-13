@@ -20,6 +20,11 @@ module.exports = defineConfig({
   reporter: [['list'], ['./reporters/notice.js'], ['./reporters/executed-guard.js']],
   use: {
     baseURL: 'http://127.0.0.1:4173',
+    // @AR 2026-11-13 01:51 (корень `FE-046`): без `actionTimeout` любое действие без явного таймаута
+    // (`innerText`, `click`, `fill`, `waitForFunction`) ждёт ТАЙМАУТ ТЕСТА (90 с), а не 15. Тогда
+    // Playwright успевает закрыть контекст, `dumpViews` видит `about:blank`, и диагноз звучит
+    // «браузер закрылся» вместо «элемента нет». Управляется `XDIARY_E2E_ACTION_TIMEOUT`.
+    actionTimeout: Number(process.env.XDIARY_E2E_ACTION_TIMEOUT || 15000),
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

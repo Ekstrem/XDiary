@@ -29,6 +29,7 @@ import datetime
 import hashlib
 import json
 import os
+import shutil
 import re
 import sys
 import time
@@ -533,6 +534,23 @@ def selftest():
     case(is_garbage('- [без метки] -> @TE: x'), 'метка-мусор ловится (DO/AR-023)')
     case(not is_garbage('- 2026-11-11 20:00 → @AR: x'), 'bare-метка — не мусор')
     case(CANON.match('- [2026-11-11 20:00] → @AR + @DO: x') is not None, 'мультиадресат + распознаётся')
+
+    # @AR 2026-11-13 03:59: дефект-плечо для будущих меток. Пока опора — максимум по чату
+    # (`use_clock=False`), будущая метка сама себе эталон и гейт мёртв: `2099` проходил как rc=0.
+    # Два кейса закрепляют ОБА условия жизни гейта: маркер «метка = часы машины» + опора на часы.
+    _d = os.path.join(HERE, '.tmp-chat-lint-selftest')
+    shutil.rmtree(_d, ignore_errors=True)
+    os.makedirs(_d)
+    with open(os.path.join(_d, 'do.md'), 'w', encoding='utf-8') as _fh:
+        _fh.write('# CHAT\n\n<!-- метка = часы машины -->\n'
+                  '- [2099-01-01 00:00] → @TL: будущее\n')
+    _now = datetime.datetime.now()
+    _f_clock, _, _ = scan_times(_d, {'do'}, _now, 120, 0, True)
+    _f_max, _, _ = scan_times(_d, {'do'}, _now, 120, 0, False)
+    case(bool(_f_clock), 'будущая метка ловится при опоре на часы (AR 03:16)')
+    case(not _f_max, 'без опоры на часы не ловится — дефект, который закрыт')
+    shutil.rmtree(_d, ignore_errors=True)
+
     print('chat_lint --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
 
@@ -646,7 +664,8 @@ def main():
         order_since = ORDER_CUTOFF
     invalid, invalid_grand = scan_invalid_times(chat_dir, set(titles.keys()), order_since)
     future, order, grandfathered = scan_times(chat_dir, set(titles.keys()), now_project,
-                                               tolerance, shift, use_clock=False)
+                                               tolerance, shift, use_clock=True)   # @AR 03:16: опора — ЧАСЫ МАШИНЫ; при use_clock=False
+                                              # эталоном становилась сама будущая метка (max по чату)
 
     multi = scan_multiline_messages(chat_dir, set(titles.keys()), order_since)
     if (args.report or args.check) and multi:
@@ -750,7 +769,10 @@ def main_with_retry(attempts=3):
             if attempt < attempts:
                 print("chat_lint: чтение прервано (%s) — повтор %d/%d"
                       % (type(exc).__name__, attempt, attempts - 1))
-                _time.sleep(0.3)
+                # @AR 03:56 (флейк rc=2 при бот-записи): 0.3 с попадали в то же окно перезаписи,
+                # поэтому пауза растёт с номером попытки, а попыток три. Ретрай без ожидания
+                # проверяет не файл, а свою удачу.
+                _time.sleep(min(2.0, 0.7 * attempt))
     print("::error::chat_lint: файл менялся во время чтения — НЕ ИЗМЕРЕНО (%s: %s)"
           % (type(last).__name__, last))
     return 2

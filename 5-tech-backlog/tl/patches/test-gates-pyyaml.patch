@@ -1,0 +1,13 @@
+diff --git a/.github/workflows/ci-guards.yml b/.github/workflows/ci-guards.yml
+index 91038e966..c3ac47abe 100644
+--- a/.github/workflows/ci-guards.yml
++++ b/.github/workflows/ci-guards.yml
+@@ -393,6 +393,8 @@ jobs:
+       - uses: actions/setup-python@v5
+         with:
+           python-version: "3.12"
++      - name: PyYAML для check_api_index_optional
++        run: python -m pip install --disable-pip-version-check pyyaml
+       - name: "Тестовые гейты (DO-099): selftest, затем прогон"
+         run: |
+           set -euo pipefail
