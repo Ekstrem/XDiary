@@ -66,7 +66,21 @@ gen_expected() {
   done
   [ -n "$gen" ] || return 0
   raw="$(python3 "$gen" --add-host 2>/dev/null || true)"
-  printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | tr '\n' ' '
+  # DO-128 (@TL 2026-11-13 18:4x): фильтра по ИМЕНИ недостаточно. У сервиса `client`
+  # своего имени в списке нет — там `clients:` (псевдоним шлюза, `deploy.sh:78`),
+  # поэтому `grep -v "^client:"` ничего не убирал, и клиент получал
+  # `--add-host clients:<свой ip>` рядом со своим `--ip` → podman падал на конфликте
+  # («error configuring network namespace»), 3 попытки, «client не поднялся».
+  # Замер: прогон deploy 43452089927, лог `add-host добавлен для client (11 хостов)`
+  # против 10 у остальных. Теперь исключаем ЛЮБОЙ псевдоним, указывающий на свой IP.
+  local own_ip=""
+  own_ip="$(awk -v n="xdiary-$svc " 'index($0, "podman run -d --name " n) {for (i=1;i<NF;i++) if ($i=="--ip") {print $(i+1); exit}}' \
+    "$DEPLOY_SH" 2>/dev/null || true)"
+  if [ -n "$own_ip" ]; then
+    printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | grep -v ":$own_ip$" | tr '\n' ' '
+  else
+    printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | tr '\n' ' '
+  fi
 }
 
 # ---------- пост-проверка «флаги реально попали в podman» ----------
