@@ -1,0 +1,16 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 6d2efc1b1..2a43fb8df 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -97,10 +97,7 @@ jobs:
+           git add 7-deploy/images.lock
+           git commit -m "release: все сервисы с коммита $SHA (DO-125)"
+           git push origin "HEAD:$branch"
+-          echo "::notice::ветка $branch запушена — PR и чеки создаст pr-create.yml (PDR-047)
+-            --body "Все сервисы собраны с коммита \`$SHA\`; в \`images.lock\` один \`commit=\` (DO-125). Создан workflow \`release\` — без прямого пуша в main (PDR-047)." \
+-            || gh pr view "$branch" >/dev/null 2>&1
+-          echo "::notice::PR с lock создаст pr-create.yml ($branch) — мерж как обычно, через PR"
++          echo "::notice::ветка $branch запушена — PR и чеки создаст pr-create.yml (PDR-047)"
+       - name: Квитанция
+         if: always()
+         run: |
