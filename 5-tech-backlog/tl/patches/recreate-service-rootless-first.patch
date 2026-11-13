@@ -1,0 +1,52 @@
+diff --git a/7-deploy/recreate-service.sh b/7-deploy/recreate-service.sh
+index 100d0c524..f1d0e4e07 100644
+--- a/7-deploy/recreate-service.sh
++++ b/7-deploy/recreate-service.sh
+@@ -252,8 +252,13 @@ fi
+ # не вышло → ВЫХОДИМ, не трогая работающий контейнер.
+ if ! podman network exists xdiary >/dev/null 2>&1; then
+   echo "  сети xdiary нет — создаю (подсеть 10.89.9.0/24, как в deploy.sh)"
+-  sudo -n podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || \
+-    podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || true
++  # DO-130 (@DO): контейнеры живут в ROOTLESS-пространстве. Если создавать сеть через
++  # `sudo podman`, получается ROOTFUL-сеть (и её conflist в /etc/cni/net.d) — контейнеры
++  # её не видят, и мы получаем «сеть есть, а контейнер не стартует». Поэтому порядок
++  # ОБРАТНЫЙ: сначала rootless (тот же пользователь, что запускает контейнеры), sudo — только
++  # как запасной путь.
++  podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || \
++    sudo -n podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || true
+   if ! podman network exists xdiary >/dev/null 2>&1; then
+     echo "  ОШИБКА: сети xdiary нет и создать не удалось — контейнер НЕ трогаю" >&2
+     exit 4
+@@ -266,16 +271,23 @@ fi
+ #  [plugin firewall does not support config version "1.0.0"]` (прогон 43473245196).
+ # Именно поэтому сеть «есть», а контейнеры не поднимаются. Правим на 0.4.0 — ровно тот
+ # обход, который описан в `7-deploy/apim/up.sh` и `7-deploy/podman-compose.yml`.
+-CNI=/etc/cni/net.d/xdiary.conflist
+-if [ -f "$CNI" ] && grep -q '"cniVersion": "1.0.0"' "$CNI" 2>/dev/null; then
+-  echo "  CNI: правлю cniVersion 1.0.0 -> 0.4.0 в $CNI (firewall не принимает 1.0.0)"
+-  sudo -n sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$CNI" 2>/dev/null || \
+-    sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$CNI" 2>/dev/null || true
+-  if grep -q '"cniVersion": "1.0.0"' "$CNI" 2>/dev/null; then
+-    echo "  ОШИБКА: cniVersion всё ещё 1.0.0 — контейнер НЕ трогаю (иначе снесём рабочий)" >&2
++# conflist может лежать в двух местах: rootless (`~/.config/cni/net.d`) или rootful
++# (`/etc/cni/net.d`). Правим ОБА, если они есть, — иначе правка уходит не туда.
++CNI_LIST=""
++for c in "${HOME:-/root}/.config/cni/net.d/xdiary.conflist" /etc/cni/net.d/xdiary.conflist; do
++  [ -f "$c" ] && CNI_LIST="$CNI_LIST $c"
++done
++CNI="${CNI_LIST%% *}" 
++for c in $CNI_LIST; do
++  grep -q '"cniVersion": "1.0.0"' "$c" 2>/dev/null || continue
++  echo "  CNI: правлю cniVersion 1.0.0 -> 0.4.0 в $c (firewall не принимает 1.0.0)"
++  sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$c" 2>/dev/null || \
++    sudo -n sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$c" 2>/dev/null || true
++  if grep -q '"cniVersion": "1.0.0"' "$c" 2>/dev/null; then
++    echo "  ОШИБКА: cniVersion всё ещё 1.0.0 в $c — контейнер НЕ трогаю (иначе снесём рабочий)" >&2
+     exit 5
+   fi
+-fi
++done
+ podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+ # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
+ # `podman run` падает с "error configuring network namespace". В `update.sh` это
