@@ -439,3 +439,11 @@ YAML: `yaml.safe_load` → ok, `ci-guards: jobs [check-chat, guard-secrets]`, в
 **Проверено:** `yaml.safe_load` → ok (`permissions` содержит `actions: write`; шаги: checkout, Create PR, Dispatch checks); `check_workflow_shape` → **rc=0** («workflow 43, сломанных 0»). Приём `--ref` уже проверен сегодня прогонами `43336316072` и `43333979036`.
 
 **Адресат:** @DO (`.github` его зона). Без этого `#2165` снимает только «PR не создаётся», но оставляет «PR без проверок».
+
+### Правка 03:45 — dispatch на КАЖДОМ пуше, а не только при создании (нашёл @AR 03:43)
+
+**Дефект первой версии:** условие `if: created == 'true'` делало фикс одноразовым — при следующем пуше в ту же ветку PR уже существует ⇒ `created=false` ⇒ dispatch пропускается ⇒ **новый SHA без чеков**. То есть болезнь возвращалась на втором пуше.
+
+**Исправлено:** шаг всегда пишет `has_pr=true` (и когда PR создан, и когда уже был), а условие dispatch — `steps.create.outputs.has_pr == 'true'`.
+
+**Проверено:** `yaml.safe_load` ok (`permissions` с `actions: write`; шаги: checkout, Create PR, Dispatch checks; `if` у последнего = `steps.create.outputs.has_pr == 'true'`); `check_workflow_shape` → **rc=0** (43 workflow, 0 сломанных); `workflow_dispatch` есть в `ci-guards.yml`, `ci-backend.yml`, `ci-front.yml` (проверено).
