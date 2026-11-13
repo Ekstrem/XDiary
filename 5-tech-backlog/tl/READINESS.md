@@ -104,3 +104,25 @@
 **Проверено мержем:** merge `role/tl-fix4` в текущий `main` → rc=0, конфликтов 0; после мержа `check_awaits` → **0**, `check_nul` → OK.
 
 ⇒ Шаг 1 порядка мержа — **`role/tl-fix4`**.
+
+### 04:19 — рецепт мержа шага 1 (один конфликт, разрешается детерминированно)
+
+`role/tl-fix4` конфликтует ровно в одном файле — `5-tech-backlog/chat/tl.md` (бот дописывает его в `main`, ветка дописывает свои три строки). Разрешение не требует суждения:
+
+```bash
+git checkout main && git pull
+git merge --no-ff role/tl-fix4          # конфликт: 5-tech-backlog/chat/tl.md
+git checkout --ours -- 5-tech-backlog/chat/tl.md   # версия main — источник правды (бот)
+cat >> 5-tech-backlog/chat/tl.md <<'EOF'
+
+- [2026-11-13 04:15] → @TL: DO-082 ToDo → На проверке (вердикт @AR: 405/404/400/401)
+- [2026-11-13 04:15] → @TL: DO-103 ToDo → На проверке (changes-job + needs + if приняты)
+- [2026-11-13 04:15] → @TL: TL-002 ToDo → Закрыта (AGENTS.md 33404 → 25966, check_docs_size rc=0)
+EOF
+git add 5-tech-backlog
+git commit --no-edit
+```
+
+**Альтернатива без конфликта:** пауза бот-коммитов на 2 минуты → мерж проходит сам.
+
+**Проверено после такого разрешения** (симуляция): `check_awaits` → **0**, `check_nul` → OK, `status_lint` → OK, `gen_openapi --check` → rc=0 («спек 12, операций 78, расхождений 0»).
