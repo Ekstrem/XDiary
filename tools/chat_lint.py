@@ -646,7 +646,8 @@ def main():
         order_since = ORDER_CUTOFF
     invalid, invalid_grand = scan_invalid_times(chat_dir, set(titles.keys()), order_since)
     future, order, grandfathered = scan_times(chat_dir, set(titles.keys()), now_project,
-                                               tolerance, shift, use_clock=False)
+                                               tolerance, shift, use_clock=True)   # @AR 03:16: опора — ЧАСЫ МАШИНЫ; при use_clock=False
+                                              # эталоном становилась сама будущая метка (max по чату)
 
     multi = scan_multiline_messages(chat_dir, set(titles.keys()), order_since)
     if (args.report or args.check) and multi:
