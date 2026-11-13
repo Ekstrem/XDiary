@@ -85,8 +85,26 @@ async function dumpViews(page, where) {
     const diag = await page.evaluate(() => {
       const nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
       const ids = Array.from(document.querySelectorAll('[id]')).slice(0, 5).map((el) => el.id);
+      // @DO 2026-11-13 13:02: без этих полей вопрос «404 на 4173» решается гаданием.
+      // e2e=false ⇒ фронт не в E2E-режиме; apiBase=null ⇒ база пуста, значит запрос уйдёт
+      // относительным путём на статик-сервер (4173) — это и есть наблюдаемый 404.
+      let apiBase = null;
+      let apiBaseWorking = null;
+      let swCtl = false;
+      try { apiBase = localStorage.getItem('xdiary.apiBase'); } catch (e) {}
+      try { apiBaseWorking = localStorage.getItem('xdiary.apiBaseWorking'); } catch (e) {}
+      try { swCtl = !!navigator.serviceWorker.controller; } catch (e) {}
       return {
         url: location.href,
+        e2e: window.__XDIARY_E2E__ === true,
+        apiBase,
+        apiBaseWorking,
+        origin: location.origin,
+        sw: swCtl,
+        // @FE 2026-11-13 13:20: время с начала навигации. Без него «сплэш видим» — фото в t≈0,
+        // а не доказательство несработавшего сторожа.
+        msFromGoto: Math.round(performance.now()),
+        navType: (nav.type || '') + '',
         status: typeof nav.responseStatus === 'number' ? nav.responseStatus : -1,
         readyState: document.readyState,
         htmlLen: document.body ? document.body.innerHTML.length : -1,
@@ -100,6 +118,17 @@ async function dumpViews(page, where) {
       diag || {},
       { viewsCount: Object.keys(views || {}).length }
     );
+    // Порог @FE 3000 мс: вердикт печатается ВМЕСТЕ с дампом, чтобы разбор не начинался с вопроса
+    // «а не рано ли сняли?». Это не вывод о продукте, а классификация снимка.
+    if ((views || {})['view-splash'] === 'visible' && diag) {
+      if (diag.msFromGoto > 3000 && diag.e2e === true && diag.apiBase) {
+        payload.splashVerdict = 'дефект forceVisibleScreen (>3000 мс, e2e=true, apiBase задан)';
+      } else {
+        payload.splashVerdict = 'момент снимка: ' + (diag.msFromGoto <= 3000
+          ? 'msFromGoto=' + diag.msFromGoto + ' <= 3000'
+          : 'e2e=false или apiBase пуст');
+      }
+    }
     console.log('::warning::' + JSON.stringify(payload));
     return views;
   } catch (e) {
@@ -197,10 +226,44 @@ let SEED_PARTNER = null;
 // `401/404` он сбрасывается и сессия засевается заново — «удалили клиента» по-прежнему лечится.
 let SEED_SESSION = null;
 
+async function waitApiReady(attempts, delayMs) {
+  // TE-110 (@TL 2026-11-13 11:49): проба готовности dev-стенда ДО кэш-проверки и онбординга.
+  // Готовность = любой код кроме 5xx и 000 (401 — это «сервис жив, аноним не авторизован»).
+  // Данные не создаются: GET без тела.
+  const n = attempts || 20;
+  const gap = delayMs || 3000;
+  let last = 'нет ответа';
+  for (let i = 1; i <= n; i += 1) {
+    try {
+      const r = await fetch(API_BASE + '/api/v1/clients/me', { headers: {} });
+      last = String(r.status);
+      if (!(r.status >= 500) && r.status !== 0) {
+        if (i > 1) {
+          console.log('::notice::' + JSON.stringify({
+            title: 'login: стенд поднялся', attempts: i, status: r.status,
+          }));
+        }
+        return r.status;
+      }
+    } catch (e) {
+      last = String((e && e.message) || e).slice(0, 120);
+    }
+    console.log('::warning::' + JSON.stringify({
+      title: 'login: стенд ещё поднимается (5xx), ждём', attempt: i + '/' + n, last,
+    }));
+    await new Promise((res) => setTimeout(res, gap)); // backoff: проба готовности стенда
+  }
+  throw new Error('Вход не начат: стенд не готов за ' + n + ' попыток по ' + gap / 1000 +
+    ' с (последний ответ: ' + last + ') — это стенд, а не спека');
+}
+
 async function seedSessionOnce(page) {
   // 1) первым шагом installBase — ставит window.__XDIARY_E2E__ = true ДО загрузки приложения
   //    (иначе после FE-024 фронт игнорирует apiBase и уедет на прод)
   await installBase(page);
+  // 2) затем — готовность API (см. waitApiReady): иначе 502 из окна пересоздания контейнеров
+  //    маскируется под «вход не завершился» (прогон 43395691243, 2 из 3).
+  await waitApiReady();
   // TE-059: сессия уже засеяна в этом процессе — не проходить онбординг заново.
   if (SEED_SESSION) {
     const cached = SEED_SESSION;
@@ -572,9 +635,43 @@ async function loginWithPin(page, pin) {
   } catch (e) {
     const errs = (page.__xdiaryErrors || []).slice(-8);
     const killed = errs.some((x) => /http (401|404)/.test(x) && /clients\/me|journal/.test(x));
+    // TE-110 (@TL 2026-11-13 11:47): `deploy-dev` пересоздаёт контейнеры, и вход попадает в окно
+    // `502 Bad Gateway`. Это не дефект спеки: ждём и повторяем с backoff, а в сообщении называем
+    // причину («стенд ещё поднимается»), чтобы разбор не начинался с нуля.
+    const standWaking = errs.some((x) => /http 50[0234]/.test(x)) ||
+      /\b50[0234]\b/.test(String((e && e.message) || ''));
+    const maxWakeRetries = 3;
+    if (standWaking && phases.retries < maxWakeRetries) {
+      phases.retries += 1;
+      const backoffMs = 2000 * Math.pow(2, phases.retries - 1);
+      console.log('::warning::' + JSON.stringify({
+        title: 'login: стенд ещё поднимается (5xx), повтор ' + phases.retries + '/' + maxWakeRetries,
+        backoffMs,
+        reason: errs.filter((x) => /http 50[0234]/.test(x)).slice(-2),
+      }));
+      await page.waitForTimeout(backoffMs).catch(() => {}); // backoff: стенд поднимается (5xx)
+      try {
+        await seed();
+        await unlock();
+      } catch (e3) {
+        const views3 = await dumpViews(page, 'вход не удался после ожидания стенда').catch(() => null);
+        const errs3 = (page.__xdiaryErrors || []).slice(-8);
+        throw new Error('Вход не завершился: стенд ещё поднимается (5xx) даже после ' +
+          phases.retries + ' ожиданий (' + Math.round((Date.now() - t0) / 1000) + ' с). views=' +
+          JSON.stringify(views3) + ' ошибки=' + JSON.stringify(errs3) +
+          ' причина=' + String((e3 && e3.message) || e3).slice(0, 300));
+      }
+      console.log('::notice::' + JSON.stringify({
+        title: 'login', elapsedMs: Date.now() - t0, seedMs: phases.seedMs, pinMs: phases.pinMs,
+        reloadMs: phases.reloadMs, waitMs: phases.waitMs, retries: phases.retries,
+        waitedForStand: true,
+      }));
+      return;
+    }
     if (!killed || phases.retries > 0) {
       const views = await dumpViews(page, 'вход не завершился').catch(() => null);
       throw new Error(
+        (standWaking ? 'Вход не завершился: стенд ещё поднимается (5xx). ' : '') +
         'Вход не завершился (' + Math.round((Date.now() - t0) / 1000) + ' с: seed ' +
         Math.round(phases.seedMs / 1000) + ' c, PIN ' + Math.round(phases.pinMs / 1000) +
         ' c, reload ' + Math.round(phases.reloadMs / 1000) + ' c, ожидание ' +
