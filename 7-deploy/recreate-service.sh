@@ -269,4 +269,12 @@ while [ "$attempt" -le 3 ]; do
   attempt=$((attempt + 1))
   sleep 5
 done
+# DO-128 (@TL 2026-11-13 19:2x): при провале печатаем ПОЧЕМУ сервис не поднялся.
+# Раньше на этом месте была только строка «не поднялся», и три прогона подряд
+# (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`
+# нельзя отличить «нет Jwt__SigningKey» от «конфликт сети» или «упал на миграциях».
+say "  диагностика $CONTAINER (stderr podman run и логи):" >&2
+if [ -f "$RUNNER" ]; then bash "$RUNNER" 2>&1 | tail -n 20 | sed 's/^/    run| /' >&2 || true; fi
+podman inspect "$CONTAINER" --format '    exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null >&2 || true
+podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /' >&2 || true
 die "$CONTAINER не поднялся. Восстановить: bash $RUNNER"
