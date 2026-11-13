@@ -23,6 +23,15 @@ import pathlib
 import re
 import sys
 
+# cp1251-консоль без PYTHONIOENCODING: печать `⟺` в метках `--selftest` падала с
+# UnicodeEncodeError — rc=1 без строки вердикта (класс @AR 2026-11-13 00:24). Страховка на печать;
+# тексты и ожидания не меняем.
+try:
+    sys.stdout.reconfigure(errors="replace")
+    sys.stderr.reconfigure(errors="replace")
+except Exception:  # noqa: BLE001
+    pass
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 INDEX = REPO_ROOT / "04-architecture" / "api-index.yaml"
 SRC = REPO_ROOT / "6-msa"
