@@ -1,0 +1,97 @@
+name: Release (все сервисы с одного коммита)
+
+# DO-125: `7-deploy/images.lock` собирался как «последние ДОСТУПНЫЕ образы», поэтому набор был
+# смешанным (11-34 часа отставания) и сторож `DO-050` в `7-deploy/update.sh` честно не пускал прод
+# («образ(ы) старше кода»). Этот прогон собирает все сервисы с ОДНОГО коммита и пишет lock так, что
+# `commit=` в нём ровно один. Логика — в `tools/release_build.py` (можно прогнать локально).
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Сервисы через запятую (пусто = все)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Собрать без пуша и без коммита lock'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: sha релиза
+        id: meta
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "полный: $(git rev-parse HEAD)"
+          python3 tools/release_build.py --list
+
+      - name: Login в GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Сборка и пуш (все сервисы, один тег)
+        env:
+          SHA: ${{ steps.meta.outputs.sha }}
+          ONLY: ${{ inputs.services }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args="--sha $SHA --build --write-lock"
+          if [ "$DRY" = "true" ]; then args="$args --dry-run"; fi
+          if [ -n "$ONLY" ]; then args="$args --only $ONLY"; fi
+          python3 tools/release_build.py $args
+          python3 tools/release_build.py --check
+
+      - name: digest-ы и консистентность lock (ADR-027/DO-113)
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          python3 tools/gen_images_lock.py --fill-digests --file 7-deploy/images.lock
+          python3 tools/gen_images_lock.py --verify-registry --file 7-deploy/images.lock
+          python3 tools/release_build.py --check
+
+      - name: Коммит lock в main
+        if: ${{ inputs.dry_run != true }}
+        env:
+          SHA: ${{ steps.meta.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- 7-deploy/images.lock; then
+            echo "::notice::lock уже консистентен"
+            exit 0
+          fi
+          git config user.name "release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git add 7-deploy/images.lock
+          git commit -m "release: все сервисы с коммита $SHA (DO-125)"
+          git push origin HEAD:main
+          echo "::notice::lock в main — deploy запустится сам (push в 7-deploy/**)"
+
+      - name: Квитанция
+        if: always()
+        run: |
+          echo "### Release (DO-125)" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '| сервис | тег | commit |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          awk '!/^#/ && NF>=3 {printf "| %s | %s | %s |\n", $1, $2, $4}' 7-deploy/images.lock >> "$GITHUB_STEP_SUMMARY"
