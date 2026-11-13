@@ -466,3 +466,16 @@ gh run list --workflow ci-guards.yml → role/tl:
 **Поэтому dispatch нужен РОВНО ОДИН РАЗ — на создании.** Dispatch на каждом пуше дал бы **дубли** прогонов, а при общих группах `concurrency` — ещё и `cancelled` (класс `DO-123`). Вернул `created == 'true'`, добавил в комментарий замер выше, чтобы следующий читатель не «починил» это снова.
 
 `yaml.safe_load` ok; `check_workflow_shape` → rc=0.
+
+### Финальная редакция 03:50 — «только при создании» + **семь** workflow
+
+Объединены две внешние проверки:
+
+| От кого | Что | Как учтено |
+|---|---|---|
+@TL (замер `gh run list`) | пуши в `role/tl` **уже** дают `event=pull_request` ⇒ dispatch нужен ровно один раз | `created == 'true'` (а не `has_pr` в обеих ветках) |
+@AR (замер триггеров) | dispatch покрывал 2 workflow из 7; у авто-PR не было бы `guard`/`guard-tools`/`docs-budget`/`status-lint`/`ci-front` | цикл по **семи**: `ci-guards`, `ci-backend`, `ci-front`, `guard-paths`, `guard-tools`, `docs-budget`, `status-lint` |
+
+**Проверено:** `yaml.safe_load` ok (`if: steps.create.outputs.created == 'true'`), `check_workflow_shape` → rc=0; **у всех семи** есть и `workflow_dispatch`, и `pull_request` (иначе dispatch был бы невалиден).
+
+**Почему не «на каждом пуше»:** dispatch запускает тот же workflow на той же ветке, где уже идёт PR-прогон, а группа `concurrency: ci-guards` в `main` **без привязки к ref** ⇒ второй вытесняет первый ⇒ `cancelled` (класс `DO-123`).
