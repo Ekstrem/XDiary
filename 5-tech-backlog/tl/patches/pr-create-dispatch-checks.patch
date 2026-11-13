@@ -1,0 +1,42 @@
+diff --git a/.github/workflows/pr-create.yml b/.github/workflows/pr-create.yml
+index 590ca4a54..aaac4ca27 100644
+--- a/.github/workflows/pr-create.yml
++++ b/.github/workflows/pr-create.yml
+@@ -12,6 +12,9 @@ on:
+ permissions:
+   contents: read
+   pull-requests: write
++  # DO-119 ч.2 (@AR 03:40, @TL 03:41): PR, созданный `GITHUB_TOKEN`, НЕ запускает
++  # workflow (анти-рекурсия GitHub) — без этого у авто-PR не было бы ни одного чека.
++  actions: write
+ 
+ jobs:
+   pr:
+@@ -22,13 +25,27 @@ jobs:
+         with:
+           fetch-depth: 0
+       - name: Create PR (если ещё нет)
++        id: create
+         env:
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # PAT не годится: у него нет scope на PR
+         run: |
+           if gh pr view "$GITHUB_REF_NAME" --json number >/dev/null 2>&1; then
+             echo "PR уже есть — пропускаю"
++            echo "created=false" >> "$GITHUB_OUTPUT"
+           else
+             gh pr create --base main --head "$GITHUB_REF_NAME" \
+               --title "$GITHUB_REF_NAME: $(git log -1 --pretty=%s)" \
+               --body "Авто-PR из ветки \`$GITHUB_REF_NAME\` (PDR-047)."
++            echo "created=true" >> "$GITHUB_OUTPUT"
+           fi
++      # Событие от `GITHUB_TOKEN` не порождает прогонов — запускаем чеки сами.
++      - name: Dispatch checks (иначе у авто-PR нет чеков)
++        if: steps.create.outputs.created == 'true'
++        env:
++          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
++        run: |
++          set -uo pipefail
++          for wf in ci-guards.yml ci-backend.yml; do
++            echo "::notice::dispatch $wf --ref $GITHUB_REF_NAME"
++            gh workflow run "$wf" --ref "$GITHUB_REF_NAME" || echo "::warning::$wf: dispatch не удался"
++          done

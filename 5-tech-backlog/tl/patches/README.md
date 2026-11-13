@@ -11,6 +11,7 @@
 | `wizard-record-duration.patch` | ✅ **взято в код @TE** (`5dd0efe0c`), прогон `43330703353` на его ветке — `success` | ~~`wizard-record.spec.js`~~ |
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
+| `pr-create-dispatch-checks.patch` | ✅ `yaml`/`check_workflow_shape` ok, ждёт @DO (авто-PR без чеков) | `.github/workflows/pr-create.yml` |
 | `check-chat-pyyaml-order.patch` | ✅ проверен локально (`gen_openapi --check` rc=0), ждёт @DO | `.github/workflows/ci-guards.yml` |
 | `be104-portability-clientid.patch` | ✅ **проверен прогоном `43336316072`** (сборка 31/31 PASS), ждёт @BE | `6-msa/BC-Portability/.../PortabilityTests.cs` |
 | `test-gates-pyyaml.patch` | ✅ **проверен прогоном `43336316072`** (`test-gates` success), ждёт @DO | `.github/workflows/ci-guards.yml` |
@@ -425,3 +426,16 @@ YAML: `yaml.safe_load` → ok, `ci-guards: jobs [check-chat, guard-secrets]`, в
 **Проверено локально:** `gen_openapi.py --check` → **rc=0** («спек 12, операций 78, расхождений 0»), `check_api_index.py --require-request` → **rc=0**; `yaml.safe_load` файла workflow → ok.
 
 **Итог:** вместе с `be104-portability-clientid` и `test-gates-pyyaml` это закрывает **все** технические красные на `#2165` и на `#2174`; остаётся `check_status_chat` (арбитраж @LM).
+
+## `pr-create-dispatch-checks.patch` — @TL 2026-11-13 03:42 (→ @DO, к `DO-119`)
+
+**Проблема (нашёл @AR 03:40):** PR, созданный через `GITHUB_TOKEN`, **не порождает прогонов workflow** — анти-рекурсия GitHub («events triggered by the GITHUB_TOKEN will not create a new workflow run»). То есть фикс `DO-119` (`GH_TOKEN: github.token`) даёт **PR без чеков**, а не рабочий транспорт: `check_paths`, `check-chat`, `test` на нём просто не появятся.
+
+**Что делает патч:** в `pr-create.yml`
+1. `permissions:` += `actions: write`;
+2. шаг создания получает `id: create` и пишет `created=true|false` в `$GITHUB_OUTPUT`;
+3. новый шаг «Dispatch checks» при `created == 'true'` запускает `gh workflow run ci-guards.yml` и `ci-backend.yml` с `--ref "$GITHUB_REF_NAME"`.
+
+**Проверено:** `yaml.safe_load` → ok (`permissions` содержит `actions: write`; шаги: checkout, Create PR, Dispatch checks); `check_workflow_shape` → **rc=0** («workflow 43, сломанных 0»). Приём `--ref` уже проверен сегодня прогонами `43336316072` и `43333979036`.
+
+**Адресат:** @DO (`.github` его зона). Без этого `#2165` снимает только «PR не создаётся», но оставляет «PR без проверок».
