@@ -1,0 +1,53 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 43fa0e4cd..00e9e8dac 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -137,6 +137,7 @@ jobs:
+           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
+           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
++          echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
+       - name: Deploy dev (VPS-2)
+         uses: appleboy/ssh-action@v1
+         with:
+@@ -530,7 +531,7 @@ jobs:
+           host: ${{ secrets.PROD_SSH_HOST }}
+           username: ${{ secrets.PROD_SSH_USER }}
+           key: ${{ secrets.PROD_SSH_KEY }}
+-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64
++          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64
+           script: |
+             set -euo pipefail
+             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
+@@ -572,6 +573,12 @@ jobs:
+             # стороже «разошёлся со снимком» (sha256 9173778a != 7b62a233) ДО вызова живого скрипта.
+             # Доставляем его из git и пересоздаём шимы детерминированно.
+             [ -n "${LEGACY_B64:-}" ] || { echo "::error::LEGACY_B64 пуст — шаг подготовки не передал legacy-shims.sh"; exit 1; }
++            # DO-129 (@TL): `gen-hosts.py` НЕ доставлялся на VPS-1, поэтому список
++            # `--add-host` там отличался от dev (в прогоне 43455070581 у journal вышло
++            # «11 хостов» против 10 на dev). Генератор должен быть один и тот же.
++            mkdir -p /opt/xdiary/tools
++            echo "$GENHOSTS_B64" | base64 -d > /opt/xdiary/tools/gen-hosts.py
++            echo "DO-129: gen-hosts.py доставлен из git ($(wc -l < /opt/xdiary/tools/gen-hosts.py) строк)"
+             echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
+             [ -s legacy-shims.sh ] || { echo "::error::legacy-shims.sh пуст после декода — base64 повреждён"; exit 1; }
+             chmod +x legacy-shims.sh
+diff --git a/7-deploy/recreate-service.sh b/7-deploy/recreate-service.sh
+index f1ab2a71d..522b2f9b6 100644
+--- a/7-deploy/recreate-service.sh
++++ b/7-deploy/recreate-service.sh
+@@ -129,8 +129,12 @@ if [ "${2:-}" = "--image" ]; then IMAGE_OVERRIDE="${3:-}"; [ -n "$IMAGE_OVERRIDE
+ CONTAINER="xdiary-$SVC"
+ cd "$DEPLOY_DIR" || die "нет $DEPLOY_DIR"
+ 
+-BODY="/tmp/recreate-$SVC.body"
+-RUNNER="/tmp/recreate-$SVC.sh"
++# DO-129 (@TL 2026-11-13 18:5x): фиксированные `/tmp/recreate-<svc>.*` ломали ОТКАТ:
++# в логе прод-прогона 43455070581 — `PermissionError: [Errno 13] Permission denied:
++# '/tmp/recreate-partners.body'`, из-за чего «откат partners не удался (нужно вручную)».
++# Файл остаётся от предыдущего запуска (другой пользователь/владелец) — берём mktemp.
++BODY="$(mktemp "/tmp/recreate-$SVC.body.XXXXXX")"
++RUNNER="$(mktemp "/tmp/recreate-$SVC.sh.XXXXXX")"
+ 
+ python3 - "$DEPLOY_SH" "$SVC" "$BODY" <<'PY'
+ import re
