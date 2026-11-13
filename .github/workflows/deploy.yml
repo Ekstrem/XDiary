@@ -399,21 +399,28 @@ jobs:
       # краснел на 502 от `/api/v1/clients`, а красный `smoke-front` гасил `receipt-be092` через
       # `needs` — то есть один неготовый API стоил целого цикла. Ждём готовность API по факту:
       # любой код, кроме 5xx/000 (200 и 401 одинаково означают «сервис отвечает»).
-      - name: Readiness API — /api/v1/clients без 5xx (перед E2E)
+      # TE-110 / @TL 2026-11-13 11:4x: между `deploy-dev` и готовностью сервиса есть окно, когда
+      # Caddy уже отдаёт `/health`, а сервис ещё пересоздаётся → `/api/v1/clients` = 502.
+      # Замер: `front-e2e-repeat` на `main` (`add-partner`, repeat=3) — 1 passed / 2 failed с
+      # «Вход не завершился … http 502». Красный `smoke-front` гасит `receipt-be092` через `needs`,
+      # поэтому ждём НЕ `/health` (его отдаёт Caddy, мимо API), а сам API без 5xx.
+      # Проверяем ДВА пути: `/clients` (401 анонимно) и `/clients/me` (401 — «сервис жив», токен не нужен).
+      # Готово только когда ОБА не 5xx/000 — иначе окно пересоздания одной реплики ещё открыто.
+      - name: Готовность API dev (не 5xx на /api/v1/clients и /clients/me)
         run: |
           set -uo pipefail
-          code=""
-          for i in $(seq 1 40); do
-            code="$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
-              http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
-            code="${code:-000}"
-            echo "readiness $i/40: /api/v1/clients -> $code"
-            case "$code" in
-              5*|000) sleep 3 ;;
-              *) echo "::notice::API готов: /api/v1/clients -> $code (не 5xx)"; exit 0 ;;
-            esac
+          last=""
+          for i in $(seq 1 60); do
+            c1="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
+            c2="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients/me 2>/dev/null || true)"
+            c1="${c1:-000}"; c2="${c2:-000}"
+            last="clients=$c1 clients/me=$c2"
+            case "$c1" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
+            case "$c2" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
+            echo "::notice::API dev готов: $last (попытка $i; 401 = сервис жив, токен не нужен)"
+            exit 0
           done
-          echo "::error::API не готов за 120 с: /api/v1/clients = $code (5xx или нет ответа) — E2E не запускаю, чтобы не краснеть на неготовом стенде"
+          echo "::error::dev API не поднялся за 180 с ($last) — это инфраструктура, а не дефект фронта"
           exit 1
       # DO-099 (@TL 2026-11-13 01:34): `check_otp_leak` был сиротой — не запускался нигде.
       # Его место здесь: после `deploy-dev` туннель 127.0.0.1:8080 уже поднят, и утечку OTP
