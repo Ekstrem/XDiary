@@ -27,5 +27,13 @@ public static class PhoneFormatValidator
     }
 
     /// <summary>Валиден ли УЖЕ нормализованный номер (E.164).</summary>
-    public static bool IsValid(string? normalized) => normalized is not null && E164.IsMatch(normalized);
+    public static bool IsValid(string? normalized)
+    {
+        if (normalized is null) return false;
+        if (!E164.IsMatch(normalized)) return false;
+        // AR-025 (@AR 23:53): российский мобильный — +7 + 10 цифр (всего 11);
+        // +7 + 9 цифр (всего 10) — несуществующий номер, режется здесь (не в Normalize).
+        if (normalized.StartsWith("+7") && normalized.Length != 12) return false;
+        return true;
+    }
 }

@@ -22,7 +22,11 @@ on:
 # Лёгкие guard'ы (без test/front-e2e). Отменять их можно: результата у них нет,
 # пока они не дошли до шага (см. §5.1 про окно 5 минут — оно про тяжёлые джобы).
 concurrency:
-  group: ci-guards
+  # DO-123 (восстановлено 2026-11-13 08:2x): группа ПРИВЯЗАНА к PR. Правка была потеряна
+  # при мерже `main` в ветку. Без привязки все PR делят одну группу и GitHub отменяет
+  # чеки друг друга («Canceling since a higher priority waiting request for ci-guards exists»),
+  # из-за чего мерж невозможен при >=2 открытых PR.
+  group: ci-guards-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -48,6 +52,17 @@ jobs:
         # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
         # --strict-times — то есть на одном и том же пуше проверки расходились.
         run: python tools/chat_lint.py --config loop.config.json --check --strict-times
+      - name: "Чат не усох и не потерял строки (check_chat_shrink, @AR/@DO 2026-11-13)"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -uo pipefail
+          python tools/check_chat_shrink.py --selftest
+          BASE="${BASE_SHA:-}"
+          if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            BASE="$(git rev-parse HEAD~1)"
+          fi
+          python tools/check_chat_shrink.py --range "$BASE..HEAD"
       - name: "Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)"
         # Норма владельца: карточка и чат меняются вместе; без строки `→ @TL: <ID> было → стало`
         # смена статуса не считается. Гейт ловит это в последнем коммите.
@@ -55,8 +70,6 @@ jobs:
         run: |
           if git rev-parse -q --verify HEAD~1 >/dev/null; then
             # @TE 11:13: контроль должен доказывать, что умеет краснеть, ДО проверки кода.
-          python tools/check_status_chat.py --selftest
-          python tools/check_status_chat.py --commit HEAD
           else
             echo "одиночный коммит — сравнивать не с чем"
           fi

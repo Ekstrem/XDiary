@@ -34,10 +34,14 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
     route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"e2e:API-500"}' })
   );
 
+  // Отчёт о старте — ПОСЛЕ навигации: до `goto` дамп всегда даёт `views:{}`/`about:blank`,
+  // и это читалось как «документа нет» (прогон 43326167107 при зелёном тесте).
   await reportStep(page, 'старт с API=500 (FE-046 критерий 3)');
-  // TE-107/109: прогон #29 показал `url: about:blank`, `status: 0`, `htmlLen: 0` — относительный
-  // `goto('/')` в том запуске не сработал, и все ассерты проверяли пустую страницу. Адрес задаём
-  // абсолютно и сразу требуем, чтобы документ открылся.
+
+  // TE-107/109: `url: about:blank` в #29/#31. НАСТОЯЩАЯ ПРИЧИНА (трасса `43322907200`, @TL 01:49) —
+  // не навигация: `#toast` читался без таймаута и ждал до таймаута теста (90 с), Playwright закрывал
+  // контекст, и дальше всё выглядело как «документ не открылся». Гипотезу «относительный goto» СНИМАЮ.
+  // Абсолютный адрес и проверка документа остаются страховкой, лечит — `{ timeout: 1500 }` в `api.js`.
   const appUrl = process.env.XDIARY_E2E_APP_URL || 'http://127.0.0.1:4173/';
   // Диагноз `#31`/`43301132233`: в trace **ноль действий**, ошибка — «Test timeout of 90000ms
   // exceeded». То есть прогон висел **на навигации**: `goto` ждал документ 90 с. Ставим явный
@@ -45,10 +49,24 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
   page.setDefaultNavigationTimeout(15000);
   console.log('::warning::T104: goto -> ' + appUrl);
   let navResp = null;
+  const navStarted = Date.now();
   try {
     navResp = await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
   } catch (e) {
-    console.log('::error::T104: goto упал: ' + appUrl + ' ;; ' + String(e && e.message || e).slice(0, 300));
+    const spent = Date.now() - navStarted;
+    const msg = String((e && e.message) || e).slice(0, 300);
+    const closed = page.isClosed ? page.isClosed() : 'н/д';
+    let connected = 'н/д';
+    try {
+      const browser = page.context().browser();
+      connected = browser ? browser.isConnected() : 'браузера нет';
+    } catch (err) { connected = 'ошибка: ' + String((err && err.message) || err).slice(0, 80); }
+    // Различаем исходы: «закрыт» — это НЕ «медленная страница» и НЕ дефект продукта.
+    const verdict = /has been closed/i.test(msg) ? 'контекст/браузер закрыт во время навигации'
+      : /Timeout/i.test(msg) ? 'таймаут навигации'
+      : 'прочая ошибка навигации';
+    console.log('::error::T104: goto упал (' + spent + ' мс, ' + appUrl + '): ' + verdict +
+      ' ;; page.closed=' + closed + ' ;; browser.connected=' + connected + ' ;; ' + msg);
     throw e;
   }
   const navStatus = navResp ? navResp.status() : -1;

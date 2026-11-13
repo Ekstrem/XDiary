@@ -14,6 +14,15 @@ import json
 import os
 import re
 import sys
+
+# 2026-11-13 (@DO, дефект нашёл @TE): на Windows-консоли cp1251 вывод с `≤` падал
+# UnicodeEncodeError — кнут не мог сработать там, где нужен. errors="replace" печатает
+# «?» вместо падения; поведение rc не меняется.
+try:
+    sys.stdout.reconfigure(errors="replace")
+    sys.stderr.reconfigure(errors="replace")
+except Exception:
+    pass
 from datetime import datetime
 
 TASK_ID = re.compile(r"^[A-Z]{2,3}-\d{2,4}\.md$")
