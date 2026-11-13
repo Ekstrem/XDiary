@@ -21,6 +21,10 @@ on:
       - '**/*.md'
   workflow_dispatch:
     inputs:
+      allow_prod_repair:
+        description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
+        type: boolean
+        default: false
       stop_before_prod:
         description: 'Остановиться до deploy-prod (dev + smoke-api + контракт журнала, без прода)'
         type: boolean
@@ -495,7 +499,7 @@ jobs:
     if: |
       (!inputs.stop_before_prod) &&
       always() &&
-      (needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured') &&
+      (needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured' || inputs.allow_prod_repair) &&
       (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
     runs-on: ubuntu-latest
     environment: prod
@@ -540,13 +544,18 @@ jobs:
           echo "CODE_TS (по коду, не по инфре): $code_ts"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
+        env:
+          ALLOW_PROD_REPAIR: ${{ inputs.allow_prod_repair }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR
           script: |
+            if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
+              echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
+            fi
             set -euo pipefail
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
