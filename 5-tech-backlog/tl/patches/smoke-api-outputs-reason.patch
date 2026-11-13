@@ -1,0 +1,17 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 012246bf2..269c2b84c 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -214,6 +214,12 @@ jobs:
+   smoke-api:
+     needs: deploy-dev
+     runs-on: ubuntu-latest
++    # DO-129 ч.2 (@TL): выход нужен, чтобы `deploy-prod` мог поехать РЕМОНТОМ,
++    # когда канон не смог измерить прод (rc=2). Без объявления на уровне джоба
++    # `needs.smoke-api.outputs.reason` всегда пуст — именно на этом первый вариант
++    # патча №28 и не сработал (прогон 43467346514: deploy-prod skipped).
++    outputs:
++      reason: ${{ steps.canon.outputs.reason }}
+     env:
+       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+       # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`
