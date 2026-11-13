@@ -1,0 +1,21 @@
+diff --git a/7-deploy/recreate-service.sh b/7-deploy/recreate-service.sh
+index f1d0e4e07..239eaeeeb 100644
+--- a/7-deploy/recreate-service.sh
++++ b/7-deploy/recreate-service.sh
+@@ -288,7 +288,16 @@ for c in $CNI_LIST; do
+     exit 5
+   fi
+ done
++# DO-130 ч.2 (@TL 2026-11-13 22:2x): контейнер мог остаться в ДРУГОМ podman-пространстве
++# (rootless vs root) от прошлых прогонов. Тогда `podman run` падает не на сети, а на имени:
++#   `Error: error creating container storage: the container name "xdiary-api-gateway"
++#    is already in use by "<id>". You have to remove that container to be able to reuse that name`
++# (прогон 43488951552: 12 из 13 сервисов пересозданы, упал ТОЛЬКО api-gateway — и упал на имени).
++# Поэтому снимаем контейнер в ОБОИХ пространствах: своём и через sudo, если он есть.
+ podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
++if command -v sudo >/dev/null 2>&1; then
++  sudo -n podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
++fi
+ # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
+ # `podman run` падает с "error configuring network namespace". В `update.sh` это
+ # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
