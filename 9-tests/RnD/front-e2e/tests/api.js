@@ -572,9 +572,43 @@ async function loginWithPin(page, pin) {
   } catch (e) {
     const errs = (page.__xdiaryErrors || []).slice(-8);
     const killed = errs.some((x) => /http (401|404)/.test(x) && /clients\/me|journal/.test(x));
+    // TE-110 (@TL 2026-11-13 11:47): `deploy-dev` пересоздаёт контейнеры, и вход попадает в окно
+    // `502 Bad Gateway`. Это не дефект спеки: ждём и повторяем с backoff, а в сообщении называем
+    // причину («стенд ещё поднимается»), чтобы разбор не начинался с нуля.
+    const standWaking = errs.some((x) => /http 50[0234]/.test(x)) ||
+      /\b50[0234]\b/.test(String((e && e.message) || ''));
+    const maxWakeRetries = 3;
+    if (standWaking && phases.retries < maxWakeRetries) {
+      phases.retries += 1;
+      const backoffMs = 2000 * Math.pow(2, phases.retries - 1);
+      console.log('::warning::' + JSON.stringify({
+        title: 'login: стенд ещё поднимается (5xx), повтор ' + phases.retries + '/' + maxWakeRetries,
+        backoffMs,
+        reason: errs.filter((x) => /http 50[0234]/.test(x)).slice(-2),
+      }));
+      await page.waitForTimeout(backoffMs).catch(() => {}); // backoff: стенд поднимается (5xx)
+      try {
+        await seed();
+        await unlock();
+      } catch (e3) {
+        const views3 = await dumpViews(page, 'вход не удался после ожидания стенда').catch(() => null);
+        const errs3 = (page.__xdiaryErrors || []).slice(-8);
+        throw new Error('Вход не завершился: стенд ещё поднимается (5xx) даже после ' +
+          phases.retries + ' ожиданий (' + Math.round((Date.now() - t0) / 1000) + ' с). views=' +
+          JSON.stringify(views3) + ' ошибки=' + JSON.stringify(errs3) +
+          ' причина=' + String((e3 && e3.message) || e3).slice(0, 300));
+      }
+      console.log('::notice::' + JSON.stringify({
+        title: 'login', elapsedMs: Date.now() - t0, seedMs: phases.seedMs, pinMs: phases.pinMs,
+        reloadMs: phases.reloadMs, waitMs: phases.waitMs, retries: phases.retries,
+        waitedForStand: true,
+      }));
+      return;
+    }
     if (!killed || phases.retries > 0) {
       const views = await dumpViews(page, 'вход не завершился').catch(() => null);
       throw new Error(
+        (standWaking ? 'Вход не завершился: стенд ещё поднимается (5xx). ' : '') +
         'Вход не завершился (' + Math.round((Date.now() - t0) / 1000) + ' с: seed ' +
         Math.round(phases.seedMs / 1000) + ' c, PIN ' + Math.round(phases.pinMs / 1000) +
         ' c, reload ' + Math.round(phases.reloadMs / 1000) + ' c, ожидание ' +
