@@ -141,6 +141,34 @@ jobs:
         working-directory: 9-tests/RnD/front-e2e
         run: npx playwright install --with-deps chromium
 
+      # DO (@FE 23:32, прогоны #29/#31/#33): при недоступном стенде `page.goto` оставляет
+      # `about:blank`, и это читается как «дефект продукта». Проверяем, что стенд отвечает,
+      # до всяких ассертов спеки — иначе причина падения неотличима от дефекта продукта.
+      - name: Стенд отвечает (preflight)
+        env:
+          BASE: ${{ inputs.base_url || 'http://127.0.0.1:8080' }}
+        run: |
+          set -uo pipefail
+          # @AR 2026-11-13 02:14 (канон «снимок ≠ состояние»): диагностика обязана печатать МОМЕНТ,
+          # а не только значение. Иначе `about:blank`/`status: 0` читаются как состояние продукта,
+          # хотя это состояние снимка в конкретной точке жизненного цикла теста.
+          echo "preflight: момент $(date -u +%H:%M:%SZ) | шаг=preflight | запуск ${GITHUB_RUN_ID:-local}"
+          code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$BASE/health" || echo 000)"
+          echo "preflight: стенд $BASE/health -> $code (момент $(date -u +%H:%M:%SZ))"
+          if [ "$code" != "200" ]; then
+            echo "::error::стенд недоступен: $BASE/health вернул $code — это инфраструктура, а не продукт; спеки не запускаем"
+            exit 1
+          fi
+          # Второй адрес — ЛОКАЛЬНАЯ статика, куда спека реально делает goto (`serve.js`, 4173).
+          # Прогоны #36/#37: dev-стенд зелёный, а goto падал именно на 4173 — проверка только
+          # dev-стенда этого не видела.
+          local_code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' http://127.0.0.1:4173/ || echo 000)"
+          echo "preflight: локальная статика http://127.0.0.1:4173/ -> $local_code (момент $(date -u +%H:%M:%SZ))"
+          if [ "$local_code" != "200" ]; then
+            echo "::error::локальная статика 4173 не отвечает ($local_code) — спека навигируется на неё; это харнесс/стенд, а не продукт"
+            exit 1
+          fi
+
       - name: Repeat run (list)
         working-directory: 9-tests/RnD/front-e2e
         continue-on-error: true

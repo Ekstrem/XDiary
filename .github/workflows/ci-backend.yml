@@ -33,7 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      group: ci-tests-test
+      # DO-123: группа привязана к PR (образец — status-lint.yml); без этого
+      # два PR на `ci-tests-test` отменяют `test` друг у друга.
+      group: ci-tests-test-${{ github.event.pull_request.number || github.ref }}
       # Решение владельца (2026-11-05): не отменять прогон новым пушем (== «не трогать
       # первые 5 минут», который GitHub нативно не умеет). Идём в очередь.
       cancel-in-progress: false
