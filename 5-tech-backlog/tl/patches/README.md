@@ -595,3 +595,13 @@ Process exited with status 1
 2. **Откат падал на фиксированных путях:** `PermissionError: [Errno 13] Permission denied: '/tmp/recreate-partners.body'` → `откат partners не удался (нужно вручную)`, и то же для `catalog`. Файл остаётся от прошлого запуска с другим владельцем. Патч заменяет фиксированные `BODY`/`RUNNER` на `mktemp "/tmp/recreate-$SVC.*.XXXXXX"`.
 
 **Проверено:** `yaml.safe_load` ok, `envs` содержит `GENHOSTS_B64`, `check_workflow_shape` ok, `bash -n 7-deploy/recreate-service.sh` → rc=0.
+
+## 26. `recreate-service-failure-diagnostics.patch` — печатать `podman logs` при провале (DO-128, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 19:2x.
+
+**Зачем.** Три прогона подряд (`43455070581`, `43457921240`, `43459800205`) упали на «`<svc>` не поднялся» без единой подробности: `recreate-service.sh` глотает `podman run` в `>/dev/null 2>&1` и ничего не печатает при провале. Из-за этого нельзя отличить «нет `Jwt__SigningKey` (fail-fast в `Shared/XDiary.Contracts/JwtSigningKey.cs`)» от конфликта сети или падения на миграциях — а без этого нельзя и починить.
+
+**Что делает патч:** после исчерпания трёх попыток печатает (1) `podman run` ещё раз с `stderr` (tail 20), (2) `exit=` и `err=` из `podman inspect`, (3) `podman logs --tail 40`. Всё помечено префиксами `run|` и `log|`, чтобы не путать с обычным выводом.
+
+**Проверено:** `bash -n 7-deploy/recreate-service.sh` → **rc=0**.
