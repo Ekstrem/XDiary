@@ -101,6 +101,10 @@ async function dumpViews(page, where) {
         apiBaseWorking,
         origin: location.origin,
         sw: swCtl,
+        // @FE 2026-11-13 13:20: время с начала навигации. Без него «сплэш видим» — фото в t≈0,
+        // а не доказательство несработавшего сторожа.
+        msFromGoto: Math.round(performance.now()),
+        navType: (nav.type || '') + '',
         status: typeof nav.responseStatus === 'number' ? nav.responseStatus : -1,
         readyState: document.readyState,
         htmlLen: document.body ? document.body.innerHTML.length : -1,
@@ -114,6 +118,17 @@ async function dumpViews(page, where) {
       diag || {},
       { viewsCount: Object.keys(views || {}).length }
     );
+    // Порог @FE 3000 мс: вердикт печатается ВМЕСТЕ с дампом, чтобы разбор не начинался с вопроса
+    // «а не рано ли сняли?». Это не вывод о продукте, а классификация снимка.
+    if ((views || {})['view-splash'] === 'visible' && diag) {
+      if (diag.msFromGoto > 3000 && diag.e2e === true && diag.apiBase) {
+        payload.splashVerdict = 'дефект forceVisibleScreen (>3000 мс, e2e=true, apiBase задан)';
+      } else {
+        payload.splashVerdict = 'момент снимка: ' + (diag.msFromGoto <= 3000
+          ? 'msFromGoto=' + diag.msFromGoto + ' <= 3000'
+          : 'e2e=false или apiBase пуст');
+      }
+    }
     console.log('::warning::' + JSON.stringify(payload));
     return views;
   } catch (e) {
