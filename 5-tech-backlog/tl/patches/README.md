@@ -605,3 +605,13 @@ Process exited with status 1
 **Что делает патч:** после исчерпания трёх попыток печатает (1) `podman run` ещё раз с `stderr` (tail 20), (2) `exit=` и `err=` из `podman inspect`, (3) `podman logs --tail 40`. Всё помечено префиксами `run|` и `log|`, чтобы не путать с обычным выводом.
 
 **Проверено:** `bash -n 7-deploy/recreate-service.sh` → **rc=0**.
+
+## 27. `recreate-service-ensure-network.patch` — проверить/создать сеть `xdiary` ДО `podman rm -f` (DO-129, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 19:4x.
+
+**Причина.** Прод-инцидент `43461987716`: `unable to find network configuration for xdiary: network not found`, но скрипт уже снял контейнеры → сервисы остались снятыми, `POST /api/v1/clients` → **500**. В репозитории сеть `xdiary` **никто не создаёт** (только `apim` в `apim/up.sh`), она была создана вручную — то есть существование сети было неявным предусловием.
+
+**Что делает патч:** перед `podman rm -f` проверяет `podman network exists xdiary`; если нет — создаёт `--subnet 10.89.9.0/24` (как в `deploy.sh`), а если создать не удалось — **выходит, не трогая контейнер** (код 4). Так провал больше не может оставить прод без сервисов.
+
+**Проверено:** `bash -n 7-deploy/recreate-service.sh` → rc=0.
