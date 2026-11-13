@@ -394,6 +394,27 @@ jobs:
             sleep 2
           done
           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
+      # @TL 2026-11-13 11:47 (предложение по зоне @DO): `/health` идёт МИМО API (Caddy отвечает
+      # сам), поэтому зелёный `/health` не означает «API поднялся». Из-за этого `smoke-front`
+      # краснел на 502 от `/api/v1/clients`, а красный `smoke-front` гасил `receipt-be092` через
+      # `needs` — то есть один неготовый API стоил целого цикла. Ждём готовность API по факту:
+      # любой код, кроме 5xx/000 (200 и 401 одинаково означают «сервис отвечает»).
+      - name: Readiness API — /api/v1/clients без 5xx (перед E2E)
+        run: |
+          set -uo pipefail
+          code=""
+          for i in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
+              http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
+            code="${code:-000}"
+            echo "readiness $i/40: /api/v1/clients -> $code"
+            case "$code" in
+              5*|000) sleep 3 ;;
+              *) echo "::notice::API готов: /api/v1/clients -> $code (не 5xx)"; exit 0 ;;
+            esac
+          done
+          echo "::error::API не готов за 120 с: /api/v1/clients = $code (5xx или нет ответа) — E2E не запускаю, чтобы не краснеть на неготовом стенде"
+          exit 1
       # DO-099 (@TL 2026-11-13 01:34): `check_otp_leak` был сиротой — не запускался нигде.
       # Его место здесь: после `deploy-dev` туннель 127.0.0.1:8080 уже поднят, и утечку OTP
       # в ответах видно на живом контуре. В `ci-guards` он бессмысленен (нет стенда -> rc=2).
