@@ -71,7 +71,7 @@
       "upstream": "tools/check_chat_shrink.py"
     },
     "check_direct_push.py": {
-      "sha256": "d8592085e2e8e3d4e955030f8350b060e81787a833a496bb3706a8430c2d8199",
+      "sha256": "bc86132d599b28871472789b10a9db757ef01f0d8d263cbce1ecae11a7c8b927",
       "synced_at": "2026-11-13",
       "upstream": "tools/check_direct_push.py"
     },
