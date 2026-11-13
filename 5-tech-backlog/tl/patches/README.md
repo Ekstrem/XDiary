@@ -479,3 +479,66 @@ gh run list --workflow ci-guards.yml → role/tl:
 **Проверено:** `yaml.safe_load` ok (`if: steps.create.outputs.created == 'true'`), `check_workflow_shape` → rc=0; **у всех семи** есть и `workflow_dispatch`, и `pull_request` (иначе dispatch был бы невалиден).
 
 **Почему не «на каждом пуше»:** dispatch запускает тот же workflow на той же ветке, где уже идёт PR-прогон, а группа `concurrency: ci-guards` в `main` **без привязки к ref** ⇒ второй вытесняет первый ⇒ `cancelled` (класс `DO-123`).
+
+## 18. `deploy-prod-deliver-update-sh.patch` — доставка `update.sh` на VPS-1 (DO-124, P0)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 11:3x. **Статус:** ждёт применения.
+
+**Дефект (факт из прогона `43379615221`, шаг «Deploy prod (VPS-1)»):**
+```
+APIM_PREFLIGHT_OK
+/opt/xdiary/7-deploy/update.sh: line 59: say: command not found
+/home/<deploy>/<script>.sh разошёлся со снимком (sha256 9173778a… != 7b62a233…)
+```
+**Причина:** dev-джоб **доставляет** скрипт (`UPDATE_B64` → `base64 -d > /opt/xdiary/7-deploy/update.sh`, строки 137/155), а prod-джоб просто вызывает `bash /home/deploy/update.sh` (строка 490) — на VPS-1 остаётся старая копия. В git `say()` определена (строки 40–56), а строка 59 — комментарий ⇒ ошибка возможна только на устаревшей копии.
+
+**Что делает патч:** в prod-джобе добавляет шаг `Подготовить update.sh (base64 …)` и в ssh-скрипте — доставку файла + `chmod +x` + контроль `grep -q 'tag_of'`. `envs` расширены до `TAG,CODE_TS,UPDATE_B64`.
+
+**Проверено:** `yaml.safe_load` ok (steps: Tag → Подготовить → Deploy; `envs: TAG, CODE_TS, UPDATE_B64`), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
+
+**После применения:** первый `deploy` на `main` должен дать `deploy-prod` **success**; если сторож эталона всё ещё ругается — прогнать `bash /opt/xdiary/7-deploy/legacy-shims.sh` (пересоберёт шим и эталон детерминированно, файл бэкапится в `/home/deploy/legacy-<ts>/`).
+
+## 19. `smoke-front-api-readiness.patch` — ждать готовность API dev, а не только `/health` (TE-110, P1)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 11:5x. **Статус:** ждёт применения.
+
+**Дефект (замер):** `front-e2e-repeat` на `main`, `add-partner`, `repeat=3` → **1 passed / 2 failed**; оба падения с текстом
+`Вход не завершился … views={"view-onboarding":"visible"} ошибки=["http 502 http://127.0.0.1:8080/api/v1/clients", "502 (Bad Gateway)"]`.
+Механизм: `deploy-dev` пересоздаёт контейнеры, `Туннель к dev` ждёт `/health` (**Caddy**), а сервис в это время ещё не готов → `/api/v1/clients` отдаёт 502; красный `smoke-front` через `needs` гасит `receipt-be092`.
+
+**Что делает патч:** новый шаг `Готовность API dev (не 5xx на /api/v1/clients/me)` сразу после туннеля: до 60 попыток по 3 с, готовность = любой код кроме `5xx`/`000` (`GET /api/v1/clients/me` анонимно → `401`, это и есть «сервис жив»), без создания данных.
+
+**Проверено:** `yaml.safe_load` ok (**8 jobs**, `smoke-front` — 12 шагов), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
+
+**После применения:** первый `deploy` на `main` должен дать `smoke-front` **success** без повторов; в логе появится строка `API dev готов: GET /api/v1/clients/me -> 401 (попытка N)`.
+
+### Проверка предположения патча №19 на живом стенде (2026-11-13 12:0x)
+
+Шаг ждёт «не 5xx», и ожидаемый код `401` подтверждён **снаружи**, а не по документации:
+
+```
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/health          -> 200
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api/v1/clients/me -> 401
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api/v1/catalog    -> 401
+```
+
+То есть `401` на `/api/v1/clients/me` — это штатное «сервис жив, аноним не авторизован», и проба не создаёт данных. Если в окне пересоздания контейнеров будет `502`, шаг подождёт, а не упадёт.
+
+## 20. `deploy-prod-deliver-legacy-shims.patch` — доставить `legacy-shims.sh` на VPS-1 (DO-124 ч.2, P0)
+
+**Адресат:** @DO. **Применён координатором** 2026-11-13 12:1x по указанию владельца.
+
+**Второй слой того же блокера.** После правки @DO (доставка `images.lock`/`update.sh`/`recreate-service.sh`) лог прогона `43398330290` показал:
+
+```
+APIM_PREFLIGHT_OK
+DO-124: скрипты обновлены из git (update.sh 332 строк)
+Process exited with status 1
+/home/deploy/update.sh разошёлся со снимком (sha256 9173778a… != 7b62a233…)
+```
+
+То есть `/opt/xdiary/7-deploy/update.sh` уже свежий, но **шим** `/home/deploy/update.sh` остался старым и падает на своём стороже **до** вызова живого скрипта. Причина: шаг «пересоздать шимы» был условным (`if [ -f …/legacy-shims.sh ]`), а этого файла на VPS-1 **нет** — доставка трёх файлов его не покрывала.
+
+**Что делает патч:** добавляет `LEGACY_B64` в шаг подготовки, доставляет `legacy-shims.sh` рядом с остальными, проверяет маркер `DO-066` и **безусловно** пересоздаёт шимы (`make_shim` пишет новый шим, а он `exec`-ит живой скрипт — сторожа на нём уже нет).
+
+**Проверено:** `yaml.safe_load` ok (8 jobs), `envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64`, `check_workflow_shape` 43/0, `check_yaml_dups` — 0 дублей.
