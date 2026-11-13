@@ -523,3 +523,22 @@ curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api
 ```
 
 То есть `401` на `/api/v1/clients/me` — это штатное «сервис жив, аноним не авторизован», и проба не создаёт данных. Если в окне пересоздания контейнеров будет `502`, шаг подождёт, а не упадёт.
+
+## 20. `deploy-prod-deliver-legacy-shims.patch` — доставить `legacy-shims.sh` на VPS-1 (DO-124 ч.2, P0)
+
+**Адресат:** @DO. **Применён координатором** 2026-11-13 12:1x по указанию владельца.
+
+**Второй слой того же блокера.** После правки @DO (доставка `images.lock`/`update.sh`/`recreate-service.sh`) лог прогона `43398330290` показал:
+
+```
+APIM_PREFLIGHT_OK
+DO-124: скрипты обновлены из git (update.sh 332 строк)
+Process exited with status 1
+/home/deploy/update.sh разошёлся со снимком (sha256 9173778a… != 7b62a233…)
+```
+
+То есть `/opt/xdiary/7-deploy/update.sh` уже свежий, но **шим** `/home/deploy/update.sh` остался старым и падает на своём стороже **до** вызова живого скрипта. Причина: шаг «пересоздать шимы» был условным (`if [ -f …/legacy-shims.sh ]`), а этого файла на VPS-1 **нет** — доставка трёх файлов его не покрывала.
+
+**Что делает патч:** добавляет `LEGACY_B64` в шаг подготовки, доставляет `legacy-shims.sh` рядом с остальными, проверяет маркер `DO-066` и **безусловно** пересоздаёт шимы (`make_shim` пишет новый шим, а он `exec`-ит живой скрипт — сторожа на нём уже нет).
+
+**Проверено:** `yaml.safe_load` ok (8 jobs), `envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64`, `check_workflow_shape` 43/0, `check_yaml_dups` — 0 дублей.
