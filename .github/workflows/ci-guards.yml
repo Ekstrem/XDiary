@@ -22,7 +22,7 @@ on:
 # Лёгкие guard'ы (без test/front-e2e). Отменять их можно: результата у них нет,
 # пока они не дошли до шага (см. §5.1 про окно 5 минут — оно про тяжёлые джобы).
 concurrency:
-  group: ci-guards-${{ github.event.pull_request.number || github.ref }}
+  group: ci-guards
   cancel-in-progress: true
 
 jobs:
