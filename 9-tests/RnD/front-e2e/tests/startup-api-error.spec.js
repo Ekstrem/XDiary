@@ -49,10 +49,24 @@ test('E2E: FE-046 — ошибка API на старте: сплэш уходи�
   page.setDefaultNavigationTimeout(15000);
   console.log('::warning::T104: goto -> ' + appUrl);
   let navResp = null;
+  const navStarted = Date.now();
   try {
     navResp = await page.goto(appUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
   } catch (e) {
-    console.log('::error::T104: goto упал: ' + appUrl + ' ;; ' + String(e && e.message || e).slice(0, 300));
+    const spent = Date.now() - navStarted;
+    const msg = String((e && e.message) || e).slice(0, 300);
+    const closed = page.isClosed ? page.isClosed() : 'н/д';
+    let connected = 'н/д';
+    try {
+      const browser = page.context().browser();
+      connected = browser ? browser.isConnected() : 'браузера нет';
+    } catch (err) { connected = 'ошибка: ' + String((err && err.message) || err).slice(0, 80); }
+    // Различаем исходы: «закрыт» — это НЕ «медленная страница» и НЕ дефект продукта.
+    const verdict = /has been closed/i.test(msg) ? 'контекст/браузер закрыт во время навигации'
+      : /Timeout/i.test(msg) ? 'таймаут навигации'
+      : 'прочая ошибка навигации';
+    console.log('::error::T104: goto упал (' + spent + ' мс, ' + appUrl + '): ' + verdict +
+      ' ;; page.closed=' + closed + ' ;; browser.connected=' + connected + ' ;; ' + msg);
     throw e;
   }
   const navStatus = navResp ? navResp.status() : -1;
