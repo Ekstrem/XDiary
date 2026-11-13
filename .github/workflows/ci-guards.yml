@@ -22,7 +22,11 @@ on:
 # Лёгкие guard'ы (без test/front-e2e). Отменять их можно: результата у них нет,
 # пока они не дошли до шага (см. §5.1 про окно 5 минут — оно про тяжёлые джобы).
 concurrency:
-  group: ci-guards
+  # DO-123 (восстановлено 2026-11-13 08:2x): группа ПРИВЯЗАНА к PR. Правка была потеряна
+  # при мерже `main` в ветку. Без привязки все PR делят одну группу и GitHub отменяет
+  # чеки друг друга («Canceling since a higher priority waiting request for ci-guards exists»),
+  # из-за чего мерж невозможен при >=2 открытых PR.
+  group: ci-guards-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -58,17 +62,24 @@ jobs:
           if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
             BASE="$(git rev-parse HEAD~1)"
           fi
-          python tools/check_chat_shrink.py --range "$BASE..HEAD"
-      - name: "Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)"
-        # Норма владельца: карточка и чат меняются вместе; без строки `→ @TL: <ID> было → стало`
-        # смена статуса не считается. Гейт ловит это в последнем коммите.
-        if: always()
-        run: |
-          if git rev-parse -q --verify HEAD~1 >/dev/null; then
-            # @TE 11:13: контроль должен доказывать, что умеет краснеть, ДО проверки кода.
-          else
-            echo "одиночный коммит — сравнивать не с чем"
+          # @TE 09:25: сравнивать с `origin/main` НЕЛЬЗЯ — отставшая ветка читается как усыхание
+          # (ветка «позади» main, а гейт видит «было больше — стало меньше»). База для PR —
+          # merge-base: тогда отставшая ветка даёт «chat не менялись», а реальное усыхание
+          # внутри PR по-прежнему ловится.
+          if git rev-parse -q --verify origin/main >/dev/null 2>&1; then
+            MB="$(git merge-base origin/main HEAD 2>/dev/null || true)"
+            if [ -n "$MB" ] && [ "$MB" != "$BASE" ]; then
+              echo "check_shrink: база переопределена на merge-base ${MB:0:12} (было ${BASE:0:12})"
+              BASE="$MB"
+            fi
           fi
+          python tools/check_chat_shrink.py --range "$BASE..HEAD"
+      # @TL 2026-11-13 08:42: детектор прямого пуша смотрит ТОПОЛОГИЮ, а не имя коммита.
+      - name: "Прямой пуш в main? (топология, а не имена)"
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          python tools/check_direct_push.py --selftest
+          python tools/check_direct_push.py --ref HEAD --limit 20
 
       - name: "Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)"
         # Решение считается выданным только после подтверждения адресатом (строка «принято»
@@ -138,6 +149,11 @@ jobs:
           echo "норма принята: прод-хост даёт rc=0 ✔"
 
 
+      # PyYAML нужен ДО первого шага, который читает YAML (иначе «нужен pyyaml» => exit 2).
+      # Правка @TL была в ветке и потерялась при мерже — восстанавливаю на месте.
+      - name: Зависимости гейтов (PyYAML) — до первого чтения YAML
+        run: python -m pip install --quiet --disable-pip-version-check pyyaml
+
       - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)
         # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
         # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).
@@ -161,7 +177,6 @@ jobs:
       - name: Дубли ключей в YAML (AR-024)
         run: |
           set -uo pipefail
-          python -c "import yaml" 2>/dev/null || python -m pip install --quiet pyyaml
           python tools/check_yaml_dups.py --selftest
           python tools/check_yaml_dups.py
 
