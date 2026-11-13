@@ -70,6 +70,11 @@
       "synced_at": "2026-11-13",
       "upstream": "tools/check_chat_shrink.py"
     },
+    "check_direct_push.py": {
+      "sha256": "d8592085e2e8e3d4e955030f8350b060e81787a833a496bb3706a8430c2d8199",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/check_direct_push.py"
+    },
     "check_docs_size.py": {
       "sha256": "1b62432080dfa6448736ebc2608369159d854df61a41801f7e1646936eb585d5",
       "synced_at": "2026-11-13",
