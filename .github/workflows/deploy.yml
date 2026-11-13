@@ -140,6 +140,7 @@ jobs:
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
+          port: 8237
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
@@ -354,6 +355,7 @@ jobs:
         env:
           CLEANUP_B64: ${{ env.CLEANUP_SCRIPT_B64 }}
         with:
+          port: 8237
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
@@ -386,7 +388,7 @@ jobs:
           set -euo pipefail
           install -m 600 /dev/null /tmp/dev_key
           printf '%s\n' "$DEV_KEY" > /tmp/dev_key
-          ssh -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -p 8237 -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -o ExitOnForwardFailure=yes -f -N -L 8080:127.0.0.1:8080 "$DEV_USER@$DEV_HOST"
           for i in $(seq 1 30); do
             if curl -fsS -m 3 http://127.0.0.1:8080/health >/dev/null; then
@@ -502,13 +504,18 @@ jobs:
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
           # нельзя: правка в `7-deploy/`/`.github/` не пересобирает образы, но выглядит
           # «код новее образов» — прод вставал на каждом инфраструктурном коммите.
-          code_ts="$(git log -1 --format=%cI -- 6-msa 8-front 2>/dev/null || true)"
+          # Только `6-msa`: `8-front` — статика PWA (Pages), в образы контейнеров НЕ входит.
+          # С `8-front` в пути `CODE_TS` = время фронт-коммита, и сторож сравнивал его с
+          # образами бэкенда — ложное «образы старше кода» (run #2038: `код 13:39`
+          # при последнем коммите 6-msa `02:52`).
+          code_ts="$(git log -1 --format=%cI -- 6-msa 2>/dev/null || true)"
           [ -n "$code_ts" ] || code_ts="$(git log -1 --format=%cI)"
           echo "CODE_TS=$code_ts" >> "$GITHUB_ENV"
           echo "CODE_TS (по коду, не по инфре): $code_ts"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         with:
+          port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}

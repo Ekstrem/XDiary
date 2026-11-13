@@ -335,6 +335,11 @@
       "synced_at": "2026-11-13",
       "upstream": "tools/release.py"
     },
+    "release_build.py": {
+      "sha256": "597016830d82ec0a707a3d5fe2a00e368a068991ccf56055b549a9f0710a85e4",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/release_build.py"
+    },
     "resource-usage.py": {
       "sha256": "73ef6dcdf210512ca89d020a625df94cde00cf29774e45c82ff2b44d043b0c01",
       "synced_at": "2026-11-13",
