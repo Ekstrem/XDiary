@@ -33,6 +33,7 @@ var app = builder.Build();
 app.UseXdiarySwagger();
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();

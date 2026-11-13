@@ -37,6 +37,7 @@ using (var scope = app.Services.CreateScope())
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health").AllowAnonymous();
