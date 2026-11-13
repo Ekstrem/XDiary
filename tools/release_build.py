@@ -58,8 +58,13 @@ def build(rows, sha, registry='ghcr.io', owner='ekstrem', dry_run=False, only=No
             print('::error::%s: нет %s' % (svc, df))
             return None
         tag = '%s/%s/xdiary-%s:single-%s' % (registry, owner, svc, sha)
-        print('::group::build %s -> %s' % (svc, tag))
-        r = subprocess.run(['docker', 'build', '-f', df, '-t', tag, path])
+        # DO-125: контекст сборки — КОРЕНЬ группы (`6-msa`), а не папка сервиса: в Dockerfile
+        # `COPY . .` + `dotnet restore BC-Journal/src/...`, то есть внутри контекста ждут
+        # `BC-Journal/...`. Со `path` в контексте dotnet падал `MSB1009: Project file does not exist`
+        # (первый прогон release #1 — упал на journal).
+        ctx = path.split('/')[0] if '/' in path else path
+        print('::group::build %s -> %s (context=%s)' % (svc, tag, ctx))
+        r = subprocess.run(['docker', 'build', '-f', df, '-t', tag, ctx])
         if r.returncode != 0:
             print('::error::%s: сборка упала' % svc)
             return None
