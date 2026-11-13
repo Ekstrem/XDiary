@@ -62,6 +62,17 @@ jobs:
           if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
             BASE="$(git rev-parse HEAD~1)"
           fi
+          # @TE 09:25: сравнивать с `origin/main` НЕЛЬЗЯ — отставшая ветка читается как усыхание
+          # (ветка «позади» main, а гейт видит «было больше — стало меньше»). База для PR —
+          # merge-base: тогда отставшая ветка даёт «chat не менялись», а реальное усыхание
+          # внутри PR по-прежнему ловится.
+          if git rev-parse -q --verify origin/main >/dev/null 2>&1; then
+            MB="$(git merge-base origin/main HEAD 2>/dev/null || true)"
+            if [ -n "$MB" ] && [ "$MB" != "$BASE" ]; then
+              echo "check_shrink: база переопределена на merge-base ${MB:0:12} (было ${BASE:0:12})"
+              BASE="$MB"
+            fi
+          fi
           python tools/check_chat_shrink.py --range "$BASE..HEAD"
       - name: "Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)"
         # Решение считается выданным только после подтверждения адресатом (строка «принято»
