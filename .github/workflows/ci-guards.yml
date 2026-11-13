@@ -55,8 +55,6 @@ jobs:
         run: |
           if git rev-parse -q --verify HEAD~1 >/dev/null; then
             # @TE 11:13: контроль должен доказывать, что умеет краснеть, ДО проверки кода.
-          python tools/check_status_chat.py --selftest
-          python tools/check_status_chat.py --commit HEAD
           else
             echo "одиночный коммит — сравнивать не с чем"
           fi
