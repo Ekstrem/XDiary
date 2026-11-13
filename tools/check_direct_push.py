@@ -9,7 +9,11 @@ merge-коммитов. Детектор, который ищет по `git log 
 
 Признак прямого пуша (единственный корректный):
   коммит в ПЕРВОЙ линии (`--first-parent`) И у него НЕ больше одного родителя (не merge)
-  И он не бот-коммит чата (`chat(bot):`, PDR-047).
+  И он не коммит ЧАТА (PDR-047: чат коммитит бот).
+
+Коммит чата определяется не по префиксу сообщения (бот пишет и `chat(bot): sync`, и
+`chat: убраны маркеры конфликта…` — второй случай давал ложный кнут 2026-11-13 14:05),
+а по составу: если ВСЕ изменённые файлы лежат под `5-tech-backlog/chat/`, это чат.
 
 Всё остальное — штатный мерж PR: роль вливает в `role/<name>`, в `main` попадает merge.
 
@@ -22,6 +26,7 @@ import subprocess
 import sys
 
 BOT_PREFIX = 'chat(bot)'
+CHAT_PREFIX = '5-tech-backlog/chat/'
 
 
 def git(args, cwd):
@@ -41,7 +46,17 @@ def info(sha, cwd):
     parts = cp.stdout.strip().split('\x00')
     if len(parts) < 3:
         return None
-    return {'sha': parts[0], 'subject': parts[1], 'parents': parts[2].split()}
+    return {'sha': parts[0], 'subject': parts[1], 'parents': parts[2].split(),
+            'full_sha': sha}
+
+
+def touches_only_chat(sha, cwd):
+    """True, если коммит меняет ТОЛЬКО chat/** (тогда это бот чата, PDR-047)."""
+    cp = git(['show', '--name-only', '--format=', sha], cwd)
+    files = [f for f in cp.stdout.splitlines() if f.strip()]
+    if not files:
+        return False
+    return all(f.startswith(CHAT_PREFIX) for f in files)
 
 
 def scan(ref, cwd, limit=40):
@@ -54,9 +69,11 @@ def scan(ref, cwd, limit=40):
         checked += 1
         if len(ci['parents']) > 1:          # merge — штатный путь PR
             continue
-        if ci['subject'].startswith(BOT_PREFIX):   # бот чата (PDR-047)
+        if ci['subject'].startswith(BOT_PREFIX):   # бот чата по префиксу (PDR-047)
             continue
-        bad.append((ci['sha'], ci['subject']))
+        if touches_only_chat(ci['full_sha'], cwd):  # бот чата по составу файлов (PDR-047)
+            continue
+        bad.append((ci['full_sha'], ci['subject']))
     return bad, checked
 
 
@@ -67,7 +84,7 @@ def main_check(args):
         print('::error::check_direct_push: нечего проверять (не измерено)')
         return 2
     for sha, subj in bad:
-        print('::error::прямой пуш в main: %s %s' % (sha, subj[:100]))
+        print('::error::прямой пуш в main: %s %s' % (sha[:9], subj[:100]))
     if bad:
         print('check_direct_push: прямых пушей %d — роль пушит в role/<name>, в main через PR' % len(bad))
         return 1
@@ -106,19 +123,34 @@ def selftest():
     # 3) бот-коммит чата первой линией — разрешён
     os.makedirs(os.path.join(repo, '5-tech-backlog', 'chat'), exist_ok=True)
     commit('chat(bot): sync [skip ci]', '5-tech-backlog/chat/do.md')
+    # бот с другим префиксом — раньше это был ложный кнут
+    chat_only = commit('chat: убраны маркеры конфликта', '5-tech-backlog/chat/te.md')
+    # чат вместе с кодом — это уже прямой пуш роли, не бот
+    with open(os.path.join(repo, '7-deploy'), 'w', encoding='utf-8') as fh:
+        fh.write('x\n')
+    with open(os.path.join(repo, '5-tech-backlog', 'chat', 'tl.md'), 'w', encoding='utf-8') as fh:
+        fh.write('y\n')
+    r('add', '-A')
+    r('-c', 'user.email=t@t', '-c', 'user.name=role', 'commit', '-qm', 'do: чат и код вместе')
+    chat_plus_code = r('rev-parse', 'HEAD').stdout.strip()
 
     bad, checked = scan('HEAD', repo, limit=20)
     shas = [s for s, _ in bad]
     cases = [
-        ('найден прямой пуш', direct[:7] in shas),
-        ('merge-коммит не считается', merge_sha[:7] not in shas),
-        ('коммит из PR (второй родитель) не считается', branch_commit[:7] not in shas),
+        ('найден прямой пуш', any(x.startswith(direct[:7]) for x in shas)),
+        ('merge-коммит не считается', not any(x.startswith(merge_sha[:7]) for x in shas)),
+        ('коммит из PR (второй родитель) не считается',
+         not any(x.startswith(branch_commit[:7]) for x in shas)),
         ('бот-коммит чата не считается', not any('chat(bot)' in s for _, s in bad)),
-        ('проверено 4 коммита первой линии', checked == 4),
+        ('проверено 6 коммитов первой линии', checked == 6),
         # корневой коммит (`init`) тоже не merge и не бот — он честно попадает в список,
         # поэтому ожидаем ДВУХ нарушителей: init + прямой пуш роли. Первая версия ждала одного
         # и падала 5/6 — тест поймал сам себя, это и есть его работа.
-        ('нарушителей два: init + прямой пуш', len(bad) == 2),
+        ('нарушителей три: init + прямой пуш + chat&код', len(bad) == 3),
+        # 2026-11-13 14:05: бот коммитит чат и с префиксом `chat(bot):`, и с `chat:` —
+        # второй давал ложный кнут. Признак чата — состав файлов, а не сообщение.
+        ('коммит только chat/** не считается', chat_only not in [x[0] for x in bad]),
+        ('коммит chat + код считается', chat_plus_code in [x[0] for x in bad]),
     ]
     shutil.rmtree(base, ignore_errors=True)
     passed = sum(1 for _, ok in cases if ok)

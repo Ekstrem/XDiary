@@ -71,7 +71,7 @@
       "upstream": "tools/check_chat_shrink.py"
     },
     "check_direct_push.py": {
-      "sha256": "b73011437feb6b30d0fa3bb38e54ca24915d081e6bedd9335d18e5f682bef8fe",
+      "sha256": "26637f089bb831c842ea36ddecdbb4e547c7ad3deabf741eeeb42ba55f359e71",
       "synced_at": "2026-11-13",
       "upstream": "tools/check_direct_push.py"
     },
@@ -349,6 +349,11 @@
       "sha256": "d39a1bfb13df85bbbb7a6abb8d570c5cba19bb920c3b81b7c5cbddb036cd5725",
       "synced_at": "2026-11-13",
       "upstream": "tools/review_whip.py"
+    },
+    "role_worktree.py": {
+      "sha256": "0ce0abe7c2988a9e95c6e750c83dbe4db5835a0fe4171ad5d3e181990d92f8ad",
+      "synced_at": "2026-11-13",
+      "upstream": "tools/role_worktree.py"
     },
     "rollout_service.py": {
       "sha256": "cc9fb127809a8b8da314644568004ce27b29aec68cbc2b6cb8554fc79bc06970",
