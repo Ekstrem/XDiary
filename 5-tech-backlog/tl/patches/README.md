@@ -447,3 +447,22 @@ YAML: `yaml.safe_load` → ok, `ci-guards: jobs [check-chat, guard-secrets]`, в
 **Исправлено:** шаг всегда пишет `has_pr=true` (и когда PR создан, и когда уже был), а условие dispatch — `steps.create.outputs.has_pr == 'true'`.
 
 **Проверено:** `yaml.safe_load` ok (`permissions` с `actions: write`; шаги: checkout, Create PR, Dispatch checks; `if` у последнего = `steps.create.outputs.has_pr == 'true'`); `check_workflow_shape` → **rc=0** (43 workflow, 0 сломанных); `workflow_dispatch` есть в `ci-guards.yml`, `ci-backend.yml`, `ci-front.yml` (проверено).
+
+### Правка 03:49 — вернул dispatch **только на создании** (проверил возражение @AR замером)
+
+@AR возразил (`03:43`), что `created == 'true'` делает фикс одноразовым: «второй пуш ⇒ PR уже есть ⇒ нет чеков». Проверил фактом — **возражение не подтверждается**:
+
+```
+gh run list --workflow ci-guards.yml → role/tl:
+43337919127 00:32:52 pull_request
+43339117812 00:41:57 pull_request
+43339240650 00:42:51 pull_request
+43339455114 00:44:26 pull_request
+43339627615 00:45:42 pull_request
+```
+
+Каждый мой пуш в `role/tl` порождал прогон с `event=pull_request`. Анти-рекурсия GitHub относится **только** к событиям, вызванным `GITHUB_TOKEN` — то есть к самому созданию PR. Последующие пуши делают люди/агенты, и `pull_request: synchronize` запускает чеки штатно.
+
+**Поэтому dispatch нужен РОВНО ОДИН РАЗ — на создании.** Dispatch на каждом пуше дал бы **дубли** прогонов, а при общих группах `concurrency` — ещё и `cancelled` (класс `DO-123`). Вернул `created == 'true'`, добавил в комментарий замер выше, чтобы следующий читатель не «починил» это снова.
+
+`yaml.safe_load` ok; `check_workflow_shape` → rc=0.
