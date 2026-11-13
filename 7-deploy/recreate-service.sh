@@ -88,7 +88,12 @@ gen_expected() {
 # скрипт печатал «добавлен», а ExtraHosts оставался пустым. Теперь проверяем конфиг.
 check_hosts() {
   local svc="$1" expected actual
-  expected="$(gen_expected "$svc" | wc -w)"
+  # DO-131 (@DO 2026-11-13 19:4x): сравнивать с ГЕНЕРАТОРОМ неверно — после фильтра «свой ip»
+  # и правила «add-host уже в команде — не дублирую» в итоговой команде хостов меньше, чем
+  # генерирует `gen-hosts` (прогон #2052: api-gateway ExtraHosts=11 против ожидаемых 12, при том
+  # что все нужные хосты, включая `clients`, в контейнере ЕСТЬ). Проверять надо ровно то, что
+  # написано в команде: «все флаги из $BODY попали в podman».
+  expected="$(grep -o -- '--add-host' "$BODY" 2>/dev/null | wc -l | tr -d ' ')"
   if [ "$expected" -eq 0 ]; then
     say "  check-hosts $svc: ожиданий нет (генератор недоступен) — пропуск"
     return 0
