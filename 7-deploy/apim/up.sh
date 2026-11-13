@@ -148,7 +148,8 @@ echo "3b) management-ui"; run_ui
 echo "4) gateway"; run_gw
 echo "5) health management"; health
 echo "6) контроль: APIM В ПУТИ ТРАФИКА (с 2026-11-05, DO-076)"
-say "YARP /api/v1/clients: $(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:8080/api/v1/clients || echo 000)"
+# DO-085 (этап 2 ADR-030): YARP-проба удалена — публичный путь API идёт через
+# APIM/Caddy (18082/8081); проверка входа ниже это и подтверждает.
 say "APIM gateway /:        $(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/ || echo 000)"
 # Публичный вход обязан идти через gateway: 401 + наличие X-Gravitee (на проде — Caddy :8081,
 # на тесте/локально публичного входа в APIM может не быть — тогда здесь будет 000/404, и это

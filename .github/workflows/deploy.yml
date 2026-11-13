@@ -455,6 +455,15 @@ jobs:
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
           echo "TAG=$first" >> "$GITHUB_ENV"   # только для логов/проверки: update.sh читает lock сам
+      # DO-124: на VPS-1 скрипты НЕ доставлялись (base64-шаг был только в deploy-dev),
+      # поэтому там оставалась копия update.sh от старого релиза — отсюда
+      # «update.sh:59: say: command not found» и расхождение sha256 с эталоном шима.
+      - name: Lock и скрипты в env (base64) — прод
+        run: |
+          set -euo pipefail
+          echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
+          echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
+          echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         env:
@@ -463,7 +472,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64
           script: |
             set -euo pipefail
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
@@ -487,6 +496,23 @@ jobs:
             g="$(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/api/v1/catalog)"
             [ "$g" = "401" ] || { echo "::error::APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"; exit 1; }
             echo APIM_PREFLIGHT_OK
+            # DO-124: привести скрипты на VPS-1 к версии из git ДО вызова update.sh.
+            # Шим /home/deploy/update.sh делегирует в /opt/xdiary/7-deploy/update.sh —
+            # именно там лежала устаревшая копия (say: command not found).
+            cd /opt/xdiary/7-deploy
+            echo "$LOCK_B64" | base64 -d > images.lock
+            echo "$UPDATE_B64" | base64 -d > update.sh
+            echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            chmod +x update.sh recreate-service.sh
+            grep -q 'tag_of' update.sh || { echo "::error::update.sh без tag_of — доставка не удалась"; exit 1; }
+            grep -q 'say()' update.sh || { echo "::error::update.sh без say() — та же устаревшая копия"; exit 1; }
+            echo "DO-124: скрипты обновлены из git (update.sh $(wc -l < update.sh) строк)"
+            # шимы /home/deploy/*.sh пересоздаём детерминированно: их sha256-эталон
+            # считается от сгенерированного текста, поэтому после этого сходится.
+            if [ -f /opt/xdiary/7-deploy/legacy-shims.sh ]; then
+              bash /opt/xdiary/7-deploy/legacy-shims.sh >/dev/null
+              echo "DO-124: шимы пересозданы (legacy-shims.sh)"
+            fi
             bash /home/deploy/update.sh
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo PROD_OK

@@ -1,18 +1,20 @@
 # Готовность к тестированию — сводка с квитанциями (2026-11-13 11:3x)
 
-Состояние на `main` = `8b8cb5a71`. Формат: **пункт → что сделано → чем доказано**. Где доказательства нет — так и написано.
+Состояние на `main` = `aa3b0e98d`. Свежая квитанция — прогон `43394018588` (workflow_dispatch, sha `9d78c404`). Формат: **пункт → что сделано → чем доказано**. Где доказательства нет — так и написано.
 
 ## 1. Deploy (`main` → dev → prod)
 
-| Джоб последнего прогона `43379615221` (sha `33e2f503`) | Итог |
+| Джоб прогона `43394018588` (sha `9d78c404`) | Итог |
 |---|---|
 `diff-paths`, `lock-published` | ✅ |
 `deploy-dev` | ✅ |
-**`smoke-front`** | **✅** (был красный всю ночь) |
+**`smoke-front`** | **✅** (после `gh run rerun --failed`: 1-я попытка упала на флейке `add-partner` → `TE-110`) |
 `smoke-api` | ✅ |
-**`receipt-be092`** | **✅** (впервые за историю) |
+**`receipt-be092`** | **✅** |
 `smoke-prod-cors` | ✅ |
-**`deploy-prod`** | **❌** |
+**`deploy-prod`** | **❌** (единственный красный; причина ниже, патч №18) |
+
+Ранее тот же набор был подтверждён на прогоне `43379615221` (sha `33e2f503`): там `smoke-front` и `receipt-be092` тоже зелёные — то есть это не разовая удача.
 
 **Причина `deploy-prod` (найдена по логу, не гипотеза):**
 ```
@@ -65,3 +67,19 @@ dispatch обходит анти-рекурсию | в `ci-guards` есть `eve
 2. прогнать `deploy` на `main` — ожидаем `deploy-prod` ✅; если сторож эталона всё ещё ругается, прогнать на VPS-1 `/opt/xdiary/7-deploy/legacy-shims.sh` (пересоберёт шим и эталон, старый файл бэкапится).
 
 Ничего другого в цепочке не осталось: все предыдущие шаги зелёные **в одном прогоне**.
+
+## Как это перепроверить (команды)
+
+```bash
+# состояние деплоя на текущем main
+gh run list --workflow deploy.yml --limit 2
+# джобы конкретного прогона
+gh run view <run-id> --json jobs --jq '.jobs[] | "\(.name) \(.conclusion)"'
+# что именно не так с prod (если упал)
+gh run view <run-id> --log --job=<deploy-prod-job-id> | grep -E "APIM_PREFLIGHT|say:|разошёлся|sha256"
+# гейты на main локально
+python tools/check_awaits.py --strict && python tools/status_lint.py --strict \
+  && python tools/check_nul.py && python tools/stats.py --check && python tools/chat_lint.py --strict
+# патч №18 применяется?
+git apply --check 5-tech-backlog/tl/patches/deploy-prod-deliver-update-sh.patch
+```
