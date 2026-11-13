@@ -162,11 +162,16 @@ jobs:
           # Второй адрес — ЛОКАЛЬНАЯ статика, куда спека реально делает goto (`serve.js`, 4173).
           # Прогоны #36/#37: dev-стенд зелёный, а goto падал именно на 4173 — проверка только
           # dev-стенда этого не видела.
-          local_code="$(curl -s -o /dev/null -m 20 -w '%{http_code}' http://127.0.0.1:4173/ || echo 000)"
+          # @TE 09:55 + @DO: статику 4173 поднимает САМ Playwright (`webServer: node serve.js`,
+          # `reuseExistingServer: true` в playwright.config.js), то есть ДО старта тестов она по
+          # определению не отвечает. Проверка была блокирующей => прогон падал до спеки
+          # (run #58 на role/te-wizard2: «статика 4173 -> 000»). Теперь это диагностика:
+          # реальная проверка — сам webServer Playwright (он падает внятно, если serve.js не поднялся).
+          local_code="$(curl -s -o /dev/null -m 10 -w '%{http_code}' http://127.0.0.1:4173/ 2>/dev/null || true)"
+          local_code="${local_code:-000}"
           echo "preflight: локальная статика http://127.0.0.1:4173/ -> $local_code (момент $(date -u +%H:%M:%SZ))"
           if [ "$local_code" != "200" ]; then
-            echo "::error::локальная статика 4173 не отвечает ($local_code) — спека навигируется на неё; это харнесс/стенд, а не продукт"
-            exit 1
+            echo "::notice::4173 ещё не поднята ($local_code) — её стартует webServer Playwright перед спеками; это не дефект стенда"
           fi
 
       - name: Repeat run (list)
