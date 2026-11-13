@@ -557,6 +557,18 @@ jobs:
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
             fi
             set -euo pipefail
+            # DO-129 ч.3 (@TL 2026-11-13 20:2x): ремонт обязан ТЕРПЕТЬ то состояние, которое лечит.
+            # В прогоне 43471272718 прод-джоб впервые поехал (break-glass сработал), но умер на preflight:
+            # `APIM gateway: /api/v1/catalog = 200 (ожидали 401)` — старый APIM отдаёт каталог анонимно,
+            # это ровно те нарушители, которых и лечим. При allow_prod_repair вход проверяем, но не блокируем.
+            fail_or_warn() {
+              if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
+                echo "::warning::РЕМОНТ: $*"
+              else
+                echo "::error::$*"
+                exit 1
+              fi
+            }
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
             # `me/profile` = 1, контрольная `api/v1/clients` = 1; `GET /clients` закрыт
@@ -573,10 +585,10 @@ jobs:
             # сломанный вход.
             for c in xdiary-apim-gateway xdiary-apim-management xdiary-apim-ui xdiary-apim-mongo; do
               s="$(podman inspect "$c" --format '{{.State.Status}}' 2>/dev/null || echo missing)"
-              [ "$s" = "running" ] || { echo "::error::APIM: $c = $s (ожидали running) — деплой остановлен"; exit 1; }
+              [ "$s" = "running" ] || fail_or_warn "APIM: $c = $s (ожидали running) — деплой остановлен"
             done
             g="$(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/api/v1/catalog)"
-            [ "$g" = "401" ] || { echo "::error::APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"; exit 1; }
+            [ "$g" = "401" ] || fail_or_warn "APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"
             echo APIM_PREFLIGHT_OK
             # DO-124: привести скрипты на VPS-1 к версии из git ДО вызова update.sh.
             # Шим /home/deploy/update.sh делегирует в /opt/xdiary/7-deploy/update.sh —
@@ -618,7 +630,7 @@ jobs:
             # вход жив. Проверяем сам публичный путь: 401 (а не 404/502) + x-gravitee.
             ph="$(curl -sS -D /tmp/pub_hdr.txt -o /dev/null -w '%{http_code}' -m 8 \
                   -H 'Host: xdiary-vps1.taile0b6ee.ts.net' http://127.0.0.1:8081/api/v1/catalog)"
-            [ "$ph" = "401" ] || { echo "::error::публичный вход: /api/v1/catalog = $ph (ожидали 401; 404 = APIM без маршрута, 502 = APIM мёртв)"; exit 1; }
+            [ "$ph" = "401" ] || fail_or_warn "публичный вход: /api/v1/catalog = $ph (ожидали 401; 404 = APIM без маршрута, 502 = APIM мёртв)"
             grep -qi 'x-gravitee' /tmp/pub_hdr.txt || { echo "::error::публичный вход без x-gravitee — трафик идёт МИМО APIM"; exit 1; }
             echo APIM_IN_PATH_OK
 
