@@ -511,3 +511,15 @@ APIM_PREFLIGHT_OK
 **Проверено:** `yaml.safe_load` ok (**8 jobs**, `smoke-front` — 12 шагов), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
 
 **После применения:** первый `deploy` на `main` должен дать `smoke-front` **success** без повторов; в логе появится строка `API dev готов: GET /api/v1/clients/me -> 401 (попытка N)`.
+
+### Проверка предположения патча №19 на живом стенде (2026-11-13 12:0x)
+
+Шаг ждёт «не 5xx», и ожидаемый код `401` подтверждён **снаружи**, а не по документации:
+
+```
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/health          -> 200
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api/v1/clients/me -> 401
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api/v1/catalog    -> 401
+```
+
+То есть `401` на `/api/v1/clients/me` — это штатное «сервис жив, аноним не авторизован», и проба не создаёт данных. Если в окне пересоздания контейнеров будет `502`, шаг подождёт, а не упадёт.
