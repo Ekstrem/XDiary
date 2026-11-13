@@ -542,3 +542,17 @@ Process exited with status 1
 **Что делает патч:** добавляет `LEGACY_B64` в шаг подготовки, доставляет `legacy-shims.sh` рядом с остальными, проверяет маркер `DO-066` и **безусловно** пересоздаёт шимы (`make_shim` пишет новый шим, а он `exec`-ит живой скрипт — сторожа на нём уже нет).
 
 **Проверено:** `yaml.safe_load` ok (8 jobs), `envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64`, `check_workflow_shape` 43/0, `check_yaml_dups` — 0 дублей.
+
+## 21. `smoke-front-readiness-deep-probe.patch` — готовность dev должна доходить ДО сервиса (P0, блокирует deploy-prod)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 18:0x. **Статус:** ждёт применения.
+
+**Дефект (замер, не гипотеза).** Прогон `43447361176` (sha `5f7bdca4`): `smoke-front` ✅, но `smoke-api` ❌ и `receipt-be092` ❌, `deploy-prod` skipped.
+Из лога `receipt-be092` (job `131962378438`): `POST /clients {phone: +799…54} → 502` → `check_be092_delivery: занятый номер: ожидали 409 + clientId, получили 502`.
+Из лога `smoke-api`: `канон входа: не измерено ДВАЖДЫ (rc=2)`.
+
+**Причина.** Шаг «Готовность API dev» проверяет `GET /api/v1/clients` и `GET /api/v1/clients/me` — оба отвечает **шлюз** (401 до авторизации), поэтому проба зеленеет, пока сам **сервис** `clients` ещё не поднялся. `POST /clients` доходит до сервиса и получает 502.
+
+**Что делает патч.** Добавляет третью пробу — `POST /api/v1/clients` с пустым телом `{}`; ожидание — **400** (валидация из сервиса), 5xx/000 = ждём. Проверено на живом dev: `POST /clients {}` → **400** (`The Phone field is required.`), то есть проба доходит до сервиса и не создаёт данных.
+
+**Проверено:** `yaml.safe_load` ok (8 jobs), `check_workflow_shape` — 43/0.
