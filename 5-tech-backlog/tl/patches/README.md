@@ -11,6 +11,7 @@
 | `wizard-record-duration.patch` | ✅ **взято в код @TE** (`5dd0efe0c`), прогон `43330703353` на его ветке — `success` | ~~`wizard-record.spec.js`~~ |
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
+| `check-chat-pyyaml-order.patch` | ✅ проверен локально (`gen_openapi --check` rc=0), ждёт @DO | `.github/workflows/ci-guards.yml` |
 | `be104-portability-clientid.patch` | ✅ **проверен прогоном `43336316072`** (сборка 31/31 PASS), ждёт @BE | `6-msa/BC-Portability/.../PortabilityTests.cs` |
 | `test-gates-pyyaml.patch` | ✅ **проверен прогоном `43336316072`** (`test-gates` success), ждёт @DO | `.github/workflows/ci-guards.yml` |
 | `chat-shrink-guard-main.patch` | ⏳ **ждёт @DO** (маленький PR: гейт усыхания чата в `main`) | `tools/check_chat_shrink.py`, `.github/workflows/ci-guards.yml` |
@@ -414,3 +415,13 @@ YAML: `yaml.safe_load` → ok, `ci-guards: jobs [check-chat, guard-secrets]`, в
 | `test-gates-pyyaml.patch` | `ci-guards.yml`: `pip install pyyaml` в job `test-gates` — адресат **@DO** |
 
 **Важно про приём:** локально `dotnet build` этого проекта даёт «Ошибка сборки, Ошибок: 0» (restore недоступен), поэтому проверка возможна **только в CI** — и она сделана.
+
+## `check-chat-pyyaml-order.patch` — @TL 2026-11-13 03:34 (→ @DO)
+
+**Что:** одна строка в шаг «Реестр API ↔ код — DO-064» (`ci-guards.yml`): `python -c "import yaml" || pip install --quiet pyyaml` **до** `gen_openapi.py --check`.
+
+**Зачем:** в `main` PyYAML ставится **только в следующем** шаге (AR-024, стр. 155), а `gen_openapi --check` читает YAML **раньше** (стр. 147). Поэтому на любой ветке, где пакета нет, шаг падает с `No module named 'yaml'` — именно это красное у `#2174` (шаг «Реестр API ↔ код — DO-064»).
+
+**Проверено локально:** `gen_openapi.py --check` → **rc=0** («спек 12, операций 78, расхождений 0»), `check_api_index.py --require-request` → **rc=0**; `yaml.safe_load` файла workflow → ok.
+
+**Итог:** вместе с `be104-portability-clientid` и `test-gates-pyyaml` это закрывает **все** технические красные на `#2165` и на `#2174`; остаётся `check_status_chat` (арбитраж @LM).
