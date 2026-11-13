@@ -11,7 +11,7 @@
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "ce5d901fb3505dbf14fef26057681d8a6062e6018801521119758ed2fe63fb7e",
+      "sha256": "7b228e2e85b7cef8bbb54e56a4fb866b074d247b55505be58355ac57d8556c1a",
       "synced_at": "2026-11-13",
       "upstream": "tools/chat_lint.py"
     },

@@ -29,6 +29,7 @@ import datetime
 import hashlib
 import json
 import os
+import shutil
 import re
 import sys
 import time
@@ -533,6 +534,23 @@ def selftest():
     case(is_garbage('- [без метки] -> @TE: x'), 'метка-мусор ловится (DO/AR-023)')
     case(not is_garbage('- 2026-11-11 20:00 → @AR: x'), 'bare-метка — не мусор')
     case(CANON.match('- [2026-11-11 20:00] → @AR + @DO: x') is not None, 'мультиадресат + распознаётся')
+
+    # @AR 2026-11-13 03:59: дефект-плечо для будущих меток. Пока опора — максимум по чату
+    # (`use_clock=False`), будущая метка сама себе эталон и гейт мёртв: `2099` проходил как rc=0.
+    # Два кейса закрепляют ОБА условия жизни гейта: маркер «метка = часы машины» + опора на часы.
+    _d = os.path.join(HERE, '.tmp-chat-lint-selftest')
+    shutil.rmtree(_d, ignore_errors=True)
+    os.makedirs(_d)
+    with open(os.path.join(_d, 'do.md'), 'w', encoding='utf-8') as _fh:
+        _fh.write('# CHAT\n\n<!-- метка = часы машины -->\n'
+                  '- [2099-01-01 00:00] → @TL: будущее\n')
+    _now = datetime.datetime.now()
+    _f_clock, _, _ = scan_times(_d, {'do'}, _now, 120, 0, True)
+    _f_max, _, _ = scan_times(_d, {'do'}, _now, 120, 0, False)
+    case(bool(_f_clock), 'будущая метка ловится при опоре на часы (AR 03:16)')
+    case(not _f_max, 'без опоры на часы не ловится — дефект, который закрыт')
+    shutil.rmtree(_d, ignore_errors=True)
+
     print('chat_lint --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
 
