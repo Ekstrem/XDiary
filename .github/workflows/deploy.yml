@@ -136,6 +136,7 @@ jobs:
           echo "DEV_E2E_B64=$(base64 -w0 7-deploy/env/dev.e2e.env)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+          echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
@@ -394,6 +395,34 @@ jobs:
             sleep 2
           done
           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
+      # @TL 2026-11-13 11:47 (предложение по зоне @DO): `/health` идёт МИМО API (Caddy отвечает
+      # сам), поэтому зелёный `/health` не означает «API поднялся». Из-за этого `smoke-front`
+      # краснел на 502 от `/api/v1/clients`, а красный `smoke-front` гасил `receipt-be092` через
+      # `needs` — то есть один неготовый API стоил целого цикла. Ждём готовность API по факту:
+      # любой код, кроме 5xx/000 (200 и 401 одинаково означают «сервис отвечает»).
+      # TE-110 / @TL 2026-11-13 11:4x: между `deploy-dev` и готовностью сервиса есть окно, когда
+      # Caddy уже отдаёт `/health`, а сервис ещё пересоздаётся → `/api/v1/clients` = 502.
+      # Замер: `front-e2e-repeat` на `main` (`add-partner`, repeat=3) — 1 passed / 2 failed с
+      # «Вход не завершился … http 502». Красный `smoke-front` гасит `receipt-be092` через `needs`,
+      # поэтому ждём НЕ `/health` (его отдаёт Caddy, мимо API), а сам API без 5xx.
+      # Проверяем ДВА пути: `/clients` (401 анонимно) и `/clients/me` (401 — «сервис жив», токен не нужен).
+      # Готово только когда ОБА не 5xx/000 — иначе окно пересоздания одной реплики ещё открыто.
+      - name: Готовность API dev (не 5xx на /api/v1/clients и /clients/me)
+        run: |
+          set -uo pipefail
+          last=""
+          for i in $(seq 1 60); do
+            c1="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
+            c2="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients/me 2>/dev/null || true)"
+            c1="${c1:-000}"; c2="${c2:-000}"
+            last="clients=$c1 clients/me=$c2"
+            case "$c1" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
+            case "$c2" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
+            echo "::notice::API dev готов: $last (попытка $i; 401 = сервис жив, токен не нужен)"
+            exit 0
+          done
+          echo "::error::dev API не поднялся за 180 с ($last) — это инфраструктура, а не дефект фронта"
+          exit 1
       # DO-099 (@TL 2026-11-13 01:34): `check_otp_leak` был сиротой — не запускался нигде.
       # Его место здесь: после `deploy-dev` туннель 127.0.0.1:8080 уже поднят, и утечку OTP
       # в ответах видно на живом контуре. В `ci-guards` он бессмысленен (нет стенда -> rc=2).
@@ -455,15 +484,35 @@ jobs:
           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
           echo "TAG=$first" >> "$GITHUB_ENV"   # только для логов/проверки: update.sh читает lock сам
+      # DO-124: на VPS-1 скрипты НЕ доставлялись (base64-шаг был только в deploy-dev),
+      # поэтому там оставалась копия update.sh от старого релиза — отсюда
+      # «update.sh:59: say: command not found» и расхождение sha256 с эталоном шима.
+      - name: Lock и скрипты в env (base64) — прод
+        run: |
+          set -euo pipefail
+          echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
+          echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
+          echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+          # DO-124 ч.2: шим `/home/deploy/update.sh` падал на своём стороже ДО вызова живого
+          # скрипта, потому что `legacy-shims.sh` на VPS-1 отсутствовал. envs уже расширены
+          # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
+          # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
+          echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+          # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
+          # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
+          # нельзя: правка в `7-deploy/`/`.github/` не пересобирает образы, но выглядит
+          # «код новее образов» — прод вставал на каждом инфраструктурном коммите.
+          code_ts="$(git log -1 --format=%cI -- 6-msa 8-front 2>/dev/null || true)"
+          [ -n "$code_ts" ] || code_ts="$(git log -1 --format=%cI)"
+          echo "CODE_TS=$code_ts" >> "$GITHUB_ENV"
+          echo "CODE_TS (по коду, не по инфре): $code_ts"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
-        env:
-          CODE_TS: ${{ github.event.head_commit.timestamp }}
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64
           script: |
             set -euo pipefail
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
@@ -487,6 +536,31 @@ jobs:
             g="$(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/api/v1/catalog)"
             [ "$g" = "401" ] || { echo "::error::APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"; exit 1; }
             echo APIM_PREFLIGHT_OK
+            # DO-124: привести скрипты на VPS-1 к версии из git ДО вызова update.sh.
+            # Шим /home/deploy/update.sh делегирует в /opt/xdiary/7-deploy/update.sh —
+            # именно там лежала устаревшая копия (say: command not found).
+            cd /opt/xdiary/7-deploy
+            echo "$LOCK_B64" | base64 -d > images.lock
+            echo "$UPDATE_B64" | base64 -d > update.sh
+            echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            chmod +x update.sh recreate-service.sh
+            grep -q 'tag_of' update.sh || { echo "::error::update.sh без tag_of — доставка не удалась"; exit 1; }
+            grep -q 'say()' update.sh || { echo "::error::update.sh без say() — та же устаревшая копия"; exit 1; }
+            echo "DO-124: скрипты обновлены из git (update.sh $(wc -l < update.sh) строк)"
+            # шимы /home/deploy/*.sh пересоздаём детерминированно: их sha256-эталон
+            # считается от сгенерированного текста, поэтому после этого сходится.
+            # DO-124 ч.2 (@TL 2026-11-13 12:1x): `legacy-shims.sh` на VPS-1 отсутствовал, поэтому
+            # шим `/home/deploy/update.sh` оставался старым и падал на своём же
+            # стороже «разошёлся со снимком» (sha256 9173778a != 7b62a233) ДО вызова живого скрипта.
+            # Доставляем его из git и пересоздаём шимы детерминированно.
+            [ -n "${LEGACY_B64:-}" ] || { echo "::error::LEGACY_B64 пуст — шаг подготовки не передал legacy-shims.sh"; exit 1; }
+            echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
+            [ -s legacy-shims.sh ] || { echo "::error::legacy-shims.sh пуст после декода — base64 повреждён"; exit 1; }
+            chmod +x legacy-shims.sh
+            grep -q 'запрещено: тег задаётся только images.lock' legacy-shims.sh \
+              || { echo "::error::legacy-shims.sh без DO-066 — доставка не удалась"; exit 1; }
+            bash legacy-shims.sh >/dev/null
+            echo "DO-124: шимы пересозданы из git (legacy-shims.sh)" 
             bash /home/deploy/update.sh
             sleep 20
             curl -fsS http://127.0.0.1:8080/health && echo PROD_OK
