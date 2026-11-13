@@ -1,0 +1,48 @@
+diff --git a/openapi/api-gateway.json b/openapi/api-gateway.json
+index f665b4019..83767c3bb 100644
+--- a/openapi/api-gateway.json
++++ b/openapi/api-gateway.json
+@@ -5,11 +5,6 @@
+     "version": "2026-11-04",
+     "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+   },
+-  "servers": [
+-    {
+-      "url": "/"
+-    }
+-  ],
+   "x-derived-from": "04-architecture/api-index.yaml",
+   "x-generated-at": "2026-11-04",
+   "x-operations": 1,
+diff --git a/openapi/journal.json b/openapi/journal.json
+index 43f2af730..b92e50d3a 100644
+--- a/openapi/journal.json
++++ b/openapi/journal.json
+@@ -5,11 +5,6 @@
+     "version": "2026-11-04",
+     "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+   },
+-  "servers": [
+-    {
+-      "url": "/"
+-    }
+-  ],
+   "x-derived-from": "04-architecture/api-index.yaml",
+   "x-generated-at": "2026-11-04",
+   "x-operations": 20,
+diff --git a/openapi/partners.json b/openapi/partners.json
+index d51b36bea..409307365 100644
+--- a/openapi/partners.json
++++ b/openapi/partners.json
+@@ -5,11 +5,6 @@
+     "version": "2026-11-04",
+     "description": "Контрактный реестр, сгенерированный из 04-architecture/api-index.yaml (operationId — единственный идентификатор операции). Финальный реестр из кода — BE-050."
+   },
+-  "servers": [
+-    {
+-      "url": "/"
+-    }
+-  ],
+   "x-derived-from": "04-architecture/api-index.yaml",
+   "x-generated-at": "2026-11-04",
+   "x-operations": 8,
