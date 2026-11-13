@@ -498,10 +498,16 @@ jobs:
           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
           # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+          # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
+          # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
+          # нельзя: правка в `7-deploy/`/`.github/` не пересобирает образы, но выглядит
+          # «код новее образов» — прод вставал на каждом инфраструктурном коммите.
+          code_ts="$(git log -1 --format=%cI -- 6-msa 8-front 2>/dev/null || true)"
+          [ -n "$code_ts" ] || code_ts="$(git log -1 --format=%cI)"
+          echo "CODE_TS=$code_ts" >> "$GITHUB_ENV"
+          echo "CODE_TS (по коду, не по инфре): $code_ts"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
-        env:
-          CODE_TS: ${{ github.event.head_commit.timestamp }}
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
