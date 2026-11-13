@@ -25,6 +25,10 @@ on:
         description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
         type: boolean
         default: false
+      reimport_apim:
+        description: 'Ре-импорт openapi/*.json в Gravitee APIM (нужно после правки спек: APIM хранит определение у себя)'
+        type: boolean
+        default: false
       stop_before_prod:
         description: 'Остановиться до deploy-prod (dev + smoke-api + контракт журнала, без прода)'
         type: boolean
@@ -531,6 +535,8 @@ jobs:
           # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
           echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
+          echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
+          echo "OPENAPI_B64=$(tar -czf - openapi | base64 -w0)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
@@ -548,12 +554,13 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           ALLOW_PROD_REPAIR: ${{ inputs.allow_prod_repair }}
+          REIMPORT_APIM: ${{ inputs.reimport_apim }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -571,6 +578,22 @@ jobs:
                 exit 1
               fi
             }
+            # AR-160 (@TL 2026-11-13 23:4x): APIM хранит определение API у себя, поэтому правка
+            # `openapi/*.json` в git НЕ влияет на живой шлюз. После смены спек нужен ре-импорт.
+            # Делаем это по явному входу `reimport_apim` (default false), чтобы не плодить API
+            # на каждом обычном деплое.
+            if [ "${REIMPORT_APIM:-false}" = "true" ]; then
+              echo "APIM-REIMPORT: доставляю openapi/*.json и import.sh, затем ре-импорт"
+              mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
+              echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+              chmod +x /opt/xdiary/7-deploy/apim/import.sh
+              tar -xzf - -C /opt/xdiary <<< "$(printf %s "$OPENAPI_B64" | base64 -d)" || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+              if bash /opt/xdiary/7-deploy/apim/import.sh; then
+                echo "APIM-REIMPORT: ре-импорт выполнен"
+              else
+                fail_or_warn "APIM-REIMPORT: import.sh вернул ошибку — API в шлюзе могли остаться прежними"
+              fi
+            fi
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
             # `me/profile` = 1, контрольная `api/v1/clients` = 1; `GET /clients` закрыт
