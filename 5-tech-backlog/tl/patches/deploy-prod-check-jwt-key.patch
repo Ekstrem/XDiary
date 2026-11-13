@@ -1,0 +1,30 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index dd6e30be9..96954c67a 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -615,6 +615,25 @@ jobs:
+             [ -n "${GENHOSTS_B64:-}" ] || { echo "::error::GENHOSTS_B64 пуст — шаг подготовки не передал tools/gen-hosts.py"; exit 1; }
+             echo "$GENHOSTS_B64" | base64 -d > /opt/xdiary/tools/gen-hosts.py
+             echo "DO-129: gen-hosts.py доставлен из git ($(wc -l < /opt/xdiary/tools/gen-hosts.py) строк)"
++            # BE-115 (@TL 2026-11-13 21:4x): 26 из 51 нарушителей контракта на проде — это
++            # `Jwt__SigningKey`. `JwtSigningKey.Resolve` вызывается внутри `AddJwtBearer(...)`,
++            # то есть на КАЖДОЙ проверке токена: если ключа нет, защищённый эндпоинт отвечает
++            # 500 вместо 401 (проверено: GET /api/v1/journal/records → 500).
++            # Проверяем НАЛИЧИЕ и базовую валидность ключа, ЗНАЧЕНИЕ НЕ ПЕЧАТАЕМ никогда.
++            if [ -f /opt/xdiary/secrets/.env ]; then
++              if grep -q '^Jwt__SigningKey=' /opt/xdiary/secrets/.env; then
++                kv="$(grep -m1 '^Jwt__SigningKey=' /opt/xdiary/secrets/.env | cut -d= -f2- | tr -d '\r')"
++                if [ "${#kv}" -ge 32 ] && printf '%s' "$kv" | base64 -d >/dev/null 2>&1; then
++                  echo "BE-115: Jwt__SigningKey есть и валиден как base64 (длина ${#kv})"
++                else
++                  fail_or_warn "BE-115: Jwt__SigningKey есть, но НЕ валиден (len=${#kv}, base64-декод не прошёл) — защищённые эндпоинты будут отдавать 500 вместо 401"
++                fi
++              else
++                fail_or_warn "BE-115: в /opt/xdiary/secrets/.env НЕТ Jwt__SigningKey — защищённые эндпоинты будут отдавать 500 вместо 401"
++              fi
++            else
++              echo "BE-115: /opt/xdiary/secrets/.env не найден — пропускаю проверку ключа"
++            fi
+             echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
+             [ -s legacy-shims.sh ] || { echo "::error::legacy-shims.sh пуст после декода — base64 повреждён"; exit 1; }
+             chmod +x legacy-shims.sh
