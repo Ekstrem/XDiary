@@ -85,8 +85,22 @@ async function dumpViews(page, where) {
     const diag = await page.evaluate(() => {
       const nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || {};
       const ids = Array.from(document.querySelectorAll('[id]')).slice(0, 5).map((el) => el.id);
+      // @DO 2026-11-13 13:02: без этих полей вопрос «404 на 4173» решается гаданием.
+      // e2e=false ⇒ фронт не в E2E-режиме; apiBase=null ⇒ база пуста, значит запрос уйдёт
+      // относительным путём на статик-сервер (4173) — это и есть наблюдаемый 404.
+      let apiBase = null;
+      let apiBaseWorking = null;
+      let swCtl = false;
+      try { apiBase = localStorage.getItem('xdiary.apiBase'); } catch (e) {}
+      try { apiBaseWorking = localStorage.getItem('xdiary.apiBaseWorking'); } catch (e) {}
+      try { swCtl = !!navigator.serviceWorker.controller; } catch (e) {}
       return {
         url: location.href,
+        e2e: window.__XDIARY_E2E__ === true,
+        apiBase,
+        apiBaseWorking,
+        origin: location.origin,
+        sw: swCtl,
         status: typeof nav.responseStatus === 'number' ? nav.responseStatus : -1,
         readyState: document.readyState,
         htmlLen: document.body ? document.body.innerHTML.length : -1,

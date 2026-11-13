@@ -57,7 +57,11 @@ test('E2E: партнёр — добавить в приложении, увид
   } catch (e) {
     const names = await page
       .locator('#partners-list .partner-row')
-      .evaluateAll((rows) => rows.map((r) => (r.innerText || '').trim().split('\n')[0]).slice(0, 10))
+      .evaluateAll((rows) => rows.map((r) => {
+        const n = r.querySelector('.partner-row-name, span');
+        const txt = ((n && n.textContent) || r.innerText || '').trim();
+        return txt.slice(0, 40);
+      }).slice(0, 10))
       .catch(() => []);
     const fromApi = await page
       .evaluate(async () => {
