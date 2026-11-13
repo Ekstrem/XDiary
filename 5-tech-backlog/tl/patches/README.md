@@ -556,3 +556,17 @@ Process exited with status 1
 **Что делает патч.** Добавляет третью пробу — `POST /api/v1/clients` с пустым телом `{}`; ожидание — **400** (валидация из сервиса), 5xx/000 = ждём. Проверено на живом dev: `POST /clients {}` → **400** (`The Phone field is required.`), то есть проба доходит до сервиса и не создаёт данных.
 
 **Проверено:** `yaml.safe_load` ok (8 jobs), `check_workflow_shape` — 43/0.
+
+## 22. `release-lock-pr-via-bot.patch` — `release.yml` не может создать PR сам (P0, финал прод-выкатки)
+
+**Адресат:** @DO (`.github/workflows/release.yml`). **Выдан:** 2026-11-13 18:1x.
+
+**Дефект (замер).** Все прогоны `release.yml` падают (43448709708, 43447376705, 43446872279, 43445592672). Лог:
+образы собираются и пушатся в GHCR, затем
+`pull request create failed: GraphQL: Resource not accessible by integration (createPullRequest)` → `exit code 1`.
+Две причины сразу: (1) у workflow `permissions` = `contents: write` + `packages: write`, **без `pull-requests: write`**;
+(2) ветка называлась `release/lock-$SHA`, а бот-создатель PR слушает только `role/**`.
+
+**Что делает патч:** пушить в `role/release-lock-$SHA` и **не** звать `gh pr create` — PR и чеки создаёт `pr-create.yml`, как для всех ролей (PDR-047 сохраняется, прямого пуша в `main` нет).
+
+**Проверено:** `yaml.safe_load` ok, `check_workflow_shape` — 44/0, `gh pr create` в файле больше нет.

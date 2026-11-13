@@ -83,18 +83,21 @@ jobs:
             echo "::notice::lock уже консистентен"
             exit 0
           fi
-          branch="release/lock-$SHA"
+          # DO-125 ч.2 (@TL 2026-11-13 18:1x): `permissions` у этого workflow —
+          # `contents: write` + `packages: write`, БЕЗ `pull-requests: write`, поэтому
+          # `gh pr create` падал: «GraphQL: Resource not accessible by integration
+          # (createPullRequest)» (замер: прогоны release 43448709708, 43447376705, ...).
+          # И ветка `release/*` не попадает под триггер `pr-create.yml` (`role/**`).
+          # Решение без PAT: пушим в `role/release-lock-<sha>` — PR и чеки делает бот
+          # (`pr-create.yml`), как для всех ролей. Прямого пуша в main по-прежнему нет.
+          branch="role/release-lock-$SHA"
           git config user.name "release-bot"
           git config user.email "release-bot@users.noreply.github.com"
           git checkout -B "$branch"
           git add 7-deploy/images.lock
           git commit -m "release: все сервисы с коммита $SHA (DO-125)"
           git push origin "HEAD:$branch"
-          gh pr create --base main --head "$branch" \
-            --title "release: lock с одного коммита $SHA (DO-125)" \
-            --body "Все сервисы собраны с коммита \`$SHA\`; в \`images.lock\` один \`commit=\` (DO-125). Создан workflow \`release\` — без прямого пуша в main (PDR-047)." \
-            || gh pr view "$branch" >/dev/null 2>&1
-          echo "::notice::PR с lock создан ($branch) — мерж как обычно, через PR"
+          echo "::notice::ветка $branch запушена — PR и чеки создаст pr-create.yml (PDR-047)"
       - name: Квитанция
         if: always()
         run: |
