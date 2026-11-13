@@ -107,6 +107,7 @@ jobs:
     - name: Очистить накопленные E2E-данные на dev (DO-044)
       uses: appleboy/ssh-action@v1
       with:
+        port: 8237
         host: ${{ secrets.DEV_SSH_HOST }}
         username: ${{ secrets.DEV_SSH_USER }}
         key: ${{ secrets.DEV_SSH_KEY }}

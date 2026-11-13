@@ -140,6 +140,7 @@ jobs:
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
+          port: 8237
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
@@ -354,6 +355,7 @@ jobs:
         env:
           CLEANUP_B64: ${{ env.CLEANUP_SCRIPT_B64 }}
         with:
+          port: 8237
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
@@ -386,7 +388,7 @@ jobs:
           set -euo pipefail
           install -m 600 /dev/null /tmp/dev_key
           printf '%s\n' "$DEV_KEY" > /tmp/dev_key
-          ssh -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -p 8237 -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -o ExitOnForwardFailure=yes -f -N -L 8080:127.0.0.1:8080 "$DEV_USER@$DEV_HOST"
           for i in $(seq 1 30); do
             if curl -fsS -m 3 http://127.0.0.1:8080/health >/dev/null; then
@@ -513,6 +515,7 @@ jobs:
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         with:
+          port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
