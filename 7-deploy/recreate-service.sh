@@ -237,6 +237,24 @@ if [ -n "${lock_tag:-}" ]; then
     fi
   fi
 fi
+# DO-129 (@TL 2026-11-13 19:4x): СЕТЬ ПРОВЕРЯЕМ ДО УДАЛЕНИЯ КОНТЕЙНЕРА.
+# Прод-инцидент 43461987716: сети `xdiary` на VPS-1 не оказалось
+# (`unable to find network configuration for xdiary: network not found`), а скрипт уже
+# снял контейнеры — в итоге прод отвечал `POST /api/v1/clients → 500`, потому что сервисы
+# остались снятыми, и откат тоже не мог их запустить. В репозитории сеть `xdiary`
+# НИКТО не создаёт (создаётся только `apim` в `apim/up.sh`) — она была создана руками.
+# Теперь: нет сети → пробуем создать (подсеть как в `deploy.sh`: 10.89.9.0/24),
+# не вышло → ВЫХОДИМ, не трогая работающий контейнер.
+if ! podman network exists xdiary >/dev/null 2>&1; then
+  echo "  сети xdiary нет — создаю (подсеть 10.89.9.0/24, как в deploy.sh)"
+  sudo -n podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || \
+    podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || true
+  if ! podman network exists xdiary >/dev/null 2>&1; then
+    echo "  ОШИБКА: сети xdiary нет и создать не удалось — контейнер НЕ трогаю" >&2
+    exit 4
+  fi
+  echo "  сеть xdiary создана"
+fi
 podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
 # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
 # `podman run` падает с "error configuring network namespace". В `update.sh` это
