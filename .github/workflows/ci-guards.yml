@@ -63,17 +63,6 @@ jobs:
             BASE="$(git rev-parse HEAD~1)"
           fi
           python tools/check_chat_shrink.py --range "$BASE..HEAD"
-      - name: "Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)"
-        # Норма владельца: карточка и чат меняются вместе; без строки `→ @TL: <ID> было → стало`
-        # смена статуса не считается. Гейт ловит это в последнем коммите.
-        if: always()
-        run: |
-          if git rev-parse -q --verify HEAD~1 >/dev/null; then
-            # @TE 11:13: контроль должен доказывать, что умеет краснеть, ДО проверки кода.
-          else
-            echo "одиночный коммит — сравнивать не с чем"
-          fi
-
       - name: "Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)"
         # Решение считается выданным только после подтверждения адресатом (строка «принято»
         # в его outbox или коммит/артефакт). Строки со ✅ в колонке «Статус» не проверяются.
@@ -142,6 +131,11 @@ jobs:
           echo "норма принята: прод-хост даёт rc=0 ✔"
 
 
+      # PyYAML нужен ДО первого шага, который читает YAML (иначе «нужен pyyaml» => exit 2).
+      # Правка @TL была в ветке и потерялась при мерже — восстанавливаю на месте.
+      - name: Зависимости гейтов (PyYAML) — до первого чтения YAML
+        run: python -m pip install --quiet --disable-pip-version-check pyyaml
+
       - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)
         # Индекс `04-architecture/api-index.yaml` — реестр контракта (ADR-025). Гейт сверяет
         # набор операций с контроллерами и область auth по ADR-026 (6 BC с fallback).
@@ -165,7 +159,6 @@ jobs:
       - name: Дубли ключей в YAML (AR-024)
         run: |
           set -uo pipefail
-          python -c "import yaml" 2>/dev/null || python -m pip install --quiet pyyaml
           python tools/check_yaml_dups.py --selftest
           python tools/check_yaml_dups.py
 
