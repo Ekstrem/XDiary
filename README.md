@@ -7,13 +7,13 @@
 <!-- stats:start -->
 | Роль | Всего | Идея | На проработке | ToDo | В работе | В паузе | На проверке | Закрыта | Отклонена |
 |---|---|---|---|---|---|---|---|---|---|
-| back-end | 101 | 0 | 0 | 5 | 0 | 3 | 0 | 81 | 12 |
-| devops | 119 | 2 | 0 | 4 | 0 | 7 | 2 | 96 | 8 |
-| front-end | 48 | 0 | 0 | 0 | 0 | 1 | 1 | 46 | 0 |
-| tester | 101 | 0 | 0 | 0 | 0 | 2 | 1 | 88 | 10 |
-| arch | 24 | 0 | 0 | 1 | 0 | 0 | 0 | 23 | 0 |
-| TechLead | 43 | 38 | 0 | 1 | 1 | 1 | 0 | 2 | 0 |
-| **Итого** | **436** | **40** | **0** | **11** | **1** | **14** | **4** | **336** | **30** |
+| back-end | 103 | 0 | 0 | 6 | 0 | 4 | 0 | 81 | 12 |
+| devops | 124 | 2 | 0 | 5 | 0 | 10 | 3 | 96 | 8 |
+| front-end | 48 | 0 | 0 | 0 | 0 | 1 | 0 | 47 | 0 |
+| tester | 102 | 1 | 0 | 0 | 0 | 2 | 0 | 89 | 10 |
+| arch | 25 | 1 | 0 | 1 | 0 | 0 | 0 | 23 | 0 |
+| TechLead | 46 | 41 | 0 | 0 | 1 | 1 | 0 | 3 | 0 |
+| **Итого** | **448** | **45** | **0** | **12** | **1** | **18** | **3** | **339** | **30** |
 <!-- stats:end -->
 
 _Считается из поля `Статус:` в задачах: `python tools\stats.py --write`._
@@ -25,34 +25,36 @@ _Считается из поля `Статус:` в задачах: `python too
 - **Каталог:** костюмчики / игрушки / фантазии (фото + подробности); на экране «Отметки» они выбираются из каталога.
 - **Соматика (Garmin):** импорт CSV (пульс, стресс, Body Battery, HRV) + график на записи; импорт сна (оценка, стадии).
 - **Журнал:** список, просмотр записи (с соматикой), редактирование, удаление.
-- **Хранение:** IndexedDB (на устройстве) + экспорт/импорт в CSV (открывается в Excel/Sheets).
+- **Хранение:** источник истины — микросервисы (`/api/v1/**`); IndexedDB на устройстве — кэш и офлайн-фоллбэк (`04-architecture/README.md`); экспорт/импорт в CSV (открывается в Excel/Sheets).
 - **Приватность:** PIN-код на входе (PBKDF2-SHA256, хранится только хеш), автоблокировка после долгого скрытия.
 - **PWA:** устанавливается на Android, работает офлайн (service worker).
 
-Технологии: статический PWA (HTML/CSS/JS, без сборки и бэкенда).
+**Технологии (актуальная топология).** PWA без сборки (`8-front/`, HTML/CSS/JS) + **API Gateway** и
+**12 микросервисов** на .NET 8 (`6-msa/BC-*`): Client, Journal, Partners, Catalog, SomaticSeries,
+DailyMetrics, Analytics, Portability, Privacy, GarminGateway, AppleHealthGateway + общий `Shared`.
+Контракт — `openapi/` (13 спецификаций), источник истины по данным — **микросервисы** (`/api/v1/**`),
+IndexedDB на устройстве — **кэш и офлайн-фоллбэк** (`04-architecture/README.md`). Деплой — на VPS
+через GHCR-образы (`7-deploy/`, Caddy, стенды dev и prod), браузерные тесты — Playwright (`9-tests/`).
+Архитектурные решения — ADR в `04-architecture/ADL/` (`adr-001`…`adr-035`).
 
 ## Структура
 
 ```
-app/index.html            — каркас приложения
-app/manifest.webmanifest  — манифест PWA
-app/sw.js                 — service worker (офлайн)
-app/css/styles.css        — стили (тёмная тема, mobile-first)
-app/js/db.js              — IndexedDB
-app/js/pin.js             — PIN (PBKDF2)
-app/js/csv.js             — CSV (RFC 4180)
-app/js/app.js             — логика и UI
-app/icons/                — иконки
-samples/                  — тестовые CSV (соматика, сон)
-tools/gen_icons.py        — генерация иконок (Pillow)
-tools/gen_sample.py       — генерация тестовых CSV
-tools/garmin_sync.py      — синхронизация через Garmin Personal API -> CSV
-tools/garmin_proxy.py     — локальный прокси к Garmin API (для PWA, обход CORS)
-tools/smoke_csv.js        — smoke-тест CSV
-tools/smoke_garmin.js     — тест парсинга Garmin-отчётов
+8-front/                  — PWA (HTML/CSS/JS без сборки): index.html, js/, css/, icons/, sw.js
+6-msa/                    — микросервисы .NET 8: ApiGateway + BC-<домен> (Client, Journal, Partners,
+                            Catalog, SomaticSeries, DailyMetrics, Analytics, Portability, Privacy,
+                            GarminGateway, AppleHealthGateway) + Shared и *Tests рядом с сервисом
+openapi/                  — контракт API (13 спецификаций, генерируются из кода)
+03-ddd/                   — домен: контекст-карты, агрегаты, каноны (напр. AR-025 — формат телефона)
+04-architecture/          — архитектура: ADR (`ADL/adr-*.md`), read-paths, ранбуки проверок
+7-deploy/                 — деплой: образы (GHCR), Caddy, APIM, SQL, секреты, ранбуки VPS
+9-tests/                  — браузерные тесты Playwright (маркер front-e2e.md) и скрипты гейтов
+5-tech-backlog/           — задачи по ролям (back-end, front-end, devops, tester, arch, tl) и чат ролей
 01-user-stories/          — бэклог и этапы
 02-cjm/                   — CJM инкрементов
-.github/workflows/        — деплой PWA на Pages
+tools/                    — служебные гейты и генераторы (check_paths, status_lint, chat_lint, stats)
+.github/workflows/        — CI/CD: guard-гейты, сборка сервисов, фронт-тесты, деплой dev → prod
+app/                      — ЛЕГАСИ (ранний прототип PWA); прод деплоится из 8-front/, app/ не правится
 ```
 
 ## Запуск локально

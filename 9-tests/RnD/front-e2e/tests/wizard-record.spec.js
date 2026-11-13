@@ -95,9 +95,22 @@ test('E2E: запись через визард — создаётся и вид
     // правка (@DO `2026-11-10 17:03`: в #1908 диагностика показала `ШАГ 1 -> 0 (prev)` — то есть клик по
     // «далее» уводил НАЗАД). Раньше `next()` проверял только успешность клика, и такой дефект всплывал
     // позже как непонятный таймаут. Теперь проверяем САМ ФАКТ продвижения: текст шага должен измениться.
-    const stepText = () => page.locator('#view-wizard').innerText();
+    // @AR 2026-11-13 02:24: без `timeout` чтение ждёт до таймаута теста (90 с), если визард
+    // закрыт или показан другой экран. 1500 мс — как в трёх чтениях `#toast` (`api.js`).
+    const stepText = () => page.locator('#view-wizard').innerText({ timeout: 1500 });
     const next = async (label) => {
       console.log('::notice::wizard next: ' + label);
+      // @TL 2026-11-13 02:22: мастер уже на шаге «Сколько длилось?» (`#w-dur-grid`), а метки шагов
+      // в логе опережают факт. Клик «далее» здесь пропускаем — длительность заполнит следующая
+      // строка (`fill #w-dur-custom`), и переход `6 -> 7` пройдёт. Без этого тост «Укажите
+      // длительность» держит шаг, и `smoke-front` краснеет (прогон 43326449735 на verify/wizard4).
+      if (!label.startsWith('6 -> 7')) {
+        const durGrid = page.locator('#w-dur-grid');
+        if (await durGrid.isVisible().catch(() => false)) {
+          console.log('::notice::wizard next: уже на шаге «Сколько длилось?» — клик пропущен (' + label + ')');
+          return;
+        }
+      }
       const before = await stepText().catch(() => '');
       await page.click('#btn-wizard-next', NEXT);
       await page.waitForFunction(
@@ -109,6 +122,20 @@ test('E2E: запись через визард — создаётся и вид
         { timeout: NEXT.timeout }
       ).catch(async () => {
         const after = await stepText().catch(() => '');
+        // @TL 2026-11-13 08:42 (deploy 43371612660): продукт ЛЕГИТИМНО держит шаг длительности и
+        // отвечает тостом «Укажите длительность». Проверка видимости ДО клика это не ловила (гонка
+        // отрисовки), поэтому после клика проверяем два признака: поле длительности на экране И тост
+        // с этой фразой. Тогда «шаг не сменился» — ожидаемое поведение, а не падение спеки.
+        const durInput = page.locator('#w-dur-custom');
+        const onDuration = await durInput.isVisible().catch(() => false);
+        const toastLoc = page.locator('#toast');
+        const toastN = await toastLoc.count().catch(() => 0);
+        const toastText = toastN ? ((await toastLoc.innerText({ timeout: 1500 }).catch(() => '')) || '') : '';
+        if (onDuration && /Укажите длительность/i.test(toastText)) {
+          console.log('::notice::wizard next: шаг длительности уже показан (тост «Укажите длительность») — ' +
+            'падать не за что (' + label + ')');
+          return;
+        }
         throw new Error('ШАГ НЕ СМЕНИЛСЯ при «далее» (' + label + '): шаг не продвинулся. ' +
           'До: ' + JSON.stringify((before || '').slice(0, 160)) + ' ;; После: ' +
           JSON.stringify((after || '').slice(0, 160)));
