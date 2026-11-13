@@ -20,6 +20,7 @@ on:
 permissions:
   contents: write
   packages: write
+  pull-requests: write   # требует `gh pr create` в шаге lock (без него: Resource not accessible)
 
 concurrency:
   group: release
