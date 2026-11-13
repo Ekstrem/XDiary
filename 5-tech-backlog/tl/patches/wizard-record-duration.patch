@@ -1,0 +1,29 @@
+diff --git a/9-tests/RnD/front-e2e/tests/wizard-record.spec.js b/9-tests/RnD/front-e2e/tests/wizard-record.spec.js
+index 43054a9dd..7efe0433d 100644
+--- a/9-tests/RnD/front-e2e/tests/wizard-record.spec.js
++++ b/9-tests/RnD/front-e2e/tests/wizard-record.spec.js
+@@ -95,9 +95,23 @@ test('E2E: запись через визард — создаётся и вид
+     // правка (@DO `2026-11-10 17:03`: в #1908 диагностика показала `ШАГ 1 -> 0 (prev)` — то есть клик по
+     // «далее» уводил НАЗАД). Раньше `next()` проверял только успешность клика, и такой дефект всплывал
+     // позже как непонятный таймаут. Теперь проверяем САМ ФАКТ продвижения: текст шага должен измениться.
+-    const stepText = () => page.locator('#view-wizard').innerText();
++    // @AR 02:24: без таймаута это чтение ждёт таймаут ТЕСТА (90 с), если
++    // экран визарда отсутствует. Класс закрыт 3 из 4 — закрываем четвёртое.
++    const stepText = () => page.locator('#view-wizard').innerText({ timeout: 1500 });
+     const next = async (label) => {
+       console.log('::notice::wizard next: ' + label);
++      // Шаг «Сколько длилось?» (`#w-dur-grid`): продукт (8-front/js/app.js:801) не
++      // пускает дальше без durationMin >= 1. Метки шагов в логе опережают фактический
++      // шаг: спека считает, что идёт `5 -> 6`, а мастер уже на шаге длительности.
++      // Клик «далее» на этом переходе пропускаем — длительность заполнит следующая
++      // строка (`fill #w-dur-custom`), а `6 -> 7` уже пройдёт.
++      if (!label.startsWith('6 -> 7')) {
++        const durGrid = page.locator('#w-dur-grid');
++        if (await durGrid.isVisible().catch(() => false)) {
++          console.log('::notice::wizard next: уже на шаге «Сколько длилось?» — клик пропущен (' + label + ')');
++          return;
++        }
++      }
+       const before = await stepText().catch(() => '');
+       await page.click('#btn-wizard-next', NEXT);
+       await page.waitForFunction(
