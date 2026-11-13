@@ -48,6 +48,17 @@ jobs:
         # Раньше эта строка жила только в chat-guards.yml, а в ci-tests.yml была без
         # --strict-times — то есть на одном и том же пуше проверки расходились.
         run: python tools/chat_lint.py --config loop.config.json --check --strict-times
+      - name: "Чат не усох и не потерял строки (check_chat_shrink, @AR/@DO 2026-11-13)"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -uo pipefail
+          python tools/check_chat_shrink.py --selftest
+          BASE="${BASE_SHA:-}"
+          if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            BASE="$(git rev-parse HEAD~1)"
+          fi
+          python tools/check_chat_shrink.py --range "$BASE..HEAD"
       - name: "Смена статуса задачи — строка в чате в том же коммите (@TL 2026-11-15 04:20)"
         # Норма владельца: карточка и чат меняются вместе; без строки `→ @TL: <ID> было → стало`
         # смена статуса не считается. Гейт ловит это в последнем коммите.
