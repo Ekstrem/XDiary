@@ -181,7 +181,12 @@
       .then(function (list) { partnersMemo = list; partnersMemoAt = Date.now(); return list; });
   };
   DB.getPartner = function (id) { return Api.partners.get(id).then(function (rm) { return rm ? mapPartner(rm) : null; }); };
-  DB.deletePartner = function (id) { dropPartnersMemo(); return Api.partners.remove(id); };
+  // FE-050: мемо сбрасываем и на успехе — иначе вызов getAllPartners() между
+  // сбросом и ответом заполнит мемо СТАРЫМ списком на PARTNERS_MEMO_MS.
+  DB.deletePartner = function (id) {
+    dropPartnersMemo();
+    return Api.partners.remove(id).then(function (r) { dropPartnersMemo(); return r; });
+  };
   // FE-045: profile после register/rename нужен только если форма отличается от дефолтов
   // (photo="", gender="female", notes="") — иначе это лишний вызов в цепочке создания.
   function needProfile(p) {
@@ -205,21 +210,22 @@
 
   DB.putPartner = function (p) {
     dropPartnersMemo();
+    var settle = function (v) { dropPartnersMemo(); return v; }; // FE-050: и на успехе
     if (p.id) {
       return Api.partners.rename(p.id, p.name).then(function () {
-        if (!needProfile(p)) return p;
+        if (!needProfile(p)) return settle(p);
         return retryOnce(function () {
           return Api.partners.profile(p.id, { photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" });
-        }).then(function () { return p; });
+        }).then(function () { return settle(p); });
       });
     }
     return Api.partners.register(p.name).then(function (m) {
       var id = m.id;
       p.id = id;
-      if (!needProfile(p)) return p;
+      if (!needProfile(p)) return settle(p);
       return retryOnce(function () {
         return Api.partners.profile(id, { photo: p.photo || "", gender: p.gender || "female", notes: p.notes || "" });
-      }).then(function () { return p; });
+      }).then(function () { return settle(p); });
     });
   };
 
