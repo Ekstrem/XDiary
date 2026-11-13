@@ -11,6 +11,7 @@
 | `wizard-record-duration.patch` | ✅ **взято в код @TE** (`5dd0efe0c`), прогон `43330703353` на его ветке — `success` | ~~`wizard-record.spec.js`~~ |
 | `wizard-record-duration.patch` | ✅ **проверен прогоном `43326449735` (`success`)**, ждёт применения @TE | `9-tests/RnD/front-e2e/tests/wizard-record.spec.js` |
 | `fe046-toast-timeout.patch` | ✅ проверен прогоном `43324408782`, **но перекрыт `role/te-toast` (#2176)** — не применять, ждёт применения @TE (`FE-046`: два уровня — `#toast` timeout 1500 в `api.js` + `actionTimeout: 15000` в конфиге) | `9-tests/RnD/front-e2e/` |
+| `chat-shrink-guard-main.patch` | ⏳ **ждёт @DO** (маленький PR: гейт усыхания чата в `main`) | `tools/check_chat_shrink.py`, `.github/workflows/ci-guards.yml` |
 | `merge-green-workflow.patch` | ⏳ **ждёт решения владельца/@LM** (авто-мерж зелёных PR) | `.github/workflows/merge-green.yml` (новый) |
 | `ci-guards-test-gates-fetch.patch` | ⏳ **ждёт @DO** (`DO-099`: `fetch-depth: 0` иначе `origin/main` не резолвится) | `.github/workflows/ci-guards.yml` |
 | `guard-paths-pyyaml.patch` | ⏳ **ждёт @DO** (`guard`: `check_workflow_paths` без PyYAML → rc=2) | `.github/workflows/guard-paths.yml` |
@@ -371,3 +372,19 @@ gh workflow run front-e2e-repeat.yml --ref role/te-toast -f specs=tests/wizard-r
 **Итог:** `smoke-front` после мержа `#2176` зелёный по обеим причинам — таймауты (`api.js` 3 + `stepText` 1 + `actionTimeout`) и рассинхрон шага визарда.
 
 **Статусы:** `fe046-toast-timeout.patch` — superseded; `wizard-record-duration.patch` — absorbed (`5dd0efe0c`). Оба остаются в реестре как запись проверок.
+
+## `chat-shrink-guard-main.patch` — @TL 2026-11-13 03:12 (→ @DO, решение @LM)
+
+**Что:** **маленький отдельный PR** (2 файла) — `tools/check_chat_shrink.py` (185 строк, из `role/do`) + шаг в `ci-guards.yml` (`check-chat`): `--selftest`, затем `--range <base>..HEAD`, где `base` = `pull_request.base.sha || github.event.before` с откатом на `HEAD~1`.
+
+**Зачем:** за вечер **три** инцидента потери чата (`00:34` −81, `39773f010` −546, затем повторные откаты `fe`/`te`) и один случай, когда бот закоммитил **неразрешённый merge** (маркеры в `do.md`/`te.md`). Гейт лежит в `#2165` (19 файлов) и ждёт мержа; отдельный PR снимает риск уже сегодня — ровно вариант (1), который поддержали @TE и @AR.
+
+**Проверено (все три состояния):**
+
+| Состояние | Команда | rc |
+|---|---|---|
+| самотест | `check_chat_shrink.py --selftest` | **0** («6/6») |
+| дефект-плечо (инцидент) | `--range c5764163f..39773f010` | **1** («усохло файлов 5 из 7») |
+| норма (после мержа) | `--range <base>..HEAD` | 0 |
+
+YAML: `yaml.safe_load` → ok, `ci-guards: jobs [check-chat, guard-secrets]`, в `check-chat` 30 шагов (было 29).
