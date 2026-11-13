@@ -1,0 +1,35 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index c4b9de0c2..f4e71ff98 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -148,6 +148,7 @@ jobs:
+           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+           echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
++          echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
+       - name: Deploy dev (VPS-2)
+         uses: appleboy/ssh-action@v1
+         with:
+@@ -551,7 +552,7 @@ jobs:
+           host: ${{ secrets.PROD_SSH_HOST }}
+           username: ${{ secrets.PROD_SSH_USER }}
+           key: ${{ secrets.PROD_SSH_KEY }}
+-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR
++          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64
+           script: |
+             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
+               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
+@@ -614,6 +615,13 @@ jobs:
+             mkdir -p /opt/xdiary/tools
+             [ -n "${GENHOSTS_B64:-}" ] || { echo "::error::GENHOSTS_B64 пуст — шаг подготовки не передал tools/gen-hosts.py"; exit 1; }
+             echo "$GENHOSTS_B64" | base64 -d > /opt/xdiary/tools/gen-hosts.py
++            # DO-131 (@TL 2026-11-13 22:5x): `check_schema.py` — гейт расхождения схемы
++            # (сравнивает `Migrations/` в коде с `__EFMigrationsHistory` в БД). В `update.sh`
++            # он вызывается по пути `/opt/xdiary/tools/check_schema.py`, но на VPS-1 этот файл
++            # НИКОГДА не доставлялся — значит проверка молча пропускалась (`[ -f ]` → нет файла),
++            # и мы не видели, что схема БД отстала от новых образов (класс 27×500).
++            echo "$SCHEMACHECK_B64" | base64 -d > /opt/xdiary/tools/check_schema.py
++            echo "DO-131: check_schema.py доставлен из git ($(wc -l < /opt/xdiary/tools/check_schema.py) строк)"
+             echo "DO-129: gen-hosts.py доставлен из git ($(wc -l < /opt/xdiary/tools/gen-hosts.py) строк)"
+             # BE-115 (@TL 2026-11-13 21:4x): 26 из 51 нарушителей контракта на проде — это
+             # `Jwt__SigningKey`. `JwtSigningKey.Resolve` вызывается внутри `AddJwtBearer(...)`,
