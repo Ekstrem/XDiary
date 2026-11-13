@@ -493,6 +493,11 @@ jobs:
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+          # DO-124 ч.2: шим `/home/deploy/update.sh` падал на своём стороже ДО вызова живого
+          # скрипта, потому что `legacy-shims.sh` на VPS-1 отсутствовал. envs уже расширены
+          # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
+          # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
+          echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
         env:
@@ -542,7 +547,9 @@ jobs:
             # шим `/home/deploy/update.sh` оставался старым и падал на своём же
             # стороже «разошёлся со снимком» (sha256 9173778a != 7b62a233) ДО вызова живого скрипта.
             # Доставляем его из git и пересоздаём шимы детерминированно.
+            [ -n "${LEGACY_B64:-}" ] || { echo "::error::LEGACY_B64 пуст — шаг подготовки не передал legacy-shims.sh"; exit 1; }
             echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
+            [ -s legacy-shims.sh ] || { echo "::error::legacy-shims.sh пуст после декода — base64 повреждён"; exit 1; }
             chmod +x legacy-shims.sh
             grep -q 'запрещено: тег задаётся только images.lock' legacy-shims.sh \
               || { echo "::error::legacy-shims.sh без DO-066 — доставка не удалась"; exit 1; }
