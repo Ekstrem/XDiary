@@ -489,6 +489,8 @@ jobs:
       # 2026-11-07: у job'а НЕ БЫЛО checkout — `7-deploy/images.lock` в workspace отсутствовал,
       # и шаг падал с `awk: cannot open file '7-deploy/images.lock'`, из-за чего prod не выкатывался.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       # DO-066: тег берётся ТОЛЬКО из 7-deploy/images.lock (он в git) — ручного входа нет.
       - name: Tag из images.lock
         run: |
