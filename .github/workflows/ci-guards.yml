@@ -27,7 +27,9 @@ on:
 # чист). Отменять лёгкий прогон смысла нет: он занимает секунды. Поэтому `false`:
 # очередь последовательная, а не «последний пуш отменяет чужую проверку».
 concurrency:
-  group: ci-guards
+  # DO-123: группа ПРИВЯЗАНА к PR — иначе все PR делят одну и GitHub отменяет
+  # чеки друг друга («Canceling since a higher priority waiting request»).
+  group: ci-guards-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:

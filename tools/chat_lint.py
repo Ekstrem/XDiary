@@ -751,7 +751,10 @@ def main_with_retry(attempts=3):
             if attempt < attempts:
                 print("chat_lint: чтение прервано (%s) — повтор %d/%d"
                       % (type(exc).__name__, attempt, attempts - 1))
-                _time.sleep(0.3)
+                # @AR 03:56 (флейк rc=2 при бот-записи): 0.3 с попадали в то же окно перезаписи,
+                # поэтому пауза растёт с номером попытки, а попыток три. Ретрай без ожидания
+                # проверяет не файл, а свою удачу.
+                _time.sleep(min(2.0, 0.7 * attempt))
     print("::error::chat_lint: файл менялся во время чтения — НЕ ИЗМЕРЕНО (%s: %s)"
           % (type(last).__name__, last))
     return 2
