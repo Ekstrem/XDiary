@@ -147,8 +147,53 @@ def selftest() -> int:
         else:
             print(f"  [FAIL] {name}: rc={r.returncode}, ждали rc=2 и ::error:: без PASS")
 
-    print(f"check_adr028_move --selftest: {ok}/{total} (baseline против ref; rc=2 и ::error:: на невалидном ref/флаге)")
+    total += 1
+    sample = ("/tmp/x.cs(1,1): error CS0246: Не удалось найти тип или имя Space.Name "
+              "(возможно, отсутствует директива using).\n"
+              "/tmp/x.cs(1,1): error CS0246: Не удалось найти тип или имя Space.Name "
+              "(возможно, отсутствует директива using).\n"
+              "error NU1101: Не удалось найти пакет Xdiary.Unknown. Источники: nuget.org")
+    detail = build_fail_detail(sample)
+    if "CS0246" in detail and "NU1101" in detail and detail.count("CS0246") == 1:
+        ok += 1
+    else:
+        print(f"  [FAIL] build_fail_detail: ждали CS0246 один раз + NU1101, получили: {detail[:160]}")
+    total += 1
+    # нет кодов, но есть текст ошибки: строка не должна быть пустой (@TL 02:45)
+    fallback_detail = build_fail_detail("Определение проектов…\nОшибка сборки.\nОшибок: 0")
+    if "код CS/NU не найден" in fallback_detail and "Ошибка сборки" in fallback_detail:
+        ok += 1
+    else:
+        print(f"  [FAIL] build_fail_detail fallback: получили {fallback_detail[:160]}")
+    print(f"check_adr028_move --selftest: {ok}/{total} "
+          "(baseline против ref; rc=2 и ::error:: на невалидном ref/флаге; вывод компилятора в §6)")
     return 0 if ok == total else 1
+
+
+def build_fail_detail(out: str) -> str:
+    """Код и текст ошибок компилятора из вывода `dotnet build` — для квитанции §6.
+
+    @TL 2026-11-13 02:45: без этого гейт сообщает только «ошибка компиляции», и каждый случай
+    требует ручного прогона сборки. Берём уникальные строки `error CS…`/`NU…`/`MSB…`, первые 5.
+    """
+    codes = re.findall(r"error (?:CS|NU|MSB)\d+[^\r\n]*", out or "")
+    uniq, seen = [], set()
+    for c in codes:
+        c = " ".join(c.split())[:220]
+        if c not in seen:
+            seen.add(c)
+            uniq.append(c)
+    if not uniq:
+        # @TL 2026-11-13 02:45 + локальный замер: бывает «Ошибка сборки. Ошибок: 0» без `error CS…`
+        # (restore/сеть). Печатаем текст, иначе строка бесполезна для разбора.
+        fallback = [ln.strip() for ln in (out or "").splitlines()
+                    if ln.strip() and ("error" in ln.lower() or "ошибка" in ln.lower())
+                    and "Ошибок: 0" not in ln]
+        if fallback:
+            return "код CS/NU не найден; " + " | ".join(x[:160] for x in fallback[:3])
+        return "код ошибки в выводе не найден"
+    more = (" (+%d ещё)" % (len(uniq) - 5)) if len(uniq) > 5 else ""
+    return "; ".join(uniq[:5]) + more
 
 
 def run_build(cmd, timeout=300.0):
@@ -343,7 +388,7 @@ def main() -> int:
                 build_skip += 1
                 continue
             if "error CS" in out:
-                build_fail.append(proj + ": ошибка компиляции")
+                build_fail.append(proj + ": ошибка компиляции — " + build_fail_detail(out))
             else:
                 build_skip += 1
         if not build_fail:
