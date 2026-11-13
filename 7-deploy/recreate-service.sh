@@ -129,8 +129,13 @@ if [ "${2:-}" = "--image" ]; then IMAGE_OVERRIDE="${3:-}"; [ -n "$IMAGE_OVERRIDE
 CONTAINER="xdiary-$SVC"
 cd "$DEPLOY_DIR" || die "нет $DEPLOY_DIR"
 
-BODY="/tmp/recreate-$SVC.body"
-RUNNER="/tmp/recreate-$SVC.sh"
+# DO-128 часть 2 (@DO 2026-11-13 18:5x): фиксированные пути `/tmp/recreate-$SVC.*` оставались
+# root-owned от прошлого sudo-прогона, и откат падал `PermissionError: [Errno 13] ... catalog.body`
+# (прогон #2048, откат catalog). Уникальный каталог снимает класс целиком.
+WORK="$(mktemp -d "/tmp/recreate-$SVC.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
+BODY="$WORK/body"
+RUNNER="$WORK/run.sh"
 
 python3 - "$DEPLOY_SH" "$SVC" "$BODY" <<'PY'
 import re
