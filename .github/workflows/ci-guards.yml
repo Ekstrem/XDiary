@@ -74,6 +74,13 @@ jobs:
             fi
           fi
           python tools/check_chat_shrink.py --range "$BASE..HEAD"
+      # @TL 2026-11-13 08:42: детектор прямого пуша смотрит ТОПОЛОГИЮ, а не имя коммита.
+      - name: "Прямой пуш в main? (топология, а не имена)"
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          python tools/check_direct_push.py --selftest
+          python tools/check_direct_push.py --ref HEAD --limit 20
+
       - name: "Регистр выданных решений не зарастает (AWAIT.md, @TL 2026-11-14 22:10)"
         # Решение считается выданным только после подтверждения адресатом (строка «принято»
         # в его outbox или коммит/артефакт). Строки со ✅ в колонке «Статус» не проверяются.
