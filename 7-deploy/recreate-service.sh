@@ -260,6 +260,22 @@ if ! podman network exists xdiary >/dev/null 2>&1; then
   fi
   echo "  сеть xdiary создана"
 fi
+# DO-129 ч.4 (@TL 2026-11-13 20:4x): `podman network create` пишет conflist с
+# `"cniVersion": "1.0.0"`, а плагин `firewall` в этой версии podman его не принимает:
+# `log| Error validating CNI config file /etc/cni/net.d/xdiary.conflist:
+#  [plugin firewall does not support config version "1.0.0"]` (прогон 43473245196).
+# Именно поэтому сеть «есть», а контейнеры не поднимаются. Правим на 0.4.0 — ровно тот
+# обход, который описан в `7-deploy/apim/up.sh` и `7-deploy/podman-compose.yml`.
+CNI=/etc/cni/net.d/xdiary.conflist
+if [ -f "$CNI" ] && grep -q '"cniVersion": "1.0.0"' "$CNI" 2>/dev/null; then
+  echo "  CNI: правлю cniVersion 1.0.0 -> 0.4.0 в $CNI (firewall не принимает 1.0.0)"
+  sudo -n sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$CNI" 2>/dev/null || \
+    sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$CNI" 2>/dev/null || true
+  if grep -q '"cniVersion": "1.0.0"' "$CNI" 2>/dev/null; then
+    echo "  ОШИБКА: cniVersion всё ещё 1.0.0 — контейнер НЕ трогаю (иначе снесём рабочий)" >&2
+    exit 5
+  fi
+fi
 podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
 # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
 # `podman run` падает с "error configuring network namespace". В `update.sh` это
