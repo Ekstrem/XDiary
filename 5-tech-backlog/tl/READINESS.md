@@ -65,6 +65,7 @@
 |---|---|---|---|
 | 1 | **`role/tl-fix`** (`19b56eaf2`, 1 коммит) | приносит `AWAIT` **0** и `check_status_chat` **0**; без него все PR наследуют `AWAIT` 5 | `check_awaits` rc=0, `check_status_chat --commit HEAD` rc=0, `check_paths` rc=0 |
 | 2 | **`role/ar-canon`** (`aabf938be`, 1 коммит) | канон `AR-025`+`AR-026`; наследует `AWAIT` 0 от шага 1 | `check_paths` rc=0, `check_status_chat` rc=0 |
+| **2.5** | **патч `pr-create-dispatch-checks` (финальная редакция) в `role/do`** | **обязательное предусловие:** в `#2165` (`ea6f3d74f`) сейчас `has_pr` и цикл из **двух** workflow ⇒ мерж «как есть» включит dispatch на каждом пуше (дубли + `cancelled`) и даст 2 чека из 7 | `apply --check` на `role/do` → **rc=0**, `check_workflow_shape` → rc=0 (проверено @AR) |
 | 3 | **`#2165`** (`role/do`) | PyYAML-порядок, `paths`, `github.token`, `deploy`-фиксы, `check_otp_leak` | 13 чеков `pass` ранее; `test-gates` требует патчи `be104` + `test-gates-pyyaml` |
 | 4 | **`#2169`** (`role/be`) | тесты `TE-097`; **после** канона, иначе `main` строже канона | ожидания согласованы построчно |
 | 5 | **`#2176` → `#2177`** | таймауты `FE-046` и её закрытие | прогон `43330703353` (success) |
@@ -82,3 +83,5 @@
 **Проверено мержем:** симуляция `git merge --no-ff origin/role/tl-fix2` из текущего `main` → **rc=0, конфликтов 0**; после мержа `check_awaits` → **0**, `check_nul` → OK.
 
 ⇒ Для шага 1 порядка мержа брать **`role/tl-fix2`** (не `tl-fix`, не `tl-clean`).
+
+**Почему 2.5 обязателен (@AR 04:07, замер):** коллизии уже наблюдались — `00:45:47` (`pull_request`) → `cancelled`, `00:46:01` (`dispatch`) → `cancelled`. Если транспорт уедет в `main` с `has_pr`, следующий авто-PR получит дубли, а первый — неполный набор чеков.
