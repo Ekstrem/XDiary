@@ -63,6 +63,16 @@ for f in $SPECS; do
     awk 'BEGIN{printf "{\"type\":\"BOTH\",\"definition\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\"}"}' "$f" > "/tmp/apim-import/$svc.body"
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
+# AR-160 (@TL 2026-11-13 23:3x): Gravitee берёт `servers[0].url` как базу API. Если в спеке
+# стоит `"/"` (так было в journal/partners/api-gateway), backend получается невалидным и
+# шлюз отдаёт 500 СВОИМ телом на ЛЮБОЙ путь этого API — проверено на проде:
+#   GET /api/v1/journal/nonexistent-xyz → 500 (а /api/v1/catalog/nonexistent-xyz → 401).
+# Нормализуем на импорте: `servers` с пустым/корневым url убираем — импортёр должен быть
+# устойчив к спеке, а не падать от одной строки.
+srv = doc.get("servers")
+if isinstance(srv, list) and srv and str((srv[0] or {}).get("url", "")).strip() in ("", "/"):
+    doc.pop("servers", None)
+    print("import: убран servers с корневым url", file=sys.stderr)
 sys.stdout.write(json.dumps({"type": "BOTH", "definition": json.dumps(doc)}))
 PY
   podman cp "/tmp/apim-import/$svc.body" "$MG:/tmp/body.json" >/dev/null 2>&1
