@@ -12,7 +12,9 @@
 """
 
 import argparse
+import io
 import json
+import os
 import pathlib
 import re
 import sys
@@ -71,7 +73,7 @@ def scan_body(text):
                 [m.group(1) for m in ALLOWED_RX.finditer(text or "")])
 
 
-def contract_allowed_fields(contract_path, operation=OPERATION):
+def contract_allowed_fields(contract_path, operation=OPERATION, status=200):
     """Поля, которые контракт РАЗРЕШАЕТ в теле `200`, из `api-index.yaml` (единственный источник правды).
 
     Возвращает (set полей | None, где искать). None — контракт не найден/не разобран: тогда проверка
@@ -84,6 +86,19 @@ def contract_allowed_fields(contract_path, operation=OPERATION):
     start = next((i for i, l in enumerate(lines) if f"operationId: {operation}" in l), None)
     if start is None:
         return None, f"в {contract_path} нет operationId: {operation}"
+    if status != 200:
+        # @TL 2026-11-13 09:10: для не-200 форма описана в `error_body` рядом с `codes:`.
+        # Нет `error_body` — форма не известна, и это «не измерено», а не «поле вне контракта».
+        block = lines[start:start + 60]
+        eb = next((l for l in block if l.strip().startswith("error_body:")), None)
+        if not eb:
+            return None, f"в контракте нет error_body для кода {status} — не измерено"
+        m = re.search(r"\[([^\]]*)\]", eb)
+        tokens = set()
+        if m:
+            tokens = set(x.strip().strip("'\"").lower() for x in m.group(1).split(",") if x.strip())
+        return (tokens or None), f"error_body (код {status}) из {contract_path}"
+
     codes = next((l for l in lines[start:start + 12] if l.strip().startswith("codes:")), None)
     if not codes:
         return None, "у операции нет строки codes:"
@@ -169,12 +184,18 @@ def main(argv=None):
     if a.selftest:
         return selftest()
 
-    allowed_fields, contract_where = contract_allowed_fields(a.contract)
-    if allowed_fields is None:
-        print(f"::warning::check_otp_leak: контракт не прочитан ({contract_where}) — проверка «поле вне "
-              f"контракта» не выполняется, проверяются только секретные ключи")
-    else:
-        print(f"::notice::check_otp_leak: разрешённые поля взяты из контракта — {contract_where}")
+    def pick_allowed(status):
+        """Форма тела по ФАКТИЧЕСКОМУ коду ответа (@TL 2026-11-13 09:10).
+
+        200 → `codes:`; иначе → `error_body:`; нет формы под код → None и это «не измерено».
+        """
+        fields, where = contract_allowed_fields(a.contract, status=status)
+        if fields is None:
+            print(f"::warning::check_otp_leak: контракт не дал форму ({where}) — проверка «поле вне "
+                  f"контракта» не выполняется для кода {status}")
+        else:
+            print(f"::notice::check_otp_leak: разрешённые поля взяты из контракта — {where}")
+        return fields
 
     if a.compare:
         rows = []
@@ -183,7 +204,7 @@ def main(argv=None):
             if err:
                 print(f"::error::check_otp_leak: {label} ({base}) — {err} — не измерено (rc=2)")
                 return 2
-            iss, stt = evaluate(st, body, allowed_fields=allowed_fields)
+            iss, stt = evaluate(st, body, allowed_fields=pick_allowed(st))
             rows.append((label, base, st, stt, iss))
             print(f"   {label} {base}: HTTP {st} | OTP-полей {len(stt['leaked'])} {stt['leaked'] or ''} | "
                   f"вне контракта {len(stt.get('unexpected') or [])} | rc={1 if iss else 0}")
@@ -209,6 +230,10 @@ def main(argv=None):
             print(f"::error::check_otp_leak: {err} — не измерено (rc=2)")
             return 2
 
+    allowed_fields = pick_allowed(status)
+    if allowed_fields is None and status != 200:
+        print(f"::error::check_otp_leak: в контракте нет формы для кода {status} — не измерено (rc=2)")
+        return 2
     issues, stats = evaluate(status, body, allowed_fields=allowed_fields)
     for m in issues:
         print(f"::error::check_otp_leak: {m}")
@@ -264,6 +289,35 @@ def selftest():
          ["otpCode"])
 
     # Принцип @AR 22:34: «разрешённое берём из контракта», а «поле вне контракта» — утечка формы.
+    # @TL 2026-11-13 09:10: форма по ФАКТИЧЕСКОМУ коду — 409 берёт error_body, иначе «не измерено».
+    tmp_contract = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".tmp-otp-contract.yaml")
+    io.open(tmp_contract, "w", encoding="utf-8").write(
+        "operations:\n"
+        "  - operationId: Client.Register\n"
+        "    codes: {200: \"ok — id, version, phone, otpExpiresAt, verified, delivery\", 409: \"конфликт\"}\n"
+        "    error_body: [error, clientId, delivery]\n")
+    got_fields, where = contract_allowed_fields(tmp_contract, status=409)
+    total += 1
+    if got_fields == {"error", "clientid", "delivery"}:
+        ok += 1
+    else:
+        print(f"  [FAIL] форма 409 из error_body: ждали error/clientId/delivery, получили {got_fields} ({where})")
+
+    io.open(tmp_contract, "w", encoding="utf-8").write(
+        "operations:\n"
+        "  - operationId: Client.Register\n"
+        "    codes: {200: \"ok\"}\n")
+    got2, where2 = contract_allowed_fields(tmp_contract, status=409)
+    total += 1
+    if got2 is None and "не измерено" in (where2 or ""):
+        ok += 1
+    else:
+        print(f"  [FAIL] нет error_body ⇒ должно быть «не измерено», получили {got2} ({where2})")
+    try:
+        os.remove(tmp_contract)
+    except OSError:
+        pass
+
     allowed = {"id", "version", "phone", "otpexpiresat", "verified", "delivery"}
     total += 1
     iss, st = evaluate(200, '{"id":"c1","version":1,"phone":"+7","otpExpiresAt":"t","verified":false}', allowed_fields=allowed)
