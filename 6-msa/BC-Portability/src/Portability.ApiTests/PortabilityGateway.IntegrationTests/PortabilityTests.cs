@@ -11,6 +11,9 @@ namespace XDiary.Tests.PortabilityGateway;
 /// <summary>TE-006: portability — CSV round-trip без потерь (списки через ;) + контракт колонок.</summary>
 public class PortabilityTests
 {
+    // BE-104 (@TL 03:18): домен требует `clientId` (`Aggregate.ImportRecords/ExportRecords(rows, Guid)`),
+    // а тесты вызывали старую сигнатуру — проект не собирался (`CS7036`).
+    private static readonly Guid ClientId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     [Fact]
     public void Csv_RoundTrip_PreservesRows_AndSemicolonLists()
     {
@@ -46,14 +49,14 @@ public class PortabilityTests
     [Fact]
     public void ImportRecords_CanonicalHeaders_Succeeds()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(new[] { "row-1" });
+        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(new[] { "row-1" }, ClientId);
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
 
     [Fact]
     public void ExportRecords_ReturnsRows()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "a", "b" });
+        var r = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "a", "b" }, ClientId);
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
 
@@ -63,7 +66,7 @@ public class PortabilityTests
         // BE-015: идемпотентность импорта — первая колонка (id) уникальна, последняя строка побеждает.
         var rows = new[] { "id1,first", "id2,other", "id1,second" };
 
-        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(rows);
+        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(rows, ClientId);
 
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal(2, r.Model().Rows.Count);
