@@ -479,3 +479,21 @@ gh run list --workflow ci-guards.yml → role/tl:
 **Проверено:** `yaml.safe_load` ok (`if: steps.create.outputs.created == 'true'`), `check_workflow_shape` → rc=0; **у всех семи** есть и `workflow_dispatch`, и `pull_request` (иначе dispatch был бы невалиден).
 
 **Почему не «на каждом пуше»:** dispatch запускает тот же workflow на той же ветке, где уже идёт PR-прогон, а группа `concurrency: ci-guards` в `main` **без привязки к ref** ⇒ второй вытесняет первый ⇒ `cancelled` (класс `DO-123`).
+
+## 18. `deploy-prod-deliver-update-sh.patch` — доставка `update.sh` на VPS-1 (DO-124, P0)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 11:3x. **Статус:** ждёт применения.
+
+**Дефект (факт из прогона `43379615221`, шаг «Deploy prod (VPS-1)»):**
+```
+APIM_PREFLIGHT_OK
+/opt/xdiary/7-deploy/update.sh: line 59: say: command not found
+/home/<deploy>/<script>.sh разошёлся со снимком (sha256 9173778a… != 7b62a233…)
+```
+**Причина:** dev-джоб **доставляет** скрипт (`UPDATE_B64` → `base64 -d > /opt/xdiary/7-deploy/update.sh`, строки 137/155), а prod-джоб просто вызывает `bash /home/deploy/update.sh` (строка 490) — на VPS-1 остаётся старая копия. В git `say()` определена (строки 40–56), а строка 59 — комментарий ⇒ ошибка возможна только на устаревшей копии.
+
+**Что делает патч:** в prod-джобе добавляет шаг `Подготовить update.sh (base64 …)` и в ssh-скрипте — доставку файла + `chmod +x` + контроль `grep -q 'tag_of'`. `envs` расширены до `TAG,CODE_TS,UPDATE_B64`.
+
+**Проверено:** `yaml.safe_load` ok (steps: Tag → Подготовить → Deploy; `envs: TAG, CODE_TS, UPDATE_B64`), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
+
+**После применения:** первый `deploy` на `main` должен дать `deploy-prod` **success**; если сторож эталона всё ещё ругается — прогнать `bash /opt/xdiary/7-deploy/legacy-shims.sh` (пересоберёт шим и эталон детерминированно, файл бэкапится в `/home/deploy/legacy-<ts>/`).
