@@ -77,7 +77,36 @@ apim_curl() {  # $1 = method, $2 = path, $3 = body file or empty, $4 = extra cur
 
 for f in $SPECS; do
   svc=$(basename "$f" .json)
-  # тело импорта: payload = содержимое спеки СТРОКОЙ (+ нормализация servers, см. AR-160)
+  # AR-160 ч.2 (@TL 2026-11-15 20:5x): Gravitee отвечает 400 `Path [...] already exists` — импорт
+# создаёт НОВЫЙ API, а API с таким contextPath уже есть (мы импортировали их раньше). Поэтому
+# перед импортом сносим существующие API (они всё равно сломаны: journal/partners отдают 500),
+# и собираем заново из git-спек. Это и есть смысл «ре-импорта», а не «добавь ещё одну копию».
+# Пагинация: у Gravitee `per_page` больше 10 не увеличивает страницу (см. runbooks/apim.md).
+apim_api_ids() {
+  local page=1 ids="" out chunk
+  while [ "$page" -le 30 ]; do
+    out=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
+      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?page=$page&per_page=10" 2>/dev/null)
+    chunk=$(printf '%s' "$out" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
+    [ -n "$chunk" ] || break
+    ids="$ids $chunk"
+    page=$((page+1))
+  done
+  printf '%s' "$ids"
+}
+
+if [ "$PUBLISH" = "1" ]; then
+  ids=$(apim_api_ids)
+  count=$(printf '%s' "$ids" | wc -w)
+  echo "существующих API в APIM: $count — сношу перед импортом (иначе 400 path.invalid)"
+  for id in $ids; do
+    d=$(podman exec "$MG" curl -s -o /dev/null -w '%{http_code}' -m 30 -X DELETE \
+      -u "$USER:$PASS" "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$id" 2>/dev/null)
+    case "$d" in 200|204) ;; *) echo "  ВНИМАНИЕ: DELETE $id → HTTP $d" >&2 ;; esac
+  done
+fi
+
+# тело импорта: payload = содержимое спеки СТРОКОЙ (+ нормализация servers, см. AR-160)
   python3 - "$f" > "/tmp/apim-import/$svc.body" <<'PY' 2>/dev/null || \
     awk 'BEGIN{printf "{\"payload\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\",\"withDocumentation\":true}"}' "$f" > "/tmp/apim-import/$svc.body"
 import json, sys
