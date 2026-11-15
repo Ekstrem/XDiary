@@ -624,7 +624,7 @@ jobs:
             # `openapi/*.json` в git НЕ влияет на живой шлюз. После смены спек нужен ре-импорт.
             # Делаем это по явному входу `reimport_apim` (default false), чтобы не плодить API
             # на каждом обычном деплое.
-            if [ "${REIMPORT_APIM:-false}" = "true" ]; then
+            if [ "${REIMPORT_APIM:-false}" = "true" ] || [ "${APIM_DIAG:-false}" = "true" ]; then
               echo "APIM-REIMPORT: доставляю openapi/*.json и import.sh, затем ре-импорт"
               mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
               echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
