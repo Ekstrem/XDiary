@@ -245,6 +245,25 @@ def dump(path, obj):
         json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=False) + "\n")
 
 
+def forbidden_servers(have):
+    """AR-160: ключ `servers` в спеке запрещён.
+
+    При импорте в APIM `servers[].url` даёт чужой/двойной префикс пути, и операция
+    перестаёт отвечать (прод отдавал 500/404 на живых маршрутах). База задаётся
+    стендом и edge-ом, а не спекой; `gen_openapi.py --write` сохраняет авторские
+    ключи, поэтому правило обязано быть гейтом, а не договорённостью.
+    """
+    s = have.get("servers")
+    if not s:
+        return None
+    urls = []
+    if isinstance(s, list):
+        for it in s:
+            if isinstance(it, dict) and it.get("url"):
+                urls.append(str(it["url"]))
+    return urls or ["<пустой список>"]
+
+
 def selftest():
     """Три состояния гейта: норма, дефект, и отказ на пустом входе.
 
@@ -284,6 +303,14 @@ def selftest():
         ok += 1
     else:
         print("  [FAIL] пустой индекс не распознан")
+
+    # 3b) AR-160: `servers` в спеке — блокер, а не «метаданные»
+    if forbidden_servers({"servers": [{"url": "http://localhost:8080"}]}) and \
+            forbidden_servers({"openapi": "3.0.0"}) is None:
+        print("  [OK ] AR-160: `servers` распознаётся как запрещённый ключ")
+        ok += 1
+    else:
+        print("  [FAIL] AR-160: `servers` не распознан")
 
     # 4) дубль ключа в одном блоке обязан находиться
     fd, path = tempfile.mkstemp(suffix=".yaml")
@@ -347,6 +374,12 @@ def main(argv):
             diffs.append("%s: файла нет" % sl)
             continue
         have = json.load(io.open(f, encoding="utf-8"))
+        _bad = forbidden_servers(have)
+        if _bad:
+            diffs.append("%s: запрещён ключ `servers` (%s) — AR-160: APIM импортирует "
+                         "операции с чужим префиксом, база задаётся стендом"
+                         % (sl, ", ".join(_bad)[:90]))
+            continue
         # Сверяем СМЫСЛ (paths → method → operationId/security/responses), а не метаданные:
         # спеки в репозитории — авторский контракт, у них может быть info.description, servers,
         # x-generated-at и прочее, что к индексу не относится. Требовать байтового равенства значило бы
