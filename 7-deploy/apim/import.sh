@@ -44,6 +44,27 @@ fi
 
 n=0; total=0
 echo "спеки для импорта:"
+# Снос существующих API — ОДИН раз перед импортом (а не на каждую спеку: иначе предыдущий
+# импорт тут же уничтожался бы, и цикл шёл по кругу — это и случилось в прогоне 2026-11-15).
+# Удаление опубликованного API Gravitee требует сначала `_stop` (иначе 400), а 404 = уже удалён.
+if [ "$PUBLISH" = "1" ]; then
+  ids=$(apim_api_ids)
+  count=$(printf '%s' "$ids" | wc -w)
+  echo "существующих API в APIM: $count — сношу перед импортом (иначе 400 path.invalid)"
+  del_ok=0; del_skip=0
+  for id in $ids; do
+    podman exec "$MG" curl -s -o /dev/null -m 20 -X POST -u "$USER:$PASS" \
+      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$id/_stop" 2>/dev/null || true
+    d=$(podman exec "$MG" curl -s -o /dev/null -w '%{http_code}' -m 20 -X DELETE \
+      -u "$USER:$PASS" "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$id" 2>/dev/null)
+    case "$d" in
+      200|204) del_ok=$((del_ok+1)) ;;
+      *) del_skip=$((del_skip+1)) ;;
+    esac
+  done
+  echo "снос завершён: удалено $del_ok, пропущено $del_skip (404 = уже нет, 400 = нельзя удалить)"
+fi
+
 for f in $SPECS; do
   svc=$(basename "$f" .json)
   ops=$(grep -c '"operationId"' "$f" 2>/dev/null || echo 0)
@@ -95,16 +116,6 @@ apim_api_ids() {
   printf '%s' "$ids"
 }
 
-if [ "$PUBLISH" = "1" ]; then
-  ids=$(apim_api_ids)
-  count=$(printf '%s' "$ids" | wc -w)
-  echo "существующих API в APIM: $count — сношу перед импортом (иначе 400 path.invalid)"
-  for id in $ids; do
-    d=$(podman exec "$MG" curl -s -o /dev/null -w '%{http_code}' -m 30 -X DELETE \
-      -u "$USER:$PASS" "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$id" 2>/dev/null)
-    case "$d" in 200|204) ;; *) echo "  ВНИМАНИЕ: DELETE $id → HTTP $d" >&2 ;; esac
-  done
-fi
 
 # тело импорта: payload = содержимое спеки СТРОКОЙ (+ нормализация servers, см. AR-160)
   python3 - "$f" > "/tmp/apim-import/$svc.body" <<'PY' 2>/dev/null || \
