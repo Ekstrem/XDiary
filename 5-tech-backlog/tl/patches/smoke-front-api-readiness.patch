@@ -1,0 +1,32 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 52de27d36..1231011b4 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -394,6 +394,27 @@ jobs:
+             sleep 2
+           done
+           echo "::error::туннель не отвечает: /health через 127.0.0.1:8080 недоступен"; exit 1
++      # TE-110 (@TL 2026-11-13 11:5x): между `deploy-dev` и готовностью сервиса есть окно, когда
++      # Caddy уже отдаёт `/health`, а сервис ещё пересоздаётся → `/api/v1/clients` = 502.
++      # Замер: `front-e2e-repeat` на `main` (`add-partner`, repeat=3) дал 1 passed / 2 failed
++      # с текстом «Вход не завершился … http 502 http://127.0.0.1:8080/api/v1/clients».
++      # Красный `smoke-front` гасит `receipt-be092` через `needs`, поэтому ждём НЕ `/health`,
++      # а сам API без 5xx. `GET /api/v1/clients/me` анонимно → 401, это и есть «сервис жив».
++      - name: Готовность API dev (не 5xx на /api/v1/clients/me)
++        run: |
++          set -uo pipefail
++          ok=0
++          code=000
++          for i in $(seq 1 60); do
++            code="$(curl -s -o /dev/null -m 5 -w '%{http_code}' \
++              http://127.0.0.1:8080/api/v1/clients/me || echo 000)"
++            case "$code" in
++              5*|000) echo "  попытка $i: $code — сервис ещё поднимается"; sleep 3 ;;
++              *) echo "API dev готов: GET /api/v1/clients/me -> $code (попытка $i)"; ok=1; break ;;
++            esac
++          done
++          [ "$ok" = 1 ] || { echo "::error::dev API не поднялся за 180 с (последний код $code) — это инфраструктура, а не тест"; exit 1; }
++
+       # DO-099 (@TL 2026-11-13 01:34): `check_otp_leak` был сиротой — не запускался нигде.
+       # Его место здесь: после `deploy-dev` туннель 127.0.0.1:8080 уже поднят, и утечку OTP
+       # в ответах видно на живом контуре. В `ci-guards` он бессмысленен (нет стенда -> rc=2).

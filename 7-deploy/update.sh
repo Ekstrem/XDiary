@@ -39,18 +39,33 @@ LOCK_FILE="${LOCK_FILE:-$(dirname "$0")/images.lock}"
 
 # DO-113: выкатка по digest. Тег остаётся для читаемости, но тянем ИМЕННО `@sha256:`
 # из `images.lock`: тег можно перезаписать, digest — нельзя (ADR-027).
+# DO-127/DO-130 (@TL 2026-11-13 22:0x): pull обязан идти в ТОМ ЖЕ режиме, что и
+# пересоздание. Иначе в rootless-среде образы качаются в root-storage, а `podman run`
+# под `deploy` их не видит — в логах это `Error: <sha256>: image not known`
+# (прогоны 43473245196, 43484208608). Поэтому `sudo -n podman pull` заменён на
+# `$PODMAN_SUDO podman pull`, а выбор режима вынесен выше — до первого pull.
 lock_digest() {
   awk -v s="$1" '!/^#/ && NF>=2 && $1==s {for (i=3;i<=NF;i++) if ($i ~ /^digest=/) {sub(/^digest=/,"",$i); print $i; exit}}' "$LOCK_FILE"
 }
+PODMAN_SUDO=""
+if [ "$(id -u)" -ne 0 ]; then
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'xdiary-pg'; then
+    PODMAN_SUDO=""          # контейнеры наши (rootless) — sudo не нужен
+  else
+    PODMAN_SUDO="sudo -n"   # rootless пусто — среда root
+  fi
+  say "podman-режим: ${PODMAN_SUDO:-rootless (без sudo)}"
+fi
+
 pull_by_digest() {
   svc="$1"; tag="$(awk -v s="$svc" '!/^#/ && NF>=2 && $1==s {print $2; exit}' "$LOCK_FILE")"
   dig="$(lock_digest "$svc")"; ref="ghcr.io/ekstrem/xdiary-$svc"
   if [ -n "$tag" ] && [ -n "$dig" ] && [ "$dig" != "-" ]; then
     echo "  pull $svc: $ref@$dig (тег $tag — только для чтения)"
-    sudo -n podman pull -q "$ref@$dig" >/dev/null 2>&1 || return 1
+    $PODMAN_SUDO podman pull -q "$ref@$dig" >/dev/null 2>&1 || return 1
   elif [ -n "$tag" ]; then
     echo "  pull $svc: $ref:$tag (digest в lock нет — старый формат)"
-    sudo -n podman pull -q "$ref:$tag" >/dev/null 2>&1 || return 1
+    $PODMAN_SUDO podman pull -q "$ref:$tag" >/dev/null 2>&1 || return 1
   fi
   return 0
 }
@@ -74,6 +89,11 @@ DRY="${DRY:-0}"
 DEPLOY_DIR=/opt/xdiary/7-deploy
 DEPLOY_SH=/home/deploy/deploy.sh
 RECREATE=/opt/xdiary/7-deploy/recreate-service.sh
+# DO-130 (@DO 2026-11-13 19:2x): на VPS-1 podman — ROOTLESS (18 контейнеров у `deploy`), а root-podman
+# не имеет сети `xdiary` (0 контейнеров, только сеть `podman`). `sudo -n bash recreate-service.sh`
+# уводил пересоздание в root-пространство, где `podman run --network xdiary` падает → «не поднялся»
+# 3 раза, откат падал так же, и прод оставался на старых контейнерах (Up 9 days).
+# Выбираем режим по ФАКТУ: видит ли текущий пользователь контейнеры.
 HASHFILE="$HOME/.xdiary-images.sha256"
 IDFILE="$HOME/.xdiary-image-ids"
 DEPLOY_HASH_FILE="$HOME/.xdiary-deploy-sh.sha256"
@@ -122,7 +142,7 @@ if [ "${1:-}" = "--rollback" ]; then
   [ -n "$svc" ] && [ -n "$img" ] || die "нужно: --rollback <service> <image-id>"
   [ -x "$RECREATE" ] || die "нет $RECREATE"
   say "ОТКАТ $svc на $img"
-  sudo -n bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
+  $PODMAN_SUDO bash "$RECREATE" "$svc" --image "$img" || die "откат не удался"
   exit 0
 fi
 
@@ -217,7 +237,7 @@ else
     attempt=1
     pulled=0
     while [ "$attempt" -le "$PULL_ATTEMPTS" ]; do
-      if sudo -n podman pull "$img" >/dev/null 2>&1; then
+      if $PODMAN_SUDO podman pull "$img" >/dev/null 2>&1; then
         pulled=1
         [ "$attempt" -gt 1 ] && say "pull ок на попытке $attempt: $img"
         break
@@ -291,7 +311,7 @@ for svc in $ORDER; do
   # тогда запись тела падает (PermissionError), тело пустое, сервис «не поднимается».
   # Чистим заранее; пишем те же файлы тоже через sudo, чтобы владелец был один.
   sudo -n rm -f "/tmp/recreate-$svc.body" "/tmp/recreate-$svc.sh" 2>/dev/null || true
-  if ! sudo -n bash "$RECREATE" "$svc"; then
+  if ! $PODMAN_SUDO bash "$RECREATE" "$svc"; then
     say "  $svc не поднялся — прекращаю и откатываю остальные"
     FAILED="$svc"
     break
@@ -306,7 +326,7 @@ if [ -n "$FAILED" ]; then
     old_id="$(printf '%s' "$OLD_STATE" | awk -v s="$svc" '$1==s {print $2}')"
     [ -n "$old_id" ] || continue
     say "  откат $svc → $old_id"
-    sudo -n bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
+    $PODMAN_SUDO bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
   done
   exit 1
 fi

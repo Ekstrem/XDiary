@@ -479,3 +479,139 @@ gh run list --workflow ci-guards.yml → role/tl:
 **Проверено:** `yaml.safe_load` ok (`if: steps.create.outputs.created == 'true'`), `check_workflow_shape` → rc=0; **у всех семи** есть и `workflow_dispatch`, и `pull_request` (иначе dispatch был бы невалиден).
 
 **Почему не «на каждом пуше»:** dispatch запускает тот же workflow на той же ветке, где уже идёт PR-прогон, а группа `concurrency: ci-guards` в `main` **без привязки к ref** ⇒ второй вытесняет первый ⇒ `cancelled` (класс `DO-123`).
+
+## 18. `deploy-prod-deliver-update-sh.patch` — доставка `update.sh` на VPS-1 (DO-124, P0)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 11:3x. **Статус:** ждёт применения.
+
+**Дефект (факт из прогона `43379615221`, шаг «Deploy prod (VPS-1)»):**
+```
+APIM_PREFLIGHT_OK
+/opt/xdiary/7-deploy/update.sh: line 59: say: command not found
+/home/<deploy>/<script>.sh разошёлся со снимком (sha256 9173778a… != 7b62a233…)
+```
+**Причина:** dev-джоб **доставляет** скрипт (`UPDATE_B64` → `base64 -d > /opt/xdiary/7-deploy/update.sh`, строки 137/155), а prod-джоб просто вызывает `bash /home/deploy/update.sh` (строка 490) — на VPS-1 остаётся старая копия. В git `say()` определена (строки 40–56), а строка 59 — комментарий ⇒ ошибка возможна только на устаревшей копии.
+
+**Что делает патч:** в prod-джобе добавляет шаг `Подготовить update.sh (base64 …)` и в ssh-скрипте — доставку файла + `chmod +x` + контроль `grep -q 'tag_of'`. `envs` расширены до `TAG,CODE_TS,UPDATE_B64`.
+
+**Проверено:** `yaml.safe_load` ok (steps: Tag → Подготовить → Deploy; `envs: TAG, CODE_TS, UPDATE_B64`), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
+
+**После применения:** первый `deploy` на `main` должен дать `deploy-prod` **success**; если сторож эталона всё ещё ругается — прогнать `bash /opt/xdiary/7-deploy/legacy-shims.sh` (пересоберёт шим и эталон детерминированно, файл бэкапится в `/home/deploy/legacy-<ts>/`).
+
+## 19. `smoke-front-api-readiness.patch` — ждать готовность API dev, а не только `/health` (TE-110, P1)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 11:5x. **Статус:** ждёт применения.
+
+**Дефект (замер):** `front-e2e-repeat` на `main`, `add-partner`, `repeat=3` → **1 passed / 2 failed**; оба падения с текстом
+`Вход не завершился … views={"view-onboarding":"visible"} ошибки=["http 502 http://127.0.0.1:8080/api/v1/clients", "502 (Bad Gateway)"]`.
+Механизм: `deploy-dev` пересоздаёт контейнеры, `Туннель к dev` ждёт `/health` (**Caddy**), а сервис в это время ещё не готов → `/api/v1/clients` отдаёт 502; красный `smoke-front` через `needs` гасит `receipt-be092`.
+
+**Что делает патч:** новый шаг `Готовность API dev (не 5xx на /api/v1/clients/me)` сразу после туннеля: до 60 попыток по 3 с, готовность = любой код кроме `5xx`/`000` (`GET /api/v1/clients/me` анонимно → `401`, это и есть «сервис жив»), без создания данных.
+
+**Проверено:** `yaml.safe_load` ok (**8 jobs**, `smoke-front` — 12 шагов), `check_workflow_shape` → **rc=0** (43/0), `git apply --check` → **rc=0**.
+
+**После применения:** первый `deploy` на `main` должен дать `smoke-front` **success** без повторов; в логе появится строка `API dev готов: GET /api/v1/clients/me -> 401 (попытка N)`.
+
+### Проверка предположения патча №19 на живом стенде (2026-11-13 12:0x)
+
+Шаг ждёт «не 5xx», и ожидаемый код `401` подтверждён **снаружи**, а не по документации:
+
+```
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/health          -> 200
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api/v1/clients/me -> 401
+curl -s -o /dev/null -w '%{http_code}' https://xdiary-vps2.taile0b6ee.ts.net/api/v1/catalog    -> 401
+```
+
+То есть `401` на `/api/v1/clients/me` — это штатное «сервис жив, аноним не авторизован», и проба не создаёт данных. Если в окне пересоздания контейнеров будет `502`, шаг подождёт, а не упадёт.
+
+## 20. `deploy-prod-deliver-legacy-shims.patch` — доставить `legacy-shims.sh` на VPS-1 (DO-124 ч.2, P0)
+
+**Адресат:** @DO. **Применён координатором** 2026-11-13 12:1x по указанию владельца.
+
+**Второй слой того же блокера.** После правки @DO (доставка `images.lock`/`update.sh`/`recreate-service.sh`) лог прогона `43398330290` показал:
+
+```
+APIM_PREFLIGHT_OK
+DO-124: скрипты обновлены из git (update.sh 332 строк)
+Process exited with status 1
+/home/deploy/update.sh разошёлся со снимком (sha256 9173778a… != 7b62a233…)
+```
+
+То есть `/opt/xdiary/7-deploy/update.sh` уже свежий, но **шим** `/home/deploy/update.sh` остался старым и падает на своём стороже **до** вызова живого скрипта. Причина: шаг «пересоздать шимы» был условным (`if [ -f …/legacy-shims.sh ]`), а этого файла на VPS-1 **нет** — доставка трёх файлов его не покрывала.
+
+**Что делает патч:** добавляет `LEGACY_B64` в шаг подготовки, доставляет `legacy-shims.sh` рядом с остальными, проверяет маркер `DO-066` и **безусловно** пересоздаёт шимы (`make_shim` пишет новый шим, а он `exec`-ит живой скрипт — сторожа на нём уже нет).
+
+**Проверено:** `yaml.safe_load` ok (8 jobs), `envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64`, `check_workflow_shape` 43/0, `check_yaml_dups` — 0 дублей.
+
+## 21. `smoke-front-readiness-deep-probe.patch` — готовность dev должна доходить ДО сервиса (P0, блокирует deploy-prod)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 18:0x. **Статус:** ждёт применения.
+
+**Дефект (замер, не гипотеза).** Прогон `43447361176` (sha `5f7bdca4`): `smoke-front` ✅, но `smoke-api` ❌ и `receipt-be092` ❌, `deploy-prod` skipped.
+Из лога `receipt-be092` (job `131962378438`): `POST /clients {phone: +799…54} → 502` → `check_be092_delivery: занятый номер: ожидали 409 + clientId, получили 502`.
+Из лога `smoke-api`: `канон входа: не измерено ДВАЖДЫ (rc=2)`.
+
+**Причина.** Шаг «Готовность API dev» проверяет `GET /api/v1/clients` и `GET /api/v1/clients/me` — оба отвечает **шлюз** (401 до авторизации), поэтому проба зеленеет, пока сам **сервис** `clients` ещё не поднялся. `POST /clients` доходит до сервиса и получает 502.
+
+**Что делает патч.** Добавляет третью пробу — `POST /api/v1/clients` с пустым телом `{}`; ожидание — **400** (валидация из сервиса), 5xx/000 = ждём. Проверено на живом dev: `POST /clients {}` → **400** (`The Phone field is required.`), то есть проба доходит до сервиса и не создаёт данных.
+
+**Проверено:** `yaml.safe_load` ok (8 jobs), `check_workflow_shape` — 43/0.
+
+## 22. `release-lock-pr-via-bot.patch` — `release.yml` не может создать PR сам (P0, финал прод-выкатки)
+
+**Адресат:** @DO (`.github/workflows/release.yml`). **Выдан:** 2026-11-13 18:1x.
+
+**Дефект (замер).** Все прогоны `release.yml` падают (43448709708, 43447376705, 43446872279, 43445592672). Лог:
+образы собираются и пушатся в GHCR, затем
+`pull request create failed: GraphQL: Resource not accessible by integration (createPullRequest)` → `exit code 1`.
+Две причины сразу: (1) у workflow `permissions` = `contents: write` + `packages: write`, **без `pull-requests: write`**;
+(2) ветка называлась `release/lock-$SHA`, а бот-создатель PR слушает только `role/**`.
+
+**Что делает патч:** пушить в `role/release-lock-$SHA` и **не** звать `gh pr create` — PR и чеки создаёт `pr-create.yml`, как для всех ролей (PDR-047 сохраняется, прямого пуша в `main` нет).
+
+**Проверено:** `yaml.safe_load` ok, `check_workflow_shape` — 44/0, `gh pr create` в файле больше нет.
+
+## 23. `recreate-service-exclude-own-ip.patch` — `client` получал `--add-host clients:<свой ip>` (DO-128, P0)
+
+**Адресат:** @DO (`7-deploy/recreate-service.sh`). **Выдан:** 2026-11-13 18:4x.
+
+**Арифметика дефекта (сходится с логом без остатка).** Генератор `gen-hosts.py --add-host` даёт 11 записей: 10 сервисов + псевдоним `clients:10.89.9.31` (он есть в `deploy.sh:78` у шлюза). `gen_expected` вычитает **своё имя** (`grep -v "^${svc}:"`):
+- для `journal` — вычитается `journal:…` → остаётся **10** (так в логе);
+- для `client` — вычитается `client:…`, **которого в списке нет** (есть `clients:` — псевдоним шлюза) → остаётся **11**, и в `podman run` клиента попадает `--add-host clients:10.89.9.31` рядом с его же `--ip 10.89.9.31`.
+
+Отсюда `попытка 1/2/3 не удалась` → `client не поднялся` (класс «error configuring network namespace», уже описан в этом же файле, строка 224).
+
+**Что делает патч:** в `gen_expected` берём IP сервиса из `deploy.sh` (`--ip`) и вычитаем **любой псевдоним, указывающий на свой IP** — закрывает и `clients:`, и будущие такие же алиасы.
+
+**Проверка:** файл — bash-скрипт; локального bash в этой среде нет, поэтому `bash -n` не выполнялся. Изменение — только внутри функции `gen_expected` (heredoc и awk в отдельных строках), логика фильтра — три `grep -v` в одном конвейере.
+
+## 24. `prod-gen-hosts-and-mktemp.patch` — доставить `gen-hosts.py` на прод + уникальные tmp-файлы (DO-129, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 18:5x.
+
+**Два дефекта из прод-прогона `43455070581`** (он впервые дошёл до пересоздания сервисов: все теги `single-c0552f2` прочитаны из lock):
+
+1. **`gen-hosts.py` не доставлялся на VPS-1.** Локально `python tools/gen-hosts.py --add-host` даёт **12** записей (10 сервисов + `clients:10.89.9.31` + `client:10.89.9.31`), а на dev в прогоне было 11 (Journal → «10 хостов»), на проде — 12 (journal → «11 хостов»). То есть генератор на стендах **разный**: он живёт только на VPS (`/opt/xdiary/tools/gen-hosts.py`) и никогда не доставлялся. Патч добавляет `GENHOSTS_B64` и запись `/opt/xdiary/tools/gen-hosts.py` из git в прод-джобе.
+2. **Откат падал на фиксированных путях:** `PermissionError: [Errno 13] Permission denied: '/tmp/recreate-partners.body'` → `откат partners не удался (нужно вручную)`, и то же для `catalog`. Файл остаётся от прошлого запуска с другим владельцем. Патч заменяет фиксированные `BODY`/`RUNNER` на `mktemp "/tmp/recreate-$SVC.*.XXXXXX"`.
+
+**Проверено:** `yaml.safe_load` ok, `envs` содержит `GENHOSTS_B64`, `check_workflow_shape` ok, `bash -n 7-deploy/recreate-service.sh` → rc=0.
+
+## 26. `recreate-service-failure-diagnostics.patch` — печатать `podman logs` при провале (DO-128, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 19:2x.
+
+**Зачем.** Три прогона подряд (`43455070581`, `43457921240`, `43459800205`) упали на «`<svc>` не поднялся» без единой подробности: `recreate-service.sh` глотает `podman run` в `>/dev/null 2>&1` и ничего не печатает при провале. Из-за этого нельзя отличить «нет `Jwt__SigningKey` (fail-fast в `Shared/XDiary.Contracts/JwtSigningKey.cs`)» от конфликта сети или падения на миграциях — а без этого нельзя и починить.
+
+**Что делает патч:** после исчерпания трёх попыток печатает (1) `podman run` ещё раз с `stderr` (tail 20), (2) `exit=` и `err=` из `podman inspect`, (3) `podman logs --tail 40`. Всё помечено префиксами `run|` и `log|`, чтобы не путать с обычным выводом.
+
+**Проверено:** `bash -n 7-deploy/recreate-service.sh` → **rc=0**.
+
+## 27. `recreate-service-ensure-network.patch` — проверить/создать сеть `xdiary` ДО `podman rm -f` (DO-129, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 19:4x.
+
+**Причина.** Прод-инцидент `43461987716`: `unable to find network configuration for xdiary: network not found`, но скрипт уже снял контейнеры → сервисы остались снятыми, `POST /api/v1/clients` → **500**. В репозитории сеть `xdiary` **никто не создаёт** (только `apim` в `apim/up.sh`), она была создана вручную — то есть существование сети было неявным предусловием.
+
+**Что делает патч:** перед `podman rm -f` проверяет `podman network exists xdiary`; если нет — создаёт `--subnet 10.89.9.0/24` (как в `deploy.sh`), а если создать не удалось — **выходит, не трогая контейнер** (код 4). Так провал больше не может оставить прод без сервисов.
+
+**Проверено:** `bash -n 7-deploy/recreate-service.sh` → rc=0.

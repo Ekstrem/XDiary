@@ -1,0 +1,42 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index a056d0f61..8fa80d5f8 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -136,6 +136,7 @@ jobs:
+           echo "DEV_E2E_B64=$(base64 -w0 7-deploy/env/dev.e2e.env)" >> "$GITHUB_ENV"
+           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
+           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
++          echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+       - name: Deploy dev (VPS-2)
+         uses: appleboy/ssh-action@v1
+         with:
+@@ -500,7 +501,7 @@ jobs:
+           host: ${{ secrets.PROD_SSH_HOST }}
+           username: ${{ secrets.PROD_SSH_USER }}
+           key: ${{ secrets.PROD_SSH_KEY }}
+-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64
++          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64
+           script: |
+             set -euo pipefail
+             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
+@@ -537,10 +538,16 @@ jobs:
+             echo "DO-124: скрипты обновлены из git (update.sh $(wc -l < update.sh) строк)"
+             # шимы /home/deploy/*.sh пересоздаём детерминированно: их sha256-эталон
+             # считается от сгенерированного текста, поэтому после этого сходится.
+-            if [ -f /opt/xdiary/7-deploy/legacy-shims.sh ]; then
+-              bash /opt/xdiary/7-deploy/legacy-shims.sh >/dev/null
+-              echo "DO-124: шимы пересозданы (legacy-shims.sh)"
+-            fi
++            # DO-124 ч.2 (@TL 2026-11-13 12:1x): `legacy-shims.sh` на VPS-1 отсутствовал, поэтому
++            # шим `/home/deploy/update.sh` оставался старым и падал на своём же
++            # стороже «разошёлся со снимком» (sha256 9173778a != 7b62a233) ДО вызова живого скрипта.
++            # Доставляем его из git и пересоздаём шимы детерминированно.
++            echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
++            chmod +x legacy-shims.sh
++            grep -q 'запрещено: тег задаётся только images.lock' legacy-shims.sh \
++              || { echo "::error::legacy-shims.sh без DO-066 — доставка не удалась"; exit 1; }
++            bash legacy-shims.sh >/dev/null
++            echo "DO-124: шимы пересозданы из git (legacy-shims.sh)" 
+             bash /home/deploy/update.sh
+             sleep 20
+             curl -fsS http://127.0.0.1:8080/health && echo PROD_OK

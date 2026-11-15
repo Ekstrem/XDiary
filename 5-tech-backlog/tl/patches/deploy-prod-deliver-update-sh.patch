@@ -1,0 +1,31 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index b33a3f867..aa6b786c4 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -455,6 +455,8 @@ jobs:
+           first="$(awk '!/^#/ && NF>=2 {print $2; exit}' 7-deploy/images.lock)"
+           [ -n "$first" ] || { echo "::error::images.lock без тегов"; exit 1; }
+           echo "TAG=$first" >> "$GITHUB_ENV"   # только для логов/проверки: update.sh читает lock сам
++      - name: Подготовить update.sh (base64 для доставки на VPS-1)
++        run: echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
+       - name: Deploy prod (VPS-1)
+         uses: appleboy/ssh-action@v1
+         env:
+@@ -463,9 +465,16 @@ jobs:
+           host: ${{ secrets.PROD_SSH_HOST }}
+           username: ${{ secrets.PROD_SSH_USER }}
+           key: ${{ secrets.PROD_SSH_KEY }}
+-          envs: TAG,CODE_TS
++          envs: TAG,CODE_TS,UPDATE_B64
+           script: |
+             set -euo pipefail
++            # DO-124 (@TL 2026-11-13): версия `/opt/xdiary/7-deploy/update.sh` на VPS-1
++            # отставала от git — в логе прогона 43379615221 видно
++            # `update.sh:59: say: command not found`, хотя в git `say()` определена.
++            # Dev-джоб доставляет скрипт (base64 -> файл), prod — нет. Делаем так же.
++            echo "$UPDATE_B64" | base64 -d > /opt/xdiary/7-deploy/update.sh
++            chmod +x /opt/xdiary/7-deploy/update.sh
++            grep -q 'tag_of' /opt/xdiary/7-deploy/update.sh || { echo "::error::update.sh без tag_of — доставка не сработала"; exit 1; }
+             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
+             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
+             # `me/profile` = 1, контрольная `api/v1/clients` = 1; `GET /clients` закрыт

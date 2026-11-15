@@ -1,0 +1,30 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 6776de459..a4bf86d72 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -587,8 +587,23 @@ jobs:
+               mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
+               echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+               chmod +x /opt/xdiary/7-deploy/apim/import.sh
+-              tar -xzf - -C /opt/xdiary <<< "$(printf %s "$OPENAPI_B64" | base64 -d)" || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+-              if bash /opt/xdiary/7-deploy/apim/import.sh; then
++              # Бинарные данные через here-string (`<<<`) портятся: base64 -d | tar — единственный
++              # надёжный путь (первый прогон дал «не удалось распаковать openapi/*.json»).
++              printf %s "$OPENAPI_B64" | base64 -d | tar -xzf - -C /opt/xdiary || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
++              ls /opt/xdiary/openapi/*.json >/dev/null 2>&1 || fail_or_warn "APIM-REIMPORT: после распаковки в /opt/xdiary/openapi нет спек"
++              echo "APIM-REIMPORT: спек в /opt/xdiary/openapi — $(ls /opt/xdiary/openapi/*.json 2>/dev/null | wc -l)"
++              # Креды: файл apim.env мог лежать в двух местах — проверяем оба, значение не печатаем.
++              APIM_SECRETS=""
++              for c in /opt/xdiary/7-deploy/secrets/apim.env /opt/xdiary/secrets/apim.env; do
++                [ -f "$c" ] && { APIM_SECRETS="$c"; break; }
++              done
++              if [ -n "$APIM_SECRETS" ]; then
++                echo "APIM-REIMPORT: креды из $APIM_SECRETS"
++              else
++                echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
++              fi
++              if XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
++                 bash /opt/xdiary/7-deploy/apim/import.sh; then
+                 echo "APIM-REIMPORT: ре-импорт выполнен"
+               else
+                 fail_or_warn "APIM-REIMPORT: import.sh вернул ошибку — API в шлюзе могли остаться прежними"

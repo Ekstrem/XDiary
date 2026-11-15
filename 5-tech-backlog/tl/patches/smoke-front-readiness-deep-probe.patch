@@ -1,0 +1,38 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 3997b1f48..946d44384 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -409,18 +409,27 @@ jobs:
+       # поэтому ждём НЕ `/health` (его отдаёт Caddy, мимо API), а сам API без 5xx.
+       # Проверяем ДВА пути: `/clients` (401 анонимно) и `/clients/me` (401 — «сервис жив», токен не нужен).
+       # Готово только когда ОБА не 5xx/000 — иначе окно пересоздания одной реплики ещё открыто.
+-      - name: Готовность API dev (не 5xx на /api/v1/clients и /clients/me)
++      - name: Готовность API dev (не 5xx на /clients, /clients/me и POST /clients)
+         run: |
+           set -uo pipefail
+           last=""
+           for i in $(seq 1 60); do
+             c1="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
+             c2="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients/me 2>/dev/null || true)"
+-            c1="${c1:-000}"; c2="${c2:-000}"
+-            last="clients=$c1 clients/me=$c2"
+-            case "$c1" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
+-            case "$c2" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
+-            echo "::notice::API dev готов: $last (попытка $i; 401 = сервис жив, токен не нужен)"
++            # DO-125/ч.2 (@TL 2026-11-13 18:0x): `GET /clients` и `GET /clients/me` отвечает
++            # ШЛЮЗ (401 до авторизации), поэтому проба зеленела, пока сам сервис clients лежал.
++            # Замер: прогон 43447361176, job 131962378438 — `POST /clients {phone: …54} → 502`;
++            # `smoke-api` там же дал rc=2 «не измерено ДВАЖДЫ». Проба ниже доходит ДО сервиса:
++            # пустое тело → ожидаем 400 (валидация из сервиса), а не 502.
++            c3="$(curl -s -o /dev/null -m 5 -w '%{http_code}' -X POST \
++                 -H 'Content-Type: application/json' -d '{}' \
++                 http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
++            c1="${c1:-000}"; c2="${c2:-000}"; c3="${c3:-000}"
++            last="clients=$c1 clients/me=$c2 POST/clients=$c3"
++            case "$c1" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
++            case "$c2" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
++            case "$c3" in 5*|000) echo "  попытка $i: $last — сервис clients ещё поднимается"; sleep 3; continue ;; esac
++            echo "::notice::API dev готов: $last (попытка $i; 401 = шлюз жив, 400 = сервис clients жив)"
+             exit 0
+           done
+           echo "::error::dev API не поднялся за 180 с ($last) — это инфраструктура, а не дефект фронта"

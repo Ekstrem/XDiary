@@ -1,0 +1,42 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 96954c67a..c4b9de0c2 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -620,6 +620,37 @@ jobs:
+             # то есть на КАЖДОЙ проверке токена: если ключа нет, защищённый эндпоинт отвечает
+             # 500 вместо 401 (проверено: GET /api/v1/journal/records → 500).
+             # Проверяем НАЛИЧИЕ и базовую валидность ключа, ЗНАЧЕНИЕ НЕ ПЕЧАТАЕМ никогда.
++            # Путь уточнён по факту: в прогоне 43481204653 проверка сказала
++            # «/opt/xdiary/secrets/.env не найден», хотя сервисы поднимаются — значит
++            # `deploy.sh` берёт `--env-file secrets/.env` из СВОЕГО каталога
++            # (`/opt/xdiary/7-deploy`). Проверяем оба кандидата плюс окружение живого
++            # контейнера (только НАЛИЧИЕ ключа, значение не печатаем никогда).
++            ENVFILE=""
++            for cand in /opt/xdiary/7-deploy/secrets/.env /opt/xdiary/secrets/.env; do
++              [ -f "$cand" ] && { ENVFILE="$cand"; break; }
++            done
++            if [ -z "$ENVFILE" ]; then
++              echo "BE-115: файл .env не найден ни в /opt/xdiary/7-deploy/secrets, ни в /opt/xdiary/secrets"
++            else
++              echo "BE-115: файл окружения — $ENVFILE"
++            fi
++            if [ -n "$ENVFILE" ] && grep -q '^Jwt__SigningKey=' "$ENVFILE" 2>/dev/null; then
++              kv="$(grep -m1 '^Jwt__SigningKey=' "$ENVFILE" | cut -d= -f2- | tr -d '\r')"
++              if [ "${#kv}" -ge 32 ] && printf '%s' "$kv" | base64 -d >/dev/null 2>&1; then
++                echo "BE-115: Jwt__SigningKey в $ENVFILE есть и валиден (len=${#kv})"
++              else
++                fail_or_warn "BE-115: Jwt__SigningKey в $ENVFILE есть, но НЕ валиден (len=${#kv}) — защищённые эндпоинты отдадут 500 вместо 401"
++              fi
++            fi
++            # независимая проверка: попал ли ключ в ЖИВОЙ контейнер (считаем только наличие)
++            if podman container exists xdiary-journal 2>/dev/null; then
++              has="$(podman inspect xdiary-journal --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -c '^Jwt__SigningKey=' || true)"
++              if [ "${has:-0}" -ge 1 ]; then
++                echo "BE-115: в окружении xdiary-journal Jwt__SigningKey ПРИСУТСТВУЕТ"
++              else
++                fail_or_warn "BE-115: в окружении xdiary-journal ОТСУТСТВУЕТ Jwt__SigningKey — поэтому 500 вместо 401"
++              fi
++            fi
+             if [ -f /opt/xdiary/secrets/.env ]; then
+               if grep -q '^Jwt__SigningKey=' /opt/xdiary/secrets/.env; then
+                 kv="$(grep -m1 '^Jwt__SigningKey=' /opt/xdiary/secrets/.env | cut -d= -f2- | tr -d '\r')"
