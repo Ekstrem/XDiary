@@ -1,0 +1,34 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index e1dc2f569..012246bf2 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -75,6 +75,12 @@ jobs:
+           else
+             echo "::error::реестр: check_registry_tags --available rc=$rc — образ из lock недоступен в реестре (список выше); это блокирует деплой"
+           fi
++          # DO-129 ч.2 (@TL 2026-11-13 19:5x): «не измерено» ≠ «нарушено». Если ПРОД лежит,
++          # канон меряет именно прод и физически не может ответить — rc=2. При этом `deploy-prod`
++          # требует success от этого джоба, то есть прод нельзя ПОЧИНИТЬ деплоем (замкнутый круг:
++          # прогоны 43465238296, 43465975731). Отдаём признак наружу, чтобы ремонт стал возможен,
++          # но джоб остаётся КРАСНЫМ: сигнал «не измерено» не закрашиваем.
++          if [ "$rc" = "2" ]; then echo "reason=unmeasured" >> "$GITHUB_OUTPUT"; fi
+           exit "$rc"
+ 
+       - name: Все теги из images.lock опубликованы
+@@ -231,6 +237,7 @@ jobs:
+       # `9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj` (MSB1009) и блокировал deploy-prod.
+       # Заменён на ИЗМЕРЕНИЕ канона входа: 74/74 + 2/2, via=gravitee, rc=0/2/1.
+       - name: API-канон входа (measure, не заглушка)
++        id: canon
+         run: |
+           set -uo pipefail
+           # 2026-11-10 (@DO): в #1801 канон дал 73/74 и rc=2 из-за ОДНОЙ пробы без ответа
+@@ -482,7 +489,7 @@ jobs:
+     if: |
+       (!inputs.stop_before_prod) &&
+       always() &&
+-      needs.smoke-api.result == 'success' &&
++      (needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured') &&
+       (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
+     runs-on: ubuntu-latest
+     environment: prod

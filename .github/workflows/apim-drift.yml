@@ -69,6 +69,7 @@ jobs:
           GRAVITEE_TOKEN: ${{ secrets.GRAVITEE_TOKEN }}
           GRAVITEE_BASIC: ${{ secrets.GRAVITEE_BASIC }}
         with:
+          port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}

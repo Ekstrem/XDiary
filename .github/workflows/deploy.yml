@@ -21,6 +21,14 @@ on:
       - '**/*.md'
   workflow_dispatch:
     inputs:
+      allow_prod_repair:
+        description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
+        type: boolean
+        default: false
+      reimport_apim:
+        description: 'Ре-импорт openapi/*.json в Gravitee APIM (нужно после правки спек: APIM хранит определение у себя)'
+        type: boolean
+        default: false
       stop_before_prod:
         description: 'Остановиться до deploy-prod (dev + smoke-api + контракт журнала, без прода)'
         type: boolean
@@ -75,6 +83,12 @@ jobs:
           else
             echo "::error::реестр: check_registry_tags --available rc=$rc — образ из lock недоступен в реестре (список выше); это блокирует деплой"
           fi
+          # DO-129 ч.2 (@TL 2026-11-13 19:5x): «не измерено» ≠ «нарушено». Если ПРОД лежит,
+          # канон меряет именно прод и физически не может ответить — rc=2. При этом `deploy-prod`
+          # требует success от этого джоба, то есть прод нельзя ПОЧИНИТЬ деплоем (замкнутый круг:
+          # прогоны 43465238296, 43465975731). Отдаём признак наружу, чтобы ремонт стал возможен,
+          # но джоб остаётся КРАСНЫМ: сигнал «не измерено» не закрашиваем.
+          if [ "$rc" = "2" ]; then echo "reason=unmeasured" >> "$GITHUB_OUTPUT"; fi
           exit "$rc"
 
       - name: Все теги из images.lock опубликованы
@@ -137,9 +151,12 @@ jobs:
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+          echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
+          echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
       - name: Deploy dev (VPS-2)
         uses: appleboy/ssh-action@v1
         with:
+          port: 8237
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
@@ -206,6 +223,12 @@ jobs:
   smoke-api:
     needs: deploy-dev
     runs-on: ubuntu-latest
+    # DO-129 ч.2 (@TL): выход нужен, чтобы `deploy-prod` мог поехать РЕМОНТОМ,
+    # когда канон не смог измерить прод (rc=2). Без объявления на уровне джоба
+    # `needs.smoke-api.outputs.reason` всегда пуст — именно на этом первый вариант
+    # патча №28 и не сработал (прогон 43467346514: deploy-prod skipped).
+    outputs:
+      reason: ${{ steps.canon.outputs.reason }}
     env:
       XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
       # @TL 2026-11-06 00:01: канон входа измеряется по ПРОД-базе: на dev `via=yarp`
@@ -229,6 +252,7 @@ jobs:
       # `9-tests/E2E/E2E.Tests/E2E.IntegrationTests.csproj` (MSB1009) и блокировал deploy-prod.
       # Заменён на ИЗМЕРЕНИЕ канона входа: 74/74 + 2/2, via=gravitee, rc=0/2/1.
       - name: API-канон входа (measure, не заглушка)
+        id: canon
         run: |
           set -uo pipefail
           # 2026-11-10 (@DO): в #1801 канон дал 73/74 и rc=2 из-за ОДНОЙ пробы без ответа
@@ -354,6 +378,7 @@ jobs:
         env:
           CLEANUP_B64: ${{ env.CLEANUP_SCRIPT_B64 }}
         with:
+          port: 8237
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
@@ -386,7 +411,7 @@ jobs:
           set -euo pipefail
           install -m 600 /dev/null /tmp/dev_key
           printf '%s\n' "$DEV_KEY" > /tmp/dev_key
-          ssh -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -p 8237 -i /tmp/dev_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               -o ExitOnForwardFailure=yes -f -N -L 8080:127.0.0.1:8080 "$DEV_USER@$DEV_HOST"
           for i in $(seq 1 30); do
             if curl -fsS -m 3 http://127.0.0.1:8080/health >/dev/null; then
@@ -407,18 +432,27 @@ jobs:
       # поэтому ждём НЕ `/health` (его отдаёт Caddy, мимо API), а сам API без 5xx.
       # Проверяем ДВА пути: `/clients` (401 анонимно) и `/clients/me` (401 — «сервис жив», токен не нужен).
       # Готово только когда ОБА не 5xx/000 — иначе окно пересоздания одной реплики ещё открыто.
-      - name: Готовность API dev (не 5xx на /api/v1/clients и /clients/me)
+      - name: Готовность API dev (не 5xx на /clients, /clients/me и POST /clients)
         run: |
           set -uo pipefail
           last=""
           for i in $(seq 1 60); do
             c1="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
             c2="$(curl -s -o /dev/null -m 5 -w '%{http_code}' http://127.0.0.1:8080/api/v1/clients/me 2>/dev/null || true)"
-            c1="${c1:-000}"; c2="${c2:-000}"
-            last="clients=$c1 clients/me=$c2"
-            case "$c1" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
-            case "$c2" in 5*|000) echo "  попытка $i: $last — API ещё поднимается"; sleep 3; continue ;; esac
-            echo "::notice::API dev готов: $last (попытка $i; 401 = сервис жив, токен не нужен)"
+            # DO-125/ч.2 (@TL 2026-11-13 18:0x): `GET /clients` и `GET /clients/me` отвечает
+            # ШЛЮЗ (401 до авторизации), поэтому проба зеленела, пока сам сервис clients лежал.
+            # Замер: прогон 43447361176, job 131962378438 — `POST /clients {phone: …54} → 502`;
+            # `smoke-api` там же дал rc=2 «не измерено ДВАЖДЫ». Проба ниже доходит ДО сервиса:
+            # пустое тело → ожидаем 400 (валидация из сервиса), а не 502.
+            c3="$(curl -s -o /dev/null -m 5 -w '%{http_code}' -X POST \
+                 -H 'Content-Type: application/json' -d '{}' \
+                 http://127.0.0.1:8080/api/v1/clients 2>/dev/null || true)"
+            c1="${c1:-000}"; c2="${c2:-000}"; c3="${c3:-000}"
+            last="clients=$c1 clients/me=$c2 POST/clients=$c3"
+            case "$c1" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
+            case "$c2" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
+            case "$c3" in 5*|000) echo "  попытка $i: $last — сервис clients ещё поднимается"; sleep 3; continue ;; esac
+            echo "::notice::API dev готов: $last (попытка $i; 401 = шлюз жив, 400 = сервис clients жив)"
             exit 0
           done
           echo "::error::dev API не поднялся за 180 с ($last) — это инфраструктура, а не дефект фронта"
@@ -463,14 +497,46 @@ jobs:
         run: |
           python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
 
+  # Гейт паритета API между стендами (@TL 2026-11-15, запрос владельца):
+  # сегодняшний баг «Фантазии/акт падают с 500 на проде, а на dev работают» — это
+  # расхождение конфигурации API. Проверяем КЛАСС ответа каждой операции на обоих
+  # стендах без токена: одинаковый контракт ⇒ одинаковый класс (401/4xx), а 5xx
+  # на одном стенде при 401 на другом = расхождение. Дешёво: без management-API и секретов.
+  apim-parity:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Установить PyYAML
+        run: pip install --quiet pyyaml
+      - name: Самопроверка гейта
+        run: python tools/check_apim_parity.py --selftest
+      - name: Паритет прод ↔ dev (класс ответа по каждой операции)
+        run: |
+          set -uo pipefail
+          python tools/check_apim_parity.py \
+            --a "$XDIARY_PROD_BASE_URL" --b "$XDIARY_E2E_BASE_URL" | tee parity.txt
+          rc=${PIPESTATUS[0]}
+          { echo "### Паритет APIM прод ↔ dev"; echo; cat parity.txt; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$rc" = "0" ]; then echo "::notice::паритет APIM: расхождений нет"; exit 0; fi
+          if [ "$rc" = "2" ]; then echo "::error::паритет APIM: измерить не удалось (rc=2) — это не «зелено»"; exit 2; fi
+          echo "::error::паритет APIM: конфигурация API на проде и dev расходится (см. summary)"; exit 1
+    env:
+      XDIARY_PROD_BASE_URL: https://xdiary-vps1.taile0b6ee.ts.net
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+
   deploy-prod:
     # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
     # при условии, что фронт в этом пуше не менялся и smoke-api зелёный.
-    needs: [smoke-api, smoke-front, diff-paths, receipt-be092]
+    needs: [apim-parity, smoke-api, smoke-front, diff-paths, receipt-be092]
     if: |
       (!inputs.stop_before_prod) &&
       always() &&
-      needs.smoke-api.result == 'success' &&
+      (needs.apim-parity.result == 'success' && needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured' || inputs.allow_prod_repair) &&
       (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
     runs-on: ubuntu-latest
     environment: prod
@@ -478,6 +544,8 @@ jobs:
       # 2026-11-07: у job'а НЕ БЫЛО checkout — `7-deploy/images.lock` в workspace отсутствовал,
       # и шаг падал с `awk: cannot open file '7-deploy/images.lock'`, из-за чего prod не выкатывался.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       # DO-066: тег берётся ТОЛЬКО из 7-deploy/images.lock (он в git) — ручного входа нет.
       - name: Tag из images.lock
         run: |
@@ -498,23 +566,81 @@ jobs:
           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
           # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
+          echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
+          echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
+          echo "OPENAPI_B64=$(tar -czf - openapi | base64 -w0)" >> "$GITHUB_ENV"
+          echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
           # нельзя: правка в `7-deploy/`/`.github/` не пересобирает образы, но выглядит
           # «код новее образов» — прод вставал на каждом инфраструктурном коммите.
-          code_ts="$(git log -1 --format=%cI -- 6-msa 8-front 2>/dev/null || true)"
+          # Только `6-msa`: `8-front` — статика PWA (Pages), в образы контейнеров НЕ входит.
+          # С `8-front` в пути `CODE_TS` = время фронт-коммита, и сторож сравнивал его с
+          # образами бэкенда — ложное «образы старше кода» (run #2038: `код 13:39`
+          # при последнем коммите 6-msa `02:52`).
+          code_ts="$(git log -1 --format=%cI -- 6-msa 2>/dev/null || true)"
           [ -n "$code_ts" ] || code_ts="$(git log -1 --format=%cI)"
           echo "CODE_TS=$code_ts" >> "$GITHUB_ENV"
           echo "CODE_TS (по коду, не по инфре): $code_ts"
       - name: Deploy prod (VPS-1)
         uses: appleboy/ssh-action@v1
+        env:
+          ALLOW_PROD_REPAIR: ${{ inputs.allow_prod_repair }}
+          REIMPORT_APIM: ${{ inputs.reimport_apim }}
         with:
+          port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM
           script: |
+            if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
+              echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
+            fi
             set -euo pipefail
+            # DO-129 ч.3 (@TL 2026-11-13 20:2x): ремонт обязан ТЕРПЕТЬ то состояние, которое лечит.
+            # В прогоне 43471272718 прод-джоб впервые поехал (break-glass сработал), но умер на preflight:
+            # `APIM gateway: /api/v1/catalog = 200 (ожидали 401)` — старый APIM отдаёт каталог анонимно,
+            # это ровно те нарушители, которых и лечим. При allow_prod_repair вход проверяем, но не блокируем.
+            fail_or_warn() {
+              if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
+                echo "::warning::РЕМОНТ: $*"
+              else
+                echo "::error::$*"
+                exit 1
+              fi
+            }
+            # AR-160 (@TL 2026-11-13 23:4x): APIM хранит определение API у себя, поэтому правка
+            # `openapi/*.json` в git НЕ влияет на живой шлюз. После смены спек нужен ре-импорт.
+            # Делаем это по явному входу `reimport_apim` (default false), чтобы не плодить API
+            # на каждом обычном деплое.
+            if [ "${REIMPORT_APIM:-false}" = "true" ]; then
+              echo "APIM-REIMPORT: доставляю openapi/*.json и import.sh, затем ре-импорт"
+              mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
+              echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+              chmod +x /opt/xdiary/7-deploy/apim/import.sh
+              # Бинарные данные через here-string (`<<<`) портятся: base64 -d | tar — единственный
+              # надёжный путь (первый прогон дал «не удалось распаковать openapi/*.json»).
+              printf %s "$OPENAPI_B64" | base64 -d | tar -xzf - -C /opt/xdiary || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+              ls /opt/xdiary/openapi/*.json >/dev/null 2>&1 || fail_or_warn "APIM-REIMPORT: после распаковки в /opt/xdiary/openapi нет спек"
+              echo "APIM-REIMPORT: спек в /opt/xdiary/openapi — $(ls /opt/xdiary/openapi/*.json 2>/dev/null | wc -l)"
+              # Креды: файл apim.env мог лежать в двух местах — проверяем оба, значение не печатаем.
+              APIM_SECRETS=""
+              for c in /opt/xdiary/7-deploy/secrets/apim.env /opt/xdiary/secrets/apim.env; do
+                [ -f "$c" ] && { APIM_SECRETS="$c"; break; }
+              done
+              if [ -n "$APIM_SECRETS" ]; then
+                echo "APIM-REIMPORT: креды из $APIM_SECRETS"
+              else
+                echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
+              fi
+              if XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
+                 bash /opt/xdiary/7-deploy/apim/import.sh; then
+                echo "APIM-REIMPORT: ре-импорт выполнен"
+              else
+                fail_or_warn "APIM-REIMPORT: import.sh вернул ошибку — API в шлюзе могли остаться прежними"
+              fi
+            fi
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
             # `me/profile` = 1, контрольная `api/v1/clients` = 1; `GET /clients` закрыт
@@ -531,10 +657,10 @@ jobs:
             # сломанный вход.
             for c in xdiary-apim-gateway xdiary-apim-management xdiary-apim-ui xdiary-apim-mongo; do
               s="$(podman inspect "$c" --format '{{.State.Status}}' 2>/dev/null || echo missing)"
-              [ "$s" = "running" ] || { echo "::error::APIM: $c = $s (ожидали running) — деплой остановлен"; exit 1; }
+              [ "$s" = "running" ] || fail_or_warn "APIM: $c = $s (ожидали running) — деплой остановлен"
             done
             g="$(curl -s -o /dev/null -w '%{http_code}' -m 8 http://127.0.0.1:18082/api/v1/catalog)"
-            [ "$g" = "401" ] || { echo "::error::APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"; exit 1; }
+            [ "$g" = "401" ] || fail_or_warn "APIM gateway: /api/v1/catalog = $g (ожидали 401) — деплой остановлен"
             echo APIM_PREFLIGHT_OK
             # DO-124: привести скрипты на VPS-1 к версии из git ДО вызова update.sh.
             # Шим /home/deploy/update.sh делегирует в /opt/xdiary/7-deploy/update.sh —
@@ -554,6 +680,71 @@ jobs:
             # стороже «разошёлся со снимком» (sha256 9173778a != 7b62a233) ДО вызова живого скрипта.
             # Доставляем его из git и пересоздаём шимы детерминированно.
             [ -n "${LEGACY_B64:-}" ] || { echo "::error::LEGACY_B64 пуст — шаг подготовки не передал legacy-shims.sh"; exit 1; }
+            # DO-129 (@TL): `gen-hosts.py` НЕ доставлялся на VPS-1, поэтому список
+            # `--add-host` там отличался от dev (в прогоне 43455070581 у journal вышло
+            # «11 хостов» против 10 на dev). Генератор должен быть один и тот же.
+            mkdir -p /opt/xdiary/tools
+            [ -n "${GENHOSTS_B64:-}" ] || { echo "::error::GENHOSTS_B64 пуст — шаг подготовки не передал tools/gen-hosts.py"; exit 1; }
+            echo "$GENHOSTS_B64" | base64 -d > /opt/xdiary/tools/gen-hosts.py
+            # DO-131 (@TL 2026-11-13 22:5x): `check_schema.py` — гейт расхождения схемы
+            # (сравнивает `Migrations/` в коде с `__EFMigrationsHistory` в БД). В `update.sh`
+            # он вызывается по пути `/opt/xdiary/tools/check_schema.py`, но на VPS-1 этот файл
+            # НИКОГДА не доставлялся — значит проверка молча пропускалась (`[ -f ]` → нет файла),
+            # и мы не видели, что схема БД отстала от новых образов (класс 27×500).
+            [ -n "${SCHEMACHECK_B64:-}" ] || { echo "::error::SCHEMACHECK_B64 пуст — шаг подготовки не передал tools/check_schema.py"; exit 1; }
+            echo "$SCHEMACHECK_B64" | base64 -d > /opt/xdiary/tools/check_schema.py
+            echo "DO-131: check_schema.py доставлен из git ($(wc -l < /opt/xdiary/tools/check_schema.py) строк)"
+            echo "DO-129: gen-hosts.py доставлен из git ($(wc -l < /opt/xdiary/tools/gen-hosts.py) строк)"
+            # BE-115 (@TL 2026-11-13 21:4x): 26 из 51 нарушителей контракта на проде — это
+            # `Jwt__SigningKey`. `JwtSigningKey.Resolve` вызывается внутри `AddJwtBearer(...)`,
+            # то есть на КАЖДОЙ проверке токена: если ключа нет, защищённый эндпоинт отвечает
+            # 500 вместо 401 (проверено: GET /api/v1/journal/records → 500).
+            # Проверяем НАЛИЧИЕ и базовую валидность ключа, ЗНАЧЕНИЕ НЕ ПЕЧАТАЕМ никогда.
+            # Путь уточнён по факту: в прогоне 43481204653 проверка сказала
+            # «/opt/xdiary/secrets/.env не найден», хотя сервисы поднимаются — значит
+            # `deploy.sh` берёт `--env-file secrets/.env` из СВОЕГО каталога
+            # (`/opt/xdiary/7-deploy`). Проверяем оба кандидата плюс окружение живого
+            # контейнера (только НАЛИЧИЕ ключа, значение не печатаем никогда).
+            ENVFILE=""
+            for cand in /opt/xdiary/7-deploy/secrets/.env /opt/xdiary/secrets/.env; do
+              [ -f "$cand" ] && { ENVFILE="$cand"; break; }
+            done
+            if [ -z "$ENVFILE" ]; then
+              echo "BE-115: файл .env не найден ни в /opt/xdiary/7-deploy/secrets, ни в /opt/xdiary/secrets"
+            else
+              echo "BE-115: файл окружения — $ENVFILE"
+            fi
+            if [ -n "$ENVFILE" ] && grep -q '^Jwt__SigningKey=' "$ENVFILE" 2>/dev/null; then
+              kv="$(grep -m1 '^Jwt__SigningKey=' "$ENVFILE" | cut -d= -f2- | tr -d '\r')"
+              if [ "${#kv}" -ge 32 ] && printf '%s' "$kv" | base64 -d >/dev/null 2>&1; then
+                echo "BE-115: Jwt__SigningKey в $ENVFILE есть и валиден (len=${#kv})"
+              else
+                fail_or_warn "BE-115: Jwt__SigningKey в $ENVFILE есть, но НЕ валиден (len=${#kv}) — защищённые эндпоинты отдадут 500 вместо 401"
+              fi
+            fi
+            # независимая проверка: попал ли ключ в ЖИВОЙ контейнер (считаем только наличие)
+            if podman container exists xdiary-journal 2>/dev/null; then
+              has="$(podman inspect xdiary-journal --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep -c '^Jwt__SigningKey=' || true)"
+              if [ "${has:-0}" -ge 1 ]; then
+                echo "BE-115: в окружении xdiary-journal Jwt__SigningKey ПРИСУТСТВУЕТ"
+              else
+                fail_or_warn "BE-115: в окружении xdiary-journal ОТСУТСТВУЕТ Jwt__SigningKey — поэтому 500 вместо 401"
+              fi
+            fi
+            if [ -f /opt/xdiary/secrets/.env ]; then
+              if grep -q '^Jwt__SigningKey=' /opt/xdiary/secrets/.env; then
+                kv="$(grep -m1 '^Jwt__SigningKey=' /opt/xdiary/secrets/.env | cut -d= -f2- | tr -d '\r')"
+                if [ "${#kv}" -ge 32 ] && printf '%s' "$kv" | base64 -d >/dev/null 2>&1; then
+                  echo "BE-115: Jwt__SigningKey есть и валиден как base64 (длина ${#kv})"
+                else
+                  fail_or_warn "BE-115: Jwt__SigningKey есть, но НЕ валиден (len=${#kv}, base64-декод не прошёл) — защищённые эндпоинты будут отдавать 500 вместо 401"
+                fi
+              else
+                fail_or_warn "BE-115: в /opt/xdiary/secrets/.env НЕТ Jwt__SigningKey — защищённые эндпоинты будут отдавать 500 вместо 401"
+              fi
+            else
+              echo "BE-115: /opt/xdiary/secrets/.env не найден — пропускаю проверку ключа"
+            fi
             echo "$LEGACY_B64" | base64 -d > legacy-shims.sh
             [ -s legacy-shims.sh ] || { echo "::error::legacy-shims.sh пуст после декода — base64 повреждён"; exit 1; }
             chmod +x legacy-shims.sh
@@ -569,7 +760,7 @@ jobs:
             # вход жив. Проверяем сам публичный путь: 401 (а не 404/502) + x-gravitee.
             ph="$(curl -sS -D /tmp/pub_hdr.txt -o /dev/null -w '%{http_code}' -m 8 \
                   -H 'Host: xdiary-vps1.taile0b6ee.ts.net' http://127.0.0.1:8081/api/v1/catalog)"
-            [ "$ph" = "401" ] || { echo "::error::публичный вход: /api/v1/catalog = $ph (ожидали 401; 404 = APIM без маршрута, 502 = APIM мёртв)"; exit 1; }
+            [ "$ph" = "401" ] || fail_or_warn "публичный вход: /api/v1/catalog = $ph (ожидали 401; 404 = APIM без маршрута, 502 = APIM мёртв)"
             grep -qi 'x-gravitee' /tmp/pub_hdr.txt || { echo "::error::публичный вход без x-gravitee — трафик идёт МИМО APIM"; exit 1; }
             echo APIM_IN_PATH_OK
 
