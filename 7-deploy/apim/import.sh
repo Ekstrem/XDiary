@@ -108,6 +108,11 @@ apim_api_ids() {
   while [ "$page" -le 30 ]; do
     out=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
       "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?page=$page&per_page=10" 2>/dev/null)
+    # Диагностика: без неё «API: 0» неотличимо от «список не отдался» (прогон 2026-11-15 21:23:
+    # снос увидел 0, хотя 17 API были — импорт затем падал на path.invalid).
+    if [ "$page" -eq 1 ]; then
+      echo "  листинг APIM: ответ $(printf '%s' "$out" | wc -c) байт, начинается с: $(printf '%s' "$out" | head -c 80)" >&2
+    fi
     chunk=$(printf '%s' "$out" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
     [ -n "$chunk" ] || break
     ids="$ids $chunk"
@@ -143,6 +148,33 @@ PY
   while :; do
     resp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" body)
     code=$(printf '%s' "$resp" | tail -1)
+    if [ "$code" = "400" ] && [ "${TRIED_PATHFIX:-0}" = "0" ]; then
+      # Gravitee: `Cannot import API with invalid paths (Path [/journalmicroserviceapi/] already exists)`.
+      # Достаём путь, ищем API с таким contextPath и сносим его — иначе импорт будет падать вечно.
+      bad_path=$(printf '%s' "$resp" | tr -d '\n' | sed -n 's/.*Path \[\([^]]*\)\].*/\1/p' | head -1)
+      if [ -n "$bad_path" ]; then
+        TRIED_PATHFIX=1
+        echo "  путь $bad_path занят — ищу и сношу владельца" >&2
+        page=1
+        while [ "$page" -le 30 ]; do
+          lst=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
+            "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?page=$page&per_page=10" 2>/dev/null)
+          hid=$(printf '%s' "$lst" | tr -d '\n' | sed -n "s/.*\"contextPath\"[[:space:]]*:[[:space:]]*\"${bad_path}\"[^}]*\"id\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1)
+          [ -n "$hid" ] && break
+          printf '%s' "$lst" | grep -q '"id"' || break
+          page=$((page+1))
+        done
+        if [ -n "$hid" ]; then
+          podman exec "$MG" curl -s -o /dev/null -m 20 -X POST -u "$USER:$PASS" \
+            "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$hid/_stop" 2>/dev/null || true
+          podman exec "$MG" curl -s -o /dev/null -m 20 -X DELETE -u "$USER:$PASS" \
+            "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$hid" 2>/dev/null || true
+          echo "  снёс API ${hid:0:8}…, повторяю импорт $svc" >&2
+          continue
+        fi
+        echo "  владелец пути $bad_path не найден в листинге — оставляю как есть" >&2
+      fi
+    fi
     case "$code" in
       000|429|5??)
         if [ "$attempt" -lt "$IMP_ATTEMPTS" ]; then
