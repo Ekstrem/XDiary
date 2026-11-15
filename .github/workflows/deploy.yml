@@ -497,14 +497,46 @@ jobs:
         run: |
           python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
 
+  # Гейт паритета API между стендами (@TL 2026-11-15, запрос владельца):
+  # сегодняшний баг «Фантазии/акт падают с 500 на проде, а на dev работают» — это
+  # расхождение конфигурации API. Проверяем КЛАСС ответа каждой операции на обоих
+  # стендах без токена: одинаковый контракт ⇒ одинаковый класс (401/4xx), а 5xx
+  # на одном стенде при 401 на другом = расхождение. Дешёво: без management-API и секретов.
+  apim-parity:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Установить PyYAML
+        run: pip install --quiet pyyaml
+      - name: Самопроверка гейта
+        run: python tools/check_apim_parity.py --selftest
+      - name: Паритет прод ↔ dev (класс ответа по каждой операции)
+        run: |
+          set -uo pipefail
+          python tools/check_apim_parity.py \
+            --a "$XDIARY_PROD_BASE_URL" --b "$XDIARY_E2E_BASE_URL" | tee parity.txt
+          rc=${PIPESTATUS[0]}
+          { echo "### Паритет APIM прод ↔ dev"; echo; cat parity.txt; } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$rc" = "0" ]; then echo "::notice::паритет APIM: расхождений нет"; exit 0; fi
+          if [ "$rc" = "2" ]; then echo "::error::паритет APIM: измерить не удалось (rc=2) — это не «зелено»"; exit 2; fi
+          echo "::error::паритет APIM: конфигурация API на проде и dev расходится (см. summary)"; exit 1
+    env:
+      XDIARY_PROD_BASE_URL: https://xdiary-vps1.taile0b6ee.ts.net
+      XDIARY_E2E_BASE_URL: https://xdiary-vps2.taile0b6ee.ts.net
+
   deploy-prod:
     # DO-035: бэкенд-пуш доезжает до прода, даже если красный фронтовый гейт —
     # при условии, что фронт в этом пуше не менялся и smoke-api зелёный.
-    needs: [smoke-api, smoke-front, diff-paths, receipt-be092]
+    needs: [apim-parity, smoke-api, smoke-front, diff-paths, receipt-be092]
     if: |
       (!inputs.stop_before_prod) &&
       always() &&
-      (needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured' || inputs.allow_prod_repair) &&
+      (needs.apim-parity.result == 'success' && needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured' || inputs.allow_prod_repair) &&
       (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
     runs-on: ubuntu-latest
     environment: prod
