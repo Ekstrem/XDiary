@@ -116,7 +116,9 @@ PY
   api_id=$(printf '%s' "$resp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   if [ "$code" != "200" ] && [ "$code" != "201" ]; then
     echo "  ОШИБКА $svc: HTTP $code" >&2
-    printf '%s' "$resp" | head -1 | cut -c1-200 >&2
+    # Тело ошибки Gravitee — многострочный JSON; `head -1` показывал только `{` и скрывал причину
+    # (прогон 2026-11-15: 12×HTTP 400 без единого слова диагностики). Печатаем первые 12 строк.
+    printf '%s' "$resp" | head -12 | cut -c1-300 >&2
     failed=$((failed+1))
     continue
   fi
