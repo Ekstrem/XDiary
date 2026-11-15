@@ -53,11 +53,41 @@ done
 echo "итого спек: $n, операций: $total"
 [ "$DRY" -eq 1 ] && { echo "import.sh: --dry-run — ничего не отправлено"; exit 0; }
 
+# DO-133 (@DO 2026-11-15): идемпотентность. `apis/import` создаёт, а не обновляет — при повторном
+# импорте тех же спек Gravitee отдаёт 405 (контекст-путь уже занят). Сверяем `info.title` с существующими
+# и при совпадении УДАЛЯЕМ старый (у нас keyless Default/KEY_LESS — подписок нет, источник правды git)
+# и создаём заново. Имена совпадают: `info.title` спека == `name` API в Gravitee.
+existing=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
+  "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?per_page=100" 2>/dev/null)
+
 # тело запроса собираем питоном внутри контейнера (там python нет — берём jq/awk)
 mkdir -p /tmp/apim-import
 ok=0; failed=0
 for f in $SPECS; do
   svc=$(basename "$f" .json)
+  # DO-133: удалить существующий API с тем же info.title (иначе 405)
+  title=$(python3 -c "import json;print(json.load(open('$f'))['info']['title'])" 2>/dev/null || true)
+  old_id=$(printf '%s' "$existing" | python3 -c "
+import json,sys
+t=sys.argv[1]
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    d={}
+for a in d.get('data',[]):
+    if a.get('name')==t:
+        print(a['id']); break
+" "$title" 2>/dev/null)
+  if [ -n "${old_id:-}" ]; then
+    echo "  $svc: существует ($title, id=${old_id:0:8}…) — удаляю для пересоздания"
+    if [ "$DRY" -eq 1 ]; then
+      echo "    (dry-run: удалил бы)"
+    else
+      podman exec "$MG" curl -s -o /dev/null -w '  удалён: %{http_code}\n' -m 60 -X DELETE \
+        -u "$USER:$PASS" "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$old_id" 2>/dev/null
+      sleep 2
+    fi
+  fi
   # JSON-escape содержимого спеки → кладём во временный файл тела
   python3 - "$f" > "/tmp/apim-import/$svc.body" <<'PY' 2>/dev/null || \
     awk 'BEGIN{printf "{\"type\":\"BOTH\",\"definition\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\"}"}' "$f" > "/tmp/apim-import/$svc.body"
@@ -108,6 +138,11 @@ PY
         -u "$USER:$PASS" -H 'Content-Type: application/json' -d '{}' \
         "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/deployments" 2>/dev/null)
       echo "    публикация: $dcode"
+      # DO-133: после deploy API остаётся STOPPED — явный start (lifecycle v2)
+      scode=$(podman exec "$MG" curl -s -o /dev/null -w '%{http_code}' -m 60 -X POST \
+        -u "$USER:$PASS" -H 'Content-Type: application/json' -d '{}' \
+        "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id?action=START" 2>/dev/null)
+      echo "    старт: $scode"
     fi
     ok=$((ok+1))
   else
