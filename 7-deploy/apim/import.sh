@@ -44,6 +44,27 @@ fi
 
 n=0; total=0
 echo "спеки для импорта:"
+# Снос существующих API — ОДИН раз перед импортом (а не на каждую спеку: иначе предыдущий
+# импорт тут же уничтожался бы, и цикл шёл по кругу — это и случилось в прогоне 2026-11-15).
+# Удаление опубликованного API Gravitee требует сначала `_stop` (иначе 400), а 404 = уже удалён.
+if [ "$PUBLISH" = "1" ]; then
+  ids=$(apim_api_ids)
+  count=$(printf '%s' "$ids" | wc -w)
+  echo "существующих API в APIM: $count — сношу перед импортом (иначе 400 path.invalid)"
+  del_ok=0; del_skip=0
+  for id in $ids; do
+    podman exec "$MG" curl -s -o /dev/null -m 20 -X POST -u "$USER:$PASS" \
+      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$id/_stop" 2>/dev/null || true
+    d=$(podman exec "$MG" curl -s -o /dev/null -w '%{http_code}' -m 20 -X DELETE \
+      -u "$USER:$PASS" "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$id" 2>/dev/null)
+    case "$d" in
+      200|204) del_ok=$((del_ok+1)) ;;
+      *) del_skip=$((del_skip+1)) ;;
+    esac
+  done
+  echo "снос завершён: удалено $del_ok, пропущено $del_skip (404 = уже нет, 400 = нельзя удалить)"
+fi
+
 for f in $SPECS; do
   svc=$(basename "$f" .json)
   ops=$(grep -c '"operationId"' "$f" 2>/dev/null || echo 0)
@@ -77,7 +98,26 @@ apim_curl() {  # $1 = method, $2 = path, $3 = body file or empty, $4 = extra cur
 
 for f in $SPECS; do
   svc=$(basename "$f" .json)
-  # тело импорта: payload = содержимое спеки СТРОКОЙ (+ нормализация servers, см. AR-160)
+  # AR-160 ч.2 (@TL 2026-11-15 20:5x): Gravitee отвечает 400 `Path [...] already exists` — импорт
+# создаёт НОВЫЙ API, а API с таким contextPath уже есть (мы импортировали их раньше). Поэтому
+# перед импортом сносим существующие API (они всё равно сломаны: journal/partners отдают 500),
+# и собираем заново из git-спек. Это и есть смысл «ре-импорта», а не «добавь ещё одну копию».
+# Пагинация: у Gravitee `per_page` больше 10 не увеличивает страницу (см. runbooks/apim.md).
+apim_api_ids() {
+  local page=1 ids="" out chunk
+  while [ "$page" -le 30 ]; do
+    out=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
+      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?page=$page&per_page=10" 2>/dev/null)
+    chunk=$(printf '%s' "$out" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
+    [ -n "$chunk" ] || break
+    ids="$ids $chunk"
+    page=$((page+1))
+  done
+  printf '%s' "$ids"
+}
+
+
+# тело импорта: payload = содержимое спеки СТРОКОЙ (+ нормализация servers, см. AR-160)
   python3 - "$f" > "/tmp/apim-import/$svc.body" <<'PY' 2>/dev/null || \
     awk 'BEGIN{printf "{\"payload\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\",\"withDocumentation\":true}"}' "$f" > "/tmp/apim-import/$svc.body"
 import json, sys
@@ -94,8 +134,24 @@ sys.stdout.write(json.dumps({"payload": json.dumps(doc), "withDocumentation": Tr
 PY
   podman cp "/tmp/apim-import/$svc.body" "$MG:/tmp/body.json" >/dev/null 2>&1
 
-  resp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" body)
-  code=$(printf '%s' "$resp" | tail -1)
+  # Повторитель (@TL 2026-11-15): импорт ретраим на СЕТЕВЫЕ/серверные коды (000/429/5xx), но НЕ на
+  # 4xx — 400/401/405 означают проблему в запросе или правах, и повтор лишь тратит время.
+  # Причина: `deploy-one.sh`/`recreate-service.sh` уже ретраят pull и пересоздание (3 попытки),
+  # а импорт в APIM ретрая не имел вовсе.
+  attempt=1
+  IMP_ATTEMPTS="${APIM_IMPORT_ATTEMPTS:-3}"
+  while :; do
+    resp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" body)
+    code=$(printf '%s' "$resp" | tail -1)
+    case "$code" in
+      000|429|5??)
+        if [ "$attempt" -lt "$IMP_ATTEMPTS" ]; then
+          echo "  импорт $svc: код $code — повтор $attempt/$IMP_ATTEMPTS через 5 с"
+          attempt=$((attempt+1)); sleep 5; continue
+        fi ;;
+    esac
+    break
+  done
 
   # креды: при 401 пробуем заводские admin/admin ОДИН раз (DO-098 п.8)
   if [ "$code" = "401" ] && [ "${TRIED_FACTORY:-0}" = "0" ]; then
@@ -113,7 +169,10 @@ PY
     fi
   fi
 
-  api_id=$(printf '%s' "$resp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  # Ответ Gravitee — многострочный JSON, поэтому id ищем по ВСЕМУ ответу, а не по первой строке:
+  # `head -1` давал `{`, api_id оставался пустым, и блок «план → публикация → старт» не выполнялся
+  # (в прогоне 2026-11-15 так импортировались 11 API, но остались без плана и потому отдавали 500).
+  api_id=$(printf '%s' "$resp" | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   if [ "$code" != "200" ] && [ "$code" != "201" ]; then
     echo "  ОШИБКА $svc: HTTP $code" >&2
     # Тело ошибки Gravitee — многострочный JSON; `head -1` показывал только `{` и скрывал причину
@@ -130,7 +189,7 @@ PY
     podman cp "/tmp/apim-import/$svc.plan" "$MG:/tmp/body.json" >/dev/null 2>&1
     presp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/plans" body)
     pcode=$(printf '%s' "$presp" | tail -1)
-    plan_id=$(printf '%s' "$presp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    plan_id=$(printf '%s' "$presp" | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
     if [ "$pcode" != "200" ] && [ "$pcode" != "201" ]; then
       echo "    план: HTTP $pcode — API останется без плана ($svc)" >&2
     else
