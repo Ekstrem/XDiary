@@ -76,7 +76,10 @@ list_ids() {
   while [ "$page" -le 30 ]; do
     out=$(apim GET "$APIS_PATH?page=$page&per_page=10")
     code=$(code_of "$out"); body=$(body_of "$out")
-    [ "$first" = "1" ] && { echo "  листинг APIM: HTTP $code, начало: $(printf '%s' "$body" | tr -d '\n' | head -c 90)" >&2; first=0; }
+    if [ "$first" = "1" ]; then
+      echo "  листинг APIM: HTTP $code" >&2
+      first=0
+    fi
     chunk=$(printf '%s' "$body" | tr -d '\n' | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
     [ -n "$chunk" ] || break
     ids="$ids $chunk"
@@ -88,11 +91,20 @@ list_ids() {
 count_ids() { printf '%s' "$1" | wc -w | tr -d ' '; }
 
 stop_and_delete() {
-  local id="$1"
-  apim POST "$APIS_PATH/$id/_stop" >/dev/null || true
-  local c
-  c=$(code_of "$(apim DELETE "$APIS_PATH/$id")")
-  case "$c" in 200|204) return 0 ;; *) return 1 ;; esac
+  local id="$1" sresp srespc dresp dcode body
+  sresp=$(apim POST "$APIS_PATH/$id/_stop"); srespc=$(code_of "$sresp")
+  dresp=$(apim DELETE "$APIS_PATH/$id"); dcode=$(code_of "$dresp")
+  case "$dcode" in
+    200|204) return 0 ;;
+    *)
+      # Диагностика первых трёх неудач: без неё «удалено 0, пропущено 66» ничего не объясняет.
+      if [ "${DEL_DIAG:-0}" -lt 3 ]; then
+        DEL_DIAG=$(( ${DEL_DIAG:-0} + 1 ))
+        body=$(body_of "$dresp" | tr -d '\n' | head -c 220)
+        echo "    DELETE ${id:0:8}… → $dcode (stop: $srespc) $body" >&2
+      fi
+      return 1 ;;
+  esac
 }
 
 # --- plan --------------------------------------------------------------------------------
