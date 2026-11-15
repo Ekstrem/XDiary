@@ -63,6 +63,17 @@ if [ "$PUBLISH" = "1" ]; then
     esac
   done
   echo "снос завершён: удалено $del_ok, пропущено $del_skip (404 = уже нет, 400 = нельзя удалить)"
+  if [ "$count" = "0" ]; then
+    # Листинг через management-API на этом стенде не отдаёт API (HTTP-код видно выше), а импорт
+    # падает на `path.invalid` — значит API в Mongo есть, но API их не показывает. Чистим напрямую
+    # в mongo APIM и перезапускаем management, иначе импорт не пройдёт НИКОГДА.
+    echo "листинг пуст — чиню через mongo APIM (db.apis.deleteMany) и перезапуск management"
+    podman exec "$M" mongosh --quiet --eval 'db.apis.deleteMany({})' 2>/dev/null || \
+      podman exec "$M" mongo --quiet --eval 'db.apis.deleteMany({})' 2>/dev/null || \
+      echo "  ВНИМАНИЕ: mongosh/mongo в $M недоступны — снос не удался" >&2
+    podman restart "$MG" >/dev/null 2>&1 || echo "  ВНИМАНИЕ: не смог перезапустить $MG" >&2
+    sleep 25
+  fi
 fi
 
 for f in $SPECS; do
@@ -104,16 +115,15 @@ for f in $SPECS; do
 # и собираем заново из git-спек. Это и есть смысл «ре-импорта», а не «добавь ещё одну копию».
 # Пагинация: у Gravitee `per_page` больше 10 не увеличивает страницу (см. runbooks/apim.md).
 apim_api_ids() {
-  local page=1 ids="" out chunk
+  local page=1 ids="" out chunk code
   while [ "$page" -le 30 ]; do
-    out=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
-      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?page=$page&per_page=10" 2>/dev/null)
-    # Диагностика: без неё «API: 0» неотличимо от «список не отдался» (прогон 2026-11-15 21:23:
-    # снос увидел 0, хотя 17 API были — импорт затем падал на path.invalid).
+    out=$(podman exec "$MG" sh -c "curl -s -m 30 -o /tmp/apis.json -w '%{http_code}' -u '$USER:$PASS' '$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis?page=$page&per_page=10'; echo; head -c 120 /tmp/apis.json" 2>/dev/null)
+    code=$(printf '%s' "$out" | head -1)
+    body=$(printf '%s' "$out" | tail -n +2)
     if [ "$page" -eq 1 ]; then
-      echo "  листинг APIM: ответ $(printf '%s' "$out" | wc -c) байт, начинается с: $(printf '%s' "$out" | head -c 80)" >&2
+      echo "  листинг APIM: HTTP $code, начало: $(printf '%s' "$body" | tr -d '\n' | head -c 100)"
     fi
-    chunk=$(printf '%s' "$out" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
+    chunk=$(printf '%s' "$body" | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"\([^"]*\)"$/\1/')
     [ -n "$chunk" ] || break
     ids="$ids $chunk"
     page=$((page+1))
