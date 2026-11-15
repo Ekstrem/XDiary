@@ -169,7 +169,10 @@ PY
     fi
   fi
 
-  api_id=$(printf '%s' "$resp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  # Ответ Gravitee — многострочный JSON, поэтому id ищем по ВСЕМУ ответу, а не по первой строке:
+  # `head -1` давал `{`, api_id оставался пустым, и блок «план → публикация → старт» не выполнялся
+  # (в прогоне 2026-11-15 так импортировались 11 API, но остались без плана и потому отдавали 500).
+  api_id=$(printf '%s' "$resp" | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   if [ "$code" != "200" ] && [ "$code" != "201" ]; then
     echo "  ОШИБКА $svc: HTTP $code" >&2
     # Тело ошибки Gravitee — многострочный JSON; `head -1` показывал только `{` и скрывал причину
@@ -186,7 +189,7 @@ PY
     podman cp "/tmp/apim-import/$svc.plan" "$MG:/tmp/body.json" >/dev/null 2>&1
     presp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/plans" body)
     pcode=$(printf '%s' "$presp" | tail -1)
-    plan_id=$(printf '%s' "$presp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    plan_id=$(printf '%s' "$presp" | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
     if [ "$pcode" != "200" ] && [ "$pcode" != "201" ]; then
       echo "    план: HTTP $pcode — API останется без плана ($svc)" >&2
     else
