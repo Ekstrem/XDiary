@@ -141,10 +141,32 @@ for f in $SPECS; do
     awk 'BEGIN{printf "{\"payload\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\",\"withDocumentation\":true}"}' "$f" > "/tmp/apim-import/$svc.body"
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
-# AR-160: `servers: "/"` даёт невалидный backend в Gravitee (500 на любом пути API) — вырезаем.
-srv = doc.get("servers")
-if isinstance(srv, list) and srv and str((srv[0] or {}).get("url", "")).strip() in ("", "/"):
-    doc.pop("servers", None)
+# AR-160 (@TL 2026-11-16): Gravitee `_import/swagger` строит contextPath из `servers`/названия,
+# а пути из спеки считает ОТНОСИТЕЛЬНЫМИ. Наши спеки содержат абсолютные пути `/api/v1/<svc>/...`,
+# поэтому после импорта API живёт по адресу вида `/journalmicroserviceapi/` и прод отдаёт 404
+# (проверено: до импорта 500, после — 404 на всех трёх ручках).
+# Решение: вычисляем общий префикс путей, выносим его в `servers.url` (Gravitee сделает его
+# contextPath), а сами пути делаем относительными. Снаружи адреса не меняются.
+paths = doc.get("paths") or {}
+segs = [p.strip("/").split("/") for p in paths if isinstance(p, str)]
+prefix = []
+if segs:
+    for i in range(min(len(s) for s in segs)):
+        col = {s[i] for s in segs}
+        if len(col) == 1:
+            prefix.append(segs[0][i])
+        else:
+            break
+base = "/" + "/".join(prefix) if prefix else ""
+new_paths = {}
+for p, v in paths.items():
+    if base and p.startswith(base):
+        np_ = p[len(base):] or "/"
+    else:
+        np_ = p
+    new_paths[np_] = v
+doc["paths"] = new_paths
+doc["servers"] = [{"url": base or "/"}]
 sys.stdout.write(json.dumps({"payload": json.dumps(doc), "withDocumentation": True}))
 PY
 
