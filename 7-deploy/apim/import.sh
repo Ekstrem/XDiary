@@ -94,8 +94,24 @@ sys.stdout.write(json.dumps({"payload": json.dumps(doc), "withDocumentation": Tr
 PY
   podman cp "/tmp/apim-import/$svc.body" "$MG:/tmp/body.json" >/dev/null 2>&1
 
-  resp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" body)
-  code=$(printf '%s' "$resp" | tail -1)
+  # Повторитель (@TL 2026-11-15): импорт ретраим на СЕТЕВЫЕ/серверные коды (000/429/5xx), но НЕ на
+  # 4xx — 400/401/405 означают проблему в запросе или правах, и повтор лишь тратит время.
+  # Причина: `deploy-one.sh`/`recreate-service.sh` уже ретраят pull и пересоздание (3 попытки),
+  # а импорт в APIM ретрая не имел вовсе.
+  attempt=1
+  IMP_ATTEMPTS="${APIM_IMPORT_ATTEMPTS:-3}"
+  while :; do
+    resp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" body)
+    code=$(printf '%s' "$resp" | tail -1)
+    case "$code" in
+      000|429|5??)
+        if [ "$attempt" -lt "$IMP_ATTEMPTS" ]; then
+          echo "  импорт $svc: код $code — повтор $attempt/$IMP_ATTEMPTS через 5 с"
+          attempt=$((attempt+1)); sleep 5; continue
+        fi ;;
+    esac
+    break
+  done
 
   # креды: при 401 пробуем заводские admin/admin ОДИН раз (DO-098 п.8)
   if [ "$code" = "401" ] && [ "${TRIED_FACTORY:-0}" = "0" ]; then
