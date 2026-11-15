@@ -25,6 +25,10 @@ on:
         description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
         type: boolean
         default: false
+      apim_teardown:
+        description: 'Снести все API в APIM перед ре-импортом (нужно, если старые определения мешают)'
+        type: boolean
+        default: false
       reimport_apim:
         description: 'Ре-импорт openapi/*.json в Gravitee APIM (нужно после правки спек: APIM хранит определение у себя)'
         type: boolean
@@ -587,6 +591,7 @@ jobs:
         env:
           ALLOW_PROD_REPAIR: ${{ inputs.allow_prod_repair }}
           REIMPORT_APIM: ${{ inputs.reimport_apim }}
+          APIM_TEARDOWN: ${{ inputs.apim_teardown }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
@@ -634,7 +639,7 @@ jobs:
               else
                 echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
               fi
-              if XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
+              if APIM_TEARDOWN="$APIM_TEARDOWN" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
                  bash /opt/xdiary/7-deploy/apim/import.sh; then
                 echo "APIM-REIMPORT: ре-импорт выполнен"
               else
