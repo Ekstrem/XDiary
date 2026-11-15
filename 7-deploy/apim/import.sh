@@ -107,6 +107,26 @@ stop_and_delete() {
   esac
 }
 
+# --- режим диагностики (APIM_DIAG=1): посмотреть, что реально лежит в APIM ---------------
+if [ "${APIM_DIAG:-0}" = "1" ]; then
+  echo "ДИАГНОСТИКА APIM: смотрю первые 5 API и пробую удалить один"
+  n=0
+  for id in $(list_ids); do
+    n=$((n+1)); [ "$n" -gt 5 ] && break
+    one=$(apim GET "$APIS_PATH/$id")
+    cp=$(printf '%s' "$one" | tr -d '\n' | sed -n 's/.*"contextPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    nm=$(printf '%s' "$one" | tr -d '\n' | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    st=$(printf '%s' "$one" | tr -d '\n' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  api ${id:0:8}… name=\"$nm\" contextPath=\"$cp\" state=\"$st\""
+    if [ "$n" = "1" ]; then
+      s=$(apim POST "$APIS_PATH/$id/_stop"); echo "  _stop → $(code_of "$s") $(body_of "$s" | tr -d '\n' | head -c 120)"
+      d=$(apim DELETE "$APIS_PATH/$id"); echo "  DELETE → $(code_of "$d") $(body_of "$d" | tr -d '\n' | head -c 200)"
+    fi
+  done
+  echo "ДИАГНОСТИКА APIM завершена"
+  exit 0
+fi
+
 # --- plan --------------------------------------------------------------------------------
 
 echo "спеки для импорта:"

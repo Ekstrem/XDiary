@@ -25,6 +25,10 @@ on:
         description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
         type: boolean
         default: false
+      apim_diag:
+        description: 'Только диагностика APIM: показать contextPath/state и попробовать удалить один API'
+        type: boolean
+        default: false
       apim_teardown:
         description: 'Снести все API в APIM перед ре-импортом (нужно, если старые определения мешают)'
         type: boolean
@@ -541,7 +545,7 @@ jobs:
       (!inputs.stop_before_prod) &&
       always() &&
       (needs.apim-parity.result == 'success' && needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured' || inputs.allow_prod_repair) &&
-      (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
+      (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true' || inputs.allow_prod_repair)
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -592,12 +596,13 @@ jobs:
           ALLOW_PROD_REPAIR: ${{ inputs.allow_prod_repair }}
           REIMPORT_APIM: ${{ inputs.reimport_apim }}
           APIM_TEARDOWN: ${{ inputs.apim_teardown }}
+          APIM_DIAG: ${{ inputs.apim_diag }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM,APIM_TEARDOWN
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
