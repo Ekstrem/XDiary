@@ -53,45 +53,57 @@ done
 echo "итого спек: $n, операций: $total"
 [ "$DRY" -eq 1 ] && { echo "import.sh: --dry-run — ничего не отправлено"; exit 0; }
 
-# тело запроса собираем питоном внутри контейнера (там python нет — берём jq/awk)
+# AR-160 / DO-133 (@TL 2026-11-15 17:2x): эндпоинт исправлен по РАНБУКУ.
+# `7-deploy/runbooks/apim.md:193-207` описывает рабочую последовательность для Gravitee 4.4:
+#   1) POST …/apis/_import/swagger  с телом {"payload": "<спека строкой>", "withDocumentation": true}
+#   2) POST …/apis/{id}/plans       {"name":"Default","security":{"type":"KEY_LESS"},"mode":"STANDARD",
+#                                    "validation":"MANUAL","definitionVersion":"V4","flows":[]}
+#   3) POST …/apis/{id}/plans/{planId}/_publish
+#   4) POST …/apis/{id}/_start      → 204
+# Старый путь `/apis/import` в 4.4 НЕ существует → 405 (это и видели в прогоне 2026-11-15).
 mkdir -p /tmp/apim-import
 ok=0; failed=0
+apim_curl() {  # $1 = method, $2 = path, $3 = body file or empty, $4 = extra curl args
+  local m="$1" path="$2" body="${3:-}" extra="${4:-}"
+  if [ -n "$body" ]; then
+    podman exec "$MG" curl -s -m 90 -w '\n%{http_code}' -X "$m" \
+      -u "$USER:$PASS" -H 'Content-Type: application/json' $extra \
+      --data-binary @/tmp/body.json "$BASE$path" 2>/dev/null
+  else
+    podman exec "$MG" curl -s -m 90 -w '\n%{http_code}' -X "$m" \
+      -u "$USER:$PASS" -H 'Content-Type: application/json' $extra "$BASE$path" 2>/dev/null
+  fi
+}
+
 for f in $SPECS; do
   svc=$(basename "$f" .json)
-  # JSON-escape содержимого спеки → кладём во временный файл тела
+  # тело импорта: payload = содержимое спеки СТРОКОЙ (+ нормализация servers, см. AR-160)
   python3 - "$f" > "/tmp/apim-import/$svc.body" <<'PY' 2>/dev/null || \
-    awk 'BEGIN{printf "{\"type\":\"BOTH\",\"definition\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\"}"}' "$f" > "/tmp/apim-import/$svc.body"
+    awk 'BEGIN{printf "{\"payload\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\",\"withDocumentation\":true}"}' "$f" > "/tmp/apim-import/$svc.body"
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
 # AR-160 (@TL 2026-11-13 23:3x): Gravitee берёт `servers[0].url` как базу API. Если в спеке
 # стоит `"/"` (так было в journal/partners/api-gateway), backend получается невалидным и
 # шлюз отдаёт 500 СВОИМ телом на ЛЮБОЙ путь этого API — проверено на проде:
 #   GET /api/v1/journal/nonexistent-xyz → 500 (а /api/v1/catalog/nonexistent-xyz → 401).
-# Нормализуем на импорте: `servers` с пустым/корневым url убираем — импортёр должен быть
-# устойчив к спеке, а не падать от одной строки.
 srv = doc.get("servers")
 if isinstance(srv, list) and srv and str((srv[0] or {}).get("url", "")).strip() in ("", "/"):
     doc.pop("servers", None)
     print("import: убран servers с корневым url", file=sys.stderr)
-sys.stdout.write(json.dumps({"type": "BOTH", "definition": json.dumps(doc)}))
+sys.stdout.write(json.dumps({"payload": json.dumps(doc), "withDocumentation": True}))
 PY
   podman cp "/tmp/apim-import/$svc.body" "$MG:/tmp/body.json" >/dev/null 2>&1
-  resp=$(podman exec "$MG" curl -s -m 90 -w '\n%{http_code}' -X POST \
-    -u "$USER:$PASS" -H 'Content-Type: application/json' \
-    --data-binary @/tmp/body.json \
-    "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/import" 2>/dev/null)
+
+  resp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" body)
   code=$(printf '%s' "$resp" | tail -1)
-  # DO-098 п.8 / AR-160 (@TL 2026-11-14 00:1x): креды из `apim.env` дают 401 (они нерабочие с 04.11).
-  # Причина известна: админ Gravitee задаётся монтированием `/opt/xdiary/secrets/apim-gravitee.yml`
-  # (up.sh:83-84). Если файл потерян при пересоздании контейнера, Gravitee возвращается к ЗАВОДСКОМУ
-  # `admin/admin` — тогда старый `apim.env` заведомо неверен. Пробуем заводскую пару ОДИН раз:
-  # если она сработала, продолжаем под ней и печатаем это явно (значение в лог не попадает).
+
+  # креды: при 401 пробуем заводские admin/admin ОДИН раз (DO-098 п.8)
   if [ "$code" = "401" ] && [ "${TRIED_FACTORY:-0}" = "0" ]; then
     TRIED_FACTORY=1
     resp=$(podman exec "$MG" curl -s -m 90 -w '\n%{http_code}' -X POST \
       -u "admin:admin" -H 'Content-Type: application/json' \
       --data-binary @/tmp/body.json \
-      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/import" 2>/dev/null)
+      "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/_import/swagger" 2>/dev/null)
     code=$(printf '%s' "$resp" | tail -1)
     if [ "$code" = "200" ] || [ "$code" = "201" ]; then
       echo "  ВНИМАНИЕ: креды из apim.env не приняты (401), импорт идёт под ЗАВОДСКИМИ admin/admin — обнови секреты (DO-098 п.8)"
@@ -100,21 +112,35 @@ PY
       echo "  креды НЕ подошли: и apim.env, и заводские admin/admin дают 401 — нужен актуальный админ Gravitee (DO-098 п.8)" >&2
     fi
   fi
+
   api_id=$(printf '%s' "$resp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-  if [ "$code" = "200" ] || [ "$code" = "201" ]; then
-    echo "  импортирован $svc (id=${api_id:0:8}…)"
-    if [ "$PUBLISH" = "1" ] && [ -n "$api_id" ]; then
-      dcode=$(podman exec "$MG" curl -s -o /dev/null -w '%{http_code}' -m 60 -X POST \
-        -u "$USER:$PASS" -H 'Content-Type: application/json' -d '{}' \
-        "$BASE/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/deployments" 2>/dev/null)
-      echo "    публикация: $dcode"
-    fi
-    ok=$((ok+1))
-  else
+  if [ "$code" != "200" ] && [ "$code" != "201" ]; then
     echo "  ОШИБКА $svc: HTTP $code" >&2
     printf '%s' "$resp" | head -1 | cut -c1-200 >&2
     failed=$((failed+1))
+    continue
   fi
+  echo "  импортирован $svc (id=${api_id:0:8}…)"
+
+  if [ "$PUBLISH" = "1" ] && [ -n "$api_id" ]; then
+    # 1) план (без плана API не запускается: api.NotDeployable)
+    printf '%s' '{"name":"Default","description":"auto","security":{"type":"KEY_LESS"},"mode":"STANDARD","validation":"MANUAL","definitionVersion":"V4","flows":[]}' > "/tmp/apim-import/$svc.plan"
+    podman cp "/tmp/apim-import/$svc.plan" "$MG:/tmp/body.json" >/dev/null 2>&1
+    presp=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/plans" body)
+    pcode=$(printf '%s' "$presp" | tail -1)
+    plan_id=$(printf '%s' "$presp" | head -1 | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    if [ "$pcode" != "200" ] && [ "$pcode" != "201" ]; then
+      echo "    план: HTTP $pcode — API останется без плана ($svc)" >&2
+    else
+      # 2) публикация плана
+      pub=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/plans/$plan_id/_publish" empty)
+      echo "    план ${plan_id:0:8}… публикация: $(printf '%s' "$pub" | tail -1)"
+      # 3) запуск API
+      st=$(apim_curl POST "/management/v2/organizations/$ORG/environments/$ENV_ID/apis/$api_id/_start" empty)
+      echo "    запуск $svc: $(printf '%s' "$st" | tail -1) (204 = запущен)"
+    fi
+  fi
+  ok=$((ok+1))
 done
 
 count=$(podman exec "$MG" curl -s -m 30 -u "$USER:$PASS" \
