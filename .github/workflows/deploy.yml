@@ -519,7 +519,7 @@ jobs:
         run: |
           set -uo pipefail
           python tools/check_apim_parity.py \
-            --a "$XDIARY_PROD_BASE_URL" --b "$XDIARY_E2E_BASE_URL" | tee parity.txt
+            --a "$XDIARY_PROD_BASE_URL" --b "$XDIARY_E2E_BASE_URL" --retry-unknown 2 | tee parity.txt
           rc=${PIPESTATUS[0]}
           { echo "### Паритет APIM прод ↔ dev"; echo; cat parity.txt; } >> "$GITHUB_STEP_SUMMARY"
           if [ "$rc" = "0" ]; then echo "::notice::паритет APIM: расхождений нет"; exit 0; fi

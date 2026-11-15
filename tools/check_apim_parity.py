@@ -36,15 +36,24 @@ def classify(code):
     return "noanswer"
 
 
-def probe(url, timeout):
-    req = urllib.request.Request(url, method="GET")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status
-    except urllib.error.HTTPError as e:
-        return e.code
-    except Exception:
-        return 0
+def probe(url, timeout, retry_unknown=0, pause=1.0):
+    """GET без токена. Повторяем ТОЛЬКО «нет ответа» (код 0): это сетевой сбой/таймаут,
+    а не сигнал. 5xx НЕ повторяем намеренно — 5xx и есть измеряемое расхождение; если его
+    «перепрашивать до зелёного», гейт перестанет ловить сломанный backend (класс из DO-098)."""
+    import time as _t
+    for attempt in range(retry_unknown + 1):
+        req = urllib.request.Request(url, method="GET")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+        except Exception:
+            if attempt < retry_unknown:
+                _t.sleep(pause)
+                continue
+            return 0
+    return 0
 
 
 def operations(root):
@@ -75,12 +84,12 @@ def instantiate(path):
     return path.replace("{id}", "00000000-0000-0000-0000-000000000000")
 
 
-def compare(a_base, b_base, ops, timeout):
+def compare(a_base, b_base, ops, timeout, retry_unknown=0):
     rows = []
     for method, path in ops:
         p = instantiate(path)
-        ca = probe(a_base.rstrip("/") + p, timeout) if method == "GET" else 0
-        cb = probe(b_base.rstrip("/") + p, timeout) if method == "GET" else 0
+        ca = probe(a_base.rstrip("/") + p, timeout, retry_unknown) if method == "GET" else 0
+        cb = probe(b_base.rstrip("/") + p, timeout, retry_unknown) if method == "GET" else 0
         if method != "GET":
             rows.append((method, path, "skip", "skip", None, None))
             continue
@@ -132,6 +141,8 @@ def main():
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--json", action="store_true", help="машинный вывод")
+    ap.add_argument("--retry-unknown", type=int, default=2,
+                    help="повторов при «нет ответа» (код 0); 5xx НЕ повторяем — это и есть сигнал")
     args = ap.parse_args()
 
     if args.selftest:
@@ -141,7 +152,7 @@ def main():
     if not ops:
         print("::error::check_apim_parity: не прочитал операции из api-index.yaml (rc=2)")
         return 2
-    rows = compare(args.a, args.b, ops, args.timeout)
+    rows = compare(args.a, args.b, ops, args.timeout, args.retry_unknown)
 
     measured = [r for r in rows if r[2] != "skip"]
     if not measured:
