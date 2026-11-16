@@ -33,8 +33,23 @@
 3. `AnemicModel` сделать иммутабельным (или явно закрыть сеттеры) и включить скаляры
    в change-трек (`GetValueObjects()`), если они должны порождать события.
 
+## Что сделано (доводка Journal к канону, 2026-11-16, `role/be`)
+- Иммутабельный `AnemicModel` (record + init, `with` вместо Clone-мутации);
+- state machine `Draft→Recorded→Deleted`; богатые VO (records) + полный diff; сильная типизация
+  (`RecordRoot.StartedAt` → `DateTimeOffset`); `CommandName` соразмерен методу; MV-проекция по версии.
+
+## Осталось — 3 gap'а DF (требуют базовые классы/реализацию библиотеки)
+1. **Replay из событий.** `IEventStoreRepository.GetById(id)` в пакете 0.1.0 — стаб (возвращает пусто);
+   реально работает только MV fast path. Нужен библиотечный реплей (десериализация `ChangedValueObjects` → состояние).
+2. **BusAdapter «сохранить И опубликовать».** Ручной `IObserver` в `JournalEventHandler` — «свой адаптер»;
+   нужен библиотечный `BusAdapter` (сохранить событие + опубликовать, потеря — не тихо).
+3. **Provider + Notifier + `IBusinessOperationValidator`.** Самописный `Aggregate`/`IRepository`/`AggregateProvider`
+   вместо `IAggregateProvider`/`Notifier`/`AggregateBusinessOperation` + `IBusinessOperationValidator`.
+
 ## Статус
 Открыт. Эталон читается из DF-доков (`edm-eventstore-api.md` §«Следствие для E1»:
 `IRepository.SaveAsync` → `IEventBusProducer.Publish(result.Event)` + consumer → `SaveEventAsync`;
 `GetById` → `IAnemicModelRepository`/`IEventStoreRepository`). Код микросервисов — зона @BE,
 подтверждение кода от @AR не требуется; приоритизация — по E1-раскатке.
+Блокирует 3 оставшихся пункта: нужен точный API/пример базовых классов DF (приватные доки
+`microservice-implementation-guide.md`), рефлексия DLL частично падает на LoaderExceptions.
