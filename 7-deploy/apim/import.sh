@@ -108,7 +108,8 @@ stop_and_delete() {
 }
 
 # --- режим диагностики (APIM_DIAG=1): посмотреть, что реально лежит в APIM ---------------
-if [ "${APIM_DIAG:-0}" = "1" ]; then
+case "${APIM_DIAG:-0}" in 1|true|TRUE) ;; *) false ;; esac
+if [ "$?" = "0" ]; then
   echo "ДИАГНОСТИКА APIM: смотрю первые 5 API и пробую удалить один"
   n=0
   for id in $(list_ids); do
@@ -147,7 +148,7 @@ echo "итого спек: $n, операций: $total"
 # а старые (на /<title>/) никому не мешают. Удаление же на живом стенде стабильно не проходит
 # (в прогоне 43769214988: удалено 0, пропущено 66 — DELETE отдаёт 400 для запущенных API), и
 # из-за него импорт падал. Нужен снос — запускать с APIM_TEARDOWN=1.
-if [ "$PUBLISH" = "1" ] && [ "${APIM_TEARDOWN:-0}" = "1" ]; then
+if [ "$PUBLISH" = "1" ] && { [ "${APIM_TEARDOWN:-0}" = "1" ] || [ "${APIM_TEARDOWN:-0}" = "true" ]; }; then
   ids=$(list_ids)
   cnt=$(count_ids "$ids")
   echo "существующих API в APIM: $cnt — сношу перед импортом (иначе 400 path.invalid)"
