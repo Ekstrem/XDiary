@@ -251,6 +251,24 @@ if [ "$ENS_ON" = "1" ]; then
   exit 0
 fi
 
+# --- режим «посмотреть в Mongo» (APIM_MONGO=1) --------------------------------------------
+# Противоречие 2026-11-16 05:2x: импорт говорит `Path [/api/v1/journal/] already exists`,
+# а management-API такой записи не показывает. Смотрим Mongo напрямую.
+MON_ON=0
+case "${APIM_MONGO_FLAG:-${APIM_MONGO:-0}}" in 1|true|TRUE) MON_ON=1 ;; esac
+if [ "$MON_ON" = "1" ]; then
+  echo "MONGO APIM: проверяю напрямую"
+  mrun() { podman exec "$M" mongosh --quiet --eval "$1" 2>/dev/null || podman exec "$M" mongo --quiet --eval "$1" 2>/dev/null; }
+  echo "  базы: $(mrun 'db.adminCommand({listDatabases:1}).databases.map(d=>d.name).join(",")' | tr -d '\n')"
+  echo "  gravitee.apis: $(mrun 'db.getSiblingDB("gravitee").apis.countDocuments()' | tr -d '\n')"
+  echo "  документы (name | contextPath | state):"
+  mrun 'db.getSiblingDB("gravitee").apis.find({},{name:1,contextPath:1,state:1}).limit(80).forEach(d=>print("   ", (d.name||"?"), "|", (d.contextPath||"-"), "|", (d.state||"-")))'
+  echo "  содержит /api/v1/journal:"
+  mrun 'db.getSiblingDB("gravitee").apis.find({definition: /api\/v1\/journal/},{name:1,contextPath:1,state:1}).forEach(d=>print("   ", (d.name||"?"), "|", (d.contextPath||"-"), "|", (d.state||"-")))'
+  echo "MONGO APIM завершено"
+  exit 0
+fi
+
 DIAG_ON=0
 case "${APIM_DIAG:-0}" in 1|true|TRUE) DIAG_ON=1 ;; esac
 if [ "$DIAG_ON" = "1" ]; then
