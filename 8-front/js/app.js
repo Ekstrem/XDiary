@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.117"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.118"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1798,6 +1798,9 @@
 
       var stats = drawChart($("somatic-canvas"), points, detailMetric, rangeStartMs, rangeEndMs, startMs);
       var s = $("somatic-stats");
+      // FE-053: в прогоне 43842550626 ловилось `TypeError: Cannot set properties of null
+      // (setting 'textContent') at app.js:1806` — элемента нет в DOM (вьюха перерисована).
+      if (!s) return;
       if (stats.count) {
         var m = METRIC_META[detailMetric];
         s.textContent = "мин " + Math.round(stats.min) + " · ср " + Math.round(stats.avg) +
