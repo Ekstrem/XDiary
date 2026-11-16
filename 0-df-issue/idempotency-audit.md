@@ -13,7 +13,7 @@
 | Client | `/api/v1/clients` | register-or-login по телефону | ✅ уже (BE-092) |
 | AppleHealthGateway | `configure`/`import` | natural key `(clientId, source)` | ✅ уже |
 | Analytics | `/api/v1/analytics/events` | `id` события → snapshot upsert | ✅ уже |
-| Journal | `/api/v1/journal/records/from-garmin` | dedup по `garminId` | ⚠️ осталось |
+| Journal | `/api/v1/journal/records/from-garmin` | dedup по `garminId` | ✅ сделано (`ca3eb9e58`) |
 
 ## Action-POST (мутация существующего агрегата по `id`)
 
@@ -29,6 +29,7 @@
 
 ## Остаток
 
-1. `Journal /from-garmin` — natural-key dedup по `garminId` (нужен запрос «по garminId» + частичный
-   уникальный индекс `WHERE garminId <> ''`, т.к. у manual-записей `garminId = ''`). Это кросс-BC
-   (синк из GarminGateway), отдельная работа.
+Нет. Все create-POST имеют механизм идемпотентности (клиентский `id` / natural key), все
+action-POST идемпотентны по построению (абсолютное присваивание/dedup). `from-garmin` —
+dedup по `garminId` на уровне хендлера (повторный синк → та же запись); частичный уникальный
+индекс `WHERE garminId <> ''` можно добавить как DB-страховку отдельной миграцией.
