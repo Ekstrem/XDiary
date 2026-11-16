@@ -15,8 +15,12 @@ DRY=0
 
 MIGS="20261105170525_AddReadStores 20261105170447_AddReadStores"
 
-conn_for() { # $1 = имя контейнера сервиса → печатает строку подключения внутри сети
-  podman exec "$1" printenv ConnectionStrings__CommandDb 2>/dev/null
+conn_for() { # $1 = имя контейнера сервиса → печатает строку подключения
+  # ВАЖНО (прогон 43839429106): `podman exec printenv` вернул пусто — контейнер может быть
+  # в рестарт-петле или в образе нет printenv. Читаем конфиг контейнера: `podman inspect`
+  # работает и для остановленного контейнера и отдаёт фактические env-переменные.
+  podman inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+    | sed -n 's/^ConnectionStrings__CommandDb=//p' | head -1
 }
 
 echo "fix-migrations-history: сервисы journal partners${DRY:+ (dry-run=$DRY)}"
@@ -29,7 +33,22 @@ for svc in journal partners; do
   pwd_=$(printf '%s' "$cs" | tr ';' '\n' | sed -n 's/^Password=//p')
   host=$(printf '%s' "$cs" | tr ';' '\n' | sed -n 's/^Host=//p')
   port=$(printf '%s' "$cs" | tr ';' '\n' | sed -n 's/^Port=//p')
-  [ -n "$db" ] && [ -n "$usr" ] || { echo "  $svc: в строке подключения нет Database/Username" >&2; continue; }
+  # Фолбэк: deploy.sh создаёт БД и роль по имени сервиса (Database=journal;Username=journal)
+  [ -n "${db:-}" ] || db="$svc"
+  [ -n "${usr:-}" ] || usr="$svc"
+  if [ -z "${cs:-}" ]; then
+    echo "  $svc: строка подключения не прочитана — беру фолбэк db=$db usr=$usr (deploy.sh: Database=Username=<svc>)" >&2
+  fi
+  if [ -z "${pwd_:-}" ]; then
+    echo "  $svc: пароль не найден в конфиге контейнера — прочитаю из secrets/.env" >&2
+    for f in /opt/xdiary/7-deploy/secrets/.env /opt/xdiary/secrets/.env; do
+      [ -f "$f" ] || continue
+      for k in "${svc^^}_DB_PASSWORD" "POSTGRES_PASSWORD" "PGPASSWORD"; do
+        v=$(grep -E "^${k}=" "$f" | head -1 | cut -d= -f2-)
+        [ -n "${v:-}" ] && { pwd_="$v"; break 2; }
+      done
+    done
+  fi
   echo "  $svc: db=$db user=$usr host=$host port=${port:-5432}"
 
   # psql внутри контейнера БД; пароль — через PGPASSWORD, чтобы не светить в ps
