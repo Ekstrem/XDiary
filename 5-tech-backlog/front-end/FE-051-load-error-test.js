@@ -39,6 +39,12 @@ for (const [fn, view, list] of [["renderJournal", "view-journal", "journal-list"
   check(fn + ": retry указывает на сам рендер", retryOk, "retry=" + retryOk);
 }
 
+// FE-051 (доп.): при ошибке пустые состояния скрываются, чтобы экран не противоречил себе
+for (const [fn, emptyId] of [['renderJournal','journal-empty'], ['renderPartners','partners-empty']]) {
+  const b = bodyOf(fn);
+  check(fn + ': скрывает «' + emptyId + '» при ошибке', b.includes('\).classList.add("hidden")'), 'empty-state');
+}
+
 check("CSS для .load-error есть", /\.load-error\s*\{/.test(css), "стиль есть");
 
 // негативный контроль: убрать catch из renderPartners — тест обязан это заметить

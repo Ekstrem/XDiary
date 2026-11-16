@@ -588,6 +588,8 @@
       fillDatalist("place-suggest", places);
     }).catch(function (e) {
       console.error("renderJournal:", e);
+      // FE-051: «Пока пусто» рядом с ошибкой — противоречие: пустой список не означает «нет записей»
+      if ($("journal-empty")) $("journal-empty").classList.add("hidden");
       showLoadError("view-journal", "journal-list",
         "Не удалось загрузить журнал. Проверьте связь и нажмите «Повторить».", renderJournal);
     });
@@ -1373,6 +1375,7 @@
       });
     }).catch(function (e) {
       console.error("renderPartners:", e);
+      if ($("partners-empty")) $("partners-empty").classList.add("hidden");
       showLoadError("view-partners", "partners-list",
         "Не удалось загрузить партнёров. Проверьте связь и нажмите «Повторить».", renderPartners);
     });
