@@ -20,7 +20,7 @@ public sealed class Aggregate
 
     private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
-        newModel.CommandName = commandName; // канон §7: событие соразмерно методу
+        newModel = newModel with { CommandName = commandName }; // канон §7: событие соразмерно методу
         var data = BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel);
         return new AggregateResultSuccess<IJournal, IJournalAnemicModel>(data);
     }
@@ -99,8 +99,7 @@ public sealed class Aggregate
         // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO (не дословную строку).
         var v = new WhenIsoValidator();
         if (!v.TryParse(startedAt, out var normalized)) return Fail(v.Reason);
-        var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized);
+        var anemic = Clone() with { Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized) };
         return Success(anemic);
     }
 
@@ -110,49 +109,39 @@ public sealed class Aggregate
         if (!partners.Contains(partnerId))
             partners.Add(partnerId);
 
-        var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt);
+        var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId)
     {
         var partners = Model.Root.Partners.Where(p => p != partnerId).ToList();
-        var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt);
+        var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place)
     {
-        var anemic = Clone();
-        anemic.Place = place;
+        var anemic = Clone() with { Place = place };
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions)
     {
-        var anemic = Clone();
-        anemic.Positions = positions.ToList();
+        var anemic = Clone() with { Positions = positions.ToList() };
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddAccessories(
         IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags)
     {
-        var anemic = Clone();
-        anemic.Costumes = costumes.ToList();
-        anemic.Toys = toys.ToList();
-        anemic.Fantasies = fantasies.ToList();
-        anemic.Tags = tags.ToList();
+        var anemic = Clone() with { Costumes = costumes.ToList(), Toys = toys.ToList(), Fantasies = fantasies.ToList(), Tags = tags.ToList() };
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count)
     {
-        var anemic = Clone();
-        anemic.Contraceptives = contraceptives.ToList();
-        anemic.ContraceptiveCount = count;
+        var anemic = Clone() with { Contraceptives = contraceptives.ToList(), ContraceptiveCount = count };
         return Success(anemic);
     }
 
@@ -162,8 +151,7 @@ public sealed class Aggregate
         if (!validator.IsSatisfiedBy(durationMin))
             return Fail(validator.Reason);
 
-        var anemic = Clone();
-        anemic.DurationMin = durationMin;
+        var anemic = Clone() with { DurationMin = durationMin };
         return Success(anemic);
     }
 
@@ -177,8 +165,7 @@ public sealed class Aggregate
                 return Fail(ratingValidator.Reason);
         }
 
-        var anemic = Clone();
-        anemic.Orgasms = list;
+        var anemic = Clone() with { Orgasms = list };
         return Success(anemic);
     }
 
@@ -189,18 +176,14 @@ public sealed class Aggregate
         if (!validator.IsSatisfiedBy(Model))
             return Fail(validator.Reason);
 
-        var anemic = Clone();
-        anemic.State = RecordState.Recorded;
-        anemic.UpdatedAt = DateTimeOffset.UtcNow.ToString("o");
+        var anemic = Clone() with { State = RecordState.Recorded, UpdatedAt = DateTimeOffset.UtcNow.ToString("o") };
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Delete()
     {
         if (Model.State != RecordState.Recorded) return Fail("Delete применяется только к завершённой записи (Recorded).");
-        var anemic = Clone();
-        anemic.State = RecordState.Deleted;
-        anemic.Deleted = true;
+        var anemic = Clone() with { State = RecordState.Deleted, Deleted = true };
         return Success(anemic);
     }
 }

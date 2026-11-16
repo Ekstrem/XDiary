@@ -13,15 +13,29 @@ public static class JournalMapper
 
     public static IJournalAnemicModel MapToModel(RecordEntity e)
     {
-        var m = new AnemicModel { Id = e.Id, Version = e.Version };
-        m.Root = RecordRoot.CreateInstance(ToList(e.PartnersJson), e.StartedAt);
-        m.DurationMin = e.DurationMin; m.Place = e.Place;
-        m.Positions = ToList(e.PositionsJson); m.Tags = ToList(e.TagsJson);
-        m.Costumes = ToList(e.CostumesJson); m.Toys = ToList(e.ToysJson); m.Fantasies = ToList(e.FantasiesJson);
-        m.Contraceptives = ToList(e.ContraceptivesJson); m.ContraceptiveCount = e.ContraceptiveCount;
-        m.Orgasms = OrgasmsToList(e.OrgasmsJson).Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList();
-        m.ClientId = e.ClientId; m.Garmin = e.Garmin; m.GarminId = e.GarminId; m.CreatedAt = e.CreatedAt; m.UpdatedAt = e.UpdatedAt; m.Deleted = e.Deleted; m.State = (RecordState)e.State;
-        return m;
+        return new AnemicModel
+        {
+            Id = e.Id,
+            Version = e.Version,
+            Root = RecordRoot.CreateInstance(ToList(e.PartnersJson), e.StartedAt),
+            DurationMin = e.DurationMin,
+            Place = e.Place,
+            Positions = ToList(e.PositionsJson),
+            Tags = ToList(e.TagsJson),
+            Costumes = ToList(e.CostumesJson),
+            Toys = ToList(e.ToysJson),
+            Fantasies = ToList(e.FantasiesJson),
+            Contraceptives = ToList(e.ContraceptivesJson),
+            ContraceptiveCount = e.ContraceptiveCount,
+            Orgasms = OrgasmsToList(e.OrgasmsJson).Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList(),
+            ClientId = e.ClientId,
+            Garmin = e.Garmin,
+            GarminId = e.GarminId,
+            CreatedAt = e.CreatedAt,
+            UpdatedAt = e.UpdatedAt,
+            Deleted = e.Deleted,
+            State = (RecordState)e.State,
+        };
     }
 
     public static void MapToEntity(IJournalAnemicModel m, RecordEntity e)

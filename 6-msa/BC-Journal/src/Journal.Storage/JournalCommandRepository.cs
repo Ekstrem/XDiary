@@ -23,6 +23,7 @@ public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAne
             {
                 Id = read.Id,
                 ClientId = read.ClientId,
+                Root = RecordRoot.CreateInstance(read.Partners, read.StartedAt),
                 DurationMin = read.DurationMin,
                 Place = read.Place,
                 Positions = read.Positions,
@@ -40,7 +41,6 @@ public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAne
                 State = (Journal.Domain.RecordState)read.State,
                 Orgasms = read.Orgasms.Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList(),
             };
-            m.Root = RecordRoot.CreateInstance(read.Partners, read.StartedAt);
             return m;
         }
         var events = await _events.GetById(id, ct);
