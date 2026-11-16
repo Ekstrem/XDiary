@@ -57,11 +57,19 @@ for svc in $TARGETS; do
     [ "$c" = "200" ] || continue
     if body | tr -d '\n' | grep -q "\"path\"[[:space:]]*:[[:space:]]*\"$want\""; then found="$id"; break; fi
   done
-  if [ -z "$found" ]; then echo "  $svc: записи с listener $want нет"; continue; fi
+  if [ -z "$found" ]; then
+    echo "  $svc: по listener $want не нашёл — ищу по имени"
+    for id in $(list_ids); do
+      c=$(call GET "$APIS/$id"); [ "$c" = "200" ] || continue
+      nm=$(body | tr -d '\n' | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      case "$nm" in *"$(printf '%s' "$svc" | sed 's/^./\U&/')"*) found="$id"; echo "    по имени: ${id:0:8}… \"$nm\""; break ;; esac
+    done
+  fi
+  if [ -z "$found" ]; then echo "  $svc: записи нет ни по listener, ни по имени"; continue; fi
   call GET "$APIS/$found" >/dev/null
   cur=$(body | tr -d '\n' | sed -n 's/.*"target"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   echo "  $svc: API ${found:0:8}… target сейчас: \"$cur\""
-  body | sed "s|\"target\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"target\" : \"http://$svc:8080\"|g" > "/tmp/ft.$svc.put"
+  body | sed "s|\"target\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"target\" : \"http://xdiary-$svc:8080\"|g" > "/tmp/ft.$svc.put"
   n=$(grep -c '"target"' "/tmp/ft.$svc.put" || true)
   echo "    целей в теле: $n"
   echo "    PUT: $(call PUT "$APIS/$found" "/tmp/ft.$svc.put")"

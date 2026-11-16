@@ -25,6 +25,10 @@ on:
         description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
         type: boolean
         default: false
+      fix_migrations:
+        description: 'DO-135: синхронизировать __EFMigrationsHistory (journal/partners) и перезапустить сервисы'
+        type: boolean
+        default: false
       apim_target:
         description: 'Поставить явный backend target http://<svc>:8080 у journal/partners и перезапустить API'
         type: boolean
@@ -600,6 +604,7 @@ jobs:
           # раскомментировать строку ниже и вернуть разбор в шаге доставки.
           # echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
           echo "APIMTARGET_B64=$(gzip -c 7-deploy/apim/fix-target.sh | base64 -w0)" >> "$GITHUB_ENV"
+          echo "FIXMIG_B64=$(gzip -c 7-deploy/fix-migrations-history.sh | base64 -w0)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
@@ -625,12 +630,13 @@ jobs:
           APIM_ENSURE: ${{ inputs.apim_ensure }}
           APIM_MONGO: ${{ inputs.apim_mongo }}
           APIM_TARGET: ${{ inputs.apim_target }}
+          FIX_MIGRATIONS: ${{ inputs.fix_migrations }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -648,6 +654,14 @@ jobs:
                 exit 1
               fi
             }
+            # DO-135 (@TL 2026-11-16 11:3x): прод нерабочий из-за 42P07 — синхронизация истории миграций.
+            if [ "${FIX_MIGRATIONS:-false}" = "true" ] || [ "${FIX_MIGRATIONS:-0}" = "1" ]; then
+              echo "FIX-MIGRATIONS: доставляю fix-migrations-history.sh"
+              mkdir -p /opt/xdiary/7-deploy
+              echo "$FIXMIG_B64" | base64 -d | gunzip > /opt/xdiary/7-deploy/fix-migrations-history.sh
+              chmod +x /opt/xdiary/7-deploy/fix-migrations-history.sh
+              bash /opt/xdiary/7-deploy/fix-migrations-history.sh || fail_or_warn "FIX-MIGRATIONS: скрипт вернул ошибку"
+            fi
             # AR-160 (@TL 2026-11-13 23:4x): APIM хранит определение API у себя, поэтому правка
             # `openapi/*.json` в git НЕ влияет на живой шлюз. После смены спек нужен ре-импорт.
             # Делаем это по явному входу `reimport_apim` (default false), чтобы не плодить API
