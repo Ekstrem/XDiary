@@ -232,6 +232,12 @@ async function waitApiReady(attempts, delayMs) {
   // Данные не создаются: GET без тела.
   const n = attempts || 20;
   const gap = delayMs || 3000;
+  // Отдельный, короткий бюджет для 429: лимит стенда не рассасывается за минуту (окно ~60 с
+  // на клиента), а потраченное время превращает «лимит» в «вход не завершился» (@FE 13:29,
+  // прогон 43845569210: `csv` — «Вход не завершился (96 с: seed 68 c)»).
+  const rateGap = 5000;
+  const rateAttempts = 2;
+  let rateWaited = 0;
   let last = 'нет ответа';
   for (let i = 1; i <= n; i += 1) {
     try {
@@ -256,8 +262,17 @@ async function waitApiReady(attempts, delayMs) {
       title: last === '429'
         ? 'login: стенд лимитирует регистрацию (429), ждём окно — это лимит стенда, не спека'
         : 'login: стенд ещё поднимается (5xx), ждём',
-      attempt: i + '/' + n, last,
+      attempt: i + '/' + n, last, rateWaited,
     }));
+    if (last === '429') {
+      rateWaited += 1;
+      if (rateWaited > rateAttempts) {
+        throw new Error('Вход не начат: стенд ЛИМИТИРУЕТ регистрацию (429) — это лимит стенда, ' +
+          'а не дефект спеки; ждали ' + rateAttempts + ' × ' + rateGap / 1000 + ' с');
+      }
+      await new Promise((res) => setTimeout(res, rateGap)); // backoff: короткое окно лимита 429
+      continue;
+    }
     await new Promise((res) => setTimeout(res, gap)); // backoff: проба готовности стенда
   }
   throw new Error('Вход не начат: стенд не готов за ' + n + ' попыток по ' + gap / 1000 +
