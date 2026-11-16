@@ -237,7 +237,11 @@ async function waitApiReady(attempts, delayMs) {
     try {
       const r = await fetch(API_BASE + '/api/v1/clients/me', { headers: {} });
       last = String(r.status);
-      if (!(r.status >= 500) && r.status !== 0) {
+      // 429 — стенд ЖИВ, но лимитирует регистрацию (@FE 2026-11-16 13:06). Это не «не готов»
+      // и не «спека сломана»: ждём окно лимита и называем причину в логе, иначе setup падает
+      // «на ровном месте» и триаж начинается с нуля.
+      const rateLimited = r.status === 429;
+      if (!rateLimited && !(r.status >= 500) && r.status !== 0) {
         if (i > 1) {
           console.log('::notice::' + JSON.stringify({
             title: 'login: стенд поднялся', attempts: i, status: r.status,
@@ -249,12 +253,16 @@ async function waitApiReady(attempts, delayMs) {
       last = String((e && e.message) || e).slice(0, 120);
     }
     console.log('::warning::' + JSON.stringify({
-      title: 'login: стенд ещё поднимается (5xx), ждём', attempt: i + '/' + n, last,
+      title: last === '429'
+        ? 'login: стенд лимитирует регистрацию (429), ждём окно — это лимит стенда, не спека'
+        : 'login: стенд ещё поднимается (5xx), ждём',
+      attempt: i + '/' + n, last,
     }));
     await new Promise((res) => setTimeout(res, gap)); // backoff: проба готовности стенда
   }
   throw new Error('Вход не начат: стенд не готов за ' + n + ' попыток по ' + gap / 1000 +
-    ' с (последний ответ: ' + last + ') — это стенд, а не спека');
+    ' с (последний ответ: ' + last + ')' +
+    (last === '429' ? ' — это ЛИМИТ СТЕНДА (429, регистрация), а не дефект спеки' : ' — это стенд, а не спека'));
 }
 
 async function seedSessionOnce(page) {
@@ -638,8 +646,8 @@ async function loginWithPin(page, pin) {
     // TE-110 (@TL 2026-11-13 11:47): `deploy-dev` пересоздаёт контейнеры, и вход попадает в окно
     // `502 Bad Gateway`. Это не дефект спеки: ждём и повторяем с backoff, а в сообщении называем
     // причину («стенд ещё поднимается»), чтобы разбор не начинался с нуля.
-    const standWaking = errs.some((x) => /http 50[0234]/.test(x)) ||
-      /\b50[0234]\b/.test(String((e && e.message) || ''));
+    const standWaking = errs.some((x) => /http (?:50[0234]|429)/.test(x)) ||
+      /\b(?:50[0234]|429)\b/.test(String((e && e.message) || ''));
     const maxWakeRetries = 3;
     if (standWaking && phases.retries < maxWakeRetries) {
       phases.retries += 1;
