@@ -644,8 +644,10 @@
     });
     box.appendChild(p);
     box.appendChild(btn);
+    // Вставляем рядом со списком (внутри .content), а не в начало секции — иначе блок
+    // оказался бы НАД appbar и выглядел как чужая шапка.
     var list = listId ? document.getElementById(listId) : null;
-    if (list && list.parentNode === host) host.insertBefore(box, list);
+    if (list && list.parentNode) list.parentNode.insertBefore(box, list);
     else host.insertBefore(box, host.firstChild);
   }
   function showStaleNote(viewId, kinds) {

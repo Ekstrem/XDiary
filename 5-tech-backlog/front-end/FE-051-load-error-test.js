@@ -45,6 +45,8 @@ for (const [fn, emptyId] of [['renderJournal','journal-empty'], ['renderPartners
   check(fn + ': скрывает «' + emptyId + '» при ошибке', b.includes('\).classList.add("hidden")'), 'empty-state');
 }
 
+check("блок ошибки вставляется рядом со списком, а не над appbar",
+  /list\.parentNode\.insertBefore\(box, list\)/.test(js), "позиция вставки");
 check("CSS для .load-error есть", /\.load-error\s*\{/.test(css), "стиль есть");
 
 // негативный контроль: убрать catch из renderPartners — тест обязан это заметить
