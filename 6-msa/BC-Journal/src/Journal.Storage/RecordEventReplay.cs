@@ -47,7 +47,7 @@ public sealed class RecordEventReplay
         return model;
     }
 
-    private static AnemicModel Apply(AnemicModel m, IDictionary<string, IValueObject> vos, DomainEventEntry e)
+    public static AnemicModel Apply(AnemicModel m, IDictionary<string, IValueObject> vos, DomainEventEntry e)
     {
         if (vos.TryGetValue("Root", out var r) && r is IRecordRoot root) m = m with { Root = root };
         if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) m = m with { ClientId = cv.Value };
