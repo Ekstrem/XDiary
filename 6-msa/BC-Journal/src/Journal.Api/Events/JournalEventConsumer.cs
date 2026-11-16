@@ -107,11 +107,12 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         if (clientId is null) return;
 
         var current = await _defaultsRead.GetByIdAsync(clientId.Value, default);
-        var place = vos.TryGetValue("Place", out var p) && p is StringValueObject sv ? sv.Value : string.Empty;
-        var fantasies = vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fl ? fl.Value : Array.Empty<string>();
-        var positions = vos.TryGetValue("Positions", out var pp) && pp is StringListValueObject pl ? pl.Value : Array.Empty<string>();
-        var tags = vos.TryGetValue("Tags", out var tg) && tg is StringListValueObject tl ? tl.Value : Array.Empty<string>();
-        var contraceptives = vos.TryGetValue("Contraceptives", out var cp) && cp is StringListValueObject cl ? cl.Value : Array.Empty<string>();
+        var place = vos.TryGetValue("Place", out var p) && p is PlaceValue sv ? sv.Value : string.Empty;
+        var positions = vos.TryGetValue("Positions", out var pp) && pp is PositionsValue pl ? pl.Value : Array.Empty<string>();
+        var accessories = vos.TryGetValue("Accessories", out var ac) && ac is AccessoriesValue av ? av : null;
+        var fantasies = accessories?.Fantasies ?? Array.Empty<string>();
+        var tags = accessories?.Tags ?? Array.Empty<string>();
+        var contraceptives = vos.TryGetValue("Contraception", out var cp) && cp is ContraceptionValue cl ? cl.Contraceptives : Array.Empty<string>();
 
         var defaults = current ?? new JournalDefaultsReadModel { Id = clientId.Value, ClientId = clientId.Value };
         if (!string.IsNullOrWhiteSpace(place)) defaults.LastPlace = place;
@@ -151,18 +152,13 @@ public static class JournalProjection
             m.StartedAt = root.StartedAt;
         }
         if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) m.ClientId = cv.Value;
-        if (vos.TryGetValue("Place", out var p) && p is StringValueObject pv) m.Place = pv.Value;
-        if (vos.TryGetValue("Tags", out var t) && t is StringListValueObject tv) m.Tags = tv.Value.ToList();
-        if (vos.TryGetValue("Positions", out var po) && po is StringListValueObject pov) m.Positions = pov.Value.ToList();
-        if (vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fv) m.Fantasies = fv.Value.ToList();
-        if (vos.TryGetValue("Costumes", out var co) && co is StringListValueObject cov) m.Costumes = cov.Value.ToList();
-        if (vos.TryGetValue("Toys", out var to) && to is StringListValueObject tov) m.Toys = tov.Value.ToList();
-        if (vos.TryGetValue("Contraceptives", out var cn) && cn is StringListValueObject cnv) m.Contraceptives = cnv.Value.ToList();
-        if (vos.TryGetValue("ContraceptiveCount", out var cc) && cc is IntValueObject ccv) m.ContraceptiveCount = ccv.Value;
+        if (vos.TryGetValue("Place", out var p) && p is PlaceValue pv) m.Place = pv.Value;
+        if (vos.TryGetValue("Positions", out var po) && po is PositionsValue pov) m.Positions = pov.Value.ToList();
+        if (vos.TryGetValue("Accessories", out var a) && a is AccessoriesValue av) { m.Costumes = av.Costumes.ToList(); m.Toys = av.Toys.ToList(); m.Fantasies = av.Fantasies.ToList(); m.Tags = av.Tags.ToList(); }
+        if (vos.TryGetValue("Contraception", out var cn) && cn is ContraceptionValue cnv) { m.Contraceptives = cnv.Contraceptives.ToList(); m.ContraceptiveCount = cnv.ContraceptiveCount; }
         if (vos.TryGetValue("Orgasms", out var o) && o is OrgasmsListValueObject ov) m.Orgasms = ov.Value.Select(x => new OrgasmsReadModel { Participant = x.Participant, Count = x.Count, Types = x.Types.ToList(), Rating = x.Rating }).ToList();
-        if (vos.TryGetValue("Garmin", out var g) && g is BoolValueObject gv) m.Garmin = gv.Value;
-        if (vos.TryGetValue("GarminId", out var gi) && gi is StringValueObject giv) m.GarminId = giv.Value;
-        if (vos.TryGetValue("DurationMin", out var d) && d is IntValueObject dv) m.DurationMin = dv.Value;
+        if (vos.TryGetValue("Origin", out var or) && or is OriginValue orv) { m.Garmin = orv.Garmin; m.GarminId = orv.GarminId; }
+        if (vos.TryGetValue("Duration", out var d) && d is DurationValue dv) m.DurationMin = dv.Minutes;
         if (vos.TryGetValue("State", out var s) && s is IntValueObject sv) m.State = sv.Value;
         if (vos.TryGetValue("Deleted", out var del) && del is BoolValueObject dvb) m.Deleted = dvb.Value;
     }
