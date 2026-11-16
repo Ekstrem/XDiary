@@ -35,20 +35,17 @@ public sealed class JournalEventConsumer : BackgroundService
 
 public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserver<IDomainEvent<IJournal>>
 {
-    private readonly IEventStoreRepository<IJournal, IJournalAnemicModel> _store;
     private readonly IReadModelStore<IJournal, JournalReadModel> _readStore;
     private readonly IReadRepository<IJournal, JournalReadModel> _readRepo;
     private readonly IReadModelStore<IJournal, JournalDefaultsReadModel> _defaultsStore;
     private readonly IReadRepository<IJournal, JournalDefaultsReadModel> _defaultsRead;
 
     public JournalEventHandler(
-        IEventStoreRepository<IJournal, IJournalAnemicModel> store,
         IReadModelStore<IJournal, JournalReadModel> readStore,
         IReadRepository<IJournal, JournalReadModel> readRepo,
         IReadModelStore<IJournal, JournalDefaultsReadModel> defaultsStore,
         IReadRepository<IJournal, JournalDefaultsReadModel> defaultsRead)
     {
-        _store = store;
         _readStore = readStore;
         _readRepo = readRepo;
         _defaultsStore = defaultsStore;
@@ -58,31 +55,10 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
     public async Task HandleAsync(IDomainEvent<IJournal> domainEvent)
     {
         Console.WriteLine("[handle] entered");
-        // 1) персист события в store (идемпотентно по Id на уровне DF-репозитория).
-        // @TE 04:32 — $type-дискриминатор, иначе event-sourced GetById не реконструирует IValueObject.
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
-        // канон §7: имя метода — из change-track (newModel.CommandName), а не Command.GetType().Name («CommandToAggregate»).
-        var cmdName = domainEvent.ChangedValueObjects is not null
-            && domainEvent.ChangedValueObjects.TryGetValue("CommandName", out var cn)
-            && cn is StringValueObject cns
-            ? cns.Value
-            : (domainEvent.Command?.GetType().Name ?? string.Empty);
-        var entry = new DomainEventEntry
-        {
-            Id = domainEvent.Id,
-            Version = domainEvent.Version,
-            CorrelationToken = domainEvent.CorrelationToken,
-            BoundedContext = domainEvent.ContextName,
-            CommandName = cmdName,
-            SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
-            Result = domainEvent.Result.ToString(),
-            CreatedAt = DateTime.UtcNow,
-        };
-        await _store.SaveEventAsync(entry);
+        // Канон §6: store пишет command-path (JournalCommandRepository.SaveAsync — BusAdapter «сохранить И опубликовать»),
+        // здесь — только проекция MV (подписчик шины).
 
-        // 2) проекция MV (UpsertAsync) из changed-VO — per-field merge (BE-077/@TL 21:37, @AR 22:05 §15):
+        // проекция MV (UpsertAsync) из changed-VO — per-field merge (BE-077/@TL 21:37, @AR 22:05 §15):
         // отсутствие ключа ≠ пропуск; применяем только имеющиеся поля, null — только при пустом diff.
         var vos = domainEvent.ChangedValueObjects;
         if (vos is null || vos.Count == 0)
