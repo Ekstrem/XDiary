@@ -108,23 +108,23 @@ stop_and_delete() {
 }
 
 # --- режим диагностики (APIM_DIAG=1): посмотреть, что реально лежит в APIM ---------------
-case "${APIM_DIAG:-0}" in 1|true|TRUE) ;; *) false ;; esac
-if [ "$?" = "0" ]; then
-  echo "ДИАГНОСТИКА APIM: смотрю первые 5 API и пробую удалить один"
+DIAG_ON=0
+case "${APIM_DIAG:-0}" in 1|true|TRUE) DIAG_ON=1 ;; esac
+if [ "$DIAG_ON" = "1" ]; then
+  echo "ДИАГНОСТИКА APIM: полный список API (id, name, contextPath, state)"
+  all=$(list_ids)
   n=0
-  for id in $(list_ids); do
-    n=$((n+1)); [ "$n" -gt 5 ] && break
+  for id in $all; do
+    n=$((n+1))
     one=$(apim GET "$APIS_PATH/$id")
-    cp=$(printf '%s' "$one" | tr -d '\n' | sed -n 's/.*"contextPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-    nm=$(printf '%s' "$one" | tr -d '\n' | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-    st=$(printf '%s' "$one" | tr -d '\n' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-    echo "  api ${id:0:8}… name=\"$nm\" contextPath=\"$cp\" state=\"$st\""
-    if [ "$n" = "1" ]; then
-      s=$(apim POST "$APIS_PATH/$id/_stop"); echo "  _stop → $(code_of "$s") $(body_of "$s" | tr -d '\n' | head -c 120)"
-      d=$(apim DELETE "$APIS_PATH/$id"); echo "  DELETE → $(code_of "$d") $(body_of "$d" | tr -d '\n' | head -c 200)"
-    fi
+    c=$(code_of "$one"); b=$(body_of "$one")
+    if [ "$c" != "200" ]; then echo "  $n. ${id:0:8}… GET → $c (призрак)"; continue; fi
+    cp=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"contextPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    nm=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    st=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  $n. ${id:0:8}… cp=\"$cp\" state=\"$st\" name=\"$nm\""
   done
-  echo "ДИАГНОСТИКА APIM завершена"
+  echo "ДИАГНОСТИКА APIM завершена: всего $n"
   exit 0
 fi
 
