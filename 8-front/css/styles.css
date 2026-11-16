@@ -416,3 +416,10 @@ code {
 .gender-row { display: flex; gap: 10px; margin: 10px 0 14px; }
 .gender-row .gender-btn { flex: 1; }
 .gender-row .gender-btn.active { border-color: #e0567a; color: #fff; background: rgba(224,86,122,.18); }
+
+/* FE-051: видимая ошибка загрузки (5xx/сеть) вместо молча пустого экрана */
+.load-error {
+  margin: 12px 0; padding: 14px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+}
+.load-error-text { margin: 0 0 10px; color: var(--text); font-size: 15px; }
