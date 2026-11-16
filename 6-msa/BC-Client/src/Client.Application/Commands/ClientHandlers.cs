@@ -20,7 +20,8 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
     private readonly IConfiguration _config;
     private readonly ILogger<RegisterClientHandler> _log;
     private readonly string? _testOtp;
-    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IClientQueryRepository query, IOtpSender sender, IOtpRateLimiter rateLimiter, IConfiguration config, ILogger<RegisterClientHandler> logger) { _repo = repo; _query = query; _sender = sender; _rateLimiter = rateLimiter; _config = config; _log = logger; _testOtp = TestOtpPolicy.Resolve(config, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), out var warn); if (warn) logger.LogWarning("Включён тестовый OTP на проде (Clients:AllowTestOtpOutsideDev=true) — временная мера"); }
+    private readonly bool _rateLimitDisabled;
+    public RegisterClientHandler(IRepository<IClients, IClientAnemicModel> repo, IClientQueryRepository query, IOtpSender sender, IOtpRateLimiter rateLimiter, IConfiguration config, ILogger<RegisterClientHandler> logger) { _repo = repo; _query = query; _sender = sender; _rateLimiter = rateLimiter; _config = config; _log = logger; _testOtp = TestOtpPolicy.Resolve(config, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), out var warn); _rateLimitDisabled = RateLimitPolicy.IsDisabled(config, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")); if (warn) logger.LogWarning("Включён тестовый OTP на проде (Clients:AllowTestOtpOutsideDev=true) — временная мера"); }
 
     public async Task<RegisterClientResult> Handle(RegisterClientCommand r, CancellationToken ct)
     {
@@ -39,8 +40,8 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
         if (!PhoneFormatValidator.IsValid(phone))
             return new RegisterClientResult(ClientResults.Fail("Номер телефона неверного формата."), false, null, channel, false);
 
-        // BE-092: лимит переотправки — до отправки, иначе OTP-бомбинг.
-        if (!_rateLimiter.TryAcquire(phone!, DateTime.UtcNow))
+        // BE-092: лимит переотправки — до отправки, иначе OTP-бомбинг. BE-121: в Development лимит выключен.
+        if (!_rateLimitDisabled && !_rateLimiter.TryAcquire(phone!, DateTime.UtcNow))
             return new RegisterClientResult(ClientResults.Fail("Слишком много запросов, попробуйте позже."), false, null, channel, true);
 
         // BE-092 (@TL 08:02): существующий номер — тоже ДО отправки (не шлём повторный код, пока не знаем номера).
