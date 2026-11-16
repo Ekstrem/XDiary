@@ -129,6 +129,9 @@ namespace Journal.Storage.Migrations.ReadStore
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Tags")
                         .IsRequired()
                         .HasColumnType("text");

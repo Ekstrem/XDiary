@@ -40,6 +40,6 @@ public static class JournalMapper
         Place = e.Place, Positions = ToList(e.PositionsJson), Tags = ToList(e.TagsJson), Costumes = ToList(e.CostumesJson),
         Toys = ToList(e.ToysJson), Fantasies = ToList(e.FantasiesJson), Contraceptives = ToList(e.ContraceptivesJson),
         ContraceptiveCount = e.ContraceptiveCount, Orgasms = OrgasmsToList(e.OrgasmsJson), Garmin = e.Garmin,
-        GarminId = e.GarminId, CreatedAt = e.CreatedAt, UpdatedAt = e.UpdatedAt, Deleted = e.Deleted, State = (RecordState)e.State
+        GarminId = e.GarminId, CreatedAt = e.CreatedAt, UpdatedAt = e.UpdatedAt, Deleted = e.Deleted, State = e.State
     };
 }

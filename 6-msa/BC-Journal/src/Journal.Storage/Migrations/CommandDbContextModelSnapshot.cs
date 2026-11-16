@@ -83,6 +83,9 @@ namespace Journal.Storage.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("State")
+                        .HasColumnType("integer");
+
                     b.Property<string>("TagsJson")
                         .IsRequired()
                         .HasColumnType("text");

@@ -163,7 +163,7 @@ public static class JournalProjection
         if (vos.TryGetValue("Garmin", out var g) && g is BoolValueObject gv) m.Garmin = gv.Value;
         if (vos.TryGetValue("GarminId", out var gi) && gi is StringValueObject giv) m.GarminId = giv.Value;
         if (vos.TryGetValue("DurationMin", out var d) && d is IntValueObject dv) m.DurationMin = dv.Value;
-        if (vos.TryGetValue("State", out var s) && s is IntValueObject sv) m.State = (Journal.Domain.RecordState)sv.Value;
+        if (vos.TryGetValue("State", out var s) && s is IntValueObject sv) m.State = sv.Value;
         if (vos.TryGetValue("Deleted", out var del) && del is BoolValueObject dvb) m.Deleted = dvb.Value;
     }
 }
