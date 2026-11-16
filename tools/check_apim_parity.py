@@ -181,6 +181,13 @@ def main():
                               {"method": m, "path": p, "a": ka, "b": kb, "code_a": ca, "code_b": cb, "why": why}
                               for m, p, ka, kb, ca, cb, why in drift]}, ensure_ascii=False, indent=2))
     else:
+        # @AR (2026-11-16 10:52): порог «20 из 25» сам по себе не говорит, какие именно измерены.
+        # Печатаем список измеренных операций — квитанция должна быть проверяемой, а не «20 ок».
+        measured_ops = [("GET %s" % r[1]) for r in measured]
+        print("измеренные операции (%d):" % len(measured_ops))
+        for op in measured_ops:
+            print("  - %s" % op)
+        print()
         print("| операция | прод | dev | why |")
         print("|---|---|---|---|")
         for m, p, ka, kb, ca, cb, why in drift:
