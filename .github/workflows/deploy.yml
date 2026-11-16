@@ -595,7 +595,10 @@ jobs:
           # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
           echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
-          echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
+          # import.sh уже лежит на VPS (/opt/xdiary/7-deploy/apim/import.sh): передача его
+          # через envs упиралась в /bin/bash: Argument list too long. Нужна доставка —
+          # раскомментировать строку ниже и вернуть разбор в шаге доставки.
+          # echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
@@ -626,7 +629,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -651,7 +654,11 @@ jobs:
             if [ "${REIMPORT_APIM:-false}" = "true" ] || [ "${APIM_DIAG:-false}" = "true" ] || [ "${APIM_FIX_ROUTES:-false}" = "true" ] || [ "${APIM_REBUILD:-false}" = "true" ] || [ "${APIM_ENSURE:-false}" = "true" ] || [ "${APIM_MONGO:-false}" = "true" ] || [ "${APIM_TARGET:-false}" = "true" ]; then
               echo "APIM-REIMPORT: доставляю openapi/*.json и import.sh, затем ре-импорт"
               mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
-              echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+              if [ -n "${APIMIMPORT_B64:-}" ]; then
+                echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+              else
+                echo "APIM-REIMPORT: import.sh не передан — использую доставленный ранее"
+              fi
               chmod +x /opt/xdiary/7-deploy/apim/import.sh
               # Бинарные данные через here-string (`<<<`) портятся: base64 -d | tar — единственный
               # надёжный путь (первый прогон дал «не удалось распаковать openapi/*.json»).
