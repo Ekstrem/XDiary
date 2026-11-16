@@ -27,6 +27,7 @@ public sealed class AnemicModel : IJournalAnemicModel
     public string GarminId { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
+    public RecordState State { get; set; } = RecordState.Draft;
     public bool Deleted { get; set; }
 
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
@@ -49,6 +50,7 @@ public sealed class AnemicModel : IJournalAnemicModel
             ["Garmin"] = new BoolValueObject(Garmin),
             ["GarminId"] = new StringValueObject(GarminId),
             ["DurationMin"] = new IntValueObject(DurationMin),
+            ["State"] = new IntValueObject((int)State),
             ["Deleted"] = new BoolValueObject(Deleted),
         };
 }

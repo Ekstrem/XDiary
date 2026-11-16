@@ -53,6 +53,7 @@ public sealed class Aggregate
         GarminId = Model.GarminId,
         CreatedAt = Model.CreatedAt,
         UpdatedAt = Model.UpdatedAt,
+        State = Model.State,
         Deleted = Model.Deleted
     };
 
@@ -65,6 +66,7 @@ public sealed class Aggregate
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), string.Empty),
             ClientId = clientId,
             Garmin = false,
+            State = RecordState.Draft,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -85,6 +87,7 @@ public sealed class Aggregate
             DurationMin = durationMin,
             Garmin = true,
             GarminId = garminId,
+            State = RecordState.Draft,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -181,18 +184,22 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> Complete()
     {
+        if (Model.State != RecordState.Draft) return Fail("Complete применяется только к черновику (Draft).");
         var validator = new WhenRequiredValidator();
         if (!validator.IsSatisfiedBy(Model))
             return Fail(validator.Reason);
 
         var anemic = Clone();
+        anemic.State = RecordState.Recorded;
         anemic.UpdatedAt = DateTimeOffset.UtcNow.ToString("o");
         return Success(anemic);
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Delete()
     {
+        if (Model.State != RecordState.Recorded) return Fail("Delete применяется только к завершённой записи (Recorded).");
         var anemic = Clone();
+        anemic.State = RecordState.Deleted;
         anemic.Deleted = true;
         return Success(anemic);
     }
