@@ -254,6 +254,36 @@ fi
 # --- режим «посмотреть в Mongo» (APIM_MONGO=1) --------------------------------------------
 # Противоречие 2026-11-16 05:2x: импорт говорит `Path [/api/v1/journal/] already exists`,
 # а management-API такой записи не показывает. Смотрим Mongo напрямую.
+# --- режим «починить backend» (APIM_TARGET=1) ---------------------------------------------
+# Факт 2026-11-16 05:5x: маршруты journal/partners/каталог уже есть (404 ушёл), но journal и
+# partners отдают 500 от Gravitee — определение API смотрит в невалидный target (следствие
+# `servers: "/"`, AR-160). Ставим target явно: http://<host>:8080 и перезапускаем API.
+TGT_ON=0
+case "${APIM_TARGET:-0}" in 1|true|TRUE) TGT_ON=1 ;; esac
+if [ "$TGT_ON" = "1" ]; then
+  echo "ЦЕЛЬ BACKEND APIM: ставлю явный target для journal/partners"
+  for svc in journal partners; do
+    want="/api/v1/$svc"
+    found=""
+    for id in $(list_ids); do
+      one=$(apim GET "$APIS_PATH/$id"); [ "$(code_of "$one")" = "200" ] || continue
+      if printf '%s' "$(body_of "$one")" | tr -d '\n' | grep -q "\"path\"[[:space:]]*:[[:space:]]*\"$want\""; then
+        found="$id"; break
+      fi
+    done
+    [ -z "$found" ] && { echo "  $svc: записи с listener $want нет"; continue; }
+    one=$(apim GET "$APIS_PATH/$found"); b=$(body_of "$one")
+    cur=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"target"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  $svc: ${found:0:8}… target сейчас: \\"$cur\\""
+    printf '%s' "$b" | sed "s|\"target\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"target\" : \"http://$svc:8080\"|g" > "/tmp/apim-import/$svc.tgt"
+    cnt=$(grep -c '"target"' "/tmp/apim-import/$svc.tgt" || true)
+    echo "    целей в теле: $cnt → PUT: $(code_of "$(apim PUT "$APIS_PATH/$found" "/tmp/apim-import/$svc.tgt")")"
+    echo "    рестарт API: $(code_of "$(apim POST "$APIS_PATH/$found/_stop")") / $(code_of "$(apim POST "$APIS_PATH/$found/_start")")"
+  done
+  echo "ЦЕЛЬ BACKEND завершена"
+  exit 0
+fi
+
 MON_ON=0
 case "${APIM_MONGO_FLAG:-${APIM_MONGO:-0}}" in 1|true|TRUE) MON_ON=1 ;; esac
 if [ "$MON_ON" = "1" ]; then
