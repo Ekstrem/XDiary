@@ -142,6 +142,76 @@ if [ "$FIX_ON" = "1" ]; then
   exit 0
 fi
 
+# --- режим пересборки маршрутов (APIM_REBUILD=1) ------------------------------------------
+# Факты 2026-11-16: `_import/swagger` кладёт в listeners ПЕРВЫЙ путь спеки (например
+# /api/v1/journal/records/:id/when) и выводит префикс из названия спеки; из-за этого клиентский
+# /api/v1/journal/records — 404, а /journalmicroserviceapi/... — 500. `PUT /apis/{id}` работает (200).
+# Поэтому: импортируем спеку под УНИКАЛЬНЫМ названием (чтобы не биться в path.invalid), затем
+# ЯВНО ставим listeners[].paths[0].path = /api/v1/<svc>, а старые STARTED-записи переводим в STOPPED.
+REB_ON=0
+case "${APIM_REBUILD:-0}" in 1|true|TRUE) REB_ON=1 ;; esac
+if [ "$REB_ON" = "1" ]; then
+  mkdir -p /tmp/apim-import
+  for svc in journal partners; do
+    base="/api/v1/$svc"
+    src="$ROOT_DIR/openapi/$svc.json"
+    [ -f "$src" ] || { echo "  нет спеки $src" >&2; continue; }
+    echo "ПЕРЕСБОРКА $svc: префикс $base"
+    python3 - "$src" "$svc" > "/tmp/apim-import/$svc.rebuild" <<'PY' 2>/dev/null || \
+      awk -v s="$svc" 'BEGIN{printf "{\"payload\":\""}{gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n",$0}END{printf "\",\"withDocumentation\":true}"}' "$src" > "/tmp/apim-import/$svc.rebuild"
+import json, sys
+path, svc = sys.argv[1], sys.argv[2]
+doc = json.load(open(path, encoding="utf-8"))
+base = "/api/v1/" + svc
+paths = doc.get("paths") or {}
+new = {}
+for p, v in paths.items():
+    new[p[len(base):] if p.startswith(base) else p] = v
+doc["paths"] = new
+doc["servers"] = [{"url": base}]
+info = doc.setdefault("info", {})
+info["title"] = str(info.get("title", svc)) + " (route fix)"
+sys.stdout.write(json.dumps({"payload": json.dumps(doc), "withDocumentation": True}))
+PY
+    podman cp "/tmp/apim-import/$svc.rebuild" "$MG:/tmp/body.json" >/dev/null 2>&1
+    resp=$(apim POST "$APIS_PATH/_import/swagger" "/tmp/apim-import/$svc.rebuild")
+    code=$(code_of "$resp"); body=$(body_of "$resp")
+    echo "  импорт: HTTP $code"
+    if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+      printf '%s' "$body" | head -6 | cut -c1-200 >&2; continue
+    fi
+    id=$(printf '%s' "$body" | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  новый API ${id:0:8}…"
+    # план + публикация + старт
+    printf '%s' '{"name":"Default","description":"auto","security":{"type":"KEY_LESS"},"mode":"STANDARD","validation":"MANUAL","definitionVersion":"V4","flows":[]}' > "/tmp/apim-import/$svc.plan2"
+    pr=$(apim POST "$APIS_PATH/$id/plans" "/tmp/apim-import/$svc.plan2")
+    pid=$(printf '%s' "$(body_of "$pr")" | tr -d '\n' | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  план: $(code_of "$pr") ${pid:0:8}…"
+    [ -n "$pid" ] && echo "  публикация: $(code_of "$(apim POST "$APIS_PATH/$id/plans/$pid/_publish")")"
+    # явный listener-путь
+    one=$(apim GET "$APIS_PATH/$id")
+    oldpath=$(printf '%s' "$(body_of "$one")" | tr -d '\n' | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  listener сейчас: $oldpath"
+    printf '%s' "$(body_of "$one")" | sed "s|\"path\"[[:space:]]*:[[:space:]]*\"$oldpath\"|\"path\" : \"$base\"|" > "/tmp/apim-import/$svc.put2"
+    echo "  PUT listener=$base → $(code_of "$(apim PUT "$APIS_PATH/$id" "/tmp/apim-import/$svc.put2")")"
+    echo "  старт: $(code_of "$(apim POST "$APIS_PATH/$id/_start")")"
+    # старые записи того же сервиса — в STOPPED, чтобы не перехватывали трафик
+    for oid in $(list_ids); do
+      [ "$oid" = "$id" ] && continue
+      ob=$(apim GET "$APIS_PATH/$oid"); [ "$(code_of "$ob")" = "200" ] || continue
+      onm=$(printf '%s' "$(body_of "$ob")" | tr -d '\n' | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      ost=$(printf '%s' "$(body_of "$ob")" | tr -d '\n' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      case "$onm" in *"$svc"*|*"$(printf '%s' "$svc" | sed 's/^./\U&/')"*) ;; *) continue ;; esac
+      [ "$ost" = "STARTED" ] || continue
+      echo "  старый ${oid:0:8}… («$onm») → STOPPED"
+      printf '%s' "$(body_of "$ob")" | sed 's|"state"[[:space:]]*:[[:space:]]*"STARTED"|"state" : "STOPPED"|' > "/tmp/apim-import/$svc.stop2"
+      echo "    PUT: $(code_of "$(apim PUT "$APIS_PATH/$oid" "/tmp/apim-import/$svc.stop2")")"
+    done
+  done
+  echo "ПЕРЕСБОРКА завершена"
+  exit 0
+fi
+
 DIAG_ON=0
 case "${APIM_DIAG:-0}" in 1|true|TRUE) DIAG_ON=1 ;; esac
 if [ "$DIAG_ON" = "1" ]; then
