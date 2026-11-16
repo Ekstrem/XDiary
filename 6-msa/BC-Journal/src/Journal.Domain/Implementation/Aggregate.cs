@@ -2,6 +2,7 @@ namespace Journal.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Specifications;
@@ -10,13 +11,21 @@ using XDiary.Contracts;
 /// <summary>
 /// Агрегат Record: бизнес-методы по экранам визарда (классический CEQRS, без metadata-driven).
 /// </summary>
-public sealed class Aggregate
+public sealed class Aggregate : IAggregate<IJournal>
 {
     public IJournalAnemicModel Model { get; }
 
     private Aggregate(IJournalAnemicModel model) => Model = model;
 
     public static Aggregate CreateInstance(IJournalAnemicModel model) => new(model);
+
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
 
     private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {
