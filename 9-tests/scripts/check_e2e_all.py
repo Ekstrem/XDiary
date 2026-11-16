@@ -62,6 +62,7 @@ GATES = (
     ("check_e2e_clean_device.py", "спеки первого входа не получают засеянную сессию"),
     ("check_e2e_fixture_contract.py", "импорты спек соответствуют module.exports обвязки"),
     ("check_e2e_no_sleeps.py", "нет фиксированных пауз (waitForTimeout)"),
+    ("check_e2e_toast_text.py", "если спека смотрит на #toast — она утверждает ТЕКСТ причины, а не только видимость (TE-109)"),
     ("check_e2e_positional.py", "нет кликов по номеру в динамических списках"),
     ("check_e2e_data_hygiene.py", "спеки убирают за собой и создают уникальные данные"),
     ("check_e2e_skips.py", "каждый skip объяснён, флаги видны"),
