@@ -43,6 +43,10 @@ public sealed class AnemicModel : IJournalAnemicModel
             ["Costumes"] = new StringListValueObject(Costumes),
             ["Toys"] = new StringListValueObject(Toys),
             ["Contraceptives"] = new StringListValueObject(Contraceptives),
+            ["ContraceptiveCount"] = new IntValueObject(ContraceptiveCount),
+            ["Orgasms"] = new OrgasmsListValueObject(Orgasms),
+            ["Garmin"] = new BoolValueObject(Garmin),
+            ["GarminId"] = new StringValueObject(GarminId),
             ["DurationMin"] = new IntValueObject(DurationMin),
             ["Deleted"] = new BoolValueObject(Deleted),
         };

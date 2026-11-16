@@ -152,6 +152,10 @@ public static class JournalProjection
         if (vos.TryGetValue("Costumes", out var co) && co is StringListValueObject cov) m.Costumes = cov.Value.ToList();
         if (vos.TryGetValue("Toys", out var to) && to is StringListValueObject tov) m.Toys = tov.Value.ToList();
         if (vos.TryGetValue("Contraceptives", out var cn) && cn is StringListValueObject cnv) m.Contraceptives = cnv.Value.ToList();
+        if (vos.TryGetValue("ContraceptiveCount", out var cc) && cc is IntValueObject ccv) m.ContraceptiveCount = ccv.Value;
+        if (vos.TryGetValue("Orgasms", out var o) && o is OrgasmsListValueObject ov) m.Orgasms = ov.Value.Select(x => new OrgasmsReadModel { Participant = x.Participant, Count = x.Count, Types = x.Types.ToList(), Rating = x.Rating }).ToList();
+        if (vos.TryGetValue("Garmin", out var g) && g is BoolValueObject gv) m.Garmin = gv.Value;
+        if (vos.TryGetValue("GarminId", out var gi) && gi is StringValueObject giv) m.GarminId = giv.Value;
         if (vos.TryGetValue("DurationMin", out var d) && d is IntValueObject dv) m.DurationMin = dv.Value;
         if (vos.TryGetValue("Deleted", out var del) && del is BoolValueObject dvb) m.Deleted = dvb.Value;
     }

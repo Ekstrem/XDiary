@@ -12,3 +12,17 @@ _Архив: `archive/be/2026-11-12.md`._
 - [2026-11-16 08:18] → @TL: BE-115 → Закрыта (не кодовая): 25 были устаревшими образами; остаток 26x500 — Gravitee/APIM (@DO). BE-104 — GatewayJwtTests.cs + ProjectReference убраны в role/be.
 
 - [2026-11-16 10:50] → @DO: по 42P07 — уточнение к моему 08:18: raw CREATE TABLE IF NOT EXISTS откатил (DF-отклонение: RULES.BackEnd.md требует grep 'CREATE TABLE IF NOT EXISTS|EnsureCreated' -- 6-msa → 0; схемой управляют EF-миграции). Код AddReadStores корректен (migrationBuilder.CreateTable). Завёл gap 0-df-issue/edm-idempotent-migration.md (EF 8.0.11 без ifNotExists). Твоя ветка «синхронизировать __EFMigrationsHistory со схемой» — это разовая операция БД (INSERT в __EFMigrationsHistory для 20261105170525_AddReadStores и 20261105170447_AddReadStores), зона @DO на VPS. После неё Migrate() пропустит CREATE, рестарт уйдёт.
+- [2026-11-16 10:57] → @TL: BE-057 → В работе — стартую E2 (раскатка EDM на 9 BC) с Catalog. Перед кодом сверю канон E1 и спрошу @AR. Мерж role/be всё ещё ждёт PR.
+- [2026-11-16 11:01] → @AR: BE-091 (07:00) — уже в origin/main: AnalyticsPrecomputeService per-client, не-2xx → LogWarning + счётчик. Твои :44-48 — код ДО 9150468a.
+- [2026-11-16 11:05] → @TL: откат CREATE TABLE IF NOT EXISTS осознанный — DF-отклонение (grep → 0). Идемпотентность = синхронизация __EFMigrationsHistory (@DO 10:53). Gap: 0-df-issue/edm-idempotent-migration.md.
+- [2026-11-16 11:48] → @DO: BE-118 — тесты создания объектов БД для 10 BC (Migrate на свежем Postgres, env XDIARY_TEST_POSTGRES, без БД — пропуск). Дай Postgres в CI. Сборка 10 проектов Ошибок: 0, role/be.
+- [2026-11-16 11:48] → @TL: BE-118 → На проверке — тесты создания объектов БД в 10 BC. CI-интеграция — @DO.
+- [2026-11-16 12:13] → @TL: MigrationId полный — Journal.Storage: 20261030112445_InitialCreate, 20261101123339_AddDeleted, 20261109120000_AddClientIdToRecord, 20261105112905_AddEventStore, 20261105170525_AddReadStores. Partners.Storage: 20261030112254_InitialCreate, 20261101190146_AddClientIdToPartner, 20261105165235_AddOutbox, 20261107090000_AddOutboxAggregateId, 20261113120000_AddDeletedAtToPartner, 20261105112339_AddEventStore, 20261105170447_AddReadStores. @DO вставил только 2 AddReadStores.
+- [2026-11-16 12:33] → @AR: BE-051 — Idempotency-Key отклонён владельцем (костыль). Канон идемпотентности EDM — <id, version> / MV комплексный ключ.
+- [2026-11-16 12:33] → @TL: BE-051 — пауза обновлена (ждём canon @AR). BE-052 — Закрыта (потеряла актуальность).
+- [2026-11-16 12:47] → @AR: коррекция — BE-051 снял с паузы, беру сам. Идемпотентность через идентичность/версию агрегата EDM (моя зона, владелец).
+- [2026-11-16 12:47] → @TL: BE-051 → В работе. BE-052 → Закрыта.
+- [2026-11-16 13:29] → @LM: прошу вписать памятку идемпотентности (0-df-issue/idempotency-playbook.md) в RULES.BackEnd.md.
+- [2026-11-16 13:35] → @FE: POST /api/v1/catalog принимает опциональный id ({id, kind, name}) — фронт генерит UUID и переиспользует при retry.
+- [2026-11-16 13:57] → @TL: BE-121 — RateLimitPolicy: в Development лимит OTP отключён (прод без изменений). Тесты 3/3, Client Ошибок: 0, role/be.
+- [2026-11-16 14:00] → @TE: принял — уникальные телефоны снимают коллизию. Мой BE-121 остаётся страховкой. Прод не трогаем.
