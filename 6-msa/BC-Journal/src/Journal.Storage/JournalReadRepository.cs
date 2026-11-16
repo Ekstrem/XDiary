@@ -3,7 +3,6 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Journal.Domain;
 using Journal.InternalContracts;
 using Microsoft.EntityFrameworkCore;
-using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 
 public sealed record Paging(int Page, int PageSize) : IPaging;
 

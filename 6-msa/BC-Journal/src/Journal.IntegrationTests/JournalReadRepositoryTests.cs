@@ -11,8 +11,8 @@ public class JournalReadRepositoryTests
     {
         private readonly List<JournalReadModel> _items;
         public FakeRead(params JournalReadModel[] items) => _items = items.ToList();
-        public Task<JournalReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
-            => Task.FromResult(_items.FirstOrDefault(x => x.Id == id));
+        public Task<JournalReadModel> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult(_items.FirstOrDefault(x => x.Id == id)!);
         public Task<IReadOnlyList<JournalReadModel>> GetAllAsync(IPaging paging, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<JournalReadModel>>(_items);
         public Task<long> CountAsync(CancellationToken ct = default) => Task.FromResult((long)_items.Count);
@@ -20,8 +20,8 @@ public class JournalReadRepositoryTests
 
     private sealed class FakeDir : IReadRepository<IJournal, PartnersDirectoryReadModel>
     {
-        public Task<PartnersDirectoryReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
-            => Task.FromResult<PartnersDirectoryReadModel?>(null);
+        public Task<PartnersDirectoryReadModel> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<PartnersDirectoryReadModel>(null!);
         public Task<IReadOnlyList<PartnersDirectoryReadModel>> GetAllAsync(IPaging paging, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<PartnersDirectoryReadModel>>(Array.Empty<PartnersDirectoryReadModel>());
         public Task<long> CountAsync(CancellationToken ct = default) => Task.FromResult(0L);
@@ -29,8 +29,8 @@ public class JournalReadRepositoryTests
 
     private sealed class FakeDefaults : IReadRepository<IJournal, JournalDefaultsReadModel>
     {
-        public Task<JournalDefaultsReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
-            => Task.FromResult<JournalDefaultsReadModel?>(null);
+        public Task<JournalDefaultsReadModel> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => Task.FromResult<JournalDefaultsReadModel>(null!);
         public Task<IReadOnlyList<JournalDefaultsReadModel>> GetAllAsync(IPaging paging, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<JournalDefaultsReadModel>>(Array.Empty<JournalDefaultsReadModel>());
         public Task<long> CountAsync(CancellationToken ct = default) => Task.FromResult(0L);
