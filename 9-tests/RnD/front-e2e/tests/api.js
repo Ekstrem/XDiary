@@ -425,6 +425,14 @@ async function seedSessionOnce(page) {
         : null,
     };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName, needPartner, expectedPartnerId });
+  // TE-110/429 (@FE 2026-11-16 13:49, прогон 43849004210): провал засева НЕ должен идти дальше
+  // «с пустым миром» — иначе клиента/партнёра нет, и падение спеки выглядит как дефект продукта
+  // (`partnersCount: 0, partnerCreated: false`). Называем шаг и код; при 429 — прямо «лимит стенда».
+  if (seeded && seeded.ok === false) {
+    const st = seeded.status === undefined ? '?' : seeded.status;
+    throw new Error('seedSession: засев не выполнен на шаге "' + (seeded.step || '?') + '" (HTTP ' + st + ')' +
+      (seeded.status === 429 ? ' — это ЛИМИТ СТЕНДА (429), а не дефект спеки' : ' — это стенд, а не спека'));
+  }
   // TE-064: проба «без токена -> 401» из Node: контракт проверяем, консоль страницы не засоряем.
   let anonStatus = null;
   try {
