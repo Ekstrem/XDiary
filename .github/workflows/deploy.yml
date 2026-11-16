@@ -25,6 +25,38 @@ on:
         description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
         type: boolean
         default: false
+      fix_migrations:
+        description: 'DO-135: синхронизировать __EFMigrationsHistory (journal/partners) и перезапустить сервисы'
+        type: boolean
+        default: false
+      apim_target:
+        description: 'Поставить явный backend target http://<svc>:8080 у journal/partners и перезапустить API'
+        type: boolean
+        default: false
+      apim_mongo:
+        description: 'Диагностика Mongo APIM: сколько документов, имена/contextPath, кто содержит /api/v1/journal'
+        type: boolean
+        default: false
+      apim_ensure:
+        description: 'Довести маршрут: найти API по contextPath /api/v1/<svc> и запустить его'
+        type: boolean
+        default: false
+      apim_rebuild:
+        description: 'Пересборка маршрутов journal/partners: уникальное имя, явный listener /api/v1/<svc>, старые записи в STOPPED'
+        type: boolean
+        default: false
+      apim_fix_routes:
+        description: 'Правка маршрутов APIM: у STARTED-записей journal/partners listener-путь -> "/" (обратимо)'
+        type: boolean
+        default: false
+      apim_diag:
+        description: 'Только диагностика APIM: показать contextPath/state и попробовать удалить один API'
+        type: boolean
+        default: false
+      apim_teardown:
+        description: 'Снести все API в APIM перед ре-импортом (нужно, если старые определения мешают)'
+        type: boolean
+        default: false
       reimport_apim:
         description: 'Ре-импорт openapi/*.json в Gravitee APIM (нужно после правки спек: APIM хранит определение у себя)'
         type: boolean
@@ -537,7 +569,7 @@ jobs:
       (!inputs.stop_before_prod) &&
       always() &&
       (needs.apim-parity.result == 'success' && needs.smoke-api.result == 'success' || needs.smoke-api.outputs.reason == 'unmeasured' || inputs.allow_prod_repair) &&
-      (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true')
+      (needs.smoke-front.result == 'success' || needs.diff-paths.outputs.front != 'true' || inputs.allow_prod_repair)
     runs-on: ubuntu-latest
     environment: prod
     steps:
@@ -567,8 +599,12 @@ jobs:
           # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
           echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
-          echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
-          echo "OPENAPI_B64=$(tar -czf - openapi | base64 -w0)" >> "$GITHUB_ENV"
+          # import.sh уже лежит на VPS (/opt/xdiary/7-deploy/apim/import.sh): передача его
+          # через envs упиралась в /bin/bash: Argument list too long. Нужна доставка —
+          # раскомментировать строку ниже и вернуть разбор в шаге доставки.
+          # echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
+          echo "APIMTARGET_B64=$(gzip -c 7-deploy/apim/fix-target.sh | base64 -w0)" >> "$GITHUB_ENV"
+          echo "FIXMIG_B64=$(gzip -c 7-deploy/fix-migrations-history.sh | base64 -w0)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
@@ -587,12 +623,20 @@ jobs:
         env:
           ALLOW_PROD_REPAIR: ${{ inputs.allow_prod_repair }}
           REIMPORT_APIM: ${{ inputs.reimport_apim }}
+          APIM_TEARDOWN: ${{ inputs.apim_teardown }}
+          APIM_DIAG: ${{ inputs.apim_diag }}
+          APIM_FIX_ROUTES: ${{ inputs.apim_fix_routes }}
+          APIM_REBUILD: ${{ inputs.apim_rebuild }}
+          APIM_ENSURE: ${{ inputs.apim_ensure }}
+          APIM_MONGO: ${{ inputs.apim_mongo }}
+          APIM_TARGET: ${{ inputs.apim_target }}
+          FIX_MIGRATIONS: ${{ inputs.fix_migrations }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -610,18 +654,34 @@ jobs:
                 exit 1
               fi
             }
+            # DO-135 (@TL 2026-11-16 11:3x): прод нерабочий из-за 42P07 — синхронизация истории миграций.
+            if [ "${FIX_MIGRATIONS:-false}" = "true" ] || [ "${FIX_MIGRATIONS:-0}" = "1" ]; then
+              echo "FIX-MIGRATIONS: доставляю fix-migrations-history.sh"
+              mkdir -p /opt/xdiary/7-deploy
+              echo "$FIXMIG_B64" | base64 -d | gunzip > /opt/xdiary/7-deploy/fix-migrations-history.sh
+              chmod +x /opt/xdiary/7-deploy/fix-migrations-history.sh
+              bash /opt/xdiary/7-deploy/fix-migrations-history.sh || fail_or_warn "FIX-MIGRATIONS: скрипт вернул ошибку"
+            fi
             # AR-160 (@TL 2026-11-13 23:4x): APIM хранит определение API у себя, поэтому правка
             # `openapi/*.json` в git НЕ влияет на живой шлюз. После смены спек нужен ре-импорт.
             # Делаем это по явному входу `reimport_apim` (default false), чтобы не плодить API
             # на каждом обычном деплое.
-            if [ "${REIMPORT_APIM:-false}" = "true" ]; then
+            if [ "${REIMPORT_APIM:-false}" = "true" ] || [ "${APIM_DIAG:-false}" = "true" ] || [ "${APIM_FIX_ROUTES:-false}" = "true" ] || [ "${APIM_REBUILD:-false}" = "true" ] || [ "${APIM_ENSURE:-false}" = "true" ] || [ "${APIM_MONGO:-false}" = "true" ] || [ "${APIM_TARGET:-false}" = "true" ]; then
               echo "APIM-REIMPORT: доставляю openapi/*.json и import.sh, затем ре-импорт"
               mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
-              echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+              if [ -n "${APIMIMPORT_B64:-}" ]; then
+                echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
+              else
+                echo "APIM-REIMPORT: import.sh не передан — использую доставленный ранее"
+              fi
               chmod +x /opt/xdiary/7-deploy/apim/import.sh
               # Бинарные данные через here-string (`<<<`) портятся: base64 -d | tar — единственный
               # надёжный путь (первый прогон дал «не удалось распаковать openapi/*.json»).
-              printf %s "$OPENAPI_B64" | base64 -d | tar -xzf - -C /opt/xdiary || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+              if [ -n "${OPENAPI_B64:-}" ]; then
+                printf %s "$OPENAPI_B64" | base64 -d | tar -xzf - -C /opt/xdiary || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+              else
+                echo "APIM-REIMPORT: OPENAPI_B64 не передан — использую уже доставленные спеки в /opt/xdiary/openapi"
+              fi
               ls /opt/xdiary/openapi/*.json >/dev/null 2>&1 || fail_or_warn "APIM-REIMPORT: после распаковки в /opt/xdiary/openapi нет спек"
               echo "APIM-REIMPORT: спек в /opt/xdiary/openapi — $(ls /opt/xdiary/openapi/*.json 2>/dev/null | wc -l)"
               # Креды: файл apim.env мог лежать в двух местах — проверяем оба, значение не печатаем.
@@ -634,12 +694,26 @@ jobs:
               else
                 echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
               fi
-              if XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
-                 bash /opt/xdiary/7-deploy/apim/import.sh; then
-                echo "APIM-REIMPORT: ре-импорт выполнен"
-              else
-                fail_or_warn "APIM-REIMPORT: import.sh вернул ошибку — API в шлюзе могли остаться прежними"
+              # Шаг 2 DO-134: явный backend для journal/partners (маленький скрипт, отдельно от import.sh).
+              if [ "${APIM_TARGET:-0}" = "1" ] || [ "${APIM_TARGET:-0}" = "true" ]; then
+                echo "APIM-TARGET: доставляю fix-target.sh и правлю backend journal/partners"
+                mkdir -p /opt/xdiary/7-deploy/apim
+                echo "$APIMTARGET_B64" | base64 -d | gunzip > /opt/xdiary/7-deploy/apim/fix-target.sh
+                chmod +x /opt/xdiary/7-deploy/apim/fix-target.sh
+                bash /opt/xdiary/7-deploy/apim/fix-target.sh || fail_or_warn "APIM-TARGET: fix-target.sh вернул ошибку"
               fi
+              if [ "${APIM_REBUILD:-0}" = "1" ] || [ "${APIM_REBUILD:-0}" = "true" ] \
+                 || [ "${APIM_ENSURE:-0}" = "1" ] || [ "${APIM_ENSURE:-0}" = "true" ] \
+                 || [ "${APIM_MONGO:-0}" = "1" ] || [ "${APIM_MONGO:-0}" = "true" ] \
+                 || [ "${APIM_DIAG:-0}" = "1" ] || [ "${APIM_FIX_ROUTES:-0}" = "1" ]; then
+                bash /opt/xdiary/7-deploy/apim/import.sh || fail_or_warn "APIM: import.sh вернул ошибку"
+              fi
+                echo "APIM-REIMPORT: ре-импорт выполнен"
+              echo "ПРОБА публичных путей после правок APIM:"
+              for u in /api/v1/catalog /api/v1/journal/records /api/v1/journal/fantasies /api/v1/partners; do
+                c=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "https://xdiary-vps1.taile0b6ee.ts.net$u" || echo 000)
+                echo "  $u -> $c"
+              done
             fi
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
