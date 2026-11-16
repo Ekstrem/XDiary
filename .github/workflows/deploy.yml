@@ -584,7 +584,6 @@ jobs:
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
           echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
           echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
-          echo "OPENAPI_B64=$(tar -czf - openapi | base64 -w0)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
@@ -612,7 +611,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -641,7 +640,11 @@ jobs:
               chmod +x /opt/xdiary/7-deploy/apim/import.sh
               # Бинарные данные через here-string (`<<<`) портятся: base64 -d | tar — единственный
               # надёжный путь (первый прогон дал «не удалось распаковать openapi/*.json»).
-              printf %s "$OPENAPI_B64" | base64 -d | tar -xzf - -C /opt/xdiary || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+              if [ -n "${OPENAPI_B64:-}" ]; then
+                printf %s "$OPENAPI_B64" | base64 -d | tar -xzf - -C /opt/xdiary || fail_or_warn "APIM-REIMPORT: не удалось распаковать openapi/*.json"
+              else
+                echo "APIM-REIMPORT: OPENAPI_B64 не передан — использую уже доставленные спеки в /opt/xdiary/openapi"
+              fi
               ls /opt/xdiary/openapi/*.json >/dev/null 2>&1 || fail_or_warn "APIM-REIMPORT: после распаковки в /opt/xdiary/openapi нет спек"
               echo "APIM-REIMPORT: спек в /opt/xdiary/openapi — $(ls /opt/xdiary/openapi/*.json 2>/dev/null | wc -l)"
               # Креды: файл apim.env мог лежать в двух местах — проверяем оба, значение не печатаем.
