@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.114"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.118"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -285,8 +285,27 @@
       if (c && c.verified && c.displayName) { openJournal(); return; }
       // FE-029/FE-031: подтверждён, но «я» не привязано — всегда шаг привязки, не телефон заново
       if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showProfileStep(); return; }
+      if (c === null) {
+        // FE-052: таймаут me() — это НЕ «нет клиента». Раньше онбординг открывался молча,
+        // и пользователь (и E2E) видел пустой тост: «Вход не завершился… Тост=""».
+        forceVisibleScreen("afterAuth/me: таймаут");
+        return;
+      }
       openOnboarding();
-    }).catch(function (e) { console.error("afterAuth/me:", e); openOnboarding(); });
+    }).catch(function (e) {
+      console.error("afterAuth/me:", e);
+      // FE-052: 5xx/сеть/таймаут — видимая ошибка с «Повторить», а не молчаливый онбординг.
+      // 404 — сессия есть, клиента нет: онбординг уместен, но с сообщением (не пустой тост).
+      var st = e && e.status;
+      if (st === undefined || st === 0 || st >= 500) {
+        forceVisibleScreen("afterAuth/me: " + (st ? "HTTP " + st : "нет связи"));
+        return;
+      }
+      if (st === 404) {
+        try { toast("Профиль не найден на сервере — заполните заново", 6000); } catch (e2) {}
+      }
+      openOnboarding();
+    });
   }
   function openOnboarding() {
     onbClientId = "";
@@ -306,7 +325,8 @@
     console.log("forceVisibleScreen:", why);
     try { showView("onboarding"); } catch (e) { console.error("forceVisibleScreen/showView:", e); }
     try {
-      toast("Нет связи с сервером: не удалось загрузить данные. Проверьте сеть и нажмите «Повторить».", 8000);
+      // FE-052: в UI нет кнопки «Повторить» (текст её обещал) — обещаем только то, что есть: обновление.
+      toast("Нет связи с сервером: не удалось загрузить данные. Проверьте сеть и обновите страницу.", 8000);
     } catch (e2) { console.error("forceVisibleScreen/toast:", e2); }
   }
   // FE-038 (0.88): шаг «Кто вы?» — имя и пол в профиль клиента, партнёра не создаём
@@ -536,6 +556,7 @@
   }
 
   function renderJournal() {
+    clearLoadError("view-journal");
     DB.getAllRecords().then(function (records) {
       records.sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
       var list = $("journal-list");
@@ -585,6 +606,12 @@
       var places = new Set();
       records.forEach(function (r) { if (r.place) places.add(r.place); });
       fillDatalist("place-suggest", places);
+    }).catch(function (e) {
+      console.error("renderJournal:", e);
+      // FE-051: «Пока пусто» рядом с ошибкой — противоречие: пустой список не означает «нет записей»
+      if ($("journal-empty")) $("journal-empty").classList.add("hidden");
+      showLoadError("view-journal", "journal-list",
+        "Не удалось загрузить журнал. Проверьте связь и нажмите «Повторить».", renderJournal);
     });
   }
 
@@ -608,6 +635,40 @@
     var h = Math.floor(ageMs / 3600000);
     if (h < 1) return "данные могли устареть — меньше часа с синхронизации";
     return "данные могли устареть — синхронизированы " + h + " ч назад";
+  }
+  // FE-051: при 5xx/сетевой ошибке и пустом кэше экран раньше оставался молча пустым —
+  // пользователь не понимал, что данные не загрузились. Теперь видимый блок с «Повторить».
+  function clearLoadError(viewId) {
+    var host = document.getElementById(viewId);
+    if (!host) return;
+    var old = host.querySelector(".load-error");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+  function showLoadError(viewId, listId, message, retry) {
+    var host = document.getElementById(viewId);
+    if (!host) return;
+    clearLoadError(viewId);
+    var box = document.createElement("div");
+    box.className = "load-error";
+    box.setAttribute("role", "alert");
+    var p = document.createElement("p");
+    p.className = "load-error-text";
+    p.textContent = message;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    btn.textContent = "Повторить";
+    btn.addEventListener("click", function () {
+      clearLoadError(viewId);
+      if (typeof retry === "function") retry();
+    });
+    box.appendChild(p);
+    box.appendChild(btn);
+    // Вставляем рядом со списком (внутри .content), а не в начало секции — иначе блок
+    // оказался бы НАД appbar и выглядел как чужая шапка.
+    var list = listId ? document.getElementById(listId) : null;
+    if (list && list.parentNode) list.parentNode.insertBefore(box, list);
+    else host.insertBefore(box, host.firstChild);
   }
   function showStaleNote(viewId, kinds) {
     var host = document.getElementById(viewId);
@@ -1315,6 +1376,7 @@
 
   // ---- партнёры ----
   function renderPartners() {
+    clearLoadError("view-partners");
     DB.getAllPartners().then(function (partners) {
       showStaleNote("view-partners", ["partners"]);
       var list = $("partners-list");
@@ -1333,6 +1395,11 @@
         c.addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(p.id); });
         list.appendChild(c);
       });
+    }).catch(function (e) {
+      console.error("renderPartners:", e);
+      if ($("partners-empty")) $("partners-empty").classList.add("hidden");
+      showLoadError("view-partners", "partners-list",
+        "Не удалось загрузить партнёров. Проверьте связь и нажмите «Повторить».", renderPartners);
     });
   }
 
@@ -1731,6 +1798,9 @@
 
       var stats = drawChart($("somatic-canvas"), points, detailMetric, rangeStartMs, rangeEndMs, startMs);
       var s = $("somatic-stats");
+      // FE-053: в прогоне 43842550626 ловилось `TypeError: Cannot set properties of null
+      // (setting 'textContent') at app.js:1806` — элемента нет в DOM (вьюха перерисована).
+      if (!s) return;
       if (stats.count) {
         var m = METRIC_META[detailMetric];
         s.textContent = "мин " + Math.round(stats.min) + " · ср " + Math.round(stats.avg) +
@@ -2568,6 +2638,10 @@
     $("pin-input").addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
 
     $("btn-new").addEventListener("click", function () { openWizard(null); });
+  // FE-037 (вариант B): «Из Garmin» на журнале — тот же сценарий, что из настроек (openImport)
+  if ($("btn-journal-garmin")) {
+    $("btn-journal-garmin").addEventListener("click", function () { openImport(); });
+  }
 
     $("tab-journal").addEventListener("click", function () { showView("journal"); });
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });

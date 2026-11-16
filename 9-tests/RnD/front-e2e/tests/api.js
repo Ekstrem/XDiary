@@ -183,7 +183,13 @@ const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
  * при том же объёме данных вероятность коллизии ≈ 0,02%.
  */
 function uniquePhone(prefix) {
-  return (prefix || '+7999') + String(Date.now()).slice(-7);
+  // BE-121 (@TL 2026-11-16 13:53): ключ лимитера — телефон (`MinInterval 60 с`, `MaxPerHour 5`),
+  // поэтому «псевдоуникальный» номер ломает прогон. `Date.now().slice(-7)` повторяется каждые
+  // ~2 ч 47 мин, а модули спек грузятся в одну миллисекунду и получают ОДИН номер.
+  // Берём 7 случайных цифр: коллизия ~1e-7 на пару, зависимости от времени нет.
+  const crypto = require('crypto');
+  const digits = String(crypto.randomInt(0, 10000000)).padStart(7, '0');
+  return (prefix || '+7999') + digits;
 }
 
 
@@ -232,12 +238,22 @@ async function waitApiReady(attempts, delayMs) {
   // Данные не создаются: GET без тела.
   const n = attempts || 20;
   const gap = delayMs || 3000;
+  // Отдельный, короткий бюджет для 429: лимит стенда не рассасывается за минуту (окно ~60 с
+  // на клиента), а потраченное время превращает «лимит» в «вход не завершился» (@FE 13:29,
+  // прогон 43845569210: `csv` — «Вход не завершился (96 с: seed 68 c)»).
+  const rateGap = 5000;
+  const rateAttempts = 2;
+  let rateWaited = 0;
   let last = 'нет ответа';
   for (let i = 1; i <= n; i += 1) {
     try {
       const r = await fetch(API_BASE + '/api/v1/clients/me', { headers: {} });
       last = String(r.status);
-      if (!(r.status >= 500) && r.status !== 0) {
+      // 429 — стенд ЖИВ, но лимитирует регистрацию (@FE 2026-11-16 13:06). Это не «не готов»
+      // и не «спека сломана»: ждём окно лимита и называем причину в логе, иначе setup падает
+      // «на ровном месте» и триаж начинается с нуля.
+      const rateLimited = r.status === 429;
+      if (!rateLimited && !(r.status >= 500) && r.status !== 0) {
         if (i > 1) {
           console.log('::notice::' + JSON.stringify({
             title: 'login: стенд поднялся', attempts: i, status: r.status,
@@ -249,12 +265,25 @@ async function waitApiReady(attempts, delayMs) {
       last = String((e && e.message) || e).slice(0, 120);
     }
     console.log('::warning::' + JSON.stringify({
-      title: 'login: стенд ещё поднимается (5xx), ждём', attempt: i + '/' + n, last,
+      title: last === '429'
+        ? 'login: стенд лимитирует регистрацию (429), ждём окно — это лимит стенда, не спека'
+        : 'login: стенд ещё поднимается (5xx), ждём',
+      attempt: i + '/' + n, last, rateWaited,
     }));
+    if (last === '429') {
+      rateWaited += 1;
+      if (rateWaited > rateAttempts) {
+        throw new Error('Вход не начат: стенд ЛИМИТИРУЕТ регистрацию (429) — это лимит стенда, ' +
+          'а не дефект спеки; ждали ' + rateAttempts + ' × ' + rateGap / 1000 + ' с');
+      }
+      await new Promise((res) => setTimeout(res, rateGap)); // backoff: короткое окно лимита 429
+      continue;
+    }
     await new Promise((res) => setTimeout(res, gap)); // backoff: проба готовности стенда
   }
   throw new Error('Вход не начат: стенд не готов за ' + n + ' попыток по ' + gap / 1000 +
-    ' с (последний ответ: ' + last + ') — это стенд, а не спека');
+    ' с (последний ответ: ' + last + ')' +
+    (last === '429' ? ' — это ЛИМИТ СТЕНДА (429, регистрация), а не дефект спеки' : ' — это стенд, а не спека'));
 }
 
 async function seedSessionOnce(page) {
@@ -402,6 +431,14 @@ async function seedSessionOnce(page) {
         : null,
     };
   }, { base: API_BASE, phone, otp: TEST_OTP, partnerName, needPartner, expectedPartnerId });
+  // TE-110/429 (@FE 2026-11-16 13:49, прогон 43849004210): провал засева НЕ должен идти дальше
+  // «с пустым миром» — иначе клиента/партнёра нет, и падение спеки выглядит как дефект продукта
+  // (`partnersCount: 0, partnerCreated: false`). Называем шаг и код; при 429 — прямо «лимит стенда».
+  if (seeded && seeded.ok === false) {
+    const st = seeded.status === undefined ? '?' : seeded.status;
+    throw new Error('seedSession: засев не выполнен на шаге "' + (seeded.step || '?') + '" (HTTP ' + st + ')' +
+      (seeded.status === 429 ? ' — это ЛИМИТ СТЕНДА (429), а не дефект спеки' : ' — это стенд, а не спека'));
+  }
   // TE-064: проба «без токена -> 401» из Node: контракт проверяем, консоль страницы не засоряем.
   let anonStatus = null;
   try {
@@ -638,8 +675,8 @@ async function loginWithPin(page, pin) {
     // TE-110 (@TL 2026-11-13 11:47): `deploy-dev` пересоздаёт контейнеры, и вход попадает в окно
     // `502 Bad Gateway`. Это не дефект спеки: ждём и повторяем с backoff, а в сообщении называем
     // причину («стенд ещё поднимается»), чтобы разбор не начинался с нуля.
-    const standWaking = errs.some((x) => /http 50[0234]/.test(x)) ||
-      /\b50[0234]\b/.test(String((e && e.message) || ''));
+    const standWaking = errs.some((x) => /http (?:50[0234]|429)/.test(x)) ||
+      /\b(?:50[0234]|429)\b/.test(String((e && e.message) || ''));
     const maxWakeRetries = 3;
     if (standWaking && phases.retries < maxWakeRetries) {
       phases.retries += 1;
