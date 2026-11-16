@@ -25,4 +25,14 @@ public class JournalIdempotencyTests
         var b = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid());
         Assert.Equal(a.Model().Id, b.Model().Id);
     }
+
+    [Fact]
+    public void StartFromGarmin_PreservesProvidedId_AndGarminId()
+    {
+        var id = Guid.NewGuid();
+        var r = Aggregate.CreateInstance(new AnemicModel { Id = id })
+            .StartFromGarmin("2026-01-01T00:00:00Z", 10, "garmin-1", Guid.NewGuid());
+        Assert.Equal(id, r.Model().Id);
+        Assert.Equal("garmin-1", r.Model().GarminId);
+    }
 }

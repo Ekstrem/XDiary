@@ -4,6 +4,7 @@ using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Application;
 using Journal.Domain.Implementation;
+using Journal.InternalContracts;
 using MediatR;
 using XDiary.Contracts;
 
@@ -22,9 +23,22 @@ public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCo
 public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminCommand, AggregateResult<IJournal, IJournalAnemicModel>>
 {
     private readonly IRepository<IJournal, IJournalAnemicModel> _repo;
-    public StartFromGarminHandler(IRepository<IJournal, IJournalAnemicModel> repo) => _repo = repo;
+    private readonly IJournalQueryRepository _query;
+    public StartFromGarminHandler(IRepository<IJournal, IJournalAnemicModel> repo, IJournalQueryRepository query) { _repo = repo; _query = query; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartFromGarminCommand r, CancellationToken ct)
     {
+        // BE-051 класс: повторный синк той же garmin-активности → та же запись (dedup по garminId), не дубль.
+        var existing = await _query.GetByGarminIdAsync(r.GarminId, ct);
+        if (existing is not null)
+        {
+            var agg = await _repo.GetByIdAsync(existing.Id, ct);
+            if (agg is not null)
+            {
+                var res = Aggregate.CreateInstance(agg).StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, r.ClientId);
+                if (res.IsSuccess()) await _repo.SaveAsync(res, ct);
+                return res;
+            }
+        }
         var result = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, r.ClientId);
         if (result.IsSuccess()) await _repo.SaveAsync(result, ct);
         return result;

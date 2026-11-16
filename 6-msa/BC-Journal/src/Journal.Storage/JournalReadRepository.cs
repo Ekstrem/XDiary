@@ -52,6 +52,13 @@ public sealed class JournalReadRepository : IJournalQueryRepository
         return m;
     }
 
+    public async Task<JournalReadModel?> GetByGarminIdAsync(string garminId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(garminId)) return null;
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
+        return all.FirstOrDefault(x => x.GarminId == garminId);
+    }
+
     public async Task<IReadOnlyList<JournalReadModel>> ListAsync(Guid clientId, int? limit, int? offset, CancellationToken ct = default)
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);

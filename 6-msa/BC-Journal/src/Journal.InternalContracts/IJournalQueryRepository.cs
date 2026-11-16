@@ -3,6 +3,7 @@ namespace Journal.InternalContracts;
 public interface IJournalQueryRepository
 {
     Task<JournalReadModel?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<JournalReadModel?> GetByGarminIdAsync(string garminId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<JournalReadModel>> ListAsync(Guid clientId, int? limit, int? offset, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<JournalReadModel>> ListAllAsync(int? limit, int? offset, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>> GetClientIdsAsync(CancellationToken cancellationToken = default);
