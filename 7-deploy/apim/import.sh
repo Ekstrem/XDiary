@@ -212,6 +212,35 @@ PY
   exit 0
 fi
 
+# --- режим доведения маршрута (APIM_ENSURE=1) ---------------------------------------------
+# Факт 2026-11-16 04:47: импорт отвечает `Path [/api/v1/journal/] already exists`, то есть запись
+# с нужным contextPath УЖЕ есть — её не надо создавать, её надо запустить/опубликовать.
+ENS_ON=0
+case "${APIM_ENSURE:-0}" in 1|true|TRUE) ENS_ON=1 ;; esac
+if [ "$ENS_ON" = "1" ]; then
+  echo "ДОВЕДЕНИЕ МАРШРУТА APIM: ищу записи по contextPath /api/v1/<svc>"
+  for svc in journal partners; do
+    want="/api/v1/$svc"
+    found=""
+    for id in $(list_ids); do
+      one=$(apim GET "$APIS_PATH/$id"); [ "$(code_of "$one")" = "200" ] || continue
+      cp=$(printf '%s' "$(body_of "$one")" | tr -d '\n' | sed -n 's/.*"contextPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      [ "$cp" = "$want" ] && { found="$id"; break; }
+    done
+    if [ -z "$found" ]; then
+      echo "  $svc: записи с contextPath $want НЕТ — нужен импорт с относительными путями (следующий шаг)"
+      continue
+    fi
+    one=$(apim GET "$APIS_PATH/$found"); b=$(body_of "$one")
+    st=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    lp=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+    echo "  $svc: ${found:0:8}… state=\\"$st\\" listener=\\"$lp\\" (contextPath $want)"
+    echo "    публикация плана: $(code_of "$(apim POST "$APIS_PATH/$found/_start")") (_start)"
+  done
+  echo "ДОВЕДЕНИЕ МАРШРУТА завершено"
+  exit 0
+fi
+
 DIAG_ON=0
 case "${APIM_DIAG:-0}" in 1|true|TRUE) DIAG_ON=1 ;; esac
 if [ "$DIAG_ON" = "1" ]; then
