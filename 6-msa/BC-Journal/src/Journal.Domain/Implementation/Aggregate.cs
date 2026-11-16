@@ -11,7 +11,7 @@ using XDiary.Contracts;
 /// <summary>
 /// Агрегат Record: бизнес-методы по экранам визарда (классический CEQRS, без metadata-driven).
 /// </summary>
-public sealed class Aggregate : IAggregate<IJournal>
+public sealed class Aggregate : IRecordAggregate
 {
     public IJournalAnemicModel Model { get; }
 
@@ -26,6 +26,25 @@ public sealed class Aggregate : IAggregate<IJournal>
     public string SubjectName => Model.SubjectName;
     public IDictionary<string, IValueObject> Invariants => Model.Invariants;
     public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    public IRecordRoot Root => Model.Root;
+    public Guid? ClientId => Model.ClientId;
+    public int DurationMin => Model.DurationMin;
+    public string Place => Model.Place;
+    public IReadOnlyList<string> Positions => Model.Positions;
+    public IReadOnlyList<string> Costumes => Model.Costumes;
+    public IReadOnlyList<string> Toys => Model.Toys;
+    public IReadOnlyList<string> Fantasies => Model.Fantasies;
+    public IReadOnlyList<string> Tags => Model.Tags;
+    public IReadOnlyList<string> Contraceptives => Model.Contraceptives;
+    public int ContraceptiveCount => Model.ContraceptiveCount;
+    public IReadOnlyList<IOrgasms> Orgasms => Model.Orgasms;
+    public bool Garmin => Model.Garmin;
+    public string GarminId => Model.GarminId;
+    public string CreatedAt => Model.CreatedAt;
+    public string UpdatedAt => Model.UpdatedAt;
+    public RecordState State => Model.State;
+    public bool Deleted => Model.Deleted;
 
     private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {

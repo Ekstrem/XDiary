@@ -1,0 +1,9 @@
+# DR (Digital Factory Reviewer) 2026-11-17: пилот QG-анализатора DTF/EDM в BC-Journal.
+[*.cs]
+# QG401 — error; QG602 — warning (триггер 0.1.0 слишком широкий: ловит IAggregate<T> SeedWorks, что для микросервиса законно — баг сообщён @DR)
+dotnet_diagnostic.QG401.severity = error
+dotnet_diagnostic.QG602.severity = warning
+# QG106 / QG603 / QG006 — warning
+dotnet_diagnostic.QG106.severity = warning
+dotnet_diagnostic.QG603.severity = warning
+dotnet_diagnostic.QG006.severity = warning
