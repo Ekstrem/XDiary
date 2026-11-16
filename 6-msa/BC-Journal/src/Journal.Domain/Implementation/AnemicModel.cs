@@ -34,6 +34,7 @@ public sealed class AnemicModel : IJournalAnemicModel
     public IDictionary<string, IValueObject> GetValueObjects()
         => new Dictionary<string, IValueObject>
         {
+            ["CommandName"] = new StringValueObject(CommandName),
             ["Root"] = Root,
             ["ClientId"] = new ClientIdValueObject(ClientId),
             ["Place"] = new StringValueObject(Place),

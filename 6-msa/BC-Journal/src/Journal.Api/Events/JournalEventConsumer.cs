@@ -61,13 +61,19 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         // @TE 04:32 — $type-дискриминатор, иначе event-sourced GetById не реконструирует IValueObject.
         var jsonOptions = new JsonSerializerOptions();
         jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+        // канон §7: имя метода — из change-track (newModel.CommandName), а не Command.GetType().Name («CommandToAggregate»).
+        var cmdName = domainEvent.ChangedValueObjects is not null
+            && domainEvent.ChangedValueObjects.TryGetValue("CommandName", out var cn)
+            && cn is StringValueObject cns
+            ? cns.Value
+            : (domainEvent.Command?.GetType().Name ?? string.Empty);
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
             Version = domainEvent.Version,
             CorrelationToken = domainEvent.CorrelationToken,
             BoundedContext = domainEvent.ContextName,
-            CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
+            CommandName = cmdName,
             SubjectName = domainEvent.ContextName,
             ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
             Result = domainEvent.Result.ToString(),

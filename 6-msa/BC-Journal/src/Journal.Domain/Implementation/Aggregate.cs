@@ -18,8 +18,9 @@ public sealed class Aggregate
 
     public static Aggregate CreateInstance(IJournalAnemicModel model) => new(model);
 
-    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel)
+    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
+        newModel.CommandName = commandName; // канон §7: событие соразмерно методу
         var data = BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel);
         return new AggregateResultSuccess<IJournal, IJournalAnemicModel>(data);
     }
