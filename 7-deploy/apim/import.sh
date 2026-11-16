@@ -228,7 +228,17 @@ if [ "$ENS_ON" = "1" ]; then
       [ "$cp" = "$want" ] && { found="$id"; break; }
     done
     if [ -z "$found" ]; then
-      echo "  $svc: записи с contextPath $want НЕТ — нужен импорт с относительными путями (следующий шаг)"
+      # Второй критерий: у части записей contextPath пуст, а нужный маршрут задан в listeners[].paths.
+      echo "  $svc: по contextPath не нашёл — ищу по listener-пути $want"
+      for id in $(list_ids); do
+        one=$(apim GET "$APIS_PATH/$id"); [ "$(code_of "$one")" = "200" ] || continue
+        if printf '%s' "$(body_of "$one")" | tr -d '\n' | grep -q "\"path\"[[:space:]]*:[[:space:]]*\"$want\""; then
+          found="$id"; echo "    listener-владелец: ${id:0:8}…"; break
+        fi
+      done
+    fi
+    if [ -z "$found" ]; then
+      echo "  $svc: записи с $want НЕТ ни по contextPath, ни по listener — нужен импорт с относительными путями"
       continue
     fi
     one=$(apim GET "$APIS_PATH/$found"); b=$(body_of "$one")
