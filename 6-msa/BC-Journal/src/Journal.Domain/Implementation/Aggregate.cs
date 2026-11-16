@@ -18,11 +18,11 @@ public sealed class Aggregate
 
     public static Aggregate CreateInstance(IJournalAnemicModel model) => new(model);
 
-    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {
         newModel = newModel with { CommandName = commandName }; // канон §7: событие соразмерно методу
-        var data = BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel);
-        return new AggregateResultSuccess<IJournal, IJournalAnemicModel>(data);
+        return BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel)
+            .ValidateCommand(specs);
     }
 
     private AggregateResult<IJournal, IJournalAnemicModel> Fail(string error)
@@ -171,19 +171,13 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> Complete()
     {
-        if (Model.State != RecordState.Draft) return Fail("Complete применяется только к черновику (Draft).");
-        var validator = new WhenRequiredValidator();
-        if (!validator.IsSatisfiedBy(Model))
-            return Fail(validator.Reason);
-
         var anemic = Clone() with { State = RecordState.Recorded, UpdatedAt = DateTimeOffset.UtcNow.ToString("o") };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new WhenRequiredValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Delete()
     {
-        if (Model.State != RecordState.Recorded) return Fail("Delete применяется только к завершённой записи (Recorded).");
         var anemic = Clone() with { State = RecordState.Deleted, Deleted = true };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordNotDeletedValidator(), new RecordDeletableValidator() });
     }
 }
