@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.115"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.116"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -536,6 +536,7 @@
   }
 
   function renderJournal() {
+    clearLoadError("view-journal");
     DB.getAllRecords().then(function (records) {
       records.sort(function (a, b) { return (b.startedAt || "").localeCompare(a.startedAt || ""); });
       var list = $("journal-list");
@@ -585,6 +586,10 @@
       var places = new Set();
       records.forEach(function (r) { if (r.place) places.add(r.place); });
       fillDatalist("place-suggest", places);
+    }).catch(function (e) {
+      console.error("renderJournal:", e);
+      showLoadError("view-journal", "journal-list",
+        "Не удалось загрузить журнал. Проверьте связь и нажмите «Повторить».", renderJournal);
     });
   }
 
@@ -608,6 +613,38 @@
     var h = Math.floor(ageMs / 3600000);
     if (h < 1) return "данные могли устареть — меньше часа с синхронизации";
     return "данные могли устареть — синхронизированы " + h + " ч назад";
+  }
+  // FE-051: при 5xx/сетевой ошибке и пустом кэше экран раньше оставался молча пустым —
+  // пользователь не понимал, что данные не загрузились. Теперь видимый блок с «Повторить».
+  function clearLoadError(viewId) {
+    var host = document.getElementById(viewId);
+    if (!host) return;
+    var old = host.querySelector(".load-error");
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+  }
+  function showLoadError(viewId, listId, message, retry) {
+    var host = document.getElementById(viewId);
+    if (!host) return;
+    clearLoadError(viewId);
+    var box = document.createElement("div");
+    box.className = "load-error";
+    box.setAttribute("role", "alert");
+    var p = document.createElement("p");
+    p.className = "load-error-text";
+    p.textContent = message;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    btn.textContent = "Повторить";
+    btn.addEventListener("click", function () {
+      clearLoadError(viewId);
+      if (typeof retry === "function") retry();
+    });
+    box.appendChild(p);
+    box.appendChild(btn);
+    var list = listId ? document.getElementById(listId) : null;
+    if (list && list.parentNode === host) host.insertBefore(box, list);
+    else host.insertBefore(box, host.firstChild);
   }
   function showStaleNote(viewId, kinds) {
     var host = document.getElementById(viewId);
@@ -1315,6 +1352,7 @@
 
   // ---- партнёры ----
   function renderPartners() {
+    clearLoadError("view-partners");
     DB.getAllPartners().then(function (partners) {
       showStaleNote("view-partners", ["partners"]);
       var list = $("partners-list");
@@ -1333,6 +1371,10 @@
         c.addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(p.id); });
         list.appendChild(c);
       });
+    }).catch(function (e) {
+      console.error("renderPartners:", e);
+      showLoadError("view-partners", "partners-list",
+        "Не удалось загрузить партнёров. Проверьте связь и нажмите «Повторить».", renderPartners);
     });
   }
 
