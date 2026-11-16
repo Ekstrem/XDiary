@@ -31,6 +31,9 @@ REQUIRE = re.compile(r"(?:!process\.env\.(XDIARY_[A-Z0-9_]+)|process\.env\.(XDIA
 KNOWN_GAPS = {
     "XDIARY_CHANGE_PIN":
         "не задан в ci-front.yml (HANDOFF блокер #4, зона @DO): без него `change-pin` скипается в каждом прогоне",
+    "XDIARY_E2E_TOAST_NEGATIVE":
+        "нужен только для ДЕФЕКТ-плеча TE-109 (ожидание заведомо неверного текста); в CI должен стоять "
+        "как `0` — обычный прогон идёт по норме. Ждёт строки в ci-front.yml от @DO (зона .github)",
 }
 
 

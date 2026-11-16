@@ -41,7 +41,7 @@ Playwright (ANSI, CRLF, путь без `tests/`, ретраи) и печата�
 `#view-journal`, `#tab-journal` | `wizard-record.spec.js`, `edit-delete-record.spec.js` | создание записи мастером, правка и удаление записи, отображение в списке |
 `#view-wizard` (без сети) | `wizard-offline.spec.js` | read-paths §1: ошибка чтения отличима от «данных нет», форма сохранена; включается `XDIARY_READPATH_OFFLINE=1` |
 `#view-detail` | `edit-delete-record.spec.js`, `somatic-detail.spec.js` | карточка записи: правка, детали, соматические поля |
-`#view-partners`, `#tab-partners` | `add-partner.spec.js`, `partner-edit.spec.js`, `partner-client-link.spec.js` | добавление партнёра, переименование/профиль, привязка партнёра к клиенту |
+`#view-partners`, `#tab-partners` | `add-partner.spec.js`, `partner-edit.spec.js`, `partner-client-link.spec.js`, `toast-reason.spec.js` (`TE-109`) | добавление партнёра, переименование/профиль, привязка партнёра к клиенту; тост с текстом причины (`TE-109`) |
 `#view-partner-edit` | `partner-edit.spec.js` | профиль партнёра (пол канонизируется на сервере) |
 `#view-catalog`, `#tab-catalog` | `catalog.spec.js`, `catalog-archive.spec.js` | каталог: добавление по `kind`, архив игрушек |
 `#view-catalog-edit` | `catalog.spec.js` | правка позиции каталога |
