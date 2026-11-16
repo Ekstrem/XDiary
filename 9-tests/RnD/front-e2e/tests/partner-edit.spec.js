@@ -9,15 +9,27 @@ const NEW = OLD + '-renamed';
 const NOTES = 'заметка ' + Date.now();
 
 async function createPartner(page) {
+  // @TL 2026-11-16 13:56: партнёр через API + ПРИВЯЗКА к клиенту. Без `link-client` список
+  // `#partners-list` (после BE-048 фильтруется по `sub`) его не покажет, и спека падает на
+  // `toHaveCount(1)` при живом партнёре (`partnersCount: 1`). UI-путь привязывает всегда
+  // (`app.js savePartnerEdit` → `Api.partners.linkClient`), значит и спека обязана.
   return page.evaluate(async ({ base, name }) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
+    const cid = localStorage.getItem('xdiary.clientId') || '';
     const r = await fetch(base + '/api/v1/partners', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
       body: JSON.stringify({ name }),
     });
     if (!r.ok) throw new Error('POST /partners -> ' + r.status);
-    return (await r.json()).id;
+    const id = (await r.json()).id;
+    const link = await fetch(base + '/api/v1/partners/' + id + '/link-client', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+      body: JSON.stringify({ clientId: cid }),
+    });
+    if (!link.ok) throw new Error('POST /partners/' + id + '/link-client -> ' + link.status);
+    return id;
   }, { base: API_BASE, name: OLD });
 }
 
