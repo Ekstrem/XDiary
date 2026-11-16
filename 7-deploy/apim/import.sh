@@ -108,6 +108,40 @@ stop_and_delete() {
 }
 
 # --- режим диагностики (APIM_DIAG=1): посмотреть, что реально лежит в APIM ---------------
+# --- режим правки маршрутов (APIM_FIX_ROUTES=1) -------------------------------------------
+# Факт (2026-11-16 04:0x): у старой STARTED-записи журнала маршрут живёт по адресу
+# /<title>/api/v1/journal/records и отдаёт 500, а клиент зовёт /api/v1/journal/records → 404.
+# Значит операции у записи абсолютные, а listener-путь — с префиксом названия спеки.
+# Правим listener на «/», тогда маршрут = /api/v1/journal/records. Обратимо: путь можно вернуть.
+FIX_ON=0
+case "${APIM_FIX_ROUTES:-0}" in 1|true|TRUE) FIX_ON=1 ;; esac
+if [ "$FIX_ON" = "1" ]; then
+  echo "ПРАВКА МАРШРУТОВ APIM: ищу STARTED-записи и перевожу listener на \"/\""
+  for want in journal partners; do
+    case "$want" in
+      journal)  nm_want="Journal" ;;
+      partners) nm_want="Partners" ;;
+    esac
+    for id in $(list_ids); do
+      one=$(apim GET "$APIS_PATH/$id"); c=$(code_of "$one"); b=$(body_of "$one")
+      [ "$c" = "200" ] || continue
+      nm=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      st=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      case "$nm" in *"$nm_want"*) ;; *) continue ;; esac
+      [ "$st" = "STARTED" ] || continue
+      oldpath=$(printf '%s' "$b" | tr -d '\n' | sed -n 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+      echo "  $want: API ${id:0:8}… name=\"$nm\" listener=\"$oldpath\""
+      if [ -z "$oldpath" ] || [ "$oldpath" = "/" ]; then echo "    уже корень — пропускаю"; continue; fi
+      # меняем только значение listener-пути, остальное тело не трогаем
+      printf '%s' "$b" | sed "s|\"path\"[[:space:]]*:[[:space:]]*\"$oldpath\"|\"path\" : \"/\"|" > "/tmp/apim-import/$want.put"
+      code=$(code_of "$(apim PUT "$APIS_PATH/$id" "/tmp/apim-import/$want.put")")
+      echo "    PUT listener=\"/\" → $code"
+    done
+  done
+  echo "ПРАВКА МАРШРУТОВ завершена"
+  exit 0
+fi
+
 DIAG_ON=0
 case "${APIM_DIAG:-0}" in 1|true|TRUE) DIAG_ON=1 ;; esac
 if [ "$DIAG_ON" = "1" ]; then
