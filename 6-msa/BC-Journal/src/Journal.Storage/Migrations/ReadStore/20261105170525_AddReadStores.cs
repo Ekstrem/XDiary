@@ -11,52 +11,68 @@ namespace Journal.Storage.Migrations.ReadStore
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // BE-116: идемпотентность. CreateTable генерирует CREATE TABLE без IF NOT EXISTS,
-            // и при повторном Migrate (таблицы уже есть, а записи в __EFMigrationsHistory нет —
-            // после EnsureCreated или предыдущего прогона) падает 42P07. Поэтому CREATE TABLE IF NOT EXISTS.
-            migrationBuilder.Sql(
-@"CREATE TABLE IF NOT EXISTS journal_defaults (
-    ""Id"" uuid NOT NULL,
-    ""ClientId"" uuid NOT NULL,
-    ""LastPartnerId"" text NOT NULL,
-    ""LastPlace"" text NOT NULL,
-    ""Places"" text NOT NULL,
-    ""Fantasies"" text NOT NULL,
-    ""Positions"" text NOT NULL,
-    ""Tags"" text NOT NULL,
-    ""Contraceptives"" text NOT NULL,
-    CONSTRAINT ""PK_journal_defaults"" PRIMARY KEY (""Id"")
-);
-CREATE TABLE IF NOT EXISTS journal_read (
-    ""Id"" uuid NOT NULL,
-    ""ClientId"" uuid NULL,
-    ""Partners"" text NOT NULL,
-    ""PartnersNames"" text NOT NULL,
-    ""StartedAt"" text NOT NULL,
-    ""DurationMin"" integer NOT NULL,
-    ""Place"" text NOT NULL,
-    ""Positions"" text NOT NULL,
-    ""Tags"" text NOT NULL,
-    ""Costumes"" text NOT NULL,
-    ""Toys"" text NOT NULL,
-    ""Fantasies"" text NOT NULL,
-    ""Contraceptives"" text NOT NULL,
-    ""ContraceptiveCount"" integer NOT NULL,
-    ""Orgasms"" text NOT NULL,
-    ""Garmin"" boolean NOT NULL,
-    ""GarminId"" text NOT NULL,
-    ""CreatedAt"" text NOT NULL,
-    ""UpdatedAt"" text NOT NULL,
-    ""Deleted"" boolean NOT NULL,
-    CONSTRAINT ""PK_journal_read"" PRIMARY KEY (""Id"")
-);
-CREATE TABLE IF NOT EXISTS partners_directory (
-    ""PartnerId"" uuid NOT NULL,
-    ""Name"" text NOT NULL,
-    ""ClientId"" uuid NULL,
-    ""DeletedAt"" timestamp with time zone NULL,
-    CONSTRAINT ""PK_partners_directory"" PRIMARY KEY (""PartnerId"")
-);");
+            migrationBuilder.CreateTable(
+                name: "journal_defaults",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LastPartnerId = table.Column<string>(type: "text", nullable: false),
+                    LastPlace = table.Column<string>(type: "text", nullable: false),
+                    Places = table.Column<string>(type: "text", nullable: false),
+                    Fantasies = table.Column<string>(type: "text", nullable: false),
+                    Positions = table.Column<string>(type: "text", nullable: false),
+                    Tags = table.Column<string>(type: "text", nullable: false),
+                    Contraceptives = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_journal_defaults", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "journal_read",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Partners = table.Column<string>(type: "text", nullable: false),
+                    PartnersNames = table.Column<string>(type: "text", nullable: false),
+                    StartedAt = table.Column<string>(type: "text", nullable: false),
+                    DurationMin = table.Column<int>(type: "integer", nullable: false),
+                    Place = table.Column<string>(type: "text", nullable: false),
+                    Positions = table.Column<string>(type: "text", nullable: false),
+                    Tags = table.Column<string>(type: "text", nullable: false),
+                    Costumes = table.Column<string>(type: "text", nullable: false),
+                    Toys = table.Column<string>(type: "text", nullable: false),
+                    Fantasies = table.Column<string>(type: "text", nullable: false),
+                    Contraceptives = table.Column<string>(type: "text", nullable: false),
+                    ContraceptiveCount = table.Column<int>(type: "integer", nullable: false),
+                    Orgasms = table.Column<string>(type: "text", nullable: false),
+                    Garmin = table.Column<bool>(type: "boolean", nullable: false),
+                    GarminId = table.Column<string>(type: "text", nullable: false),
+                    CreatedAt = table.Column<string>(type: "text", nullable: false),
+                    UpdatedAt = table.Column<string>(type: "text", nullable: false),
+                    Deleted = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_journal_read", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "partners_directory",
+                columns: table => new
+                {
+                    PartnerId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: true),
+                    DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_partners_directory", x => x.PartnerId);
+                });
         }
 
         /// <inheritdoc />

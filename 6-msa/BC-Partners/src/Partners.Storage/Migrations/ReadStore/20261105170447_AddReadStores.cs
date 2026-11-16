@@ -11,19 +11,22 @@ namespace Partners.Storage.Migrations.ReadStore
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // BE-116: идемпотентность — CREATE TABLE IF NOT EXISTS вместо CreateTable,
-            // чтобы повторный Migrate не падал 42P07 на существующей таблице.
-            migrationBuilder.Sql(
-@"CREATE TABLE IF NOT EXISTS partners_read (
-    ""Id"" uuid NOT NULL,
-    ""Name"" text NOT NULL,
-    ""Photo"" text NOT NULL,
-    ""Gender"" text NOT NULL,
-    ""Notes"" text NOT NULL,
-    ""ClientId"" uuid NULL,
-    ""DeletedAt"" timestamp with time zone NULL,
-    CONSTRAINT ""PK_partners_read"" PRIMARY KEY (""Id"")
-);");
+            migrationBuilder.CreateTable(
+                name: "partners_read",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    Photo = table.Column<string>(type: "text", nullable: false),
+                    Gender = table.Column<string>(type: "text", nullable: false),
+                    Notes = table.Column<string>(type: "text", nullable: false),
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: true),
+                    DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_partners_read", x => x.Id);
+                });
         }
 
         /// <inheritdoc />
