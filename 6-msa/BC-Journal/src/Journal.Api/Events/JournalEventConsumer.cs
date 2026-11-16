@@ -1,5 +1,6 @@
 namespace Journal.Api.Events;
 
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
@@ -126,8 +127,18 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
     }
 
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.
-    // @TE 05:04 — fire-and-forget, чтобы синхронный consumer не держал запрос (504).
-    public void OnNext(IDomainEvent<IJournal> e) => _ = HandleAsync(e);
+    // Канон §4: потеря события — отказ, не деградация; fire-and-forget с ВИДИМЫМ падением (счётчик + лог),
+    // а не молчаливый unobserved.
+    private static readonly Counter<long> EventFailures = new Meter("Journal.Events").CreateCounter<long>("event.failures", description: "unhandled event failures");
+
+    public void OnNext(IDomainEvent<IJournal> e) => _ = HandleAsync(e).ContinueWith(t =>
+    {
+        if (t.IsFaulted)
+        {
+            EventFailures.Add(1);
+            Console.Error.WriteLine($"[event] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
+        }
+    }, TaskScheduler.Default);
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }
