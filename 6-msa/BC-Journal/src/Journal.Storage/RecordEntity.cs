@@ -20,5 +20,6 @@ public sealed class RecordEntity
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
     public bool Deleted { get; set; }
+    public int State { get; set; }
     public long Version { get; set; }
 }

@@ -37,6 +37,7 @@ public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAne
                 CreatedAt = read.CreatedAt,
                 UpdatedAt = read.UpdatedAt,
                 Deleted = read.Deleted,
+                State = read.State,
                 Orgasms = read.Orgasms.Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList(),
             };
             m.Root = RecordRoot.CreateInstance(read.Partners, read.StartedAt);
