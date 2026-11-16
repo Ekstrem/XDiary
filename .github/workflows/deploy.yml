@@ -599,6 +599,7 @@ jobs:
           # через envs упиралась в /bin/bash: Argument list too long. Нужна доставка —
           # раскомментировать строку ниже и вернуть разбор в шаге доставки.
           # echo "APIMIMPORT_B64=$(base64 -w0 7-deploy/apim/import.sh)" >> "$GITHUB_ENV"
+          echo "APIMTARGET_B64=$(gzip -c 7-deploy/apim/fix-target.sh | base64 -w0)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
@@ -629,7 +630,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -680,7 +681,14 @@ jobs:
                 echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
               fi
               if APIM_TARGET="${APIM_TARGET:-0}" APIM_MONGO="${APIM_MONGO:-0}" APIM_ENSURE="${APIM_ENSURE:-0}" APIM_REBUILD="${APIM_REBUILD:-0}" APIM_FIX_ROUTES="${APIM_FIX_ROUTES:-0}" APIM_DIAG="${APIM_DIAG:-0}" APIM_TEARDOWN="${APIM_TEARDOWN:-0}" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
-                 bash /opt/xdiary/7-deploy/apim/import.sh; then
+                               if [ "${APIM_TARGET:-0}" = "1" ] || [ "${APIM_TARGET:-0}" = "true" ]; then
+                echo "APIM-TARGET: доставляю fix-target.sh и правлю backend journal/partners"
+                mkdir -p /opt/xdiary/7-deploy/apim
+                echo "$APIMTARGET_B64" | base64 -d | gunzip > /opt/xdiary/7-deploy/apim/fix-target.sh
+                chmod +x /opt/xdiary/7-deploy/apim/fix-target.sh
+                bash /opt/xdiary/7-deploy/apim/fix-target.sh || fail_or_warn "APIM-TARGET: fix-target.sh вернул ошибку"
+              fi
+bash /opt/xdiary/7-deploy/apim/import.sh; then
                 echo "APIM-REIMPORT: ре-импорт выполнен"
               echo "ПРОБА публичных путей после правок APIM:"
               for u in /api/v1/catalog /api/v1/journal/records /api/v1/journal/fantasies /api/v1/partners; do
