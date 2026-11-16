@@ -4,5 +4,5 @@ using MediatR;
 using Portability.Domain;
 using Portability.Domain.Abstraction;
 public sealed record ExportRecordsCommand(IReadOnlyList<string> Rows, Guid ClientId) : IRequest<AggregateResult<IPortability, ICsvDocumentAnemicModel>>;
-public sealed record ImportRecordsCommand(IReadOnlyList<string> Rows, Guid ClientId) : IRequest<AggregateResult<IPortability, ICsvDocumentAnemicModel>>;
-public sealed record ImportSomaticCommand(IReadOnlyList<string> Rows, Guid ClientId) : IRequest<AggregateResult<IPortability, ICsvDocumentAnemicModel>>;
+public sealed record ImportRecordsCommand(Guid Id, IReadOnlyList<string> Rows, Guid ClientId) : IRequest<AggregateResult<IPortability, ICsvDocumentAnemicModel>>;
+public sealed record ImportSomaticCommand(Guid Id, IReadOnlyList<string> Rows, Guid ClientId) : IRequest<AggregateResult<IPortability, ICsvDocumentAnemicModel>>;
