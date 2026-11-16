@@ -19,7 +19,7 @@ public sealed class HttpJournalEventPublisher : IJournalEventPublisher
         => PublishAsync("RecordCompleted", m.Id, new
         {
             Id = m.Id,
-            StartedAt = m.Root.StartedAt,
+            StartedAt = m.Root.StartedAt.ToString("o"),
             DurationMin = m.DurationMin,
             Orgasms = m.Orgasms.Select(o => new { Participant = o.Participant, Count = o.Count, Rating = o.Rating }),
             Positions = m.Positions,

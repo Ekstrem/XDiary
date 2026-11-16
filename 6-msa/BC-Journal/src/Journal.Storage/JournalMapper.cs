@@ -17,7 +17,7 @@ public static class JournalMapper
         {
             Id = e.Id,
             Version = e.Version,
-            Root = RecordRoot.CreateInstance(ToList(e.PartnersJson), e.StartedAt),
+            Root = RecordRoot.CreateInstance(ToList(e.PartnersJson), string.IsNullOrWhiteSpace(e.StartedAt) ? default : DateTimeOffset.Parse(e.StartedAt)),
             DurationMin = e.DurationMin,
             Place = e.Place,
             Positions = ToList(e.PositionsJson),
@@ -40,7 +40,7 @@ public static class JournalMapper
 
     public static void MapToEntity(IJournalAnemicModel m, RecordEntity e)
     {
-        e.Id = m.Id; e.Version = m.Version; e.ClientId = m.ClientId; e.StartedAt = m.Root.StartedAt;
+        e.Id = m.Id; e.Version = m.Version; e.ClientId = m.ClientId; e.StartedAt = m.Root.StartedAt.ToString("o");
         e.PartnersJson = ToJson(m.Root.Partners); e.DurationMin = m.DurationMin; e.Place = m.Place;
         e.PositionsJson = ToJson(m.Positions); e.TagsJson = ToJson(m.Tags); e.CostumesJson = ToJson(m.Costumes);
         e.ToysJson = ToJson(m.Toys); e.FantasiesJson = ToJson(m.Fantasies); e.ContraceptivesJson = ToJson(m.Contraceptives);

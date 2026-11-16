@@ -5,5 +5,5 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 public interface IRecordRoot : IValueObject
 {
     IReadOnlyList<string> Partners { get; }
-    string StartedAt { get; }
+    DateTimeOffset StartedAt { get; }
 }

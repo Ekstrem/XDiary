@@ -5,7 +5,7 @@ using Journal.Domain.Abstraction;
 internal sealed class WhenRequiredValidator
 {
     public bool IsSatisfiedBy(IJournalAnemicModel model)
-        => !string.IsNullOrWhiteSpace(model.Root.StartedAt);
+        => model.Root.StartedAt != default;
 
     public string Reason => "Дата (startedAt) обязательна до Complete.";
 }

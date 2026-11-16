@@ -63,7 +63,7 @@ public sealed class Aggregate
         var anemic = new AnemicModel
         {
             Id = Model.Id, // @TL 22:21 — id агрегата стабилен: проекция/чтение ищут по нему, а не по id события
-            Root = RecordRoot.CreateInstance(Array.Empty<string>(), string.Empty),
+            Root = RecordRoot.CreateInstance(Array.Empty<string>(), default),
             ClientId = clientId,
             Garmin = false,
             State = RecordState.Draft,

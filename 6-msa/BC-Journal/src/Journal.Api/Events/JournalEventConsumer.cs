@@ -149,7 +149,7 @@ public static class JournalProjection
         if (vos.TryGetValue("Root", out var r) && r is IRecordRoot root)
         {
             m.Partners = root.Partners.ToList();
-            m.StartedAt = root.StartedAt;
+            m.StartedAt = root.StartedAt.ToString("o");
         }
         if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) m.ClientId = cv.Value;
         if (vos.TryGetValue("Place", out var p) && p is PlaceValue pv) m.Place = pv.Value;

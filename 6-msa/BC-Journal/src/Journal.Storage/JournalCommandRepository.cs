@@ -23,7 +23,7 @@ public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAne
             {
                 Id = read.Id,
                 ClientId = read.ClientId,
-                Root = RecordRoot.CreateInstance(read.Partners, read.StartedAt),
+                Root = RecordRoot.CreateInstance(read.Partners, string.IsNullOrWhiteSpace(read.StartedAt) ? default : DateTimeOffset.Parse(read.StartedAt)),
                 DurationMin = read.DurationMin,
                 Place = read.Place,
                 Positions = read.Positions,
