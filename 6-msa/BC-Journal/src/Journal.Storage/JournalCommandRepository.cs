@@ -10,10 +10,10 @@ using XDiary.Contracts;
 public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAnemicModel>
 {
     private readonly IJournalQueryRepository _readRepo;
-    private readonly IAnemicModelRepository<IJournal, IJournalAnemicModel> _events;
+    private readonly RecordEventReplay _replay;
     private readonly IEventBusProducer _bus;
-    public JournalCommandRepository(IJournalQueryRepository readRepo, IAnemicModelRepository<IJournal, IJournalAnemicModel> events, IEventBusProducer bus) { _readRepo = readRepo; _events = events; _bus = bus; }
-    // BE-088: быстрый путь — read-модель; при промахе (свежая запись, лаг проекции) — пересборка из событий.
+    public JournalCommandRepository(IJournalQueryRepository readRepo, RecordEventReplay replay, IEventBusProducer bus) { _readRepo = readRepo; _replay = replay; _bus = bus; }
+    // BE-088: быстрый путь — read-модель; при промахе (свежая запись, лаг проекции) — реальный replay из событий.
     public async Task<IJournalAnemicModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var read = await _readRepo.GetByIdAsync(id, ct);
@@ -43,8 +43,7 @@ public sealed class JournalCommandRepository : IRepository<IJournal, IJournalAne
             };
             return m;
         }
-        var events = await _events.GetById(id, ct);
-        return events.LastOrDefault();
+        return await _replay.ReplayAsync(id, ct);
     }
     public async Task SaveAsync(AggregateResult<IJournal, IJournalAnemicModel> result, CancellationToken ct = default)
     {
