@@ -92,8 +92,17 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         else
         {
             var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new JournalReadModel { Id = domainEvent.Id };
-            JournalProjection.ApplyVos(existing, vos);
-            await _readStore.UpsertAsync(existing);
+            // Канон §15.1/§8.4: идемпотентность по версии — событие старше/равное уже применённому пропускаем.
+            if (existing.Version >= domainEvent.Version)
+            {
+                Console.WriteLine("[handle] stale event (version) — skip projection");
+            }
+            else
+            {
+                JournalProjection.ApplyVos(existing, vos);
+                existing.Version = domainEvent.Version;
+                await _readStore.UpsertAsync(existing);
+            }
         }
 
         // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
