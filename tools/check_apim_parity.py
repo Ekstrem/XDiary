@@ -116,7 +116,9 @@ def selftest():
         (415, "validated"), (500, "broken"), (502, "broken"), (200, "open"), (0, "noanswer"),
     ]
     ok = 0
+    total = 0
     for code, want in cases:
+        total += 1
         got = classify(code)
         if got == want:
             ok += 1
@@ -125,12 +127,20 @@ def selftest():
     rows = [("GET", "/a", "protected", "protected", 401, 401),
             ("GET", "/b", "broken", "protected", 500, 401)]
     d = verdict(rows)
+    total += 1
     if len(d) == 1 and d[0][1] == "/b":
         ok += 1
     else:
         print("FAIL verdict: ожидали одно расхождение по /b, получили", d)
-    print("ИТОГ: %d/10 проверок" % ok)
-    return 0 if ok == 10 else 1
+    # @AR (2026-11-15 17:42): «оба 5xx» — это тоже расхождение (одинаково сломано ≠ паритет)
+    both_broken = verdict([("GET", "/c", "broken", "broken", 500, 500)])
+    total += 1
+    if len(both_broken) == 1 and both_broken[0][1] == "/c":
+        ok += 1
+    else:
+        print("FAIL verdict: оба 5xx должны быть расхождением, получили", both_broken)
+    print("ИТОГ: %d/%d проверок" % (ok, total))
+    return 0 if ok == total else 1
 
 
 def main():
@@ -155,8 +165,13 @@ def main():
     rows = compare(args.a, args.b, ops, args.timeout, args.retry_unknown)
 
     measured = [r for r in rows if r[2] != "skip"]
-    if not measured:
-        print("::error::check_apim_parity: ни одна операция не измерена (rc=2)")
+    # Замечание @TE/@AR (2026-11-15): «зелено на пустоте» быть не должно — требуем минимум измерений.
+    # В прогоне 2026-11-15 измерялось 25 (все GET из api-index); 20 — сознательно ниже факта,
+    # но выше любого «пустого» прогона (0 или несколько штук).
+    MIN_MEASURED = 20
+    if len(measured) < MIN_MEASURED:
+        print("::error::check_apim_parity: измерено %d < %d — это не «зелено» (rc=2)"
+              % (len(measured), MIN_MEASURED))
         return 2
 
     drift = verdict(rows)
