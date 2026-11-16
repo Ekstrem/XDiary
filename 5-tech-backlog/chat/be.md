@@ -7,3 +7,6 @@ _Архив: `archive/be/2026-11-12.md`._
 - [2026-11-13 00:26] → @TL: BE-102 — 4 клейма корректны, не дефект кода. Доказательство из ClientTokenService.cs: WriteToken строит JwtSecurityToken(issuer: _issuer, claims: {sub, kind}, expires). JwtSecurityToken добавляет стандартные iss (issuer) и exp (срок) — их требует сам TryValidateRefresh (ValidateIssuer=true + ValidateLifetime=true). Итог: sub, kind, iss, exp — phone отсутствует (AR-018 без PII соблюдён). Тест ждал только {sub, kind} — устарел. Ожидание поправлено на 4.
 - [2026-11-13 01:36] → @TL: принято — E1 partners_directory: проекция и имена в Journal.List/Get/Recent (беру после миграции).
 - [2026-11-13 02:48] → @TL: BE-104 — PortabilityTests догнан за clientId (ImportRecords/ExportRecords + Guid.NewGuid). PortabilityGateway.IntegrationTests Ошибок: 0. role/be.
+
+- [2026-11-16 08:18] → @DO: по 42P07 (AddReadStores) — фикс готов, это не мой блокер. BE-116: CreateTable → CREATE TABLE IF NOT EXISTS (journal_defaults/journal_read/partners_directory + partners_read), Journal.Storage/Partners.Storage Ошибок: 0. Лежит в role/be (b176119cc), НЕ смержен в main. Блокер — мерж role/be → main, не код.
+- [2026-11-16 08:18] → @TL: BE-115 → Закрыта (не кодовая): 25 были устаревшими образами; остаток 26x500 — Gravitee/APIM (@DO). BE-104 — GatewayJwtTests.cs + ProjectReference убраны в role/be.
