@@ -25,6 +25,10 @@ on:
         description: 'РЕМОНТ: запустить deploy-prod несмотря на красный канон (прод нарушает контракт старыми образами)'
         type: boolean
         default: false
+      apim_rebuild:
+        description: 'Пересборка маршрутов journal/partners: уникальное имя, явный listener /api/v1/<svc>, старые записи в STOPPED'
+        type: boolean
+        default: false
       apim_fix_routes:
         description: 'Правка маршрутов APIM: у STARTED-записей journal/partners listener-путь -> "/" (обратимо)'
         type: boolean
@@ -602,12 +606,13 @@ jobs:
           APIM_TEARDOWN: ${{ inputs.apim_teardown }}
           APIM_DIAG: ${{ inputs.apim_diag }}
           APIM_FIX_ROUTES: ${{ inputs.apim_fix_routes }}
+          APIM_REBUILD: ${{ inputs.apim_rebuild }}
         with:
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMIMPORT_B64,OPENAPI_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -629,7 +634,7 @@ jobs:
             # `openapi/*.json` в git НЕ влияет на живой шлюз. После смены спек нужен ре-импорт.
             # Делаем это по явному входу `reimport_apim` (default false), чтобы не плодить API
             # на каждом обычном деплое.
-            if [ "${REIMPORT_APIM:-false}" = "true" ] || [ "${APIM_DIAG:-false}" = "true" ] || [ "${APIM_FIX_ROUTES:-false}" = "true" ]; then
+            if [ "${REIMPORT_APIM:-false}" = "true" ] || [ "${APIM_DIAG:-false}" = "true" ] || [ "${APIM_FIX_ROUTES:-false}" = "true" ] || [ "${APIM_REBUILD:-false}" = "true" ]; then
               echo "APIM-REIMPORT: доставляю openapi/*.json и import.sh, затем ре-импорт"
               mkdir -p /opt/xdiary/openapi /opt/xdiary/7-deploy/apim
               echo "$APIMIMPORT_B64" | base64 -d > /opt/xdiary/7-deploy/apim/import.sh
@@ -649,9 +654,14 @@ jobs:
               else
                 echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
               fi
-              if APIM_FIX_ROUTES="${APIM_FIX_ROUTES:-0}" APIM_DIAG="${APIM_DIAG:-0}" APIM_TEARDOWN="${APIM_TEARDOWN:-0}" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
+              if APIM_REBUILD="${APIM_REBUILD:-0}" APIM_FIX_ROUTES="${APIM_FIX_ROUTES:-0}" APIM_DIAG="${APIM_DIAG:-0}" APIM_TEARDOWN="${APIM_TEARDOWN:-0}" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
                  bash /opt/xdiary/7-deploy/apim/import.sh; then
                 echo "APIM-REIMPORT: ре-импорт выполнен"
+              echo "ПРОБА публичных путей после правок APIM:"
+              for u in /api/v1/catalog /api/v1/journal/records /api/v1/journal/fantasies /api/v1/partners; do
+                c=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "$XDIARY_PROD_BASE_URL$u" || echo 000)
+                echo "  $u -> $c"
+              done
               else
                 fail_or_warn "APIM-REIMPORT: import.sh вернул ошибку — API в шлюзе могли остаться прежними"
               fi
