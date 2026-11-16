@@ -644,7 +644,7 @@ jobs:
               else
                 echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
               fi
-              if APIM_TEARDOWN="${APIM_TEARDOWN:-0}" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
+              if APIM_DIAG="${APIM_DIAG:-0}" APIM_TEARDOWN="${APIM_TEARDOWN:-0}" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
                  bash /opt/xdiary/7-deploy/apim/import.sh; then
                 echo "APIM-REIMPORT: ре-импорт выполнен"
               else
