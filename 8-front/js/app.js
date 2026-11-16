@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.116"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.117"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -285,8 +285,27 @@
       if (c && c.verified && c.displayName) { openJournal(); return; }
       // FE-029/FE-031: подтверждён, но «я» не привязано — всегда шаг привязки, не телефон заново
       if (c && c.verified) { onbClientId = (c.id || "") || storedClientId(); showProfileStep(); return; }
+      if (c === null) {
+        // FE-052: таймаут me() — это НЕ «нет клиента». Раньше онбординг открывался молча,
+        // и пользователь (и E2E) видел пустой тост: «Вход не завершился… Тост=""».
+        forceVisibleScreen("afterAuth/me: таймаут");
+        return;
+      }
       openOnboarding();
-    }).catch(function (e) { console.error("afterAuth/me:", e); openOnboarding(); });
+    }).catch(function (e) {
+      console.error("afterAuth/me:", e);
+      // FE-052: 5xx/сеть/таймаут — видимая ошибка с «Повторить», а не молчаливый онбординг.
+      // 404 — сессия есть, клиента нет: онбординг уместен, но с сообщением (не пустой тост).
+      var st = e && e.status;
+      if (st === undefined || st === 0 || st >= 500) {
+        forceVisibleScreen("afterAuth/me: " + (st ? "HTTP " + st : "нет связи"));
+        return;
+      }
+      if (st === 404) {
+        try { toast("Профиль не найден на сервере — заполните заново", 6000); } catch (e2) {}
+      }
+      openOnboarding();
+    });
   }
   function openOnboarding() {
     onbClientId = "";
@@ -306,7 +325,8 @@
     console.log("forceVisibleScreen:", why);
     try { showView("onboarding"); } catch (e) { console.error("forceVisibleScreen/showView:", e); }
     try {
-      toast("Нет связи с сервером: не удалось загрузить данные. Проверьте сеть и нажмите «Повторить».", 8000);
+      // FE-052: в UI нет кнопки «Повторить» (текст её обещал) — обещаем только то, что есть: обновление.
+      toast("Нет связи с сервером: не удалось загрузить данные. Проверьте сеть и обновите страницу.", 8000);
     } catch (e2) { console.error("forceVisibleScreen/toast:", e2); }
   }
   // FE-038 (0.88): шаг «Кто вы?» — имя и пол в профиль клиента, партнёра не создаём
