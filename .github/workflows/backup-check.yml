@@ -39,6 +39,7 @@ jobs:
       - name: Проверить свежесть и полноту последнего бэкапа
         uses: appleboy/ssh-action@v1.2.0
         with:
+          port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}

@@ -1,0 +1,20 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 00e9e8dac..e1dc2f569 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -512,6 +512,7 @@ jobs:
+           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
+           # и шаг падал на `grep 'запрещено: тег задаётся только images.lock'`.
+           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
++          echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
+           # DO-124 ч.4: сторож `update.sh` (DO-050) сравнивает `CODE_TS` с датой сборки образов
+           # и останавливает деплой «образ старше кода». Брать `github.event.head_commit.timestamp`
+           # нельзя: правка в `7-deploy/`/`.github/` не пересобирает образы, но выглядит
+@@ -577,6 +578,7 @@ jobs:
+             # `--add-host` там отличался от dev (в прогоне 43455070581 у journal вышло
+             # «11 хостов» против 10 на dev). Генератор должен быть один и тот же.
+             mkdir -p /opt/xdiary/tools
++            [ -n "${GENHOSTS_B64:-}" ] || { echo "::error::GENHOSTS_B64 пуст — шаг подготовки не передал tools/gen-hosts.py"; exit 1; }
+             echo "$GENHOSTS_B64" | base64 -d > /opt/xdiary/tools/gen-hosts.py
+             echo "DO-129: gen-hosts.py доставлен из git ($(wc -l < /opt/xdiary/tools/gen-hosts.py) строк)"
+             echo "$LEGACY_B64" | base64 -d > legacy-shims.sh

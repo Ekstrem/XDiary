@@ -66,7 +66,21 @@ gen_expected() {
   done
   [ -n "$gen" ] || return 0
   raw="$(python3 "$gen" --add-host 2>/dev/null || true)"
-  printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | tr '\n' ' '
+  # DO-128 (@TL 2026-11-13 18:4x): фильтра по ИМЕНИ недостаточно. У сервиса `client`
+  # своего имени в списке нет — там `clients:` (псевдоним шлюза, `deploy.sh:78`),
+  # поэтому `grep -v "^client:"` ничего не убирал, и клиент получал
+  # `--add-host clients:<свой ip>` рядом со своим `--ip` → podman падал на конфликте
+  # («error configuring network namespace»), 3 попытки, «client не поднялся».
+  # Замер: прогон deploy 43452089927, лог `add-host добавлен для client (11 хостов)`
+  # против 10 у остальных. Теперь исключаем ЛЮБОЙ псевдоним, указывающий на свой IP.
+  local own_ip=""
+  own_ip="$(awk -v n="xdiary-$svc " 'index($0, "podman run -d --name " n) {for (i=1;i<NF;i++) if ($i=="--ip") {print $(i+1); exit}}' \
+    "$DEPLOY_SH" 2>/dev/null || true)"
+  if [ -n "$own_ip" ]; then
+    printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | grep -v ":$own_ip$" | tr '\n' ' '
+  else
+    printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | tr '\n' ' '
+  fi
 }
 
 # ---------- пост-проверка «флаги реально попали в podman» ----------
@@ -74,7 +88,12 @@ gen_expected() {
 # скрипт печатал «добавлен», а ExtraHosts оставался пустым. Теперь проверяем конфиг.
 check_hosts() {
   local svc="$1" expected actual
-  expected="$(gen_expected "$svc" | wc -w)"
+  # DO-131 (@DO 2026-11-13 19:4x): сравнивать с ГЕНЕРАТОРОМ неверно — после фильтра «свой ip»
+  # и правила «add-host уже в команде — не дублирую» в итоговой команде хостов меньше, чем
+  # генерирует `gen-hosts` (прогон #2052: api-gateway ExtraHosts=11 против ожидаемых 12, при том
+  # что все нужные хосты, включая `clients`, в контейнере ЕСТЬ). Проверять надо ровно то, что
+  # написано в команде: «все флаги из $BODY попали в podman».
+  expected="$(grep -o -- '--add-host' "$BODY" 2>/dev/null | wc -l | tr -d ' ')"
   if [ "$expected" -eq 0 ]; then
     say "  check-hosts $svc: ожиданий нет (генератор недоступен) — пропуск"
     return 0
@@ -115,8 +134,12 @@ if [ "${2:-}" = "--image" ]; then IMAGE_OVERRIDE="${3:-}"; [ -n "$IMAGE_OVERRIDE
 CONTAINER="xdiary-$SVC"
 cd "$DEPLOY_DIR" || die "нет $DEPLOY_DIR"
 
-BODY="/tmp/recreate-$SVC.body"
-RUNNER="/tmp/recreate-$SVC.sh"
+# DO-129 (@TL 2026-11-13 18:5x): фиксированные `/tmp/recreate-<svc>.*` ломали ОТКАТ:
+# в логе прод-прогона 43455070581 — `PermissionError: [Errno 13] Permission denied:
+# '/tmp/recreate-partners.body'`, из-за чего «откат partners не удался (нужно вручную)».
+# Файл остаётся от предыдущего запуска (другой пользователь/владелец) — берём mktemp.
+BODY="$(mktemp "/tmp/recreate-$SVC.body.XXXXXX")"
+RUNNER="$(mktemp "/tmp/recreate-$SVC.sh.XXXXXX")"
 
 python3 - "$DEPLOY_SH" "$SVC" "$BODY" <<'PY'
 import re
@@ -148,9 +171,20 @@ assert len(parts) == 2, 'нет образа в конце строки'
 open(path, 'w', encoding='utf-8').write(parts[0] + ' ' + img + '\n')
 PY
   # контроль: последний токен — действительно образ (а не флаг/редирект)
+  # DO-127 (@DO 2026-11-13 17:4x): сравнивать «как есть» нельзя — podman отдаёт ID в разных
+  # формах (`sha256:<64>`, `<64>`, короткие 12), плюс возможен `\r`/пробел из `podman ps --format`.
+  # В прогоне #2039 оба значения в сообщении выглядели ОДИНАКОВО, а `[ "$a" = "$b" ]` падал →
+  # откат не срабатывал, и `client` оставался снятым (на стенде до сих пор нет контейнера).
+  # Нормализуем обе стороны и сравниваем по 12 hex-символам (podman принимает короткий ID).
   last_tok="$(tail -1 "$BODY" | awk '{print $NF}')"
-  [ "$last_tok" = "$IMAGE_OVERRIDE" ] || die "подмена образа не удалась: в конце строки '$last_tok', ожидали '$IMAGE_OVERRIDE' — контейнер не трогаю"
-  say "  образ переопределён на $IMAGE_OVERRIDE (откат)"
+  norm_id() { printf '%s' "$1" | tr -d '\r\n \t' | sed -E 's/^.*sha256://; s/^.*@//' | cut -c1-12; }
+  lt="$(norm_id "$last_tok")"
+  io="$(norm_id "$IMAGE_OVERRIDE")"
+  if [ -n "$lt" ] && [ "$lt" = "$io" ]; then
+    say "  образ переопределён на $IMAGE_OVERRIDE (откат)"
+  else
+    die "подмена образа не удалась: в конце строки '$last_tok' (hex ${lt:-пусто}), ожидали '$IMAGE_OVERRIDE' (hex ${io:-пусто}) — контейнер не трогаю"
+  fi
 fi
 
 # DO-048: сервисы обращаются к соседям по КОРОТКОМУ имени (`journal:8080`), а CNI-DNS
@@ -208,7 +242,62 @@ if [ -n "${lock_tag:-}" ]; then
     fi
   fi
 fi
+# DO-129 (@TL 2026-11-13 19:4x): СЕТЬ ПРОВЕРЯЕМ ДО УДАЛЕНИЯ КОНТЕЙНЕРА.
+# Прод-инцидент 43461987716: сети `xdiary` на VPS-1 не оказалось
+# (`unable to find network configuration for xdiary: network not found`), а скрипт уже
+# снял контейнеры — в итоге прод отвечал `POST /api/v1/clients → 500`, потому что сервисы
+# остались снятыми, и откат тоже не мог их запустить. В репозитории сеть `xdiary`
+# НИКТО не создаёт (создаётся только `apim` в `apim/up.sh`) — она была создана руками.
+# Теперь: нет сети → пробуем создать (подсеть как в `deploy.sh`: 10.89.9.0/24),
+# не вышло → ВЫХОДИМ, не трогая работающий контейнер.
+if ! podman network exists xdiary >/dev/null 2>&1; then
+  echo "  сети xdiary нет — создаю (подсеть 10.89.9.0/24, как в deploy.sh)"
+  # DO-130 (@DO): контейнеры живут в ROOTLESS-пространстве. Если создавать сеть через
+  # `sudo podman`, получается ROOTFUL-сеть (и её conflist в /etc/cni/net.d) — контейнеры
+  # её не видят, и мы получаем «сеть есть, а контейнер не стартует». Поэтому порядок
+  # ОБРАТНЫЙ: сначала rootless (тот же пользователь, что запускает контейнеры), sudo — только
+  # как запасной путь.
+  podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || \
+    sudo -n podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || true
+  if ! podman network exists xdiary >/dev/null 2>&1; then
+    echo "  ОШИБКА: сети xdiary нет и создать не удалось — контейнер НЕ трогаю" >&2
+    exit 4
+  fi
+  echo "  сеть xdiary создана"
+fi
+# DO-129 ч.4 (@TL 2026-11-13 20:4x): `podman network create` пишет conflist с
+# `"cniVersion": "1.0.0"`, а плагин `firewall` в этой версии podman его не принимает:
+# `log| Error validating CNI config file /etc/cni/net.d/xdiary.conflist:
+#  [plugin firewall does not support config version "1.0.0"]` (прогон 43473245196).
+# Именно поэтому сеть «есть», а контейнеры не поднимаются. Правим на 0.4.0 — ровно тот
+# обход, который описан в `7-deploy/apim/up.sh` и `7-deploy/podman-compose.yml`.
+# conflist может лежать в двух местах: rootless (`~/.config/cni/net.d`) или rootful
+# (`/etc/cni/net.d`). Правим ОБА, если они есть, — иначе правка уходит не туда.
+CNI_LIST=""
+for c in "${HOME:-/root}/.config/cni/net.d/xdiary.conflist" /etc/cni/net.d/xdiary.conflist; do
+  [ -f "$c" ] && CNI_LIST="$CNI_LIST $c"
+done
+CNI="${CNI_LIST%% *}" 
+for c in $CNI_LIST; do
+  grep -q '"cniVersion": "1.0.0"' "$c" 2>/dev/null || continue
+  echo "  CNI: правлю cniVersion 1.0.0 -> 0.4.0 в $c (firewall не принимает 1.0.0)"
+  sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$c" 2>/dev/null || \
+    sudo -n sed -i 's/"cniVersion": *"1.0.0"/"cniVersion": "0.4.0"/' "$c" 2>/dev/null || true
+  if grep -q '"cniVersion": "1.0.0"' "$c" 2>/dev/null; then
+    echo "  ОШИБКА: cniVersion всё ещё 1.0.0 в $c — контейнер НЕ трогаю (иначе снесём рабочий)" >&2
+    exit 5
+  fi
+done
+# DO-130 ч.2 (@TL 2026-11-13 22:2x): контейнер мог остаться в ДРУГОМ podman-пространстве
+# (rootless vs root) от прошлых прогонов. Тогда `podman run` падает не на сети, а на имени:
+#   `Error: error creating container storage: the container name "xdiary-api-gateway"
+#    is already in use by "<id>". You have to remove that container to be able to reuse that name`
+# (прогон 43488951552: 12 из 13 сервисов пересозданы, упал ТОЛЬКО api-gateway — и упал на имени).
+# Поэтому снимаем контейнер в ОБОИХ пространствах: своём и через sudo, если он есть.
 podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+if command -v sudo >/dev/null 2>&1; then
+  sudo -n podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+fi
 # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
 # `podman run` падает с "error configuring network namespace". В `update.sh` это
 # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
@@ -240,4 +329,12 @@ while [ "$attempt" -le 3 ]; do
   attempt=$((attempt + 1))
   sleep 5
 done
+# DO-128 (@TL 2026-11-13 19:2x): при провале печатаем ПОЧЕМУ сервис не поднялся.
+# Раньше на этом месте была только строка «не поднялся», и три прогона подряд
+# (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`
+# нельзя отличить «нет Jwt__SigningKey» от «конфликт сети» или «упал на миграциях».
+say "  диагностика $CONTAINER (stderr podman run и логи):" >&2
+if [ -f "$RUNNER" ]; then bash "$RUNNER" 2>&1 | tail -n 20 | sed 's/^/    run| /' >&2 || true; fi
+podman inspect "$CONTAINER" --format '    exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null >&2 || true
+podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /' >&2 || true
 die "$CONTAINER не поднялся. Восстановить: bash $RUNNER"

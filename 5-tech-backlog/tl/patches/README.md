@@ -542,3 +542,76 @@ Process exited with status 1
 **Что делает патч:** добавляет `LEGACY_B64` в шаг подготовки, доставляет `legacy-shims.sh` рядом с остальными, проверяет маркер `DO-066` и **безусловно** пересоздаёт шимы (`make_shim` пишет новый шим, а он `exec`-ит живой скрипт — сторожа на нём уже нет).
 
 **Проверено:** `yaml.safe_load` ok (8 jobs), `envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64`, `check_workflow_shape` 43/0, `check_yaml_dups` — 0 дублей.
+
+## 21. `smoke-front-readiness-deep-probe.patch` — готовность dev должна доходить ДО сервиса (P0, блокирует deploy-prod)
+
+**Адресат:** @DO (`.github/workflows/deploy.yml`). **Выдан:** 2026-11-13 18:0x. **Статус:** ждёт применения.
+
+**Дефект (замер, не гипотеза).** Прогон `43447361176` (sha `5f7bdca4`): `smoke-front` ✅, но `smoke-api` ❌ и `receipt-be092` ❌, `deploy-prod` skipped.
+Из лога `receipt-be092` (job `131962378438`): `POST /clients {phone: +799…54} → 502` → `check_be092_delivery: занятый номер: ожидали 409 + clientId, получили 502`.
+Из лога `smoke-api`: `канон входа: не измерено ДВАЖДЫ (rc=2)`.
+
+**Причина.** Шаг «Готовность API dev» проверяет `GET /api/v1/clients` и `GET /api/v1/clients/me` — оба отвечает **шлюз** (401 до авторизации), поэтому проба зеленеет, пока сам **сервис** `clients` ещё не поднялся. `POST /clients` доходит до сервиса и получает 502.
+
+**Что делает патч.** Добавляет третью пробу — `POST /api/v1/clients` с пустым телом `{}`; ожидание — **400** (валидация из сервиса), 5xx/000 = ждём. Проверено на живом dev: `POST /clients {}` → **400** (`The Phone field is required.`), то есть проба доходит до сервиса и не создаёт данных.
+
+**Проверено:** `yaml.safe_load` ok (8 jobs), `check_workflow_shape` — 43/0.
+
+## 22. `release-lock-pr-via-bot.patch` — `release.yml` не может создать PR сам (P0, финал прод-выкатки)
+
+**Адресат:** @DO (`.github/workflows/release.yml`). **Выдан:** 2026-11-13 18:1x.
+
+**Дефект (замер).** Все прогоны `release.yml` падают (43448709708, 43447376705, 43446872279, 43445592672). Лог:
+образы собираются и пушатся в GHCR, затем
+`pull request create failed: GraphQL: Resource not accessible by integration (createPullRequest)` → `exit code 1`.
+Две причины сразу: (1) у workflow `permissions` = `contents: write` + `packages: write`, **без `pull-requests: write`**;
+(2) ветка называлась `release/lock-$SHA`, а бот-создатель PR слушает только `role/**`.
+
+**Что делает патч:** пушить в `role/release-lock-$SHA` и **не** звать `gh pr create` — PR и чеки создаёт `pr-create.yml`, как для всех ролей (PDR-047 сохраняется, прямого пуша в `main` нет).
+
+**Проверено:** `yaml.safe_load` ok, `check_workflow_shape` — 44/0, `gh pr create` в файле больше нет.
+
+## 23. `recreate-service-exclude-own-ip.patch` — `client` получал `--add-host clients:<свой ip>` (DO-128, P0)
+
+**Адресат:** @DO (`7-deploy/recreate-service.sh`). **Выдан:** 2026-11-13 18:4x.
+
+**Арифметика дефекта (сходится с логом без остатка).** Генератор `gen-hosts.py --add-host` даёт 11 записей: 10 сервисов + псевдоним `clients:10.89.9.31` (он есть в `deploy.sh:78` у шлюза). `gen_expected` вычитает **своё имя** (`grep -v "^${svc}:"`):
+- для `journal` — вычитается `journal:…` → остаётся **10** (так в логе);
+- для `client` — вычитается `client:…`, **которого в списке нет** (есть `clients:` — псевдоним шлюза) → остаётся **11**, и в `podman run` клиента попадает `--add-host clients:10.89.9.31` рядом с его же `--ip 10.89.9.31`.
+
+Отсюда `попытка 1/2/3 не удалась` → `client не поднялся` (класс «error configuring network namespace», уже описан в этом же файле, строка 224).
+
+**Что делает патч:** в `gen_expected` берём IP сервиса из `deploy.sh` (`--ip`) и вычитаем **любой псевдоним, указывающий на свой IP** — закрывает и `clients:`, и будущие такие же алиасы.
+
+**Проверка:** файл — bash-скрипт; локального bash в этой среде нет, поэтому `bash -n` не выполнялся. Изменение — только внутри функции `gen_expected` (heredoc и awk в отдельных строках), логика фильтра — три `grep -v` в одном конвейере.
+
+## 24. `prod-gen-hosts-and-mktemp.patch` — доставить `gen-hosts.py` на прод + уникальные tmp-файлы (DO-129, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 18:5x.
+
+**Два дефекта из прод-прогона `43455070581`** (он впервые дошёл до пересоздания сервисов: все теги `single-c0552f2` прочитаны из lock):
+
+1. **`gen-hosts.py` не доставлялся на VPS-1.** Локально `python tools/gen-hosts.py --add-host` даёт **12** записей (10 сервисов + `clients:10.89.9.31` + `client:10.89.9.31`), а на dev в прогоне было 11 (Journal → «10 хостов»), на проде — 12 (journal → «11 хостов»). То есть генератор на стендах **разный**: он живёт только на VPS (`/opt/xdiary/tools/gen-hosts.py`) и никогда не доставлялся. Патч добавляет `GENHOSTS_B64` и запись `/opt/xdiary/tools/gen-hosts.py` из git в прод-джобе.
+2. **Откат падал на фиксированных путях:** `PermissionError: [Errno 13] Permission denied: '/tmp/recreate-partners.body'` → `откат partners не удался (нужно вручную)`, и то же для `catalog`. Файл остаётся от прошлого запуска с другим владельцем. Патч заменяет фиксированные `BODY`/`RUNNER` на `mktemp "/tmp/recreate-$SVC.*.XXXXXX"`.
+
+**Проверено:** `yaml.safe_load` ok, `envs` содержит `GENHOSTS_B64`, `check_workflow_shape` ok, `bash -n 7-deploy/recreate-service.sh` → rc=0.
+
+## 26. `recreate-service-failure-diagnostics.patch` — печатать `podman logs` при провале (DO-128, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 19:2x.
+
+**Зачем.** Три прогона подряд (`43455070581`, `43457921240`, `43459800205`) упали на «`<svc>` не поднялся» без единой подробности: `recreate-service.sh` глотает `podman run` в `>/dev/null 2>&1` и ничего не печатает при провале. Из-за этого нельзя отличить «нет `Jwt__SigningKey` (fail-fast в `Shared/XDiary.Contracts/JwtSigningKey.cs`)» от конфликта сети или падения на миграциях — а без этого нельзя и починить.
+
+**Что делает патч:** после исчерпания трёх попыток печатает (1) `podman run` ещё раз с `stderr` (tail 20), (2) `exit=` и `err=` из `podman inspect`, (3) `podman logs --tail 40`. Всё помечено префиксами `run|` и `log|`, чтобы не путать с обычным выводом.
+
+**Проверено:** `bash -n 7-deploy/recreate-service.sh` → **rc=0**.
+
+## 27. `recreate-service-ensure-network.patch` — проверить/создать сеть `xdiary` ДО `podman rm -f` (DO-129, P0)
+
+**Адресат:** @DO. **Выдан:** 2026-11-13 19:4x.
+
+**Причина.** Прод-инцидент `43461987716`: `unable to find network configuration for xdiary: network not found`, но скрипт уже снял контейнеры → сервисы остались снятыми, `POST /api/v1/clients` → **500**. В репозитории сеть `xdiary` **никто не создаёт** (только `apim` в `apim/up.sh`), она была создана вручную — то есть существование сети было неявным предусловием.
+
+**Что делает патч:** перед `podman rm -f` проверяет `podman network exists xdiary`; если нет — создаёт `--subnet 10.89.9.0/24` (как в `deploy.sh`), а если создать не удалось — **выходит, не трогая контейнер** (код 4). Так провал больше не может оставить прод без сервисов.
+
+**Проверено:** `bash -n 7-deploy/recreate-service.sh` → rc=0.

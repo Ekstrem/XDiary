@@ -58,11 +58,11 @@ fi
 echo "    размер: $(du -h "$OUT" | cut -f1)"
 
 echo "==> отправка на VPS-2"
-scp -q -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$OUT" "$REMOTE"
+scp -P "${SSH_PORT:-8237}" -q -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$OUT" "$REMOTE"
 REMOTE_HOST="${REMOTE%%:*}"
 REMOTE_DIR="${REMOTE#*:}"
 REMOTE_FILE="$REMOTE_DIR/$(basename "$OUT")"
-if ! ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$REMOTE_HOST" \
+if ! ssh -p "${SSH_PORT:-8237}" -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$REMOTE_HOST" \
      "test -s '$REMOTE_FILE'"; then
   echo "FAIL: на VPS-2 файла нет или он пустой: $REMOTE_FILE" >&2
   exit 2
@@ -71,7 +71,7 @@ echo "    на VPS-2: $REMOTE_FILE"
 
 echo "==> ротация (локально и на VPS-2, старше ${KEEP_DAYS} дн.)"
 find "$BACKUP_DIR" -name 'xdiary-all-*.sql.gz' -mtime +"$KEEP_DAYS" -delete
-ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$REMOTE_HOST" \
+ssh -p "${SSH_PORT:-8237}" -i "$SSH_KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "$REMOTE_HOST" \
   "find '$REMOTE_DIR' -name 'xdiary-all-*.sql.gz' -mtime +$KEEP_DAYS -delete" || true
 
 echo "OK: $(basename "$OUT") ($(du -h "$OUT" | cut -f1)), баз $ACTUAL, VPS-2, ротация ${KEEP_DAYS}д оба контура"
