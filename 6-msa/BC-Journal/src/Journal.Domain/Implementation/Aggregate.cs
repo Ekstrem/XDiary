@@ -100,7 +100,7 @@ public sealed class Aggregate
         var v = new WhenIsoValidator();
         if (!v.TryParse(startedAt, out var normalized)) return Fail(v.Reason);
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized) };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddPartner(string partnerId)
@@ -110,63 +110,52 @@ public sealed class Aggregate
             partners.Add(partnerId);
 
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId)
     {
         var partners = Model.Root.Partners.Where(p => p != partnerId).ToList();
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place)
     {
         var anemic = Clone() with { Place = place };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions)
     {
         var anemic = Clone() with { Positions = positions.ToList() };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddAccessories(
         IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags)
     {
         var anemic = Clone() with { Costumes = costumes.ToList(), Toys = toys.ToList(), Fantasies = fantasies.ToList(), Tags = tags.ToList() };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count)
     {
         var anemic = Clone() with { Contraceptives = contraceptives.ToList(), ContraceptiveCount = count };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyDuration(int durationMin)
     {
-        var validator = new DurationPositiveValidator();
-        if (!validator.IsSatisfiedBy(durationMin))
-            return Fail(validator.Reason);
-
         var anemic = Clone() with { DurationMin = durationMin };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new DurationPositiveValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RecordOrgasms(IEnumerable<IOrgasms> orgasms)
     {
         var list = orgasms.ToList();
-        var ratingValidator = new RatingRangeValidator();
-        foreach (var orgasm in list)
-        {
-            if (!ratingValidator.IsSatisfiedBy(orgasm))
-                return Fail(ratingValidator.Reason);
-        }
-
         var anemic = Clone() with { Orgasms = list };
-        return Success(anemic);
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new RatingRangeValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Complete()
