@@ -680,24 +680,26 @@ jobs:
               else
                 echo "APIM-REIMPORT: файл apim.env не найден — импорт пойдёт под admin/admin (memory-провайдер)"
               fi
-              if APIM_TARGET="${APIM_TARGET:-0}" APIM_MONGO="${APIM_MONGO:-0}" APIM_ENSURE="${APIM_ENSURE:-0}" APIM_REBUILD="${APIM_REBUILD:-0}" APIM_FIX_ROUTES="${APIM_FIX_ROUTES:-0}" APIM_DIAG="${APIM_DIAG:-0}" APIM_TEARDOWN="${APIM_TEARDOWN:-0}" XDIARY_SECRETS="${APIM_SECRETS:-/opt/xdiary/secrets/apim.env}" XDIARY_ROOT=/opt/xdiary \
-                               if [ "${APIM_TARGET:-0}" = "1" ] || [ "${APIM_TARGET:-0}" = "true" ]; then
+              # Шаг 2 DO-134: явный backend для journal/partners (маленький скрипт, отдельно от import.sh).
+              if [ "${APIM_TARGET:-0}" = "1" ] || [ "${APIM_TARGET:-0}" = "true" ]; then
                 echo "APIM-TARGET: доставляю fix-target.sh и правлю backend journal/partners"
                 mkdir -p /opt/xdiary/7-deploy/apim
                 echo "$APIMTARGET_B64" | base64 -d | gunzip > /opt/xdiary/7-deploy/apim/fix-target.sh
                 chmod +x /opt/xdiary/7-deploy/apim/fix-target.sh
                 bash /opt/xdiary/7-deploy/apim/fix-target.sh || fail_or_warn "APIM-TARGET: fix-target.sh вернул ошибку"
               fi
-bash /opt/xdiary/7-deploy/apim/import.sh; then
+              if [ "${APIM_REBUILD:-0}" = "1" ] || [ "${APIM_REBUILD:-0}" = "true" ] \
+                 || [ "${APIM_ENSURE:-0}" = "1" ] || [ "${APIM_ENSURE:-0}" = "true" ] \
+                 || [ "${APIM_MONGO:-0}" = "1" ] || [ "${APIM_MONGO:-0}" = "true" ] \
+                 || [ "${APIM_DIAG:-0}" = "1" ] || [ "${APIM_FIX_ROUTES:-0}" = "1" ]; then
+                bash /opt/xdiary/7-deploy/apim/import.sh || fail_or_warn "APIM: import.sh вернул ошибку"
+              fi
                 echo "APIM-REIMPORT: ре-импорт выполнен"
               echo "ПРОБА публичных путей после правок APIM:"
               for u in /api/v1/catalog /api/v1/journal/records /api/v1/journal/fantasies /api/v1/partners; do
                 c=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "https://xdiary-vps1.taile0b6ee.ts.net$u" || echo 000)
                 echo "  $u -> $c"
               done
-              else
-                fail_or_warn "APIM-REIMPORT: import.sh вернул ошибку — API в шлюзе могли остаться прежними"
-              fi
             fi
             # GUARD по DLL СНЯТ 2026-11-10 (@TL 11:45): условия выполнены и проверены
             # фактом на проде — образ `client` rev `ab2eeb31`: `link-partner` = 1,
