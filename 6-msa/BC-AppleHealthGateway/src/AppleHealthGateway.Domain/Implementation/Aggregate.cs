@@ -37,7 +37,7 @@ internal sealed class Aggregate : IAppleHealthGatewayAggregate
     {
         var s = new SingleSourcePerClientSpecification();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
-        return Success(Clone() with { Root = AppleImportRoot.CreateInstance(clientId, "apple"), ImportConfig = ImportConfig.CreateInstance(metrics) });
+        return Success(Clone() with { Root = AppleImportRoot.CreateInstance(clientId, "apple"), ImportConfig = Implementation.ImportConfig.CreateInstance(metrics) });
     }
     public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName)
     {
