@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.119"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.120"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -616,6 +616,31 @@
   }
 
   // ---- визард ----
+  // FE-055: черновик акта в localStorage — чтобы обрыв сети/5xx не стирал введённый текст.
+  var RECORD_DRAFT_KEY = "xdiary.recordDraft";
+  function readRecordDraft() {
+    try {
+      var raw = localStorage.getItem(RECORD_DRAFT_KEY);
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      return d && d.rec ? d : null;
+    } catch (e) { return null; }
+  }
+  function writeRecordDraft(rec, id) {
+    try {
+      localStorage.setItem(RECORD_DRAFT_KEY, JSON.stringify({ rec: rec, id: id || (rec && rec.id) || null, savedAt: new Date().toISOString() }));
+    } catch (e) {}
+  }
+  function patchRecordDraftId(id) {
+    var d = readRecordDraft();
+    if (!d) return;
+    d.id = id;
+    if (d.rec) d.rec.id = id;
+    try { localStorage.setItem(RECORD_DRAFT_KEY, JSON.stringify(d)); } catch (e) {}
+  }
+  function clearRecordDraft() {
+    try { localStorage.removeItem(RECORD_DRAFT_KEY); } catch (e) {}
+  }
   function newDraft() {
     return {
       startedAt: toInputValue(new Date()), partner: "", place: "",
@@ -667,7 +692,13 @@
     // Вставляем рядом со списком (внутри .content), а не в начало секции — иначе блок
     // оказался бы НАД appbar и выглядел как чужая шапка.
     var list = listId ? document.getElementById(listId) : null;
-    if (list && list.parentNode) list.parentNode.insertBefore(box, list);
+    if (list && list.parentNode) {
+      list.parentNode.insertBefore(box, list);
+      return;
+    }
+    // FE-055: у визарда списка нет — блок кладём внутрь .content, а не над appbar
+    var content = host.querySelector ? host.querySelector(".content") : null;
+    if (content) content.insertBefore(box, content.firstChild);
     else host.insertBefore(box, host.firstChild);
   }
   function showStaleNote(viewId, kinds) {
@@ -791,6 +822,26 @@
   }
 
   function openWizard(id) {
+    // FE-055: если есть несохранённый черновик — восстанавливаем его, а не начинаем с нуля
+    if (!id) {
+      var saved = readRecordDraft();
+      if (saved && saved.rec) {
+        draft = newDraft();
+        Object.keys(saved.rec).forEach(function (k) { draft[k] = saved.rec[k]; });
+        if (saved.id) draft.id = saved.id;
+        wizardStep = 0;
+        loadWizardData().then(function (data) {
+          showView("wizard");
+          renderWizard(data);
+          toast("Черновик восстановлен", 4000);
+        }).catch(function (e) {
+          console.error("openWizard/restore:", e);
+          draft = newDraft();
+          openWizardDegraded(e);
+        });
+        return;
+      }
+    }
     editingId = id || null;
     wizardStep = id ? STEPS.length - 1 : 0;
     Promise.all([loadWizardData(), id ? DB.getRecord(id) : Promise.resolve(null)]).then(function (res) {
@@ -1310,6 +1361,9 @@
       "</div>";
   }
 
+  // FE-055: как только запись создана — фиксируем id в черновике (повтор не создаст дубль).
+  DB.onRecordCreated = function (id) { patchRecordDraftId(id); };
+
   function saveWizard(data) {
     if (!draft.startedAt) { toast("Укажите дату и время"); wizardStep = 0; renderWizard(data); return; }
     if (!draft.durationMin || draft.durationMin < 1) { toast("Укажите длительность"); wizardStep = 6; renderWizard(data); return; }
@@ -1347,18 +1401,39 @@
     } else {
       // FE-010: новый рекорд — БЕЗ id, иначе DB.putRecord уйдёт в ветку редактирования (journal.get 404)
       var rec = apply({ createdAt: nowIso });
+      // FE-055: если в черновике уже есть id (прошлая попытка дошла до создания записи) —
+      // продолжаем ту же запись, а не создаём вторую.
+      var pending = readRecordDraft();
+      if (pending && pending.id) rec.id = pending.id;
+      // FE-055: черновик пишем ДО отправки — обрыв сети не должен стирать текст
+      writeRecordDraft(rec, rec.id);
       promise = DB.putRecord(rec);
     }
-    promise.then(function () {
+    promise.then(function (saved) {
+      // FE-055: чистим черновик только после успешной цепочки (2xx на всех шагах)
+      clearRecordDraft();
+      clearLoadError("view-wizard");
       toast("Сохранено");
       // FE-022: явный переход в журнал после полной цепочки (вкл. Api.journal.complete)
       showView("journal");
       renderJournal();
+      return saved;
     }).catch(function (e) {
-      // FE-022: при ошибке тоже не оставляем пользователя на визарде без навигации
-      toast("Ошибка: " + e.message);
-      showView("journal");
-      renderJournal();
+      var st = e && e.status;
+      var text = apiErrorText(e, "ошибка");
+      if (st === undefined || st === 0 || st >= 500) {
+        // FE-055: сеть/5xx — остаёмся в визарде, черновик цел, видимая причина + «Повторить»
+        console.error("saveWizard (сеть/5xx):", e);
+        showLoadError("view-wizard", null,
+          "Не удалось сохранить акт: " + text + ". Черновик сохранён — можно повторить.",
+          function () { saveWizard(data); });
+        toast("Нет связи с сервером — черновик сохранён", 6000);
+        return;
+      }
+      // FE-055: 4xx — черновик остаётся, ошибка показывается как есть (не маскируем)
+      console.error("saveWizard (4xx):", e);
+      showLoadError("view-wizard", null, "Сервер отклонил акт: " + text + ". Черновик сохранён — исправьте и повторите.",
+        function () { saveWizard(data); });
     });
   }
 
