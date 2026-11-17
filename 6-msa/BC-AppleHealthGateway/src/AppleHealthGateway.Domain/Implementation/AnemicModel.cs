@@ -14,5 +14,11 @@ internal sealed record AnemicModel : IAppleHealthGatewayAnemicModel
     public string LastImport { get; init; } = string.Empty;
     public IReadOnlyList<string> ProcessedFiles { get; init; } = new List<string>();
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root, ["ImportConfig"] = ImportConfig };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["ImportConfig"] = ImportConfig,
+        ["LastImport"] = new StringValueObject(LastImport),
+        ["ProcessedFiles"] = new StringListValueObject(ProcessedFiles),
+    };
 }
