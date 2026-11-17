@@ -1,4 +1,4 @@
-using Autofac;
+﻿using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Journal.Application;
 using Journal.Domain;
@@ -33,15 +33,15 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Journal.Application.Commands.StartManualEntryCommand>());
-if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
-if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
-// BE-075 (порядок важен, НЕ менять): первая регистрация DbContextOptions выигрывает (TryAdd),
-// поэтому AddDbContext с MigrationsAssembly обязан идти ДО AddEventStorePostgres — иначе
-// DF-пакет перекроет MigrationsAssembly и Migrate() увидит пустой набор (42P01). Доказано на dev: de5507f0.
+if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb РЅРµ Р·Р°РґР°РЅ");
+if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb РЅРµ Р·Р°РґР°РЅ");
+// BE-075 (РїРѕСЂСЏРґРѕРє РІР°Р¶РµРЅ, РќР• РјРµРЅСЏС‚СЊ): РїРµСЂРІР°СЏ СЂРµРіРёСЃС‚СЂР°С†РёСЏ DbContextOptions РІС‹РёРіСЂС‹РІР°РµС‚ (TryAdd),
+// РїРѕСЌС‚РѕРјСѓ AddDbContext СЃ MigrationsAssembly РѕР±СЏР·Р°РЅ РёРґС‚Рё Р”Рћ AddEventStorePostgres вЂ” РёРЅР°С‡Рµ
+// DF-РїР°РєРµС‚ РїРµСЂРµРєСЂРѕРµС‚ MigrationsAssembly Рё Migrate() СѓРІРёРґРёС‚ РїСѓСЃС‚РѕР№ РЅР°Р±РѕСЂ (42P01). Р”РѕРєР°Р·Р°РЅРѕ РЅР° dev: de5507f0.
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Journal.Storage")));
 builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
-// QG-301/override-реплей: переключаем IEventStoreRepository на наследника с реальным fold (RecordEventReplay),
-// иначе FullEventSourcingRepository.GetById возвращает пустой список (TODO в библиотеке).
+// QG-301/override-СЂРµРїР»РµР№: РїРµСЂРµРєР»СЋС‡Р°РµРј IEventStoreRepository РЅР° РЅР°СЃР»РµРґРЅРёРєР° СЃ СЂРµР°Р»СЊРЅС‹Рј fold (RecordEventReplay),
+// РёРЅР°С‡Рµ FullEventSourcingRepository.GetById РІРѕР·РІСЂР°С‰Р°РµС‚ РїСѓСЃС‚РѕР№ СЃРїРёСЃРѕРє (TODO РІ Р±РёР±Р»РёРѕС‚РµРєРµ).
 builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStoreRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
@@ -51,7 +51,6 @@ builder.Services.AddHostedService<Journal.Api.Events.JournalEventConsumer>();
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>();
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
-builder.Services.AddScoped<IJournalQueryRepository, JournalReadRepository>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Journal.Application.IActorProvider, Journal.Api.HttpActorProvider>();

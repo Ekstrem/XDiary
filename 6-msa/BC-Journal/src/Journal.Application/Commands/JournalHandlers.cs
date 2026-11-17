@@ -1,6 +1,7 @@
-﻿namespace Journal.Application.Commands;
+namespace Journal.Application.Commands;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Application;
@@ -27,13 +28,14 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
-    private readonly IJournalQueryRepository _query;
+    private readonly IReadRepository<IJournal, JournalReadModel> _read;
     private readonly IActorProvider _actor;
-    public StartFromGarminHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IJournalQueryRepository query, IActorProvider actor) { _provider = provider; _observer = observer; _query = query; _actor = actor; }
+    public StartFromGarminHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IReadRepository<IJournal, JournalReadModel> read, IActorProvider actor) { _provider = provider; _observer = observer; _read = read; _actor = actor; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartFromGarminCommand r, CancellationToken ct)
     {
         // BE-051: РїРѕРІС‚РѕСЂРЅС‹Р№ СЃРёРЅРє С‚РѕР№ Р¶Рµ garmin-Р°РєС‚РёРІРЅРѕСЃС‚Рё в†’ С‚Р° Р¶Рµ Р·Р°РїРёСЃСЊ (dedup РїРѕ garminId).
-        var existing = await _query.GetByGarminIdAsync(r.GarminId, ct);
+        var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
+        var existing = all.FirstOrDefault(x => x.GarminId == r.GarminId);
         var id = existing?.Id ?? Guid.NewGuid();
         var aggregate = await _provider.GetAggregateAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
