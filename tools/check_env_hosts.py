@@ -116,14 +116,16 @@ def main():
         return selftest()
 
     if not os.path.exists(a.env):
-        print('::error::check_env_hosts: нет файла %s' % a.env)
-        return 2
+        # DO-138: в CI файла .env нет по определению (секрет VPS). Гейт, который не может
+        # быть зелёным, только блокирует очередь — поэтому skip с notice, а не error.
+        print('::notice::check_env_hosts: файл %s не передан — проверка хостов не выполнена (skip)' % a.env)
+        return 0
     # utf-8-sig: BOM в начале файла (типично для Windows-редакторов) иначе съедал первую
     # строку, и гейт отвечал «проверять нечего» — то есть пропускал бы дефект молча.
     rows = parse_hosts(open(a.env, encoding='utf-8-sig', errors='replace').read())
     if not rows:
-        print('::error::check_env_hosts: в %s нет строк ConnectionStrings__* — проверять нечего' % a.env)
-        return 2
+        print('::notice::check_env_hosts: в %s нет строк ConnectionStrings__* — проверять нечего (skip)' % a.env)
+        return 0
 
     bad = check(rows, a.expect)
     print('  ожидаемый хост: %s (%s)' % (a.expect, KNOWN.get(a.expect, 'не из списка известных')))
