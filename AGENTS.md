@@ -22,6 +22,7 @@
 | **DevOps** | `7-deploy/` | `tools/`, `.github/`, `5-tech-backlog/devops/`, `chat/do.md` |
 | **TestEngineer** | `9-tests/` | `5-tech-backlog/tester/`, `chat/te.md` |
 | **TechLead** | — (координатор, кода не пишет) | все папки задач `5-tech-backlog/<роль>/`, `chat/tl.md`, `README.md`, `CHANGELOG.md` |
+| **DigitalFactoryReviewer** (`@DR`) | — (ревьюер, кода не пишет) | `df-review/` (отчёты), `5-tech-backlog/df-review/`, `chat/dr.md` |
 | **LoopMaster** (`@LM`) | — (процессная роль, кода не пишет) | `AGENTS.md`, `loop.config.json`, `5-tech-backlog/chat/lm.md`; правила и шаблоны — `LoopMaker/` |
 
 Служебные файлы: **своя** папка задач, **свой** outbox в чате; у BackEnd — `0-df-issue/`, у DevOps — инструменты/workflows. Ничего сверх.
@@ -102,6 +103,7 @@
 | Архитектура: `03-ddd/`, `04-architecture/`, ADR, границы сервисов, контракты | **@AR** | соответствие ADR, отсутствие дублей и «вторых источников правды» |
 | Инфраструктура: `7-deploy/`, `.github/`, `tools/`, секреты, деплой, мониторинг | **@DO** | воспроизводимость, безопасность, стоимость прогонов, отсутствие `cancel-in-progress` |
 | Продукт: `01-user-stories/`, `02-cjm/`, формулировки для пользователя | **@PO** — **архив на итерацию техдолга** (владелец 2026-11-11); продуктовые ответы — **@EX** | соответствие замыслу и приватности |
+| Фреймворк DTF/EDM: `6-msa/**` на соответствие канону | **@DR** | канон `edm-canon.md` + `RULES.BackEnd.md` §«Дисциплина EDM/DF» |
 | Всё остальное: код сервисов, фронт, тесты | **@TL** | критерии приёмки, качество, риски |
 
 Правила:

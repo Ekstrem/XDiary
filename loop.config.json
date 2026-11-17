@@ -74,7 +74,8 @@
     "fe": "FrontEnd",
     "do": "DevOps",
     "te": "TestEngineer",
-    "lm": "LoopMaster"
+    "lm": "LoopMaster",
+    "dr": "DigitalFactoryReviewer"
   },
   "task_folders": [
     {
@@ -100,6 +101,10 @@
     {
       "folder": "tl",
       "title": "TechLead"
+    },
+    {
+      "folder": "df-review",
+      "title": "df-review"
     }
   ],
   "_comment_sweep": "Пороги «без движения» по статусу, часы. Статуса нет в списке — не проверяется (ToDo, Закрыта, Отклонена).",
@@ -195,6 +200,15 @@
         "5-tech-backlog/chat/lm.md",
         "LoopMaker/*"
       ]
+    },
+    "dr": {
+      "core": [
+        "df-review/*"
+      ],
+      "service": [
+        "5-tech-backlog/df-review/*",
+        "5-tech-backlog/chat/dr.md"
+      ]
     }
   },
   "shared": [
@@ -218,7 +232,8 @@
     "fe": "fe",
     "do": "do",
     "te": "te",
-    "lm": "lm"
+    "lm": "lm",
+    "dr": "dr"
   },
   "ci": {
     "light_workflows": [
@@ -260,7 +275,8 @@
       "te",
       "ar",
       "po",
-      "lm"
+      "lm",
+      "dr"
     ],
     "from_chat": "5-tech-backlog/chat/lm.md",
     "to": "@TL",
