@@ -144,6 +144,9 @@ namespace Journal.Storage.Migrations.ReadStore
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
 
                     b.ToTable("journal_read", (string)null);
