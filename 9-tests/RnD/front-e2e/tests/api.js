@@ -183,7 +183,13 @@ const TEST_OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
  * при том же объёме данных вероятность коллизии ≈ 0,02%.
  */
 function uniquePhone(prefix) {
-  return (prefix || '+7999') + String(Date.now()).slice(-7);
+  // BE-121 (@TL 2026-11-16 13:53): ключ лимитера — телефон (`MinInterval 60 с`, `MaxPerHour 5`),
+  // поэтому «псевдоуникальный» номер ломает прогон. `Date.now().slice(-7)` повторяется каждые
+  // ~2 ч 47 мин, а модули спек грузятся в одну миллисекунду и получают ОДИН номер.
+  // Берём 7 случайных цифр: коллизия ~1e-7 на пару, зависимости от времени нет.
+  const crypto = require('crypto');
+  const digits = String(crypto.randomInt(0, 10000000)).padStart(7, '0');
+  return (prefix || '+7999') + digits;
 }
 
 
