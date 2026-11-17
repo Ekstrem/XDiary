@@ -50,6 +50,10 @@ builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
 builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
 builder.Services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
+// BE-125 (@TL): библиотечный EventStoreDbContext ждёт НЕ-generic DbContextOptions —
+// регистрируем untyped так же, как в BC-Journal (BE-075). Без этого контейнер падает на старте:
+//   InvalidOperationException: ... must be a DbContextOptions<EventStoreDbContext>.
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
