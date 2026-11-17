@@ -1,19 +1,20 @@
 namespace Partners.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Partners.Domain.Abstraction;
-public sealed class AnemicModel : IPartnerAnemicModel
+// Канон EDM: иммутабельная анемичная модель — init-only, мутация через `with`.
+public sealed record AnemicModel : IPartnerAnemicModel
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public long Version { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    public string CommandName { get; set; } = string.Empty;
-    public string SubjectName { get; set; } = string.Empty;
-    public Guid CorrelationToken { get; set; } = Guid.NewGuid();
-    public IPartnerRoot Root { get; set; } = null!;
-    public string Photo { get; set; } = string.Empty;
-    public string Gender { get; set; } = string.Empty;
-    public string Notes { get; set; } = string.Empty;
-    public Guid? ClientId { get; set; }
-    public DateTime? DeletedAt { get; set; }
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    public string CommandName { get; init; } = string.Empty;
+    public string SubjectName { get; init; } = string.Empty;
+    public Guid CorrelationToken { get; init; } = Guid.NewGuid();
+    public IPartnerRoot Root { get; init; } = null!;
+    public string Photo { get; init; } = string.Empty;
+    public string Gender { get; init; } = string.Empty;
+    public string Notes { get; init; } = string.Empty;
+    public Guid? ClientId { get; init; }
+    public DateTime? DeletedAt { get; init; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
     {

@@ -36,21 +36,21 @@ public sealed class Aggregate
         var v = new NameRequiredValidator();
         var probe = new AnemicModel { Root = PartnerRoot.CreateInstance(name) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
-        var m = Clone(); m.Root = PartnerRoot.CreateInstance(name); return Success(m);
+        return Success(Clone() with { Root = PartnerRoot.CreateInstance(name) });
     }
     public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes)
     {
         var gv = new GenderEnumValidator();
         var g = gv.Normalize(gender);
         if (!gv.IsSatisfiedBy(g)) return Fail(gv.Reason);
-        var m = Clone(); m.Photo = photo; m.Gender = g; m.Notes = notes; return Success(m);
+        return Success(Clone() with { Photo = photo, Gender = g, Notes = notes });
     }
-    public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId) { var m = Clone(); m.ClientId = clientId; return Success(m); }
-    public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient() { var m = Clone(); m.ClientId = null; return Success(m); }
+    public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId) => Success(Clone() with { ClientId = clientId });
+    public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient() => Success(Clone() with { ClientId = null });
     public AggregateResult<IPartners, IPartnerAnemicModel> Remove()
     {
         if (Model.DeletedAt is not null) return Success(Clone()); // идемпотентно, без второго события
-        var m = Clone(); m.DeletedAt = DateTime.UtcNow; return Success(m);
+        return Success(Clone() with { DeletedAt = DateTime.UtcNow });
     }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes, ClientId = Model.ClientId, DeletedAt = Model.DeletedAt };
 }
