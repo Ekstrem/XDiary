@@ -167,7 +167,13 @@
         if (!rows || !rows.length) { fresh[kind] = null; throw err; }
         return DB.getMeta(syncKey(kind)).then(function (m) {
           var at = (m && m.value) || 0;
-          fresh[kind] = { fromCache: true, ageMs: at ? (Date.now() - at) : null };
+          // FE-056: сохраняем и причину отказа, чтобы UI мог её назвать (429/5xx/сеть),
+          // а не только «данные из кэша». Тип возврата не меняем — по-прежнему массив.
+          fresh[kind] = {
+            fromCache: true,
+            ageMs: at ? (Date.now() - at) : null,
+            error: { status: (err && err.status) || 0, message: (err && err.message) || "ошибка запроса" }
+          };
           return rows;
         });
       });

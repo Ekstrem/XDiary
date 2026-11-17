@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.120"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.122"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -623,7 +623,17 @@
       var raw = localStorage.getItem(RECORD_DRAFT_KEY);
       if (!raw) return null;
       var d = JSON.parse(raw);
-      return d && d.rec ? d : null;
+      if (!d || !d.rec) return null;
+      // FE-055: старый черновик не подсовываем — иначе через сутки «восстановление» удивляет
+      var MAX_AGE_MS = 6 * 3600000;
+      if (d.savedAt) {
+        var t = Date.parse(d.savedAt);
+        if (!isNaN(t) && (Date.now() - t) > MAX_AGE_MS) {
+          try { localStorage.removeItem(RECORD_DRAFT_KEY); } catch (e) {}
+          return null;
+        }
+      }
+      return d;
     } catch (e) { return null; }
   }
   function writeRecordDraft(rec, id) {
@@ -833,6 +843,10 @@
         loadWizardData().then(function (data) {
           showView("wizard");
           renderWizard(data);
+          // FE-055: путь восстановления обязан вести себя как обычное открытие —
+          // иначе не рисуется бейдж «данные могли устареть» (упала спека stale-note).
+          reportReadFailure(data);
+          showStaleNote("view-wizard", ["partners", "catalog"]);
           toast("Черновик восстановлен", 4000);
         }).catch(function (e) {
           console.error("openWizard/restore:", e);
@@ -1454,6 +1468,15 @@
     clearLoadError("view-partners");
     DB.getAllPartners().then(function (partners) {
       showStaleNote("view-partners", ["partners"]);
+      // FE-056: пусто + «из кэша после ошибки» = назвать причину, а не показывать «нет партнёров»
+      var fr = (typeof DB.readFreshness === "function") ? DB.readFreshness("partners") : null;
+      if ((!partners || !partners.length) && fr && fr.fromCache && fr.error) {
+        if ($("partners-empty")) $("partners-empty").classList.add("hidden");
+        showLoadError("view-partners", "partners-list",
+          "Не удалось загрузить партнёров: " + (fr.error.message || "ошибка") + ". Проверьте связь и нажмите «Повторить».",
+          renderPartners);
+        return;
+      }
       var list = $("partners-list");
       list.innerHTML = "";
       $("partners-empty").classList.toggle("hidden", partners.length > 0);
