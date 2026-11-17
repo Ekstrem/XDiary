@@ -6,7 +6,7 @@ using Portability.Domain.Abstraction;
 using Portability.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public ICsvDocumentAnemicModel Model { get; }
     private Aggregate(ICsvDocumentAnemicModel model) => Model = model;
@@ -20,7 +20,7 @@ public sealed class Aggregate
 
     private AggregateResult<IPortability, ICsvDocumentAnemicModel> Build(IReadOnlyList<string> headers, IReadOnlyList<string> rows, string kind, Guid clientId)
     {
-        var v = new HeaderContractValidator();
+        var v = new HeaderContractSpecification();
         if (!v.IsSatisfiedBy(headers)) return Fail(v.Reason);
         return Success(Clone() with { Root = CsvDocumentRoot.CreateInstance(headers), Rows = rows, Kind = kind, ClientId = clientId });
     }

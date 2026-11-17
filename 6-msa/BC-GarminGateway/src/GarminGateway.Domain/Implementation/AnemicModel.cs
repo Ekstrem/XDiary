@@ -1,8 +1,9 @@
 namespace GarminGateway.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using GarminGateway.Domain.Abstraction;
-public sealed record AnemicModel : IGarminGatewayAnemicModel
+internal sealed record AnemicModel : IGarminGatewayAnemicModel
 {
+    public static IGarminGatewayAnemicModel Create(Guid id) => new AnemicModel { Id = id };
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;

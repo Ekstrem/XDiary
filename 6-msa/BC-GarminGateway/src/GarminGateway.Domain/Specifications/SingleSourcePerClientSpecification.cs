@@ -1,6 +1,6 @@
 namespace GarminGateway.Domain.Specifications;
 using GarminGateway.Domain.Abstraction;
-internal sealed class SingleSourcePerClientValidator
+internal sealed class SingleSourcePerClientSpecification
 {
     public bool IsSatisfiedBy(Guid clientId, IGarminGatewayAnemicModel model)
     {

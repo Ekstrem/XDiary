@@ -6,7 +6,7 @@ using GarminGateway.Domain.Abstraction;
 using GarminGateway.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public IGarminGatewayAnemicModel Model { get; }
     private Aggregate(IGarminGatewayAnemicModel model) => Model = model;
@@ -20,9 +20,9 @@ public sealed class Aggregate
 
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials)
     {
-        var v = new CredentialsValidator();
+        var v = new CredentialsSpecification();
         if (!v.IsSatisfiedBy(credentials)) return Fail(v.Reason);
-        var s = new SingleSourcePerClientValidator();
+        var s = new SingleSourcePerClientSpecification();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
         return Success(Clone() with { Root = GarminSyncRoot.CreateInstance(clientId, "garmin"), Credentials = credentials });
     }

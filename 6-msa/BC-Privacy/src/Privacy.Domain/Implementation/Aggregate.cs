@@ -6,7 +6,7 @@ using Privacy.Domain.Abstraction;
 using Privacy.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public IPinCredentialAnemicModel Model { get; }
     private Aggregate(IPinCredentialAnemicModel model) => Model = model;
@@ -21,7 +21,7 @@ public sealed class Aggregate
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> SetPin(Guid clientId, string salt, string hash, int iterations)
     {
         if (string.IsNullOrWhiteSpace(hash)) return Fail("Hash обязателен (NoPlaintext).");
-        var s = new SinglePinPerClientValidator();
+        var s = new SinglePinPerClientSpecification();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
         return Success(Clone() with { Root = PinCredentialRoot.CreateInstance(clientId, salt, hash, iterations), Locked = false });
     }

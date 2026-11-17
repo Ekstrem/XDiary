@@ -4,8 +4,9 @@ using Privacy.Domain.Abstraction;
 
 // QG006: иммутабельная анемичная модель — init-only свойства, а не set
 // (мутация порождает новую версию через `with`, не через сеттеры).
-public sealed record AnemicModel : IPinCredentialAnemicModel
+internal sealed record AnemicModel : IPinCredentialAnemicModel
 {
+    public static IPinCredentialAnemicModel Create(Guid id) => new AnemicModel { Id = id };
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;

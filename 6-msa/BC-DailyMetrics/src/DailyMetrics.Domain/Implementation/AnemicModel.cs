@@ -4,8 +4,9 @@ using DailyMetrics.Domain.Abstraction;
 
 // Канон EDM §8.1: иммутабельный агрегат — бизнес-метод порождает НОВУЮ версию,
 // поэтому поля init-only, а не set (мутация через `with`, не через сеттеры).
-public sealed record AnemicModel : IDailyMetricsAnemicModel
+internal sealed record AnemicModel : IDailyMetricsAnemicModel
 {
+    public static IDailyMetricsAnemicModel Create(Guid id) => new AnemicModel { Id = id };
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;

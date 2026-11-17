@@ -6,7 +6,7 @@ using SomaticSeries.Domain.Abstraction;
 using SomaticSeries.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public ISomaticSeriesAnemicModel Model { get; }
     private Aggregate(ISomaticSeriesAnemicModel model) => Model = model;
@@ -19,9 +19,9 @@ public sealed class Aggregate
 
     public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId)
     {
-        var mv = new MinuteGranularityValidator();
+        var mv = new MinuteGranularitySpecification();
         if (!mv.IsSatisfiedBy(t)) return Fail(mv.Reason);
-        var nv = new NonNegativeValidator();
+        var nv = new NonNegativeSpecification();
         if (!nv.IsSatisfiedBy(hr, bodyBattery)) return Fail(nv.Reason);
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = SomaticPointRoot.CreateInstance(t), Hr = hr, BodyBattery = bodyBattery, ClientId = clientId };
         return Success(m);

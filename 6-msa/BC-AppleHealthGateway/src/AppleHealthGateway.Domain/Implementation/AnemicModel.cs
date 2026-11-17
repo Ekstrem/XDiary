@@ -1,8 +1,9 @@
 namespace AppleHealthGateway.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using AppleHealthGateway.Domain.Abstraction;
-public sealed record AnemicModel : IAppleHealthGatewayAnemicModel
+internal sealed record AnemicModel : IAppleHealthGatewayAnemicModel
 {
+    public static IAppleHealthGatewayAnemicModel Create(Guid id) => new AnemicModel { Id = id };
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;

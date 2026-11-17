@@ -6,7 +6,7 @@ using DailyMetrics.Domain.Abstraction;
 using DailyMetrics.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public IDailyMetricsAnemicModel Model { get; }
     private Aggregate(IDailyMetricsAnemicModel model) => Model = model;
@@ -20,25 +20,25 @@ public sealed class Aggregate
 
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId)
     {
-        var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
-        var nv = new NonNegativeValidator(); if (!nv.IsSatisfiedBy(stress)) return Fail(nv.Reason);
+        var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
+        var nv = new NonNegativeSpecification(); if (!nv.IsSatisfiedBy(stress)) return Fail(nv.Reason);
         return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Stress = stress, ClientId = clientId });
     }
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId)
     {
-        var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
-        var nv = new NonNegativeValidator(); if (!nv.IsSatisfiedBy(restingHr)) return Fail(nv.Reason);
+        var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
+        var nv = new NonNegativeSpecification(); if (!nv.IsSatisfiedBy(restingHr)) return Fail(nv.Reason);
         return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), RestingHr = restingHr, ClientId = clientId });
     }
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId)
     {
-        var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
-        var nv = new NonNegativeValidator(); if (!nv.IsSatisfiedBy(hrv)) return Fail(nv.Reason);
+        var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
+        var nv = new NonNegativeSpecification(); if (!nv.IsSatisfiedBy(hrv)) return Fail(nv.Reason);
         return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Hrv = hrv, ClientId = clientId });
     }
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId)
     {
-        var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
+        var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Sleep = sleep, ClientId = clientId });
     }
 }

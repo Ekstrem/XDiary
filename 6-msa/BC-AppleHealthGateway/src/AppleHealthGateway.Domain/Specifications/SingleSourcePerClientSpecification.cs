@@ -1,6 +1,6 @@
 namespace AppleHealthGateway.Domain.Specifications;
 using AppleHealthGateway.Domain.Abstraction;
-internal sealed class SingleSourcePerClientValidator
+internal sealed class SingleSourcePerClientSpecification
 {
     public bool IsSatisfiedBy(Guid clientId, IAppleHealthGatewayAnemicModel model)
     {

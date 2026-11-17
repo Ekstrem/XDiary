@@ -6,7 +6,7 @@ using AppleHealthGateway.Domain.Abstraction;
 using AppleHealthGateway.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public IAppleHealthGatewayAnemicModel Model { get; }
     private Aggregate(IAppleHealthGatewayAnemicModel model) => Model = model;
@@ -20,7 +20,7 @@ public sealed class Aggregate
 
     public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics)
     {
-        var s = new SingleSourcePerClientValidator();
+        var s = new SingleSourcePerClientSpecification();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
         return Success(Clone() with { Root = AppleImportRoot.CreateInstance(clientId, "apple"), ImportConfig = ImportConfig.CreateInstance(metrics) });
     }
