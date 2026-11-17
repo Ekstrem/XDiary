@@ -1,6 +1,6 @@
 namespace Client.Domain.Specifications;
 using Client.Domain.Abstraction;
-public sealed class PhoneRequiredValidator
+public sealed class PhoneRequiredSpecification
 {
     public bool IsSatisfiedBy(IClientAnemicModel model) => !string.IsNullOrWhiteSpace(model.Root.Phone);
     public string Reason => "Номер телефона обязателен.";

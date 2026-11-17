@@ -11,7 +11,7 @@ using System.Text.RegularExpressions;
 /// Правило (канон): убрать всё кроме цифр и ведущего `+`; `8XXXXXXXXXX` → `+7XXXXXXXXXX`;
 /// валидность — E.164 `^\+[1-9][0-9]{6,14}$`.
 /// </summary>
-public static class PhoneFormatValidator
+public static class PhoneFormatSpecification
 {
     private static readonly Regex E164 = new(@"^\+[1-9][0-9]{6,14}$", RegexOptions.Compiled);
 

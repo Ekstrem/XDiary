@@ -5,7 +5,7 @@ using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.Domain.Specifications;
 using XDiary.Contracts;
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public IClientAnemicModel Model { get; }
     private Aggregate(IClientAnemicModel model) => Model = model;
@@ -27,7 +27,7 @@ public sealed class Aggregate
 
     public AggregateResult<IClients, IClientAnemicModel> Register(string phone, string otp)
     {
-        var v = new PhoneRequiredValidator();
+        var v = new PhoneRequiredSpecification();
         var probe = new AnemicModel { Id = Model.Id, Root = ClientRoot.CreateInstance(phone) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = ClientRoot.CreateInstance(phone), OtpCode = otp, OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes) };
