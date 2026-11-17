@@ -16,5 +16,9 @@ internal sealed record AnemicModel : IPinCredentialAnemicModel
     public bool Locked { get; init; }
 
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["Locked"] = new BoolValueObject(Locked),
+    };
 }

@@ -2,13 +2,19 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Privacy.Api;
 using Privacy.Api.HealthChecks;
+using Privacy.Application;
 using Privacy.Domain;
 using Privacy.Domain.Abstraction;
 using Privacy.Application.Security;
 using Privacy.DomainServices;
 using Privacy.InternalContracts;
 using Privacy.Storage;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
+using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 using XDiary.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,10 +25,17 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Privacy.Application.Commands.SetPinCommand>());
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
-builder.Services.AddScoped<IPinCredentialRepository, PinCredentialCommandRepository>();
-builder.Services.AddScoped<IPinCredentialQueryRepository, PinCredentialReadRepository>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Privacy.Storage")));
+builder.Services.AddEventStorePostgres<IPrivacy, IPinCredentialAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<IPrivacy, IPinCredentialAnemicModel>, PrivacyEventSourcingRepository>();
+builder.Services.AddScoped<PrivacyEventReplay>();
+builder.Services.AddEventBusInMemory();
+builder.Services.AddReadStorePostgres<IPrivacy, PinCredentialReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
+
+
+
 builder.Services.AddSingleton(new TokenService(builder.Configuration["Jwt:SigningKey"] ?? throw new InvalidOperationException("Jwt:SigningKey не задан"), builder.Configuration["Jwt:Issuer"] ?? "xdiary"));
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
@@ -39,7 +52,8 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();
