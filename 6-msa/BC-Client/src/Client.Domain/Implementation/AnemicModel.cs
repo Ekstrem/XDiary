@@ -1,21 +1,23 @@
 namespace Client.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Client.Domain.Abstraction;
-public sealed class AnemicModel : IClientAnemicModel
+// Канон EDM §8.1: иммутабельный агрегат — бизнес-метод порождает НОВУЮ версию,
+// поэтому поля init-only, а не set (мутация через `with`, не через сеттеры).
+public sealed record AnemicModel : IClientAnemicModel
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public long Version { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    public string CommandName { get; set; } = string.Empty;
-    public string SubjectName { get; set; } = string.Empty;
-    public Guid CorrelationToken { get; set; } = Guid.NewGuid();
-    public IClientRoot Root { get; set; } = null!;
-    public string OtpCode { get; set; } = string.Empty;
-    public DateTime? OtpExpiresAt { get; set; }
-    public int OtpAttempts { get; set; }
-    public string DisplayName { get; set; } = string.Empty;
-    public string Gender { get; set; } = string.Empty;
-    public string? PhotoUrl { get; set; }
-    public bool Verified { get; set; }
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    public string CommandName { get; init; } = string.Empty;
+    public string SubjectName { get; init; } = string.Empty;
+    public Guid CorrelationToken { get; init; } = Guid.NewGuid();
+    public IClientRoot Root { get; init; } = null!;
+    public string OtpCode { get; init; } = string.Empty;
+    public DateTime? OtpExpiresAt { get; init; }
+    public int OtpAttempts { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
+    public string Gender { get; init; } = string.Empty;
+    public string? PhotoUrl { get; init; }
+    public bool Verified { get; init; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
     public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
 }

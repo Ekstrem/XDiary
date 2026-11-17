@@ -1,11 +1,8 @@
 namespace Privacy.Domain.Implementation;
 using Privacy.Domain.Abstraction;
-public sealed class PinCredentialRoot : IPinCredentialRoot
+
+// QG015/QG011: VO иммутабелен — positional record (getter-only) + фабрика CreateInstance.
+public sealed record PinCredentialRoot(Guid ClientId, string Salt, string Hash, int Iterations) : IPinCredentialRoot
 {
-    public Guid ClientId { get; private set; }
-    public string Salt { get; private set; } = string.Empty;
-    public string Hash { get; private set; } = string.Empty;
-    public int Iterations { get; private set; }
-    private PinCredentialRoot() { }
-    public static IPinCredentialRoot CreateInstance(Guid clientId, string salt, string hash, int iterations) => new PinCredentialRoot { ClientId = clientId, Salt = salt, Hash = hash, Iterations = iterations };
+    public static IPinCredentialRoot CreateInstance(Guid clientId, string salt, string hash, int iterations) => new PinCredentialRoot(clientId, salt, hash, iterations);
 }

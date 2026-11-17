@@ -6,9 +6,18 @@ public static class CatalogMapper
 {
     public static ICatalogAnemicModel MapToModel(CatalogItemEntity e)
     {
-        var m = new AnemicModel { Id = e.Id, Version = e.Version, ClientId = e.ClientId };
-        m.Root = CatalogItemRoot.CreateInstance(e.Kind, e.Name);
-        m.Photo = e.Photo; m.Notes = e.Notes; m.Brand = e.Brand; m.Archived = e.Archived; m.FantasyPartner = e.FantasyPartner;
+        var m = new AnemicModel
+        {
+            Id = e.Id,
+            Version = e.Version,
+            ClientId = e.ClientId,
+            Root = CatalogItemRoot.CreateInstance(e.Kind, e.Name),
+            Photo = e.Photo,
+            Notes = e.Notes,
+            Brand = e.Brand,
+            Archived = e.Archived,
+            FantasyPartner = e.FantasyPartner
+        };
         return m;
     }
     public static void MapToEntity(ICatalogAnemicModel m, CatalogItemEntity e)

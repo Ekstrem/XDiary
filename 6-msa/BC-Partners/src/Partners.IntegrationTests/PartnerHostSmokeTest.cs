@@ -1,4 +1,4 @@
-using DigiTFactory.Libraries.CommandRepository.Postgres;
+﻿using DigiTFactory.Libraries.CommandRepository.Postgres;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
 using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -11,10 +11,10 @@ using Partners.Storage;
 using Xunit;
 
 /// <summary>
-/// Рантайм-DI smoke: EventStoreDbContext должен получить типизированный
-/// DbContextOptions&lt;EventStoreDbContext&gt; (через мост AddSingleton&lt;DbContextOptions&gt;),
-/// иначе DF-ctor бросает «must be a DbContextOptions&lt;EventStoreDbContext&gt;».
-/// Плюс ассерт: Command/Read сохраняют СВОИ строки подключения.
+/// Р Р°РЅС‚Р°Р№Рј-DI smoke: EventStoreDbContext РґРѕР»Р¶РµРЅ РїРѕР»СѓС‡РёС‚СЊ С‚РёРїРёР·РёСЂРѕРІР°РЅРЅС‹Р№
+/// DbContextOptions&lt;EventStoreDbContext&gt; (С‡РµСЂРµР· РјРѕСЃС‚ AddSingleton&lt;DbContextOptions&gt;),
+/// РёРЅР°С‡Рµ DF-ctor Р±СЂРѕСЃР°РµС‚ В«must be a DbContextOptions&lt;EventStoreDbContext&gt;В».
+/// РџР»СЋСЃ Р°СЃСЃРµСЂС‚: Command/Read СЃРѕС…СЂР°РЅСЏСЋС‚ РЎР’РћР СЃС‚СЂРѕРєРё РїРѕРґРєР»СЋС‡РµРЅРёСЏ.
 /// </summary>
 public class PartnerHostSmokeTest
 {
@@ -24,24 +24,24 @@ public class PartnerHostSmokeTest
         var services = new ServiceCollection();
         services.AddLogging();
 
-        // Порядок — как в Partners.Api/Program.cs.
+        // РџРѕСЂСЏРґРѕРє вЂ” РєР°Рє РІ Partners.Api/Program.cs.
         services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>("Host=localhost;Database=es", null);
         services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
         services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>("Host=localhost;Database=read", null);
-        services.AddDbContext<CommandDbContext>(o => o.UseNpgsql("Host=localhost;Database=cmd"));
+        services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql("Host=localhost;Database=cmd"));
         services.AddDbContext<ReadDbContext>(o => o.UseNpgsql("Host=localhost;Database=read"));
-        // Мост: необобщённый DbContextOptions → типизированный EventStoreDbContext.
+        // РњРѕСЃС‚: РЅРµРѕР±РѕР±С‰С‘РЅРЅС‹Р№ DbContextOptions в†’ С‚РёРїРёР·РёСЂРѕРІР°РЅРЅС‹Р№ EventStoreDbContext.
         services.AddSingleton<DbContextOptions>(sp => sp.GetRequiredService<DbContextOptions<EventStoreDbContext>>());
 
         using var sp = services.BuildServiceProvider();
         using var scope = sp.CreateScope();
 
         var eventStore = scope.ServiceProvider.GetRequiredService<EventStoreDbContext>();
-        var command = scope.ServiceProvider.GetRequiredService<CommandDbContext>();
+        var command = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
         var read = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
 
         Assert.NotNull(eventStore);
-        // @AR: Command/Read не должны подхватить Event Store строку.
+        // @AR: Command/Read РЅРµ РґРѕР»Р¶РЅС‹ РїРѕРґС…РІР°С‚РёС‚СЊ Event Store СЃС‚СЂРѕРєСѓ.
         Assert.Contains("Database=cmd", command.Database.GetDbConnection().ConnectionString);
         Assert.Contains("Database=read", read.Database.GetDbConnection().ConnectionString);
     }

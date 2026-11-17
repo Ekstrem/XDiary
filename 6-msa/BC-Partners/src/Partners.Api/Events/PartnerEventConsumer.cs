@@ -80,6 +80,9 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
             var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default);
             if (existing is not null)
             {
+                // QG-305: stale-skip — повторное/отставшее событие не перезаписывает read-модель.
+                if (existing.Version >= domainEvent.Version) return;
+                existing.Version = domainEvent.Version;
                 if (read.Name is not null) existing.Name = read.Name;
                 if (read.Photo is not null) existing.Photo = read.Photo;
                 if (read.Gender is not null) existing.Gender = read.Gender;
@@ -115,6 +118,7 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 var created = new PartnersReadModel
                 {
                     Id = domainEvent.Id,
+                    Version = domainEvent.Version,
                     Name = name ?? string.Empty,
                     Photo = read.Photo ?? string.Empty,
                     Gender = read.Gender ?? string.Empty,

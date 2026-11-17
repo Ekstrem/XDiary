@@ -18,7 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Portability.Application\Portability.Application.csproj" />
     <ProjectReference Include="..\..\Portability.Domain\Portability.Domain.csproj" />
-    <ProjectReference Include="..\..\..\..\ApiGateway\ApiGateway.csproj" />
     <ProjectReference Include="..\..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>

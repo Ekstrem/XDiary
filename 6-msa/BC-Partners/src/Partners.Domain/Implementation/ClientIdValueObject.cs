@@ -1,5 +1,5 @@
-namespace Partners.Domain.Implementation;
+﻿namespace Partners.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
-public sealed record ClientIdValueObject(Guid? Value) : IValueObject;
+internal sealed record ClientIdValueObject(Guid? Value) : IValueObject;

@@ -4,6 +4,7 @@ using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
 using Journal.InternalContracts;
+using Journal.IntegrationTests;
 using Journal.Storage;
 using Xunit;
 
@@ -23,11 +24,7 @@ public class RecordLifecycleTests
         => Step(new AnemicModel(), a => a.StartManualEntry(Guid.NewGuid()));
 
     private static JournalReadModel ToReadModel(IJournalAnemicModel model)
-    {
-        var entity = new RecordEntity();
-        JournalMapper.MapToEntity(model, entity);
-        return JournalMapper.MapToReadModel(entity);
-    }
+        => JournalReadModelBuilder.ToReadModel(model);
 
     [Fact]
     public void Full_Lifecycle_Command_Then_Query_ReturnsAllFields()
@@ -92,14 +89,11 @@ public class RecordLifecycleTests
         model = Step(model, a => a.SpecifyWhen("2026-10-29T21:00"));
         model = Step(model, a => a.AddPositions(new[] { "Ложки" }));
 
-        var entity = new RecordEntity();
-        JournalMapper.MapToEntity(model, entity);
-        var read = JournalMapper.MapToReadModel(entity);
+        var read = JournalReadModelBuilder.ToReadModel(model);
 
         Assert.Equal(DateTimeOffset.Parse("2026-10-29T21:00"), DateTimeOffset.Parse(read.StartedAt));
         Assert.Equal(new[] { "Ложки" }, read.Positions);
-        // Round-trip entity → model сохраняет данные (без Event Store).
-        var roundTrip = JournalMapper.MapToModel(entity);
-        Assert.Equal(model.Root.StartedAt, roundTrip.Root.StartedAt);
+        // Модель агрегата сохраняет данные без Event Store.
+        Assert.Equal(model.Root.StartedAt, DateTimeOffset.Parse(read.StartedAt));
     }
 }

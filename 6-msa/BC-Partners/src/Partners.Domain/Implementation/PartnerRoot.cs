@@ -1,10 +1,7 @@
-namespace Partners.Domain.Implementation;
-using System.Text.Json.Serialization;
+﻿namespace Partners.Domain.Implementation;
 using Partners.Domain.Abstraction;
-public sealed class PartnerRoot : IPartnerRoot
+// РљР°РЅРѕРЅ EDM: VO РёРјРјСѓС‚Р°Р±РµР»РµРЅ вЂ” positional record (getter-only), С„Р°Р±СЂРёРєР° CreateInstance.
+internal sealed record PartnerRoot(string Name) : IPartnerRoot
 {
-    public string Name { get; private set; } = string.Empty;
-    [JsonConstructor]
-    private PartnerRoot(string name) { Name = name; }
     public static IPartnerRoot CreateInstance(string name) => new PartnerRoot(name);
 }

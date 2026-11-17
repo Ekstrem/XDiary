@@ -23,17 +23,17 @@ public sealed class Aggregate
         if (string.IsNullOrWhiteSpace(hash)) return Fail("Hash обязателен (NoPlaintext).");
         var s = new SinglePinPerClientValidator();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
-        var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(clientId, salt, hash, iterations); m.Locked = false; return Success(m);
+        return Success(Clone() with { Root = PinCredentialRoot.CreateInstance(clientId, salt, hash, iterations), Locked = false });
     }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> ChangePin(string salt, string hash, int iterations)
     {
         if (string.IsNullOrWhiteSpace(hash)) return Fail("Hash обязателен (NoPlaintext).");
-        var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(Model.Root.ClientId, salt, hash, iterations); m.Locked = false; return Success(m);
+        return Success(Clone() with { Root = PinCredentialRoot.CreateInstance(Model.Root.ClientId, salt, hash, iterations), Locked = false });
     }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Remove()
-    { var m = Clone(); m.Root = PinCredentialRoot.CreateInstance(Model.Root.ClientId, "", "", 0); m.Locked = false; return Success(m); }
+    { return Success(Clone() with { Root = PinCredentialRoot.CreateInstance(Model.Root.ClientId, "", "", 0), Locked = false }); }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Lock()
-    { var m = Clone(); m.Locked = true; return Success(m); }
+    { return Success(Clone() with { Locked = true }); }
     public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Unlock()
-    { var m = Clone(); m.Locked = false; return Success(m); }
+    { return Success(Clone() with { Locked = false }); }
 }

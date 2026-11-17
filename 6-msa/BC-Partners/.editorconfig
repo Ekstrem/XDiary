@@ -1,0 +1,4 @@
+# DR (Digital Factory Reviewer): QG-анализаторы DTF/EDM в BC-Partners.
+# Все гейты (Domain / DomainServices / Storage / Application) закрыты — нарушений 0,
+# поэтому severity не переопределяем: у анализаторов default = error.
+[*.cs]

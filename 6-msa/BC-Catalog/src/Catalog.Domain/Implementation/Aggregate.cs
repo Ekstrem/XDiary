@@ -31,23 +31,23 @@ public sealed class Aggregate
     {
         var probe = new AnemicModel { Root = CatalogItemRoot.CreateInstance(Model.Root.Kind, name) };
         if (!new NameRequiredValidator().IsSatisfiedBy(probe)) return Fail("Имя элемента обязательно.");
-        var m = Clone(); m.Root = CatalogItemRoot.CreateInstance(Model.Root.Kind, name); return Success(m);
+        var m = Clone() with { Root = CatalogItemRoot.CreateInstance(Model.Root.Kind, name) }; return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> UpdateDetails(string photo, string notes, string brand, string fantasyPartner)
     {
-        var m = Clone(); m.Photo = photo; m.Notes = notes; m.Brand = brand; m.FantasyPartner = fantasyPartner;
+        var m = Clone() with { Photo = photo, Notes = notes, Brand = brand, FantasyPartner = fantasyPartner };
         if (!new BrandToyOnlyValidator().IsSatisfiedBy(m)) return Fail("brand заполняется только для toy.");
         return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Archive()
     {
         if (!new ArchiveToyOnlyValidator().IsSatisfiedBy(Model)) return Fail("Archive применяется только для toy.");
-        var m = Clone(); m.Archived = true; return Success(m);
+        var m = Clone() with { Archived = true }; return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Restore()
     {
         if (!new ArchiveToyOnlyValidator().IsSatisfiedBy(Model)) return Fail("Restore применяется только для toy.");
-        var m = Clone(); m.Archived = false; return Success(m);
+        var m = Clone() with { Archived = false }; return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Remove() => Success(Clone());
 }

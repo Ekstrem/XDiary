@@ -22,23 +22,23 @@ public sealed class Aggregate
     {
         var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         var nv = new NonNegativeValidator(); if (!nv.IsSatisfiedBy(stress)) return Fail(nv.Reason);
-        var m = Clone(); m.Root = DailyMetricsRoot.CreateInstance(date); m.Stress = stress; m.ClientId = clientId; return Success(m);
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Stress = stress, ClientId = clientId });
     }
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId)
     {
         var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         var nv = new NonNegativeValidator(); if (!nv.IsSatisfiedBy(restingHr)) return Fail(nv.Reason);
-        var m = Clone(); m.Root = DailyMetricsRoot.CreateInstance(date); m.RestingHr = restingHr; m.ClientId = clientId; return Success(m);
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), RestingHr = restingHr, ClientId = clientId });
     }
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId)
     {
         var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         var nv = new NonNegativeValidator(); if (!nv.IsSatisfiedBy(hrv)) return Fail(nv.Reason);
-        var m = Clone(); m.Root = DailyMetricsRoot.CreateInstance(date); m.Hrv = hrv; m.ClientId = clientId; return Success(m);
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Hrv = hrv, ClientId = clientId });
     }
     public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId)
     {
         var dv = new DateFormatValidator(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
-        var m = Clone(); m.Root = DailyMetricsRoot.CreateInstance(date); m.Sleep = sleep; m.ClientId = clientId; return Success(m);
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Sleep = sleep, ClientId = clientId });
     }
 }

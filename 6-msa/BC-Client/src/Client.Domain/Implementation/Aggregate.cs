@@ -39,22 +39,22 @@ public sealed class Aggregate
         if (Model.OtpExpiresAt is null || Model.OtpExpiresAt.Value < DateTime.UtcNow) return Fail("Код истёк.");
         if (Model.OtpAttempts >= MaxOtpAttempts) return Fail("Слишком много попыток, попробуйте позже.");
         if (Model.OtpCode != code) return Fail("Неверный код.");
-        var m = Clone(); m.Verified = true; m.OtpCode = string.Empty; m.OtpExpiresAt = null; m.OtpAttempts = 0; return Success(m);
+        return Success(Clone() with { Verified = true, OtpCode = string.Empty, OtpExpiresAt = null, OtpAttempts = 0 });
     }
     public AggregateResult<IClients, IClientAnemicModel> RecordFailedAttempt()
     {
-        var m = Clone(); m.OtpAttempts = Model.OtpAttempts + 1; return Success(m);
+        return Success(Clone() with { OtpAttempts = Model.OtpAttempts + 1 });
     }
     public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl)
     {
         if (string.IsNullOrWhiteSpace(displayName)) return Fail("displayName обязателен.");
         var g = (gender ?? "").Trim().ToLowerInvariant();
         if (g is not ("male" or "female")) return Fail("gender: допустимо male или female.");
-        var m = Clone(); m.DisplayName = displayName; m.Gender = g; m.PhotoUrl = photoUrl; return Success(m);
+        return Success(Clone() with { DisplayName = displayName, Gender = g, PhotoUrl = photoUrl });
     }
     public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp)
     {
-        var m = Clone(); m.OtpCode = otp; m.OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes); m.OtpAttempts = 0; return Success(m);
+        return Success(Clone() with { OtpCode = otp, OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes), OtpAttempts = 0 });
     }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, OtpExpiresAt = Model.OtpExpiresAt, OtpAttempts = Model.OtpAttempts, DisplayName = Model.DisplayName, Gender = Model.Gender, PhotoUrl = Model.PhotoUrl, Verified = Model.Verified };
 }
