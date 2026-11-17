@@ -1,7 +1,7 @@
-namespace Partners.Domain.Implementation;
+﻿namespace Partners.Domain.Implementation;
 using Partners.Domain.Abstraction;
-// Канон EDM: VO иммутабелен — positional record (getter-only), фабрика CreateInstance.
-public sealed record PartnerRoot(string Name) : IPartnerRoot
+// РљР°РЅРѕРЅ EDM: VO РёРјРјСѓС‚Р°Р±РµР»РµРЅ вЂ” positional record (getter-only), С„Р°Р±СЂРёРєР° CreateInstance.
+internal sealed record PartnerRoot(string Name) : IPartnerRoot
 {
     public static IPartnerRoot CreateInstance(string name) => new PartnerRoot(name);
 }

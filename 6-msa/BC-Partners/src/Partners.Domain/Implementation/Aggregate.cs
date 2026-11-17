@@ -1,4 +1,4 @@
-namespace Partners.Domain.Implementation;
+﻿namespace Partners.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -7,7 +7,7 @@ using Partners.Domain.Abstraction;
 using Partners.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate : IPartnerAggregate
+internal sealed class Aggregate : IPartnerAggregate
 {
     public IPartnerAnemicModel Model { get; }
     private Aggregate(IPartnerAnemicModel model) => Model = model;
@@ -41,7 +41,7 @@ public sealed class Aggregate : IPartnerAggregate
 
     public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name, Guid clientId)
     {
-        var v = new NameRequiredValidator();
+        var v = new NameRequiredSpecification();
         var probe = new AnemicModel { Id = Model.Id, Root = PartnerRoot.CreateInstance(name) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = PartnerRoot.CreateInstance(name), ClientId = clientId };
@@ -49,14 +49,14 @@ public sealed class Aggregate : IPartnerAggregate
     }
     public AggregateResult<IPartners, IPartnerAnemicModel> Rename(string name)
     {
-        var v = new NameRequiredValidator();
+        var v = new NameRequiredSpecification();
         var probe = new AnemicModel { Root = PartnerRoot.CreateInstance(name) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
         return Success(Clone() with { Root = PartnerRoot.CreateInstance(name) });
     }
     public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes)
     {
-        var gv = new GenderEnumValidator();
+        var gv = new GenderEnumSpecification();
         var g = gv.Normalize(gender);
         if (!gv.IsSatisfiedBy(g)) return Fail(gv.Reason);
         return Success(Clone() with { Photo = photo, Gender = g, Notes = notes });
@@ -65,7 +65,7 @@ public sealed class Aggregate : IPartnerAggregate
     public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient() => Success(Clone() with { ClientId = null });
     public AggregateResult<IPartners, IPartnerAnemicModel> Remove()
     {
-        if (Model.DeletedAt is not null) return Success(Clone()); // идемпотентно, без второго события
+        if (Model.DeletedAt is not null) return Success(Clone()); // РёРґРµРјРїРѕС‚РµРЅС‚РЅРѕ, Р±РµР· РІС‚РѕСЂРѕРіРѕ СЃРѕР±С‹С‚РёСЏ
         return Success(Clone() with { DeletedAt = DateTime.UtcNow });
     }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes, ClientId = Model.ClientId, DeletedAt = Model.DeletedAt };

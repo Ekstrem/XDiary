@@ -1,5 +1,5 @@
-namespace Partners.Domain.Implementation;
+﻿namespace Partners.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
-public sealed record DeletedAtValueObject(DateTime? Value) : IValueObject;
+internal sealed record DeletedAtValueObject(DateTime? Value) : IValueObject;
