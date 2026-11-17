@@ -1,14 +1,9 @@
 namespace DailyMetrics.Domain.Implementation;
 using DailyMetrics.Domain.Abstraction;
-public sealed class Sleep : ISleep
+
+// record (positional) — value object с getter-only свойствами.
+public sealed record Sleep(int Score, int DurationMin, int DeepMin, int LightMin, int RemMin, int AwakeMin) : ISleep
 {
-    public int Score { get; private set; }
-    public int DurationMin { get; private set; }
-    public int DeepMin { get; private set; }
-    public int LightMin { get; private set; }
-    public int RemMin { get; private set; }
-    public int AwakeMin { get; private set; }
-    private Sleep() { }
     public static ISleep CreateInstance(int score, int durationMin, int deepMin, int lightMin, int remMin, int awakeMin)
-        => new Sleep { Score = score, DurationMin = durationMin, DeepMin = deepMin, LightMin = lightMin, RemMin = remMin, AwakeMin = awakeMin };
+        => new Sleep(score, durationMin, deepMin, lightMin, remMin, awakeMin);
 }

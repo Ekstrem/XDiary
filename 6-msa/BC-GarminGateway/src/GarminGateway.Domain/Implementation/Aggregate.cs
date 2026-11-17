@@ -24,14 +24,14 @@ public sealed class Aggregate
         if (!v.IsSatisfiedBy(credentials)) return Fail(v.Reason);
         var s = new SingleSourcePerClientValidator();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
-        var m = Clone(); m.Root = GarminSyncRoot.CreateInstance(clientId, "garmin"); m.Credentials = credentials; return Success(m);
+        return Success(Clone() with { Root = GarminSyncRoot.CreateInstance(clientId, "garmin"), Credentials = credentials });
     }
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config)
     {
-        var m = Clone(); m.SyncConfig = config; m.LastSync = DateTimeOffset.UtcNow.ToString("o"); return Success(m);
+        return Success(Clone() with { SyncConfig = config, LastSync = DateTimeOffset.UtcNow.ToString("o") });
     }
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities()
     {
-        var m = Clone(); m.LastSync = DateTimeOffset.UtcNow.ToString("o"); return Success(m);
+        return Success(Clone() with { LastSync = DateTimeOffset.UtcNow.ToString("o") });
     }
 }

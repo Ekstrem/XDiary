@@ -1,10 +1,6 @@
 namespace GarminGateway.Domain.Implementation;
 using GarminGateway.Domain.Abstraction;
-public sealed class Credentials : ICredentials
+public sealed record Credentials(string ApiKey, string OauthToken, string TokenExpiry) : ICredentials
 {
-    public string ApiKey { get; private set; } = string.Empty;
-    public string OauthToken { get; private set; } = string.Empty;
-    public string TokenExpiry { get; private set; } = string.Empty;
-    private Credentials() { }
-    public static ICredentials CreateInstance(string apiKey, string oauthToken, string tokenExpiry) => new Credentials { ApiKey = apiKey, OauthToken = oauthToken, TokenExpiry = tokenExpiry };
+    public static ICredentials CreateInstance(string apiKey, string oauthToken, string tokenExpiry) => new Credentials(apiKey, oauthToken, tokenExpiry);
 }

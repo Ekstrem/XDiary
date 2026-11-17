@@ -1,8 +1,6 @@
 namespace AppleHealthGateway.Domain.Implementation;
 using AppleHealthGateway.Domain.Abstraction;
-public sealed class ImportConfig : IImportConfig
+public sealed record ImportConfig(IReadOnlyList<string> Metrics) : IImportConfig
 {
-    public IReadOnlyList<string> Metrics { get; private set; } = new List<string>();
-    private ImportConfig() { }
-    public static IImportConfig CreateInstance(IEnumerable<string> metrics) => new ImportConfig { Metrics = metrics.ToList() };
+    public static IImportConfig CreateInstance(IEnumerable<string> metrics) => new ImportConfig(metrics.ToList());
 }
