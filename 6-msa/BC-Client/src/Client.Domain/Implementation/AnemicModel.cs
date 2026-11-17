@@ -21,5 +21,15 @@ internal sealed record AnemicModel : IClientAnemicModel
     public string? PhotoUrl { get; init; }
     public bool Verified { get; init; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["DisplayName"] = new StringValueObject(DisplayName),
+        ["Gender"] = new StringValueObject(Gender),
+        ["PhotoUrl"] = new NullableStringValueObject(PhotoUrl),
+        ["OtpCode"] = new StringValueObject(OtpCode),
+        ["OtpExpiresAt"] = new DateTimeValueObject(OtpExpiresAt),
+        ["OtpAttempts"] = new IntValueObject(OtpAttempts),
+        ["Verified"] = new BoolValueObject(Verified),
+    };
 }
