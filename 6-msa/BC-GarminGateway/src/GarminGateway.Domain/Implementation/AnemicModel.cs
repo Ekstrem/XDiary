@@ -14,5 +14,11 @@ internal sealed record AnemicModel : IGarminGatewayAnemicModel
     public ISyncConfig SyncConfig { get; init; } = Implementation.SyncConfig.CreateInstance(new List<string>(), 0);
     public string LastSync { get; init; } = string.Empty;
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root, ["Credentials"] = Credentials, ["SyncConfig"] = SyncConfig };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["Credentials"] = Credentials,
+        ["SyncConfig"] = SyncConfig,
+        ["LastSync"] = new StringValueObject(LastSync),
+    };
 }
