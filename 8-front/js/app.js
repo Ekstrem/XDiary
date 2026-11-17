@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.121"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.122"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1468,6 +1468,15 @@
     clearLoadError("view-partners");
     DB.getAllPartners().then(function (partners) {
       showStaleNote("view-partners", ["partners"]);
+      // FE-056: пусто + «из кэша после ошибки» = назвать причину, а не показывать «нет партнёров»
+      var fr = (typeof DB.readFreshness === "function") ? DB.readFreshness("partners") : null;
+      if ((!partners || !partners.length) && fr && fr.fromCache && fr.error) {
+        if ($("partners-empty")) $("partners-empty").classList.add("hidden");
+        showLoadError("view-partners", "partners-list",
+          "Не удалось загрузить партнёров: " + (fr.error.message || "ошибка") + ". Проверьте связь и нажмите «Повторить».",
+          renderPartners);
+        return;
+      }
       var list = $("partners-list");
       list.innerHTML = "";
       $("partners-empty").classList.toggle("hidden", partners.length > 0);
