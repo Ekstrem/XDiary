@@ -1,5 +1,6 @@
-namespace Journal.Application.Queries;
+﻿namespace Journal.Application.Queries;
 using Journal.InternalContracts;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using MediatR;
 public sealed record ListRecordsQuery(Guid ClientId, int? Limit = null, int? Offset = null) : IRequest<IReadOnlyList<JournalReadModel>>;
 public sealed record GetRecordByIdQuery(Guid AggregateId) : IRequest<JournalReadModel?>;
@@ -7,36 +8,36 @@ public sealed record RecentDefaultsQuery(Guid ClientId) : IRequest<RecentDefault
 public sealed record JournalPlacesQuery(Guid ClientId) : IRequest<IReadOnlyList<string>>;
 public sealed record JournalFantasiesQuery(Guid ClientId) : IRequest<IReadOnlyList<string>>;
 
-public sealed class ListRecordsHandler : IRequestHandler<ListRecordsQuery, IReadOnlyList<JournalReadModel>>
+public sealed class ListRecordsHandler : IRequestHandler<ListRecordsQuery, IReadOnlyList<JournalReadModel>>, IQueryHandler
 {
     private readonly IJournalQueryRepository _repo;
     public ListRecordsHandler(IJournalQueryRepository repo) => _repo = repo;
     public async Task<IReadOnlyList<JournalReadModel>> Handle(ListRecordsQuery r, CancellationToken ct)
-        => (await _repo.ListAsync(r.ClientId, r.Limit, r.Offset, ct)).Where(x => !x.Deleted).ToList(); // BE-094: список без удалённых
+        => (await _repo.ListAsync(r.ClientId, r.Limit, r.Offset, ct)).Where(x => !x.Deleted).ToList(); // BE-094: СЃРїРёСЃРѕРє Р±РµР· СѓРґР°Р»С‘РЅРЅС‹С…
 }
-public sealed class GetRecordByIdHandler : IRequestHandler<GetRecordByIdQuery, JournalReadModel?>
+public sealed class GetRecordByIdHandler : IRequestHandler<GetRecordByIdQuery, JournalReadModel?>, IQueryHandler
 {
     private readonly IJournalQueryRepository _repo;
     public GetRecordByIdHandler(IJournalQueryRepository repo) => _repo = repo;
     public async Task<JournalReadModel?> Handle(GetRecordByIdQuery r, CancellationToken ct)
     {
         var x = await _repo.GetByIdAsync(r.AggregateId, ct);
-        return x is not null && x.Deleted ? null : x; // BE-094: удалённое → 404
+        return x is not null && x.Deleted ? null : x; // BE-094: СѓРґР°Р»С‘РЅРЅРѕРµ в†’ 404
     }
 }
-public sealed class RecentDefaultsHandler : IRequestHandler<RecentDefaultsQuery, RecentDefaultsView?>
+public sealed class RecentDefaultsHandler : IRequestHandler<RecentDefaultsQuery, RecentDefaultsView?>, IQueryHandler
 {
     private readonly IJournalQueryRepository _repo;
     public RecentDefaultsHandler(IJournalQueryRepository repo) => _repo = repo;
     public Task<RecentDefaultsView?> Handle(RecentDefaultsQuery r, CancellationToken ct) => _repo.GetRecentAsync(r.ClientId, ct);
 }
-public sealed class JournalPlacesHandler : IRequestHandler<JournalPlacesQuery, IReadOnlyList<string>>
+public sealed class JournalPlacesHandler : IRequestHandler<JournalPlacesQuery, IReadOnlyList<string>>, IQueryHandler
 {
     private readonly IJournalQueryRepository _repo;
     public JournalPlacesHandler(IJournalQueryRepository repo) => _repo = repo;
     public Task<IReadOnlyList<string>> Handle(JournalPlacesQuery r, CancellationToken ct) => _repo.GetPlacesAsync(r.ClientId, ct);
 }
-public sealed class JournalFantasiesHandler : IRequestHandler<JournalFantasiesQuery, IReadOnlyList<string>>
+public sealed class JournalFantasiesHandler : IRequestHandler<JournalFantasiesQuery, IReadOnlyList<string>>, IQueryHandler
 {
     private readonly IJournalQueryRepository _repo;
     public JournalFantasiesHandler(IJournalQueryRepository repo) => _repo = repo;

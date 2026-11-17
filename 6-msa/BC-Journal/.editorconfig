@@ -13,6 +13,8 @@ dotnet_diagnostic.QG015.severity = warning
 # Storage-гейты 0.5.4 (QG302-306) — warning (долг: read-стор → библиотечный ReadStore Postgres)
 # QG301 (кастомный command DbContext) — закрыт: CommandDbContext/RecordEntity удалены, error по умолчанию.
 dotnet_diagnostic.QG302.severity = warning
+# QG204 — warning (долг: IQueryHandler ещё на кастомном IJournalQueryRepository, миграция на IReadRepository — следующий шаг)
+dotnet_diagnostic.QG204.severity = warning
 dotnet_diagnostic.QG303.severity = warning
 dotnet_diagnostic.QG304.severity = warning
 dotnet_diagnostic.QG305.severity = warning

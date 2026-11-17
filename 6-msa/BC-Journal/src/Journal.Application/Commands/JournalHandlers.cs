@@ -1,4 +1,4 @@
-namespace Journal.Application.Commands;
+﻿namespace Journal.Application.Commands;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain;
@@ -9,7 +9,7 @@ using Journal.InternalContracts;
 using MediatR;
 using XDiary.Contracts;
 
-public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -23,7 +23,7 @@ public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCo
         return aggregate.StartManualEntry(_actor.ClientId);
     }
 }
-public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -32,7 +32,7 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
     public StartFromGarminHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IJournalQueryRepository query, IActorProvider actor) { _provider = provider; _observer = observer; _query = query; _actor = actor; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartFromGarminCommand r, CancellationToken ct)
     {
-        // BE-051: повторный синк той же garmin-активности → та же запись (dedup по garminId).
+        // BE-051: РїРѕРІС‚РѕСЂРЅС‹Р№ СЃРёРЅРє С‚РѕР№ Р¶Рµ garmin-Р°РєС‚РёРІРЅРѕСЃС‚Рё в†’ С‚Р° Р¶Рµ Р·Р°РїРёСЃСЊ (dedup РїРѕ garminId).
         var existing = await _query.GetByGarminIdAsync(r.GarminId, ct);
         var id = existing?.Id ?? Guid.NewGuid();
         var aggregate = await _provider.GetAggregateAsync(id, ct);
@@ -40,7 +40,7 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
         return aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, _actor.ClientId);
     }
 }
-public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -53,7 +53,7 @@ public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, Agg
         return aggregate.SpecifyWhen(r.StartedAt);
     }
 }
-public sealed class AddPartnerHandler : IRequestHandler<AddPartnerCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class AddPartnerHandler : IRequestHandler<AddPartnerCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -66,7 +66,7 @@ public sealed class AddPartnerHandler : IRequestHandler<AddPartnerCommand, Aggre
         return aggregate.AddPartner(r.PartnerId);
     }
 }
-public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -79,7 +79,7 @@ public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand,
         return aggregate.RemovePartner(r.PartnerId);
     }
 }
-public sealed class SpecifyPlaceHandler : IRequestHandler<SpecifyPlaceCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class SpecifyPlaceHandler : IRequestHandler<SpecifyPlaceCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -92,7 +92,7 @@ public sealed class SpecifyPlaceHandler : IRequestHandler<SpecifyPlaceCommand, A
         return aggregate.SpecifyPlace(r.Place);
     }
 }
-public sealed class AddPositionsHandler : IRequestHandler<AddPositionsCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class AddPositionsHandler : IRequestHandler<AddPositionsCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -105,7 +105,7 @@ public sealed class AddPositionsHandler : IRequestHandler<AddPositionsCommand, A
         return aggregate.AddPositions(r.Positions);
     }
 }
-public sealed class AddAccessoriesHandler : IRequestHandler<AddAccessoriesCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class AddAccessoriesHandler : IRequestHandler<AddAccessoriesCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -118,7 +118,7 @@ public sealed class AddAccessoriesHandler : IRequestHandler<AddAccessoriesComman
         return aggregate.AddAccessories(r.Costumes, r.Toys, r.Fantasies, r.Tags);
     }
 }
-public sealed class RecordContraceptionHandler : IRequestHandler<RecordContraceptionCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class RecordContraceptionHandler : IRequestHandler<RecordContraceptionCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -131,7 +131,7 @@ public sealed class RecordContraceptionHandler : IRequestHandler<RecordContracep
         return aggregate.RecordContraception(r.Contraceptives, r.ContraceptiveCount);
     }
 }
-public sealed class SpecifyDurationHandler : IRequestHandler<SpecifyDurationCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class SpecifyDurationHandler : IRequestHandler<SpecifyDurationCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -144,7 +144,7 @@ public sealed class SpecifyDurationHandler : IRequestHandler<SpecifyDurationComm
         return aggregate.SpecifyDuration(r.DurationMin);
     }
 }
-public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -158,7 +158,7 @@ public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand,
         return aggregate.RecordOrgasms(orgasms);
     }
 }
-public sealed class CompleteHandler : IRequestHandler<CompleteCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class CompleteHandler : IRequestHandler<CompleteCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
@@ -174,7 +174,7 @@ public sealed class CompleteHandler : IRequestHandler<CompleteCommand, Aggregate
         return result;
     }
 }
-public sealed class DeleteRecordHandler : IRequestHandler<DeleteRecordCommand, AggregateResult<IJournal, IJournalAnemicModel>>
+public sealed class DeleteRecordHandler : IRequestHandler<DeleteRecordCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
