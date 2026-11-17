@@ -1,11 +1,12 @@
 namespace Journal.InternalContracts;
 
+using System.ComponentModel.DataAnnotations.Schema;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
 public sealed class JournalReadModel : IReadModel<Journal.Domain.IJournal>
 {
     public Guid Id { get; set; }
-    public long Version { get; set; }
+    [NotMapped] public long Version { get; set; }
     public Guid? ClientId { get; set; }
     public IReadOnlyList<string> Partners { get; set; } = new List<string>();
     public IReadOnlyList<string> PartnersNames { get; set; } = new List<string>();
