@@ -179,7 +179,13 @@
     catalog: {
       list: function () { return get("/api/v1/catalog"); },
       get: function (id) { return get("/api/v1/catalog/" + id); },
-      add: function (kind, name) { return post("/api/v1/catalog", { kind: kind, name: name }); },
+      // FE-054 (@BE 2026-11-16 13:35): POST /catalog принимает опциональный id —
+  // клиент генерит UUID и переиспользует его при retry, иначе сетевой повтор создаёт дубль.
+  add: function (kind, name, id) {
+    var body = { kind: kind, name: name };
+    if (id) body.id = id;
+    return post("/api/v1/catalog", body);
+  },
       rename: function (id, name) { return post("/api/v1/catalog/" + id + "/name", { name: name }); },
       details: function (id, d) { return post("/api/v1/catalog/" + id + "/details", d); },
       archive: function (id) { return post("/api/v1/catalog/" + id + "/archive"); },
