@@ -91,7 +91,7 @@
       "upstream": "tools/check_env_drift.py"
     },
     "check_env_hosts.py": {
-      "sha256": "61e4adcd0090f894128d46455f7dd4c568645c0de9761c5a02cf7f583aa7c7ba",
+      "sha256": "a3b84649a748a2af5b13e9f1346f7416adc3df6cbeac628e012c37e82baee21d",
       "synced_at": "2026-11-13",
       "upstream": "tools/check_env_hosts.py"
     },
@@ -171,7 +171,7 @@
       "upstream": "tools/check_read_model_freshness.py"
     },
     "check_readstore_ddl.py": {
-      "sha256": "b45ea5d45999ac8f41e6d322f3203ace337e4188ae277c66e42dd74082c8f52a",
+      "sha256": "d0239b23e7bdf41ba3c52ff10be6716b4c74368308dae218b8c705acc70e92bd",
       "synced_at": "2026-11-13",
       "upstream": "tools/check_readstore_ddl.py"
     },
