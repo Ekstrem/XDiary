@@ -14,7 +14,7 @@ public sealed class RegisterDependencies : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
-        builder.RegisterType<AggregateProvider>().As<IAggregateProvider<IJournal, IRecordAggregate>>().SingleInstance();
-        builder.RegisterType<BusAdapter>().As<IObserver>().SingleInstance();
+        builder.RegisterType<AggregateProvider>().As<IAggregateProvider<IJournal, IRecordAggregate>>().InstancePerLifetimeScope();
+        builder.RegisterType<BusAdapter>().As<IObserver>().InstancePerLifetimeScope();
     }
 }
