@@ -98,6 +98,11 @@ test('E2E: CSV — экспорт журнала и импорт Garmin-CSV', as
     await expect(page.locator('#import-result')).not.toHaveText(/^\s*$/);
     // Диагностика для разбора в CI: печатает тост, если импорт что-то сказал пользователю.
     await reportStep(page, 'csv: импорт Garmin');
+    // @TL 2026-11-16 13:56: после применения импорта мы ВСЁ ЕЩЁ на `#view-import`, поэтому
+    // `#tab-settings` невидим и `page.click` таймаутит. Возвращаемся в настройки явно — как
+    // это делает первый импорт выше (`#btn-import-back` + ожидание `#view-settings`).
+    await page.click('#btn-import-back', { timeout: 10000 });
+    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 10000 });
 
     // Импорт журнала через кнопку «Импорт CSV» в настройках (`#import-file`): это ЛОКАЛЬНЫЙ
     // путь (пишет в IndexedDB контекста), на стенд ничего не уходит. Ни одна спека его не трогала.
