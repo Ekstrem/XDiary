@@ -49,11 +49,7 @@ builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, Read
 builder.Services.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddHostedService<Journal.Api.Events.JournalEventConsumer>();
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>();
-builder.Services.AddScoped<Journal.Storage.JournalDataMigration>();
-builder.Services.AddHostedService<Journal.Api.JournalDataMigrationRunner>();
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
-builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
 builder.Services.AddScoped<IRepository<IJournal, IJournalAnemicModel>, JournalCommandRepository>();
 builder.Services.AddScoped<IJournalQueryRepository, JournalReadRepository>();
@@ -69,7 +65,6 @@ using (var scope = app.Services.CreateScope())
     var migAsm = ((Microsoft.EntityFrameworkCore.Infrastructure.IInfrastructure<IServiceProvider>)es).Instance.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>()?.Assembly?.GetName()?.Name;
     Console.WriteLine($"[migrate] asm={typeof(DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext).Assembly.GetName().Name}, migAsm={migAsm}, migrations={string.Join(",", es.Database.GetMigrations())}");
     es.Database.Migrate();
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
     readDb.Database.Migrate();
 }

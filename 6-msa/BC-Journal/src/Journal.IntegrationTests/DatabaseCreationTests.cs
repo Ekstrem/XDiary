@@ -43,7 +43,6 @@ public sealed class DatabaseCreationTests
         services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(cs, null);
         services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(cs, null);
         services.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(cs, null);
-        services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(cs));
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -54,13 +53,6 @@ public sealed class DatabaseCreationTests
         es.Database.Migrate();
         Assert.Empty(es.Database.GetPendingMigrations());
         Assert.NotEmpty(es.Database.GetAppliedMigrations());
-
-        // Command.
-        var cmd = sp.GetRequiredService<CommandDbContext>();
-        cmd.Database.Migrate();
-        Assert.Empty(cmd.Database.GetPendingMigrations());
-        Assert.Contains("20261030112445_InitialCreate", cmd.Database.GetAppliedMigrations());
-        Assert.True(TableExists(cmd, "records"));
 
         // Read (AddReadStores — тот самый, что падал 42P07).
         var read = sp.GetRequiredService<ReadDbContext>();

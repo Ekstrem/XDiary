@@ -10,8 +10,8 @@ dotnet_diagnostic.QG006.severity = warning
 dotnet_diagnostic.QG005.severity = warning
 dotnet_diagnostic.QG011.severity = warning
 dotnet_diagnostic.QG015.severity = warning
-# Storage-гейты 0.5.4 (QG301-306) — warning (долг: кастомный EF Core → библиотечный EventStore/ReadStore Postgres)
-dotnet_diagnostic.QG301.severity = warning
+# Storage-гейты 0.5.4 (QG302-306) — warning (долг: read-стор → библиотечный ReadStore Postgres)
+# QG301 (кастомный command DbContext) — закрыт: CommandDbContext/RecordEntity удалены, error по умолчанию.
 dotnet_diagnostic.QG302.severity = warning
 dotnet_diagnostic.QG303.severity = warning
 dotnet_diagnostic.QG304.severity = warning
