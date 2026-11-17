@@ -1,22 +1,22 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace DailyMetrics.Storage.Migrations
+namespace DailyMetrics.Storage.Migrations.ReadStore
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class AddReadStores : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "daily_metrics",
+                name: "daily_metrics_read",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Date = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
+                    Date = table.Column<string>(type: "text", nullable: false),
                     Stress = table.Column<int>(type: "integer", nullable: false),
                     RestingHr = table.Column<int>(type: "integer", nullable: false),
                     Hrv = table.Column<int>(type: "integer", nullable: false),
@@ -26,25 +26,18 @@ namespace DailyMetrics.Storage.Migrations
                     SleepLightMin = table.Column<int>(type: "integer", nullable: false),
                     SleepRemMin = table.Column<int>(type: "integer", nullable: false),
                     SleepAwakeMin = table.Column<int>(type: "integer", nullable: false),
-                    Version = table.Column<long>(type: "bigint", nullable: false)
+                    ClientId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_daily_metrics", x => x.Id);
+                    table.PrimaryKey("PK_daily_metrics_read", x => x.Id);
                 });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_daily_metrics_Date",
-                table: "daily_metrics",
-                column: "Date",
-                unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "daily_metrics");
+            migrationBuilder.DropTable(name: "daily_metrics_read");
         }
     }
 }

@@ -19,5 +19,13 @@ internal sealed record AnemicModel : IDailyMetricsAnemicModel
     public ISleep Sleep { get; init; } = Implementation.Sleep.CreateInstance(0, 0, 0, 0, 0, 0);
     public Guid? ClientId { get; init; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root, ["Sleep"] = Sleep };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["Stress"] = new IntValueObject(Stress),
+        ["RestingHr"] = new IntValueObject(RestingHr),
+        ["Hrv"] = new IntValueObject(Hrv),
+        ["Sleep"] = Sleep,
+        ["ClientId"] = new ClientIdValueObject(ClientId),
+    };
 }

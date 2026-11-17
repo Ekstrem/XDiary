@@ -21,6 +21,6 @@ public sealed class InternalDailyMetricsController : ControllerBase
     {
         var sub = User.FindFirst("sub")?.Value;
         if (sub != "analytics") return Forbid();
-        return Ok(await _mediator.Send(new GetDailySeriesQuery(fromDate, toDate, clientId), ct));
+        return Ok(await _mediator.Send(new GetDailySeriesQuery(clientId, fromDate, toDate), ct));
     }
 }
