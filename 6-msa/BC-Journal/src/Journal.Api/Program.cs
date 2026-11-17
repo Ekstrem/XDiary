@@ -40,6 +40,9 @@ if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"
 // DF-пакет перекроет MigrationsAssembly и Migrate() увидит пустой набор (42P01). Доказано на dev: de5507f0.
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Journal.Storage")));
 builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+// QG-301/override-реплей: переключаем IEventStoreRepository на наследника с реальным fold (RecordEventReplay),
+// иначе FullEventSourcingRepository.GetById возвращает пустой список (TODO в библиотеке).
+builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStoreRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
