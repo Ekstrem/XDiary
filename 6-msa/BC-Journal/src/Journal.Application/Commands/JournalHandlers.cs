@@ -13,13 +13,14 @@ public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCo
 {
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
-    public StartManualEntryHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
+    private readonly IActorProvider _actor;
+    public StartManualEntryHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IActorProvider actor) { _provider = provider; _observer = observer; _actor = actor; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartManualEntryCommand r, CancellationToken ct)
     {
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
         var aggregate = await _provider.GetAggregateAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.StartManualEntry(r.ClientId);
+        return aggregate.StartManualEntry(_actor.ClientId);
     }
 }
 public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminCommand, AggregateResult<IJournal, IJournalAnemicModel>>
@@ -27,7 +28,8 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
     private readonly IAggregateProvider<IJournal, IRecordAggregate> _provider;
     private readonly IObserver<AggregateResult<IJournal, IJournalAnemicModel>> _observer;
     private readonly IJournalQueryRepository _query;
-    public StartFromGarminHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IJournalQueryRepository query) { _provider = provider; _observer = observer; _query = query; }
+    private readonly IActorProvider _actor;
+    public StartFromGarminHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IJournalQueryRepository query, IActorProvider actor) { _provider = provider; _observer = observer; _query = query; _actor = actor; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartFromGarminCommand r, CancellationToken ct)
     {
         // BE-051: повторный синк той же garmin-активности → та же запись (dedup по garminId).
@@ -35,7 +37,7 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
         var id = existing?.Id ?? Guid.NewGuid();
         var aggregate = await _provider.GetAggregateAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, r.ClientId);
+        return aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, _actor.ClientId);
     }
 }
 public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, AggregateResult<IJournal, IJournalAnemicModel>>

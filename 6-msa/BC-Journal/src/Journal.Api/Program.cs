@@ -53,6 +53,8 @@ builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
 builder.Services.AddScoped<IJournalQueryRepository, JournalReadRepository>();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Journal.Application.IActorProvider, Journal.Api.HttpActorProvider>();
 builder.Services.AddSingleton<IJournalEventPublisher, HttpJournalEventPublisher>();
 
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
