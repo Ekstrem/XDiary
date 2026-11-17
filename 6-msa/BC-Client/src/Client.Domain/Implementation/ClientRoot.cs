@@ -1,8 +1,7 @@
 namespace Client.Domain.Implementation;
 using Client.Domain.Abstraction;
-public sealed class ClientRoot : IClientRoot
+// Канон EDM: VO иммутабелен — positional record (getter-only), фабрика CreateInstance.
+public sealed record ClientRoot(string Phone) : IClientRoot
 {
-    public string Phone { get; private set; } = string.Empty;
-    private ClientRoot() { }
-    public static IClientRoot CreateInstance(string phone) => new ClientRoot { Phone = phone };
+    public static IClientRoot CreateInstance(string phone) => new ClientRoot(phone);
 }

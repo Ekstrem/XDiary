@@ -56,8 +56,7 @@ public class RecordInvariantTests
         var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00");
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         var stored = result.Model().Root.StartedAt;
-        Assert.NotEqual("2026-10-29T21:00", stored); // TE-101: нормализованный ISO, а не дословная строка
-        Assert.True(System.DateTimeOffset.TryParse(stored, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out _));
+        Assert.NotEqual(default, stored); // TE-101: startedAt задан (сильная типизация DateTimeOffset)
     }
 
     [Fact]

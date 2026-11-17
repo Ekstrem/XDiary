@@ -43,7 +43,7 @@ public class JournalProjectionTests
         };
         var vos = new Dictionary<string, DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IValueObject>
         {
-            ["Root"] = RecordRoot.CreateInstance(new[] { "partner-1" }, "2026-10-29T21:00"),
+            ["Root"] = RecordRoot.CreateInstance(new[] { "partner-1" }, DateTimeOffset.Parse("2026-10-29T21:00")),
         };
         JournalProjection.ApplyVos(existing, vos);
         Assert.Equal("Отель", existing.Place);               // не обнулено

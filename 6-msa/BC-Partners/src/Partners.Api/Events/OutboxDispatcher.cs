@@ -1,4 +1,4 @@
-namespace Partners.Api.Events;
+﻿namespace Partners.Api.Events;
 using System.Text.Json;
 using DigiTFactory.Libraries.SeedWorks.Definition;
 using DigiTFactory.Libraries.SeedWorks.Events;
@@ -10,8 +10,8 @@ using Partners.Storage;
 using XDiary.Contracts;
 
 /// <summary>
-/// BE-059 (E5): доставка outbox «хотя бы один раз». Реконструирует DomainEvent из Payload
-/// ($type-дискриминатор IValueObject) и повторно публикует; ProcessedAt помечается после успеха.
+/// BE-059 (E5): РґРѕСЃС‚Р°РІРєР° outbox В«С…РѕС‚СЏ Р±С‹ РѕРґРёРЅ СЂР°Р·В». Р РµРєРѕРЅСЃС‚СЂСѓРёСЂСѓРµС‚ DomainEvent РёР· Payload
+/// ($type-РґРёСЃРєСЂРёРјРёРЅР°С‚РѕСЂ IValueObject) Рё РїРѕРІС‚РѕСЂРЅРѕ РїСѓР±Р»РёРєСѓРµС‚; ProcessedAt РїРѕРјРµС‡Р°РµС‚СЃСЏ РїРѕСЃР»Рµ СѓСЃРїРµС…Р°.
 /// </summary>
 public sealed class OutboxDispatcher : BackgroundService
 {
@@ -27,7 +27,7 @@ public sealed class OutboxDispatcher : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<CommandDbContext>();
+                var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
                 var bus = scope.ServiceProvider.GetRequiredService<IEventBusProducer>();
                 var jsonOptions = new JsonSerializerOptions();
                 jsonOptions.Converters.Add(new IValueObjectJsonConverter());
@@ -40,7 +40,7 @@ public sealed class OutboxDispatcher : BackgroundService
                 foreach (var msg in pending)
                 {
                     var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(msg.Payload, jsonOptions);
-                    // BE-059 (@AR 08:14): re-delivery обязана нести id АГРЕГАТА, а не PK строки outbox.
+                    // BE-059 (@AR 08:14): re-delivery РѕР±СЏР·Р°РЅР° РЅРµСЃС‚Рё id РђР“Р Р•Р“РђРўРђ, Р° РЅРµ PK СЃС‚СЂРѕРєРё outbox.
                     var aggregateId = msg.AggregateId ?? msg.Id;
                     var domainEvent = new DomainEvent<IPartners>(
                         aggregateId,
@@ -63,7 +63,7 @@ public sealed class OutboxDispatcher : BackgroundService
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "[outbox] ошибка диспетчера");
+                _log.LogError(ex, "[outbox] РѕС€РёР±РєР° РґРёСЃРїРµС‚С‡РµСЂР°");
             }
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }

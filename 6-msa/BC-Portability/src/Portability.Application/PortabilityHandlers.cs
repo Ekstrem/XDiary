@@ -19,12 +19,12 @@ public sealed class ImportRecordsHandler : IRequestHandler<ImportRecordsCommand,
     private readonly IPortabilityRepository _repo;
     public ImportRecordsHandler(IPortabilityRepository repo) => _repo = repo;
     public async Task<AggregateResult<IPortability, ICsvDocumentAnemicModel>> Handle(ImportRecordsCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(r.Rows, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id; var res = Aggregate.CreateInstance(new AnemicModel { Id = id }).ImportRecords(r.Rows, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }
 public sealed class ImportSomaticHandler : IRequestHandler<ImportSomaticCommand, AggregateResult<IPortability, ICsvDocumentAnemicModel>>
 {
     private readonly IPortabilityRepository _repo;
     public ImportSomaticHandler(IPortabilityRepository repo) => _repo = repo;
     public async Task<AggregateResult<IPortability, ICsvDocumentAnemicModel>> Handle(ImportSomaticCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).ImportSomatic(r.Rows, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    { var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id; var res = Aggregate.CreateInstance(new AnemicModel { Id = id }).ImportSomatic(r.Rows, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
 }

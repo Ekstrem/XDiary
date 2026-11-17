@@ -33,8 +33,26 @@
 3. `AnemicModel` сделать иммутабельным (или явно закрыть сеттеры) и включить скаляры
    в change-трек (`GetValueObjects()`), если они должны порождать события.
 
+## Что сделано (доводка Journal к канону, 2026-11-16, `role/be`)
+- Иммутабельный `AnemicModel` (record + init, `with` вместо Clone-мутации);
+- state machine `Draft→Recorded→Deleted`; богатые VO (records) + полный diff; сильная типизация
+  (`RecordRoot.StartedAt` → `DateTimeOffset`); `CommandName` соразмерен методу; MV-проекция по версии.
+
+## Осталось — 3 gap'а DF (требуют базовые классы/реализацию библиотеки)
+1. **Replay из событий.** `FullEventSourcingRepository<TBC,TModel>.GetById` в `CommandRepository.Postgres`
+   читает события, но **возвращает пусто** — тело `// TODO: Десериализация событий в анемичные модели через IAggregateFactory`
+   (репозиторий `Ekstrem/DigiTFactory.Libraries`, файл `CommandRepository.Postgres/Repositories/FullEventSourcingRepository.cs`).
+   То есть реплей — gap самой библиотеки, не микросервиса.
+2. **BusAdapter «сохранить И опубликовать».** Ручной `IObserver` в `JournalEventHandler` — «свой адаптер»;
+   эталон — `BusAdapter : IObserver<AggregateResult<...>>` (пример `Documents/Journal/DSF`).
+3. **Provider + Notifier + `IBusinessOperationValidator`.** Базовые классы **существуют** в `Source/`:
+   `AggregateBusinessOperation`, `IAggregateProvider<TBC,TModel>`, `DomainEventNotifier<TBC,TAggregate>`,
+   `IBusinessOperationValidator` + `Result.Extension.ValidateCommand`. Нужна интеграция по примеру DSF.
+
 ## Статус
 Открыт. Эталон читается из DF-доков (`edm-eventstore-api.md` §«Следствие для E1»:
 `IRepository.SaveAsync` → `IEventBusProducer.Publish(result.Event)` + consumer → `SaveEventAsync`;
 `GetById` → `IAnemicModelRepository`/`IEventStoreRepository`). Код микросервисов — зона @BE,
 подтверждение кода от @AR не требуется; приоритизация — по E1-раскатке.
+Источник базовых классов — репозиторий `Ekstrem/DigiTFactory.Libraries` (SeedWorks `Source/` + `CommandRepository.Postgres`),
+пример интеграции — `Documents/Journal/DSF`.

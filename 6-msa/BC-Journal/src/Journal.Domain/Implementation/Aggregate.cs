@@ -1,16 +1,17 @@
-namespace Journal.Domain.Implementation;
+﻿namespace Journal.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Specifications;
 using XDiary.Contracts;
 
 /// <summary>
-/// Агрегат Record: бизнес-методы по экранам визарда (классический CEQRS, без metadata-driven).
+/// РђРіСЂРµРіР°С‚ Record: Р±РёР·РЅРµСЃ-РјРµС‚РѕРґС‹ РїРѕ СЌРєСЂР°РЅР°Рј РІРёР·Р°СЂРґР° (РєР»Р°СЃСЃРёС‡РµСЃРєРёР№ CEQRS, Р±РµР· metadata-driven).
 /// </summary>
-public sealed class Aggregate
+internal sealed class Aggregate : IRecordAggregate
 {
     public IJournalAnemicModel Model { get; }
 
@@ -18,10 +19,38 @@ public sealed class Aggregate
 
     public static Aggregate CreateInstance(IJournalAnemicModel model) => new(model);
 
-    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel)
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    public IRecordRoot Root => Model.Root;
+    public Guid? ClientId => Model.ClientId;
+    public int DurationMin => Model.DurationMin;
+    public string Place => Model.Place;
+    public IReadOnlyList<string> Positions => Model.Positions;
+    public IReadOnlyList<string> Costumes => Model.Costumes;
+    public IReadOnlyList<string> Toys => Model.Toys;
+    public IReadOnlyList<string> Fantasies => Model.Fantasies;
+    public IReadOnlyList<string> Tags => Model.Tags;
+    public IReadOnlyList<string> Contraceptives => Model.Contraceptives;
+    public int ContraceptiveCount => Model.ContraceptiveCount;
+    public IReadOnlyList<IOrgasms> Orgasms => Model.Orgasms;
+    public bool Garmin => Model.Garmin;
+    public string GarminId => Model.GarminId;
+    public string CreatedAt => Model.CreatedAt;
+    public string UpdatedAt => Model.UpdatedAt;
+    public RecordState State => Model.State;
+    public bool Deleted => Model.Deleted;
+
+    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {
-        var data = BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel);
-        return new AggregateResultSuccess<IJournal, IJournalAnemicModel>(data);
+        newModel = newModel with { CommandName = commandName }; // РєР°РЅРѕРЅ В§7: СЃРѕР±С‹С‚РёРµ СЃРѕСЂР°Р·РјРµСЂРЅРѕ РјРµС‚РѕРґСѓ
+        return BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel)
+            .ValidateCommand(specs);
     }
 
     private AggregateResult<IJournal, IJournalAnemicModel> Fail(string error)
@@ -52,6 +81,7 @@ public sealed class Aggregate
         GarminId = Model.GarminId,
         CreatedAt = Model.CreatedAt,
         UpdatedAt = Model.UpdatedAt,
+        State = Model.State,
         Deleted = Model.Deleted
     };
 
@@ -60,10 +90,11 @@ public sealed class Aggregate
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
-            Id = Model.Id, // @TL 22:21 — id агрегата стабилен: проекция/чтение ищут по нему, а не по id события
-            Root = RecordRoot.CreateInstance(Array.Empty<string>(), string.Empty),
+            Id = Model.Id, // @TL 22:21 вЂ” id Р°РіСЂРµРіР°С‚Р° СЃС‚Р°Р±РёР»РµРЅ: РїСЂРѕРµРєС†РёСЏ/С‡С‚РµРЅРёРµ РёС‰СѓС‚ РїРѕ РЅРµРјСѓ, Р° РЅРµ РїРѕ id СЃРѕР±С‹С‚РёСЏ
+            Root = RecordRoot.CreateInstance(Array.Empty<string>(), default),
             ClientId = clientId,
             Garmin = false,
+            State = RecordState.Draft,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -72,18 +103,19 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
     {
-        // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO.
-        var whenValidator = new WhenIsoValidator();
+        // TE-101: startedAt РѕР±СЏР·Р°РЅ Р±С‹С‚СЊ ISO 8601; С…СЂР°РЅРёРј РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅС‹Р№ ISO.
+        var whenValidator = new WhenIsoParser();
         if (!whenValidator.TryParse(startedAt, out var normalizedWhen)) return Fail(whenValidator.Reason);
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
-            Id = Model.Id, // @TL 22:21 — id агрегата стабилен
+            Id = Model.Id, // @TL 22:21 вЂ” id Р°РіСЂРµРіР°С‚Р° СЃС‚Р°Р±РёР»РµРЅ
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), normalizedWhen),
             ClientId = clientId,
             DurationMin = durationMin,
             Garmin = true,
             GarminId = garminId,
+            State = RecordState.Draft,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -92,12 +124,11 @@ public sealed class Aggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt)
     {
-        // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO (не дословную строку).
-        var v = new WhenIsoValidator();
+        // TE-101: startedAt РѕР±СЏР·Р°РЅ Р±С‹С‚СЊ ISO 8601; С…СЂР°РЅРёРј РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅС‹Р№ ISO (РЅРµ РґРѕСЃР»РѕРІРЅСѓСЋ СЃС‚СЂРѕРєСѓ).
+        var v = new WhenIsoParser();
         if (!v.TryParse(startedAt, out var normalized)) return Fail(v.Reason);
-        var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized);
-        return Success(anemic);
+        var anemic = Clone() with { Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized) };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddPartner(string partnerId)
@@ -106,93 +137,64 @@ public sealed class Aggregate
         if (!partners.Contains(partnerId))
             partners.Add(partnerId);
 
-        var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt);
-        return Success(anemic);
+        var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId)
     {
         var partners = Model.Root.Partners.Where(p => p != partnerId).ToList();
-        var anemic = Clone();
-        anemic.Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt);
-        return Success(anemic);
+        var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place)
     {
-        var anemic = Clone();
-        anemic.Place = place;
-        return Success(anemic);
+        var anemic = Clone() with { Place = place };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions)
     {
-        var anemic = Clone();
-        anemic.Positions = positions.ToList();
-        return Success(anemic);
+        var anemic = Clone() with { Positions = positions.ToList() };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddAccessories(
         IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags)
     {
-        var anemic = Clone();
-        anemic.Costumes = costumes.ToList();
-        anemic.Toys = toys.ToList();
-        anemic.Fantasies = fantasies.ToList();
-        anemic.Tags = tags.ToList();
-        return Success(anemic);
+        var anemic = Clone() with { Costumes = costumes.ToList(), Toys = toys.ToList(), Fantasies = fantasies.ToList(), Tags = tags.ToList() };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count)
     {
-        var anemic = Clone();
-        anemic.Contraceptives = contraceptives.ToList();
-        anemic.ContraceptiveCount = count;
-        return Success(anemic);
+        var anemic = Clone() with { Contraceptives = contraceptives.ToList(), ContraceptiveCount = count };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyDuration(int durationMin)
     {
-        var validator = new DurationPositiveValidator();
-        if (!validator.IsSatisfiedBy(durationMin))
-            return Fail(validator.Reason);
-
-        var anemic = Clone();
-        anemic.DurationMin = durationMin;
-        return Success(anemic);
+        var anemic = Clone() with { DurationMin = durationMin };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new DurationPositiveValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> RecordOrgasms(IEnumerable<IOrgasms> orgasms)
     {
         var list = orgasms.ToList();
-        var ratingValidator = new RatingRangeValidator();
-        foreach (var orgasm in list)
-        {
-            if (!ratingValidator.IsSatisfiedBy(orgasm))
-                return Fail(ratingValidator.Reason);
-        }
-
-        var anemic = Clone();
-        anemic.Orgasms = list;
-        return Success(anemic);
+        var anemic = Clone() with { Orgasms = list };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new RatingRangeValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Complete()
     {
-        var validator = new WhenRequiredValidator();
-        if (!validator.IsSatisfiedBy(Model))
-            return Fail(validator.Reason);
-
-        var anemic = Clone();
-        anemic.UpdatedAt = DateTimeOffset.UtcNow.ToString("o");
-        return Success(anemic);
+        var anemic = Clone() with { State = RecordState.Recorded, UpdatedAt = DateTimeOffset.UtcNow.ToString("o") };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new WhenRequiredValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> Delete()
     {
-        var anemic = Clone();
-        anemic.Deleted = true;
-        return Success(anemic);
+        var anemic = Clone() with { State = RecordState.Deleted, Deleted = true };
+        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordNotDeletedValidator(), new RecordDeletableValidator() });
     }
 }
