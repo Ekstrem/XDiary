@@ -1,6 +1,0 @@
-<Project>
-  <!-- DR (Digital Factory Reviewer) 2026-11-17: пилот QG-анализатора DTF/EDM в BC-Journal. -->
-  <ItemGroup>
-    <PackageReference Include="DigiTFactory.Libraries.Analyzers" Version="0.3.1" PrivateAssets="all" />
-  </ItemGroup>
-</Project>
