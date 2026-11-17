@@ -29,15 +29,15 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
 
         // BE-092 (@TL 08:02): валидация телефона ДО отправки — иначе шлём OTP на пустой номер
         // («Telegram OTP отправлен на .» на проде).
-        var phoneCheck = new PhoneRequiredValidator();
+        var phoneCheck = new PhoneRequiredSpecification();
         if (!phoneCheck.IsSatisfiedBy(new AnemicModel { Root = ClientRoot.CreateInstance(r.Phone) }))
             return new RegisterClientResult(ClientResults.Fail(phoneCheck.Reason), false, null, channel, false);
 
         // TE-097 (канон AR-025): нормализация и проверка ФОРМАТА — до лимитера и отправки OTP.
-        // «abc»/«123» проходят PhoneRequiredValidator (он про пустоту), поэтому без этой
+        // «abc»/«123» проходят PhoneRequiredSpecification (он про пустоту), поэтому без этой
         // проверки OTP уходит на невалидный номер. Уникальность считается по нормализованной форме.
-        var phone = PhoneFormatValidator.Normalize(r.Phone);
-        if (!PhoneFormatValidator.IsValid(phone))
+        var phone = PhoneFormatSpecification.Normalize(r.Phone);
+        if (!PhoneFormatSpecification.IsValid(phone))
             return new RegisterClientResult(ClientResults.Fail("Номер телефона неверного формата."), false, null, channel, false);
 
         // BE-092: лимит переотправки — до отправки, иначе OTP-бомбинг. BE-121: в Development лимит выключен.

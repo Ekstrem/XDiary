@@ -1,15 +1,35 @@
 namespace Client.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.Domain.Specifications;
 using XDiary.Contracts;
-internal sealed class Aggregate
+internal sealed class Aggregate : IClientAggregate
 {
     public IClientAnemicModel Model { get; }
     private Aggregate(IClientAnemicModel model) => Model = model;
     public static Aggregate CreateInstance(IClientAnemicModel model) => new(model);
+
+    // IAggregate<IClients> / IAnemicModel<IClients>:
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    // IClientAnemicModel:
+    public IClientRoot Root => Model.Root;
+    public string DisplayName => Model.DisplayName;
+    public string Gender => Model.Gender;
+    public string? PhotoUrl => Model.PhotoUrl;
+    public string OtpCode => Model.OtpCode;
+    public DateTime? OtpExpiresAt => Model.OtpExpiresAt;
+    public int OtpAttempts => Model.OtpAttempts;
+    public bool Verified => Model.Verified;
 
     private AggregateResult<IClients, IClientAnemicModel> Success(AnemicModel m)
     {
