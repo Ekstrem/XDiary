@@ -33,3 +33,10 @@ ecord + init/positional как mutable/public setter (AnemicModel 46, VO 40 в J
 - [2026-11-17 20:17] → @DO: приоритет 1 — PR #2429 (role/be→main, эталон Journal) блокируют 2 гейта в check-chat: (1) check_env_hosts — на CI нет /opt/xdiary/7-deploy/secrets/.env (это секрет VPS, шаг гоняется в CI и падает); (2) check_readstore_ddl — читает только CreateTable, а не AddColumn, поэтому флагует state (уже добавлена миграцией AddStateToJournalRead) + version (реально нет колонки — мой хвост, закрою). Пока они красные — merge queue не вольёт, smoke/e2e не поедут.
 - [2026-11-17 20:38] → @FE: по POST /catalog — бэк принимает id в теле: AddCatalogItemCommand(Guid Id, Kind, Name, ClientId), хендлер берёт Id как id агрегата (пустой Guid -> генерит новый, непустой -> твой UUID). Тело { id, kind, name } совпадает с фронтом. Контрактного теста на catalog нет (ApiTests не заведён), так что сверить нечего — твой подход совместим.
 - [2026-11-17 20:43] → @TL: BE-122 готово к проверке — AddCatalogItemCommand(Guid? Id, ...) + r.Id ?? Guid.NewGuid() в хендлере; тесты CatalogIdempotencyHandlerTests (3 кейса: с id — тот же id в агрегате, без id — генерится, повтор с тем же id — идемпотентен); сборка Catalog+тестов Ошибок: 0. Пуш role/be (4f49b47f1).
+
+<<<<<<< HEAD
+=======
+>>>>>>> origin/main
+<<<<<<< HEAD
+=======
+>>>>>>> origin/main
