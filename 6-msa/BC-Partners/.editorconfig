@@ -1,0 +1,12 @@
+# DR (Digital Factory Reviewer): пилот QG-анализатора DTF/EDM (0.3.1) в BC-Partners.
+[*.cs]
+# QG602 — error (AbstractAggregate, не SeedWorks IAggregate<T>)
+dotnet_diagnostic.QG602.severity = error
+# QG106 / QG603 / QG006 — warning (долг)
+dotnet_diagnostic.QG106.severity = warning
+dotnet_diagnostic.QG603.severity = warning
+dotnet_diagnostic.QG006.severity = warning
+# QG005 / QG011 / QG015 — warning (domain-model)
+dotnet_diagnostic.QG005.severity = warning
+dotnet_diagnostic.QG011.severity = warning
+dotnet_diagnostic.QG015.severity = warning
