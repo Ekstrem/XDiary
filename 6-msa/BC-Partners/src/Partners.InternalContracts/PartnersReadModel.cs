@@ -3,6 +3,7 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 public sealed class PartnersReadModel : IReadModel<Partners.Domain.IPartners>
 {
     public Guid Id { get; set; }
+    public long Version { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Photo { get; set; } = string.Empty;
     public string Gender { get; set; } = string.Empty;

@@ -1,6 +1,6 @@
-namespace Partners.Domain.Implementation;
+﻿namespace Partners.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
-/// <summary>Обёртки скаляров для change-track (TE-102: Photo/Gender/Notes должны попадать в ChangedValueObjects).</summary>
-public sealed record StringValueObject(string Value) : IValueObject;
+/// <summary>РћР±С‘СЂС‚РєРё СЃРєР°Р»СЏСЂРѕРІ РґР»СЏ change-track (TE-102: Photo/Gender/Notes РґРѕР»Р¶РЅС‹ РїРѕРїР°РґР°С‚СЊ РІ ChangedValueObjects).</summary>
+internal sealed record StringValueObject(string Value) : IValueObject;

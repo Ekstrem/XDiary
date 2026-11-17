@@ -1,9 +1,9 @@
-namespace Journal.Domain.Implementation;
+﻿namespace Journal.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 
 /// <summary>
-/// VO-обёртка скаляра ClientId, чтобы он попадал в change-track `GetValueObjects()`
-/// и, как следствие, в конверт события (clientId обязателен по ADR-028 / event-delivery).
+/// VO-РѕР±С‘СЂС‚РєР° СЃРєР°Р»СЏСЂР° ClientId, С‡С‚РѕР±С‹ РѕРЅ РїРѕРїР°РґР°Р» РІ change-track `GetValueObjects()`
+/// Рё, РєР°Рє СЃР»РµРґСЃС‚РІРёРµ, РІ РєРѕРЅРІРµСЂС‚ СЃРѕР±С‹С‚РёСЏ (clientId РѕР±СЏР·Р°С‚РµР»РµРЅ РїРѕ ADR-028 / event-delivery).
 /// </summary>
-public sealed record ClientIdValueObject(Guid? Value) : IValueObject;
+internal sealed record ClientIdValueObject(Guid? Value) : IValueObject;

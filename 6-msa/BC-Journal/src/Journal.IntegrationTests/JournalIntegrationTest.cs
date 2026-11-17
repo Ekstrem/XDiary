@@ -1,6 +1,7 @@
 using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain.Implementation;
+using Journal.IntegrationTests;
 using Journal.Storage;
 using Xunit;
 
@@ -16,9 +17,7 @@ public class JournalIntegrationTest
         var complete = Aggregate.CreateInstance(partner.Model()).Complete();
         Assert.Equal(DomainOperationResultEnum.Success, complete.Result);
 
-        var entity = new RecordEntity { Id = complete.Model().Id };
-        JournalMapper.MapToEntity(complete.Model(), entity);
-        var readModel = JournalMapper.MapToReadModel(entity);
+        var readModel = JournalReadModelBuilder.ToReadModel(complete.Model());
         Assert.Equal(new[] { "partner-1" }, readModel.Partners);
         Assert.Equal(DateTimeOffset.Parse("2026-10-29T21:00"), DateTimeOffset.Parse(readModel.StartedAt));
     }

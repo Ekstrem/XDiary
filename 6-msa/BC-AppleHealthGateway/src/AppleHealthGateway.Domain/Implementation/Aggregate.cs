@@ -22,12 +22,12 @@ public sealed class Aggregate
     {
         var s = new SingleSourcePerClientValidator();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
-        var m = Clone(); m.Root = AppleImportRoot.CreateInstance(clientId, "apple"); m.ImportConfig = ImportConfig.CreateInstance(metrics); return Success(m);
+        return Success(Clone() with { Root = AppleImportRoot.CreateInstance(clientId, "apple"), ImportConfig = ImportConfig.CreateInstance(metrics) });
     }
     public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName)
     {
         if (Model.ProcessedFiles.Contains(fileName)) return Success(Clone()); // SkipDuplicate
         var files = new List<string>(Model.ProcessedFiles) { fileName };
-        var m = Clone(); m.ProcessedFiles = files; m.LastImport = DateTimeOffset.UtcNow.ToString("o"); return Success(m);
+        return Success(Clone() with { ProcessedFiles = files, LastImport = DateTimeOffset.UtcNow.ToString("o") });
     }
 }

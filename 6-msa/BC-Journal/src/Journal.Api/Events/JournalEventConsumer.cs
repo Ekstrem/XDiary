@@ -1,5 +1,6 @@
 namespace Journal.Api.Events;
 
+using System.Diagnostics.Metrics;
 using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
@@ -34,20 +35,17 @@ public sealed class JournalEventConsumer : BackgroundService
 
 public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserver<IDomainEvent<IJournal>>
 {
-    private readonly IEventStoreRepository<IJournal, IJournalAnemicModel> _store;
     private readonly IReadModelStore<IJournal, JournalReadModel> _readStore;
     private readonly IReadRepository<IJournal, JournalReadModel> _readRepo;
     private readonly IReadModelStore<IJournal, JournalDefaultsReadModel> _defaultsStore;
     private readonly IReadRepository<IJournal, JournalDefaultsReadModel> _defaultsRead;
 
     public JournalEventHandler(
-        IEventStoreRepository<IJournal, IJournalAnemicModel> store,
         IReadModelStore<IJournal, JournalReadModel> readStore,
         IReadRepository<IJournal, JournalReadModel> readRepo,
         IReadModelStore<IJournal, JournalDefaultsReadModel> defaultsStore,
         IReadRepository<IJournal, JournalDefaultsReadModel> defaultsRead)
     {
-        _store = store;
         _readStore = readStore;
         _readRepo = readRepo;
         _defaultsStore = defaultsStore;
@@ -57,25 +55,10 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
     public async Task HandleAsync(IDomainEvent<IJournal> domainEvent)
     {
         Console.WriteLine("[handle] entered");
-        // 1) персист события в store (идемпотентно по Id на уровне DF-репозитория).
-        // @TE 04:32 — $type-дискриминатор, иначе event-sourced GetById не реконструирует IValueObject.
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
-        var entry = new DomainEventEntry
-        {
-            Id = domainEvent.Id,
-            Version = domainEvent.Version,
-            CorrelationToken = domainEvent.CorrelationToken,
-            BoundedContext = domainEvent.ContextName,
-            CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
-            SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
-            Result = domainEvent.Result.ToString(),
-            CreatedAt = DateTime.UtcNow,
-        };
-        await _store.SaveEventAsync(entry);
+        // Канон §6: store пишет command-path (JournalCommandRepository.SaveAsync — BusAdapter «сохранить И опубликовать»),
+        // здесь — только проекция MV (подписчик шины).
 
-        // 2) проекция MV (UpsertAsync) из changed-VO — per-field merge (BE-077/@TL 21:37, @AR 22:05 §15):
+        // проекция MV (UpsertAsync) из changed-VO — per-field merge (BE-077/@TL 21:37, @AR 22:05 §15):
         // отсутствие ключа ≠ пропуск; применяем только имеющиеся поля, null — только при пустом diff.
         var vos = domainEvent.ChangedValueObjects;
         if (vos is null || vos.Count == 0)
@@ -85,8 +68,17 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         else
         {
             var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new JournalReadModel { Id = domainEvent.Id };
-            JournalProjection.ApplyVos(existing, vos);
-            await _readStore.UpsertAsync(existing);
+            // Канон §15.1/§8.4: идемпотентность по версии — событие старше/равное уже применённому пропускаем.
+            if (existing.Version >= domainEvent.Version)
+            {
+                Console.WriteLine("[handle] stale event (version) — skip projection");
+            }
+            else
+            {
+                JournalProjection.ApplyVos(existing, vos);
+                existing.Version = domainEvent.Version;
+                await _readStore.UpsertAsync(existing);
+            }
         }
 
         // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
@@ -101,11 +93,12 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         if (clientId is null) return;
 
         var current = await _defaultsRead.GetByIdAsync(clientId.Value, default);
-        var place = vos.TryGetValue("Place", out var p) && p is StringValueObject sv ? sv.Value : string.Empty;
-        var fantasies = vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fl ? fl.Value : Array.Empty<string>();
-        var positions = vos.TryGetValue("Positions", out var pp) && pp is StringListValueObject pl ? pl.Value : Array.Empty<string>();
-        var tags = vos.TryGetValue("Tags", out var tg) && tg is StringListValueObject tl ? tl.Value : Array.Empty<string>();
-        var contraceptives = vos.TryGetValue("Contraceptives", out var cp) && cp is StringListValueObject cl ? cl.Value : Array.Empty<string>();
+        var place = vos.TryGetValue("Place", out var p) && p is PlaceValue sv ? sv.Value : string.Empty;
+        var positions = vos.TryGetValue("Positions", out var pp) && pp is PositionsValue pl ? pl.Value : Array.Empty<string>();
+        var accessories = vos.TryGetValue("Accessories", out var ac) && ac is AccessoriesValue av ? av : null;
+        var fantasies = accessories?.Fantasies ?? Array.Empty<string>();
+        var tags = accessories?.Tags ?? Array.Empty<string>();
+        var contraceptives = vos.TryGetValue("Contraception", out var cp) && cp is ContraceptionValue cl ? cl.Contraceptives : Array.Empty<string>();
 
         var defaults = current ?? new JournalDefaultsReadModel { Id = clientId.Value, ClientId = clientId.Value };
         if (!string.IsNullOrWhiteSpace(place)) defaults.LastPlace = place;
@@ -119,8 +112,18 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
     }
 
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.
-    // @TE 05:04 — fire-and-forget, чтобы синхронный consumer не держал запрос (504).
-    public void OnNext(IDomainEvent<IJournal> e) => _ = HandleAsync(e);
+    // Канон §4: потеря события — отказ, не деградация; fire-and-forget с ВИДИМЫМ падением (счётчик + лог),
+    // а не молчаливый unobserved.
+    private static readonly Counter<long> EventFailures = new Meter("Journal.Events").CreateCounter<long>("event.failures", description: "unhandled event failures");
+
+    public void OnNext(IDomainEvent<IJournal> e) => _ = HandleAsync(e).ContinueWith(t =>
+    {
+        if (t.IsFaulted)
+        {
+            EventFailures.Add(1);
+            Console.Error.WriteLine($"[event] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
+        }
+    }, TaskScheduler.Default);
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }
@@ -142,17 +145,17 @@ public static class JournalProjection
         if (vos.TryGetValue("Root", out var r) && r is IRecordRoot root)
         {
             m.Partners = root.Partners.ToList();
-            m.StartedAt = root.StartedAt;
+            m.StartedAt = root.StartedAt.ToString("o");
         }
         if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) m.ClientId = cv.Value;
-        if (vos.TryGetValue("Place", out var p) && p is StringValueObject pv) m.Place = pv.Value;
-        if (vos.TryGetValue("Tags", out var t) && t is StringListValueObject tv) m.Tags = tv.Value.ToList();
-        if (vos.TryGetValue("Positions", out var po) && po is StringListValueObject pov) m.Positions = pov.Value.ToList();
-        if (vos.TryGetValue("Fantasies", out var f) && f is StringListValueObject fv) m.Fantasies = fv.Value.ToList();
-        if (vos.TryGetValue("Costumes", out var co) && co is StringListValueObject cov) m.Costumes = cov.Value.ToList();
-        if (vos.TryGetValue("Toys", out var to) && to is StringListValueObject tov) m.Toys = tov.Value.ToList();
-        if (vos.TryGetValue("Contraceptives", out var cn) && cn is StringListValueObject cnv) m.Contraceptives = cnv.Value.ToList();
-        if (vos.TryGetValue("DurationMin", out var d) && d is IntValueObject dv) m.DurationMin = dv.Value;
+        if (vos.TryGetValue("Place", out var p) && p is PlaceValue pv) m.Place = pv.Value;
+        if (vos.TryGetValue("Positions", out var po) && po is PositionsValue pov) m.Positions = pov.Value.ToList();
+        if (vos.TryGetValue("Accessories", out var a) && a is AccessoriesValue av) { m.Costumes = av.Costumes.ToList(); m.Toys = av.Toys.ToList(); m.Fantasies = av.Fantasies.ToList(); m.Tags = av.Tags.ToList(); }
+        if (vos.TryGetValue("Contraception", out var cn) && cn is ContraceptionValue cnv) { m.Contraceptives = cnv.Contraceptives.ToList(); m.ContraceptiveCount = cnv.ContraceptiveCount; }
+        if (vos.TryGetValue("Orgasms", out var o) && o is OrgasmsListValueObject ov) m.Orgasms = ov.Value.Select(x => new OrgasmsReadModel { Participant = x.Participant, Count = x.Count, Types = x.Types.ToList(), Rating = x.Rating }).ToList();
+        if (vos.TryGetValue("Origin", out var or) && or is OriginValue orv) { m.Garmin = orv.Garmin; m.GarminId = orv.GarminId; }
+        if (vos.TryGetValue("Duration", out var d) && d is DurationValue dv) m.DurationMin = dv.Minutes;
+        if (vos.TryGetValue("State", out var s) && s is IntValueObject sv) m.State = sv.Value;
         if (vos.TryGetValue("Deleted", out var del) && del is BoolValueObject dvb) m.Deleted = dvb.Value;
     }
 }

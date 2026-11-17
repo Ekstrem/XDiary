@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -9,7 +9,7 @@ using Partners.Storage;
 namespace Partners.Storage.Migrations
 {
     /// <inheritdoc />
-    [DbContext(typeof(CommandDbContext))]
+    [DbContext(typeof(OutboxDbContext))]
     [Migration("20261113120000_AddDeletedAtToPartner")]
     public partial class AddDeletedAtToPartner : Migration
     {

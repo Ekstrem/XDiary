@@ -20,5 +20,6 @@ public interface IJournalAnemicModel : IAnemicModel<IJournal>
     string GarminId { get; }
     string CreatedAt { get; }
     string UpdatedAt { get; }
+    RecordState State { get; }
     bool Deleted { get; }
 }
