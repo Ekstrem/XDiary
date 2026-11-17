@@ -18,5 +18,11 @@ internal sealed record AnemicModel : ISomaticSeriesAnemicModel
     public Guid? ClientId { get; init; }
 
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["Hr"] = new IntValueObject(Hr),
+        ["BodyBattery"] = new IntValueObject(BodyBattery),
+        ["ClientId"] = new ClientIdValueObject(ClientId),
+    };
 }
