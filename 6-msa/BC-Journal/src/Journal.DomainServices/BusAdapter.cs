@@ -1,20 +1,29 @@
 namespace Journal.DomainServices;
 
+using System.Text.Json;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
+using Journal.Domain.Implementation;
 using XDiary.Contracts;
 
 /// <summary>
-/// QG-104: BusAdapter — наблюдатель за результатами Notifier'а. И сохраняет событие (SaveEventAsync),
-/// и публикует его в шину (IEventBus.Publish).
+/// QG-104: BusAdapter — наблюдатель за результатами Notifier'а. Сохраняет событие (SaveEventAsync)
+/// и публикует его в шину (IEventBus.PublishAsync).
 /// </summary>
 public sealed class BusAdapter : IObserver<AggregateResult<IJournal, IJournalAnemicModel>>
 {
-    private readonly IEventBus _eventBus;
+    private readonly IEventStoreRepository<IJournal, IJournalAnemicModel> _store;
+    private readonly IEventBus _bus;
 
-    public BusAdapter(IEventBus eventBus) => _eventBus = eventBus;
+    public BusAdapter(IEventStoreRepository<IJournal, IJournalAnemicModel> store, IEventBus bus)
+    {
+        _store = store;
+        _bus = bus;
+    }
 
     public void OnNext(AggregateResult<IJournal, IJournalAnemicModel> result)
     {
@@ -22,25 +31,36 @@ public sealed class BusAdapter : IObserver<AggregateResult<IJournal, IJournalAne
             return;
 
         SaveEventAsync(result).GetAwaiter().GetResult();
-        Publish(result);
+        _bus.PublishAsync(result.Event);
     }
 
     public void OnError(Exception error) { }
 
     public void OnCompleted() { }
 
-    // Сохранение события в event store (command-path).
     private Task SaveEventAsync(AggregateResult<IJournal, IJournalAnemicModel> result)
     {
-        // TODO(эталон): перенести сюда сохранение DomainEventEntry из JournalHandlers.SaveAsync
-        // (сейчас событие пишется императивно в command-path хендлеров).
-        return Task.CompletedTask;
-    }
-
-    // Публикация доменного события в шину.
-    private void Publish(AggregateResult<IJournal, IJournalAnemicModel> result)
-    {
-        // TODO(эталон): построить IDomainEvent<IJournal> из результата и вызвать _eventBus.PublishAsync(domainEvent).
-        _ = _eventBus;
+        // Перенесено из JournalCommandRepository.SaveAsync: событие персистится ДО публикации
+        // (BusAdapter «сохранить И опубликовать»), а не пишется consumer'ом fire-and-forget.
+        var jsonOptions = new JsonSerializerOptions();
+        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+        var cmdName = result.Event.ChangedValueObjects is not null
+            && result.Event.ChangedValueObjects.TryGetValue("CommandName", out var cn)
+            && cn is StringValueObject cns
+            ? cns.Value
+            : (result.Event.Command?.GetType().Name ?? string.Empty);
+        var entry = new DomainEventEntry
+        {
+            Id = result.Event.Id,
+            Version = result.Event.Version,
+            CorrelationToken = result.Event.CorrelationToken,
+            BoundedContext = result.Event.ContextName,
+            CommandName = cmdName,
+            SubjectName = result.Event.ContextName,
+            ChangedValueObjectsJson = JsonSerializer.Serialize(result.Event.ChangedValueObjects, jsonOptions),
+            Result = result.Event.Result.ToString(),
+            CreatedAt = DateTime.UtcNow,
+        };
+        return _store.SaveEventAsync(entry);
     }
 }
