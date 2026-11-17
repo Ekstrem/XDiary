@@ -152,6 +152,9 @@ jobs:
       # PyYAML нужен ДО первого шага, который читает YAML (иначе «нужен pyyaml» => exit 2).
       # Правка @TL была в ветке и потерялась при мерже — восстанавливаю на месте.
       - name: Зависимости гейтов (PyYAML) — до первого чтения YAML
+        # DO-138 дефект 3: без always() шаг skipped после падения «Check chat format», и DO-064
+        # падает «нужен pyyaml». Установка обязана идти даже при красной ступени выше.
+        if: always()
         run: python -m pip install --quiet --disable-pip-version-check pyyaml
 
       - name: Реестр API ↔ код — DO-064 (множества, codes, allow-list анонимности)

@@ -1,12 +1,13 @@
 // E2E (настоящий) — TE-027: привязка партнёра к клиенту.
-// После BE-028 контракт: POST /partners/{id}/link-client { clientId }, POST /partners/{id}/unlink-client,
-// в read-model Partner.ClientId (Guid?). Прежний self.spec.js звал УДАЛЁННЫЙ POST /partners/{id}/self —
+// После BE-028 контракт: POST /partners/{id}/link-client, POST /partners/{id}/unlink-client,
+// в read-model Partner.ClientId (Guid?). BE-085 (@TL 2026-11-17 21:11): ClientId берётся
+// из `sub` JWT, а НЕ из тела запроса — поэтому ожидание в спеке — id СЕССИИ, не нового клиента. Прежний self.spec.js звал УДАЛЁННЫЙ POST /partners/{id}/self —
 // он заменён этим файлом (находка @TL 2026-11-04 13:00).
 const { test, expect } = require('@playwright/test');
-const { API_BASE, uniquePhone, loginWithPin, removeByName } = require('./api');
+const { API_BASE, loginWithPin, removeByName } = require('./api');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = 'TE-LINK-' + Date.now();
-const PHONE = uniquePhone('+7999'); // TE-044: 10 млн вариантов, а не 10 тыс.
 
 function call(page, path, opts) {
   return page.evaluate(async ({ base, path, opts }) => {
@@ -31,24 +32,27 @@ test('E2E: link-client/unlink-client — партнёр привязан к кл
       const p = await call(page, '/api/v1/partners', { method: 'POST', body: JSON.stringify({ name: NAME }) });
       expect(p.status, 'POST /partners').toBeLessThan(300);
       partnerId = p.data && p.data.id;
-      expect(partnerId, 'id партнёра').toBeTruthy();
+      expect(partnerId, 'id партнёра — UUID').toMatch(UUID_RE);
     });
 
     await test.step('link-client: clientId появляется в read-model', async () => {
-      const c = await call(page, '/api/v1/clients', { method: 'POST', body: JSON.stringify({ phone: PHONE }) });
-      expect([200, 201], 'POST /clients -> ' + c.status + ' ' + JSON.stringify(c.data)).toContain(c.status);
-      const clientId = c.data && c.data.id;
-      expect(clientId, 'id клиента').toBeTruthy();
+      // BE-085: сервер берёт ClientId из `sub` (JWT), тело игнорируется — см.
+      // `PartnersController.LinkClient` (`6-msa/BC-Partners`): `ClientId не из тела, а из sub`.
+      // Поэтому ожидаем id СЕССИИ, а лишний `POST /clients` убран: он ничего не доказывал
+      // и жёг OTP-лимит (BE-117/BE-121), из-за чего setup падал 429-м.
+      const sessionClientId = await page.evaluate(() => localStorage.getItem('xdiary.clientId') || '');
+      expect(sessionClientId, 'clientId сессии — UUID').toMatch(UUID_RE);
 
       const link = await call(page, '/api/v1/partners/' + partnerId + '/link-client', {
-        method: 'POST', body: JSON.stringify({ clientId }),
+        method: 'POST', body: JSON.stringify({}),
       });
       expect(link.status, 'POST /partners/{id}/link-client').toBeLessThan(300);
 
       const p = await call(page, '/api/v1/partners/' + partnerId);
       expect(p.status, 'GET /partners/{id}').toBe(200);
-      expect(p.data && p.data.clientId, 'partner.clientId после привязки').toBe(clientId);
-      console.log('::notice::TE-027 link-client ок: partner=' + partnerId + ' client=' + clientId);
+      expect(p.data && p.data.clientId, 'partner.clientId после привязки = клиент из sub')
+        .toBe(sessionClientId);
+      console.log('::notice::TE-027 link-client ок: partner=' + partnerId + ' client=' + sessionClientId);
     });
 
     await test.step('unlink-client: clientId сбрасывается', async () => {
