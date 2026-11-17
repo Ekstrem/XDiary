@@ -112,7 +112,14 @@
       if (rec.orgasmsMe > 0) orgasms.push({ participant: "me", count: rec.orgasmsMe, types: rec.orgasmMeType || [], rating: rec.orgasmMeRating || 0 });
       if (rec.orgasmsPartner > 0 && partnerId) orgasms.push({ participant: partnerId, count: rec.orgasmsPartner, types: rec.orgasmPartnerType || [], rating: rec.orgasmPartnerRating || 0 });
 
-      var startP = rec.id ? Promise.resolve(rec.id) : Api.journal.start().then(function (m) { return m.id; });
+      var startP = rec.id ? Promise.resolve(rec.id) : Api.journal.start().then(function (m) {
+        // FE-055: id созданной записи сразу отдаём наверх — чтобы черновик запомнил его
+        // и повтор шёл в ту же запись, а не создавал дубль.
+        if (m && m.id && typeof DB.onRecordCreated === "function") {
+          try { DB.onRecordCreated(m.id); } catch (e) {}
+        }
+        return m.id;
+      });
       return startP.then(function (id) {
         var chain = Promise.resolve();
         if (rec.id) {
