@@ -169,6 +169,10 @@ jobs:
           #    (сегодня @AR ломал канон дважды: кавычки в `verification`, orphan `delivery:`),
           #    плюс расхождение `openapi/` с каноном. В `.github` его было 0 вхождений.
           python tools/check_api_index.py --require-request
+          # DO-138 дефект 3: gen_openapi --check читает yaml.safe_load и падает «нужен pyyaml»,
+          # хотя отдельный шаг «Зависимости гейтов (PyYAML)» выше есть — на некоторых раннерах
+          # pip-install в отдельном шаге не доходит до этого шага. Ставим прямо здесь, рядом с потребителем.
+          python -m pip install --quiet --disable-pip-version-check pyyaml
           python 04-architecture/gen_openapi.py --check
 
       # AR-024 (@AR, @TL 22:30): YAML молча оставляет ПОСЛЕДНЕЕ значение при дубле ключа —
