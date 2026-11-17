@@ -1,16 +1,35 @@
 namespace Catalog.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Catalog.Domain;
 using Catalog.Domain.Abstraction;
 using Catalog.Domain.Specifications;
 using XDiary.Contracts;
 
-internal sealed class Aggregate
+internal sealed class Aggregate : ICatalogAggregate
 {
     public ICatalogAnemicModel Model { get; }
     private Aggregate(ICatalogAnemicModel model) => Model = model;
     public static Aggregate CreateInstance(ICatalogAnemicModel model) => new(model);
+
+    // IAggregate<ICatalog> / IAnemicModel<ICatalog>:
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    // ICatalogAnemicModel:
+    public ICatalogItemRoot Root => Model.Root;
+    public string Photo => Model.Photo;
+    public string Notes => Model.Notes;
+    public string Brand => Model.Brand;
+    public bool Archived => Model.Archived;
+    public string FantasyPartner => Model.FantasyPartner;
+    public Guid? ClientId => Model.ClientId;
 
     private AggregateResult<ICatalog, ICatalogAnemicModel> Success(AnemicModel m)
     { var d = BusinessOperationData<ICatalog, ICatalogAnemicModel>.Commit<ICatalog, ICatalogAnemicModel>(Model, m); return new AggregateResultSuccess<ICatalog, ICatalogAnemicModel>(d); }
