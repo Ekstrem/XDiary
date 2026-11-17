@@ -64,6 +64,20 @@ test('E2E: partner-edit — rename и profile через UI, проверка AP
     await test.step('UI: открыть карточку партнёра', async () => {
       await page.click('#tab-partners');
       await expect(page.locator('#view-partners')).toBeVisible();
+      // TE-017/FE-050: список партнёров идёт через `withCache('partners', Api.partners.list, …)`
+      // (`repository.js:182`), поэтому при 429/5xx UI молча падает в кэш и даёт 0 строк.
+      // Замер до утверждения: статус и длина — чтобы «0 элементов» не толковать догадками.
+      const partnersProbe = await page.evaluate(async (base) => {
+        const t = localStorage.getItem('xdiary.accessToken') || '';
+        try {
+          const r = await fetch(base + '/api/v1/partners', { headers: { Authorization: 'Bearer ' + t } });
+          const d = await r.json().catch(() => null);
+          return { status: r.status, count: Array.isArray(d) ? d.length : null };
+        } catch (e) {
+          return { status: 'error', count: null };
+        }
+      }, API_BASE);
+      console.log('::notice::' + JSON.stringify({ title: 'partner-edit: GET /partners', ...partnersProbe }));
       const card = page.locator('#partners-list .partner-row').filter({ hasText: OLD });
       await expect(card, 'карточка ' + OLD).toHaveCount(1);
       await card.click();
