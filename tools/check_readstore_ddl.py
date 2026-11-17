@@ -71,6 +71,17 @@ def ddl_tables_from_migrations(text):
             cols[cm.group(1).lower()] = cm.group(2).lower()
         if cols:
             out[table] = cols
+    # AddColumn<T>(name: "X", table: "tbl", type: "typ") — колонки, добавленные ALTER-миграциями
+    # (например, 20261116130100_AddStateToJournalRead добавляет state к journal_read,
+    #  20261117210000_AddVersionTo*Read добавляет version к journal_read/partners_read).
+    # Без этого гейт даёт ложный «в DDL нет колонки state/version», хотя миграция их добавляет.
+    # ВАЖНО (2026-11-17): блок должен быть ИМЕННО здесь — миграции читает эта функция,
+    # а `ddl_tables` разбирает Program.cs, где AddColumn не встречается.
+    for m in re.finditer(
+            r'AddColumn<[^>]+>\(\s*name:\s*"([A-Za-z0-9_]+)"\s*,\s*table:\s*"([A-Za-z0-9_]+)"\s*,\s*type:\s*"([^"]+)"',
+            text):
+        tbl = m.group(2).lower()
+        out.setdefault(tbl, {})[m.group(1).lower()] = m.group(3).lower()
     return out
 
 
@@ -252,6 +263,15 @@ def selftest():
     else:
         print('  [FAIL] разбор миграции:', t2)
 
+    # AddColumn добавляет колонку к уже созданной таблице (ALTER-миграция)
+    total += 1
+    addcol = 'migrationBuilder.AddColumn<int>(\n    name: "State",\n    table: "journal_read",\n    type: "integer");'
+    t3 = ddl_tables_from_migrations(addcol)
+    if t3.get('journal_read') == {'state': 'integer'}:
+        ok += 1
+    else:
+        print('  [FAIL] AddColumn:', t3)
+
     # разбор DDL и свойств
     total += 2
     t = ddl_tables('CREATE TABLE IF NOT EXISTS journal_read ("Id" uuid PRIMARY KEY, "ClientId" uuid NULL);')
@@ -328,13 +348,18 @@ def main():
     for mig in glob.glob(os.path.join(a.root, '**', 'Migrations', '**', '*.cs'), recursive=True):
         if 'obj' + os.sep in mig or 'bin' + os.sep in mig or 'readstore' not in mig.lower():
             continue
-        tables.update(ddl_tables_from_migrations(open(mig, encoding='utf-8', errors='replace').read()))
+        # ВАЖНО (2026-11-17): слияние ПО КОЛОНКАМ, а не замена таблицы целиком.
+        # Иначе ALTER-миграция (`AddVersionToJournalRead` → {version}) затирает полный
+        # набор колонок из `AddReadStores` и гейт начинает «не находить» все 20 полей.
+        for _tbl, _cols in ddl_tables_from_migrations(open(mig, encoding='utf-8', errors='replace').read()).items():
+            tables.setdefault(_tbl, {}).update(_cols)
 
     for prog in glob.glob(os.path.join(a.root, '**', 'Program.cs'), recursive=True):
         if 'obj' + os.sep in prog or 'bin' + os.sep in prog:
             continue
         text = open(prog, encoding='utf-8', errors='replace').read()
-        tables.update(ddl_tables(text))
+        for _tbl, _cols in ddl_tables(text).items():
+            tables.setdefault(_tbl, {}).update(_cols)
         for m in REG.finditer(text):
             model = m.group(1).split('.')[-1]
             table = resolve_table(model, set(tables))
