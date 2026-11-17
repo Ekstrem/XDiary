@@ -51,6 +51,14 @@ def ddl_tables(text):
         cols = {name.lower(): typ.lower() for name, typ in COL.findall(m.group(2))}
         if cols:
             out[table] = cols
+    # AddColumn<T>(name: "X", table: "tbl", type: "typ") — колонки, добавленные ALTER-миграциями
+    # (например, 20261116130100_AddStateToJournalRead добавляет state к journal_read).
+    # Без этого гейт даёт ложный «в DDL нет колонки state», хотя миграция AddColumn её добавляет.
+    for m in re.finditer(
+            r'AddColumn<[^>]+>\(\s*name:\s*"([A-Za-z0-9_]+)"\s*,\s*table:\s*"([A-Za-z0-9_]+)"\s*,\s*type:\s*"([^"]+)"',
+            text):
+        tbl = m.group(2).lower()
+        out.setdefault(tbl, {})[m.group(1).lower()] = m.group(3).lower()
     return out
 
 
@@ -251,6 +259,15 @@ def selftest():
         ok += 1
     else:
         print('  [FAIL] разбор миграции:', t2)
+
+    # AddColumn добавляет колонку к уже созданной таблице (ALTER-миграция)
+    total += 1
+    addcol = 'migrationBuilder.AddColumn<int>(\n    name: "State",\n    table: "journal_read",\n    type: "integer");'
+    t3 = ddl_tables_from_migrations(addcol)
+    if t3.get('journal_read') == {'state': 'integer'}:
+        ok += 1
+    else:
+        print('  [FAIL] AddColumn:', t3)
 
     # разбор DDL и свойств
     total += 2
