@@ -22,7 +22,7 @@ public sealed class Aggregate
     {
         var v = new HeaderContractValidator();
         if (!v.IsSatisfiedBy(headers)) return Fail(v.Reason);
-        var m = Clone(); m.Root = CsvDocumentRoot.CreateInstance(headers); m.Rows = rows; m.Kind = kind; m.ClientId = clientId; return Success(m);
+        return Success(Clone() with { Root = CsvDocumentRoot.CreateInstance(headers), Rows = rows, Kind = kind, ClientId = clientId });
     }
 
     // Идемпотентность по id (первая колонка CSV): последняя строка с тем же id перезаписывает предыдущую

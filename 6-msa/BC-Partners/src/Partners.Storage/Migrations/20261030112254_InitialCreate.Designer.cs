@@ -11,7 +11,7 @@ using Partners.Storage;
 
 namespace Partners.Storage.Migrations
 {
-    [DbContext(typeof(CommandDbContext))]
+    [DbContext(typeof(OutboxDbContext))]
     [Migration("20261030112254_InitialCreate")]
     partial class InitialCreate
     {

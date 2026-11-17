@@ -5,6 +5,7 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 public sealed class JournalReadModel : IReadModel<Journal.Domain.IJournal>
 {
     public Guid Id { get; set; }
+    public long Version { get; set; }
     public Guid? ClientId { get; set; }
     public IReadOnlyList<string> Partners { get; set; } = new List<string>();
     public IReadOnlyList<string> PartnersNames { get; set; } = new List<string>();
@@ -24,6 +25,7 @@ public sealed class JournalReadModel : IReadModel<Journal.Domain.IJournal>
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
     public bool Deleted { get; set; }
+    public int State { get; set; }
 }
 
 public sealed class OrgasmsReadModel

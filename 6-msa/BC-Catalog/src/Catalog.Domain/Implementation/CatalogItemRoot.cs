@@ -1,9 +1,10 @@
 namespace Catalog.Domain.Implementation;
+
 using Catalog.Domain.Abstraction;
-public sealed class CatalogItemRoot : ICatalogItemRoot
+
+// record (positional) — getter-only VO, как RecordRoot в Journal.Domain.
+public sealed record CatalogItemRoot(string Kind, string Name) : ICatalogItemRoot
 {
-    public string Kind { get; private set; } = string.Empty;
-    public string Name { get; private set; } = string.Empty;
-    private CatalogItemRoot() { }
-    public static ICatalogItemRoot CreateInstance(string kind, string name) => new CatalogItemRoot { Kind = kind, Name = name };
+    public static ICatalogItemRoot CreateInstance(string kind, string name)
+        => new CatalogItemRoot(kind, name);
 }

@@ -46,14 +46,14 @@ public class PortabilityTests
     [Fact]
     public void ImportRecords_CanonicalHeaders_Succeeds()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(new[] { "row-1" });
+        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(new[] { "row-1" }, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
 
     [Fact]
     public void ExportRecords_ReturnsRows()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "a", "b" });
+        var r = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "a", "b" }, Guid.NewGuid());
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
     }
 
@@ -63,7 +63,7 @@ public class PortabilityTests
         // BE-015: идемпотентность импорта — первая колонка (id) уникальна, последняя строка побеждает.
         var rows = new[] { "id1,first", "id2,other", "id1,second" };
 
-        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(rows);
+        var r = Aggregate.CreateInstance(new AnemicModel()).ImportRecords(rows, Guid.NewGuid());
 
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal(2, r.Model().Rows.Count);

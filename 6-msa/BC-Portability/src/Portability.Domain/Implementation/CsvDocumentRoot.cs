@@ -1,8 +1,8 @@
 namespace Portability.Domain.Implementation;
 using Portability.Domain.Abstraction;
-public sealed class CsvDocumentRoot : ICsvDocumentRoot
+
+// record (positional) — getter-only, мутация через `with`/создание новой версии.
+public sealed record CsvDocumentRoot(IReadOnlyList<string> Headers) : ICsvDocumentRoot
 {
-    public IReadOnlyList<string> Headers { get; private set; } = new List<string>();
-    private CsvDocumentRoot() { }
-    public static ICsvDocumentRoot CreateInstance(IEnumerable<string> headers) => new CsvDocumentRoot { Headers = headers.ToList() };
+    public static ICsvDocumentRoot CreateInstance(IEnumerable<string> headers) => new CsvDocumentRoot(headers.ToList());
 }

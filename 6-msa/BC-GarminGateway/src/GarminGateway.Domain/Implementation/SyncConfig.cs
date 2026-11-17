@@ -1,9 +1,6 @@
 namespace GarminGateway.Domain.Implementation;
 using GarminGateway.Domain.Abstraction;
-public sealed class SyncConfig : ISyncConfig
+public sealed record SyncConfig(IReadOnlyList<string> Metrics, int WindowDays) : ISyncConfig
 {
-    public IReadOnlyList<string> Metrics { get; private set; } = new List<string>();
-    public int WindowDays { get; private set; }
-    private SyncConfig() { }
-    public static ISyncConfig CreateInstance(IEnumerable<string> metrics, int windowDays) => new SyncConfig { Metrics = metrics.ToList(), WindowDays = windowDays };
+    public static ISyncConfig CreateInstance(IEnumerable<string> metrics, int windowDays) => new SyncConfig(metrics.ToList(), windowDays);
 }
