@@ -112,7 +112,14 @@
       if (rec.orgasmsMe > 0) orgasms.push({ participant: "me", count: rec.orgasmsMe, types: rec.orgasmMeType || [], rating: rec.orgasmMeRating || 0 });
       if (rec.orgasmsPartner > 0 && partnerId) orgasms.push({ participant: partnerId, count: rec.orgasmsPartner, types: rec.orgasmPartnerType || [], rating: rec.orgasmPartnerRating || 0 });
 
-      var startP = rec.id ? Promise.resolve(rec.id) : Api.journal.start().then(function (m) { return m.id; });
+      var startP = rec.id ? Promise.resolve(rec.id) : Api.journal.start().then(function (m) {
+        // FE-055: id созданной записи сразу отдаём наверх — чтобы черновик запомнил его
+        // и повтор шёл в ту же запись, а не создавал дубль.
+        if (m && m.id && typeof DB.onRecordCreated === "function") {
+          try { DB.onRecordCreated(m.id); } catch (e) {}
+        }
+        return m.id;
+      });
       return startP.then(function (id) {
         var chain = Promise.resolve();
         if (rec.id) {
@@ -160,7 +167,13 @@
         if (!rows || !rows.length) { fresh[kind] = null; throw err; }
         return DB.getMeta(syncKey(kind)).then(function (m) {
           var at = (m && m.value) || 0;
-          fresh[kind] = { fromCache: true, ageMs: at ? (Date.now() - at) : null };
+          // FE-056: сохраняем и причину отказа, чтобы UI мог её назвать (429/5xx/сеть),
+          // а не только «данные из кэша». Тип возврата не меняем — по-прежнему массив.
+          fresh[kind] = {
+            fromCache: true,
+            ageMs: at ? (Date.now() - at) : null,
+            error: { status: (err && err.status) || 0, message: (err && err.message) || "ошибка запроса" }
+          };
           return rows;
         });
       });
@@ -194,6 +207,13 @@
     if (p.gender && p.gender !== "female") return true;
     if (p.notes && String(p.notes).trim()) return true;
     return false;
+  }
+  // FE-054: клиентский идентификатор для идемпотентного создания каталога.
+  function clientUuid() {
+    try {
+      if (typeof crypto !== "undefined" && crypto && crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {}
+    return "cid-" + Date.now() + "-" + Math.random().toString(36).slice(2);
   }
   // FE-045: один retry на 400/404 для идемпотентного profile — проекция может отставать.
   // Логируем «retry after lag», чтобы не превратить настоящую 400 в молчаливое скрытие.
@@ -246,8 +266,19 @@
       seq = seq.then(function () { return it.archived ? Api.catalog.archive(it.id) : Api.catalog.restore(it.id); });
       return seq.then(function () { return it; });
     }
-    return Api.catalog.add(it.kind, it.name).then(function (m) {
-      var id = m.id;
+    // FE-054: id генерим на клиенте и переиспользуем при retry — сервер принимает его в теле.
+    var clientId = it.id || clientUuid();
+    var create = function () { return Api.catalog.add(it.kind, it.name, clientId); };
+    return create().catch(function (e) {
+      // повторяем только на сетевой/5xx — иначе настоящую 400 спрячем
+      var st = e && e.status;
+      if (!(st === undefined || st === 0 || st >= 500)) throw e;
+      return new Promise(function (res) { setTimeout(res, 200); }).then(function () {
+        console.log("retry after network: catalog add → " + (st || "network"));
+        return create();
+      });
+    }).then(function (m) {
+      var id = (m && m.id) || clientId;
       return Api.catalog.details(id, { photo: it.photo || "", notes: it.notes || "", brand: it.brand || "", fantasyPartner: it.partner || "" })
         .then(function () { it.id = id; return it; });
     });

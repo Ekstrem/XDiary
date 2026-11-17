@@ -27,6 +27,13 @@ async function getItem(page, id) {
 }
 
 async function openItem(page) {
+  // TE-069 (@TL 2026-11-17 21:11, прогон 44143668253): из экрана правки позиции таб-бар скрыт,
+  // поэтому клик по `#tab-catalog` таймаутит «element is not visible». Выходим назад, если мы
+  // всё ещё в `#view-catalog-edit` — иначе шаг «удалить позицию» падает не по делу.
+  if (await page.locator('#view-catalog-edit').isVisible().catch(() => false)) {
+    await page.click('#btn-catalog-edit-back');
+    await expect(page.locator('#view-catalog')).toBeVisible({ timeout: 10000 });
+  }
   await page.click('#tab-catalog');
   await expect(page.locator('#view-catalog')).toBeVisible();
   await page.click('#catalog-tabs button[data-kind="toy"]');
