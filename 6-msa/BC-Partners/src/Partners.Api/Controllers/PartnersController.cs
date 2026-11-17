@@ -37,7 +37,7 @@ public sealed class PartnersController : ControllerBase
     {
         var clientId = ClientId();
         if (clientId is null) return Unauthorized();
-        return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct));
+        return Respond(await _mediator.Send(c, ct));
     }
 
     [HttpPost("{id:guid}/name")]
@@ -81,8 +81,8 @@ public sealed class PartnersController : ControllerBase
         if (clientId is null) return Unauthorized();
         var guard = await OwnerGuardAsync(id, clientId.Value, ct);
         if (guard is not null) return guard;
-        // BE-085: ClientId не из тела, а из sub.
-        return Respond(await _mediator.Send(c with { AggregateId = id, ClientId = clientId.Value }, ct));
+        // BE-085: ClientId не из тела, а из sub (актор из IActorProvider).
+        return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
     }
 
     [HttpPost("{id:guid}/unlink-client")]

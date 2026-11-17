@@ -1,24 +1,24 @@
-namespace Partners.Api.HealthChecks;
+﻿namespace Partners.Api.HealthChecks;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Partners.Storage;
 
 public sealed class DbHealthCheck : IHealthCheck
 {
-    private readonly CommandDbContext _db;
-    public DbHealthCheck(CommandDbContext db) => _db = db;
+    private readonly OutboxDbContext _db;
+    public DbHealthCheck(OutboxDbContext db) => _db = db;
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
         try
         {
             return await _db.Database.CanConnectAsync(cancellationToken)
-                ? HealthCheckResult.Healthy("PostgreSQL: доступна")
-                : HealthCheckResult.Unhealthy("PostgreSQL: недоступна");
+                ? HealthCheckResult.Healthy("PostgreSQL: РґРѕСЃС‚СѓРїРЅР°")
+                : HealthCheckResult.Unhealthy("PostgreSQL: РЅРµРґРѕСЃС‚СѓРїРЅР°");
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy("PostgreSQL: недоступна", ex);
+            return HealthCheckResult.Unhealthy("PostgreSQL: РЅРµРґРѕСЃС‚СѓРїРЅР°", ex);
         }
     }
 }

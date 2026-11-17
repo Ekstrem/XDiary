@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using DigiTFactory.Libraries.CommandRepository.Postgres;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
 using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
@@ -14,8 +14,8 @@ using Xunit.Abstractions;
 namespace Partners.IntegrationTests;
 
 /// <summary>
-/// BE-118 (создание объектов БД): EventStore + Command + Read мигрируются на свежем Postgres.
-/// Гоняется в CI, где @DO даёт Postgres (env XDIARY_TEST_POSTGRES); без БД — пропуск.
+/// BE-118 (СЃРѕР·РґР°РЅРёРµ РѕР±СЉРµРєС‚РѕРІ Р‘Р”): EventStore + Command + Read РјРёРіСЂРёСЂСѓСЋС‚СЃСЏ РЅР° СЃРІРµР¶РµРј Postgres.
+/// Р“РѕРЅСЏРµС‚СЃСЏ РІ CI, РіРґРµ @DO РґР°С‘С‚ Postgres (env XDIARY_TEST_POSTGRES); Р±РµР· Р‘Р” вЂ” РїСЂРѕРїСѓСЃРє.
 /// </summary>
 public sealed class DatabaseCreationTests
 {
@@ -30,7 +30,7 @@ public sealed class DatabaseCreationTests
         var cs = Environment.GetEnvironmentVariable("XDIARY_TEST_POSTGRES");
         if (string.IsNullOrWhiteSpace(cs))
         {
-            _out.WriteLine("SKIPPED: XDIARY_TEST_POSTGRES не задан — тест создания БД работает только в CI (Postgres от @DO).");
+            _out.WriteLine("SKIPPED: XDIARY_TEST_POSTGRES РЅРµ Р·Р°РґР°РЅ вЂ” С‚РµСЃС‚ СЃРѕР·РґР°РЅРёСЏ Р‘Р” СЂР°Р±РѕС‚Р°РµС‚ С‚РѕР»СЊРєРѕ РІ CI (Postgres РѕС‚ @DO).");
             return;
         }
 
@@ -38,7 +38,7 @@ public sealed class DatabaseCreationTests
         services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Partners.Storage")));
         services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(cs, null);
         services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(cs, null);
-        services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(cs));
+        services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(cs));
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
@@ -49,7 +49,7 @@ public sealed class DatabaseCreationTests
         Assert.Empty(es.Database.GetPendingMigrations());
         Assert.NotEmpty(es.Database.GetAppliedMigrations());
 
-        var cmd = sp.GetRequiredService<CommandDbContext>();
+        var cmd = sp.GetRequiredService<OutboxDbContext>();
         cmd.Database.Migrate();
         Assert.Empty(cmd.Database.GetPendingMigrations());
         Assert.Contains("20261030112254_InitialCreate", cmd.Database.GetAppliedMigrations());

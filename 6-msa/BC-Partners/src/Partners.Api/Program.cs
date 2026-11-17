@@ -2,6 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Partners.Api;
 using Partners.Api.HealthChecks;
 using Partners.Domain;
 using Partners.Domain.Abstraction;
@@ -10,8 +11,10 @@ using Partners.InternalContracts;
 using Partners.Storage;
 using XDiary.Contracts;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
 using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
+using Partners.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
@@ -33,11 +36,11 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Partners.Application.Commands.RegisterPartnerCommand>());
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
-// BE-075 (порядок важен, НЕ менять): первая регистрация DbContextOptions выигрывает (TryAdd),
-// поэтому AddDbContext с MigrationsAssembly обязан идти ДО AddEventStorePostgres — иначе
-// DF-пакет перекроет MigrationsAssembly и Migrate() увидит пустой набор (42P01). Доказано на dev: de5507f0.
+// BE-075 (порядок важен, НЕ менять): AddDbContext с MigrationsAssembly обязан идти ДО AddEventStorePostgres.
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Partners.Storage")));
 builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
+builder.Services.AddScoped<PartnersEventReplay>();
 builder.Services.AddEventBusInMemory();
 // BE-082: связь Partners → Journal (partners_directory).
 builder.Services.AddHttpClient();
@@ -45,13 +48,10 @@ builder.Services.AddSingleton<Partners.InternalContracts.IPartnerEventPublisher,
 builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
 builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
 builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
-builder.Services.AddScoped<Partners.Api.PartnerDataMigration>();
-builder.Services.AddHostedService<Partners.Api.PartnerDataMigrationRunner>();
 builder.Services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
-builder.Services.AddScoped<IRepository<IPartners, IPartnerAnemicModel>, PartnerCommandRepository>();
-builder.Services.AddScoped<IPartnersQueryRepository, PartnerReadRepository>();
+builder.Services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
@@ -61,7 +61,7 @@ using (var scope = app.Services.CreateScope())
     var migAsm = ((Microsoft.EntityFrameworkCore.Infrastructure.IInfrastructure<IServiceProvider>)es).Instance.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly>()?.Assembly?.GetName()?.Name;
     Console.WriteLine($"[migrate] asm={typeof(DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext).Assembly.GetName().Name}, migAsm={migAsm}, migrations={string.Join(",", es.Database.GetMigrations())}");
     es.Database.Migrate();
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<OutboxDbContext>().Database.Migrate();
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
     readDb.Database.Migrate();
 }
