@@ -53,7 +53,9 @@ namespace Journal.Storage.Migrations.ReadStore
                     GarminId = table.Column<string>(type: "text", nullable: false),
                     CreatedAt = table.Column<string>(type: "text", nullable: false),
                     UpdatedAt = table.Column<string>(type: "text", nullable: false),
-                    Deleted = table.Column<bool>(type: "boolean", nullable: false)
+                    Deleted = table.Column<bool>(type: "boolean", nullable: false),
+                    State = table.Column<int>(type: "integer", nullable: false),
+                    Version = table.Column<long>(type: "bigint", nullable: false)
                 },
                 constraints: table =>
                 {
