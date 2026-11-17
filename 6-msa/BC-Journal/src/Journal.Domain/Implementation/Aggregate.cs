@@ -1,4 +1,4 @@
-namespace Journal.Domain.Implementation;
+﻿namespace Journal.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
@@ -9,9 +9,9 @@ using Journal.Domain.Specifications;
 using XDiary.Contracts;
 
 /// <summary>
-/// Агрегат Record: бизнес-методы по экранам визарда (классический CEQRS, без metadata-driven).
+/// РђРіСЂРµРіР°С‚ Record: Р±РёР·РЅРµСЃ-РјРµС‚РѕРґС‹ РїРѕ СЌРєСЂР°РЅР°Рј РІРёР·Р°СЂРґР° (РєР»Р°СЃСЃРёС‡РµСЃРєРёР№ CEQRS, Р±РµР· metadata-driven).
 /// </summary>
-public sealed class Aggregate : IRecordAggregate
+internal sealed class Aggregate : IRecordAggregate
 {
     public IJournalAnemicModel Model { get; }
 
@@ -48,7 +48,7 @@ public sealed class Aggregate : IRecordAggregate
 
     private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {
-        newModel = newModel with { CommandName = commandName }; // канон §7: событие соразмерно методу
+        newModel = newModel with { CommandName = commandName }; // РєР°РЅРѕРЅ В§7: СЃРѕР±С‹С‚РёРµ СЃРѕСЂР°Р·РјРµСЂРЅРѕ РјРµС‚РѕРґСѓ
         return BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel)
             .ValidateCommand(specs);
     }
@@ -90,7 +90,7 @@ public sealed class Aggregate : IRecordAggregate
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
-            Id = Model.Id, // @TL 22:21 — id агрегата стабилен: проекция/чтение ищут по нему, а не по id события
+            Id = Model.Id, // @TL 22:21 вЂ” id Р°РіСЂРµРіР°С‚Р° СЃС‚Р°Р±РёР»РµРЅ: РїСЂРѕРµРєС†РёСЏ/С‡С‚РµРЅРёРµ РёС‰СѓС‚ РїРѕ РЅРµРјСѓ, Р° РЅРµ РїРѕ id СЃРѕР±С‹С‚РёСЏ
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), default),
             ClientId = clientId,
             Garmin = false,
@@ -103,13 +103,13 @@ public sealed class Aggregate : IRecordAggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
     {
-        // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO.
-        var whenValidator = new WhenIsoValidator();
+        // TE-101: startedAt РѕР±СЏР·Р°РЅ Р±С‹С‚СЊ ISO 8601; С…СЂР°РЅРёРј РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅС‹Р№ ISO.
+        var whenValidator = new WhenIsoParser();
         if (!whenValidator.TryParse(startedAt, out var normalizedWhen)) return Fail(whenValidator.Reason);
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
         {
-            Id = Model.Id, // @TL 22:21 — id агрегата стабилен
+            Id = Model.Id, // @TL 22:21 вЂ” id Р°РіСЂРµРіР°С‚Р° СЃС‚Р°Р±РёР»РµРЅ
             Root = RecordRoot.CreateInstance(Array.Empty<string>(), normalizedWhen),
             ClientId = clientId,
             DurationMin = durationMin,
@@ -124,8 +124,8 @@ public sealed class Aggregate : IRecordAggregate
 
     public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt)
     {
-        // TE-101: startedAt обязан быть ISO 8601; храним нормализованный ISO (не дословную строку).
-        var v = new WhenIsoValidator();
+        // TE-101: startedAt РѕР±СЏР·Р°РЅ Р±С‹С‚СЊ ISO 8601; С…СЂР°РЅРёРј РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅС‹Р№ ISO (РЅРµ РґРѕСЃР»РѕРІРЅСѓСЋ СЃС‚СЂРѕРєСѓ).
+        var v = new WhenIsoParser();
         if (!v.TryParse(startedAt, out var normalized)) return Fail(v.Reason);
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized) };
         return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });

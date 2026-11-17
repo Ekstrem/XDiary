@@ -1,12 +1,15 @@
-namespace Journal.Domain.Implementation;
+﻿namespace Journal.Domain.Implementation;
 
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain.Abstraction;
 
-// Канон EDM §8.1: иммутабельный агрегат — бизнес-метод порождает НОВУЮ версию,
-// поэтому поля init-only, а не set (мутация через `with`, не через сеттеры).
-public sealed record AnemicModel : IJournalAnemicModel
+// РљР°РЅРѕРЅ EDM В§8.1: РёРјРјСѓС‚Р°Р±РµР»СЊРЅС‹Р№ Р°РіСЂРµРіР°С‚ вЂ” Р±РёР·РЅРµСЃ-РјРµС‚РѕРґ РїРѕСЂРѕР¶РґР°РµС‚ РќРћР’РЈР® РІРµСЂСЃРёСЋ,
+// РїРѕСЌС‚РѕРјСѓ РїРѕР»СЏ init-only, Р° РЅРµ set (РјСѓС‚Р°С†РёСЏ С‡РµСЂРµР· `with`, РЅРµ С‡РµСЂРµР· СЃРµС‚С‚РµСЂС‹).
+internal sealed record AnemicModel : IJournalAnemicModel
 {
+    // QG-012: С„Р°Р±СЂРёРєР° РЅР°С‡Р°Р»СЊРЅРѕРіРѕ (РїСѓСЃС‚РѕРіРѕ) СЃРѕСЃС‚РѕСЏРЅРёСЏ СЃ СЏРІРЅС‹Рј Id.
+    public static IJournalAnemicModel Create(Guid id) => new AnemicModel { Id = id };
+
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;

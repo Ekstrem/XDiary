@@ -1,9 +1,9 @@
-namespace Journal.Domain.Implementation;
+﻿namespace Journal.Domain.Implementation;
 
 using Journal.Domain.Abstraction;
 
-// QG015/QG006: VO иммутабелен — getter-only свойства + приватный конструктор + фабрика.
-public sealed class Orgasms : IOrgasms
+// QG015/QG006: VO РёРјРјСѓС‚Р°Р±РµР»РµРЅ вЂ” getter-only СЃРІРѕР№СЃС‚РІР° + РїСЂРёРІР°С‚РЅС‹Р№ РєРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ + С„Р°Р±СЂРёРєР°.
+internal sealed class Orgasms : IOrgasms
 {
     public string Participant { get; }
     public int Count { get; }
