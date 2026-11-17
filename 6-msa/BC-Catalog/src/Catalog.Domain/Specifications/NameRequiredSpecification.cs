@@ -1,6 +1,6 @@
 namespace Catalog.Domain.Specifications;
 using Catalog.Domain.Abstraction;
-internal sealed class NameRequiredValidator
+internal sealed class NameRequiredSpecification
 {
     public bool IsSatisfiedBy(ICatalogAnemicModel model) => !string.IsNullOrWhiteSpace(model.Root.Name);
     public string Reason => "Имя элемента обязательно.";

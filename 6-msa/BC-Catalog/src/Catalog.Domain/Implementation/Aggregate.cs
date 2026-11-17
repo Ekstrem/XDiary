@@ -6,7 +6,7 @@ using Catalog.Domain.Abstraction;
 using Catalog.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate
 {
     public ICatalogAnemicModel Model { get; }
     private Aggregate(ICatalogAnemicModel model) => Model = model;
@@ -20,33 +20,33 @@ public sealed class Aggregate
 
     public AggregateResult<ICatalog, ICatalogAnemicModel> AddItem(string kind, string name, Guid clientId)
     {
-        var kv = new KindEnumValidator();
+        var kv = new KindEnumSpecification();
         if (!kv.IsSatisfiedBy(kind)) return Fail(kv.Reason);
         var probe = new AnemicModel { Root = CatalogItemRoot.CreateInstance(kind, name) };
-        if (!new NameRequiredValidator().IsSatisfiedBy(probe)) return Fail("Имя элемента обязательно.");
+        if (!new NameRequiredSpecification().IsSatisfiedBy(probe)) return Fail("Имя элемента обязательно.");
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = CatalogItemRoot.CreateInstance(kind, name), ClientId = clientId };
         return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Rename(string name)
     {
         var probe = new AnemicModel { Root = CatalogItemRoot.CreateInstance(Model.Root.Kind, name) };
-        if (!new NameRequiredValidator().IsSatisfiedBy(probe)) return Fail("Имя элемента обязательно.");
+        if (!new NameRequiredSpecification().IsSatisfiedBy(probe)) return Fail("Имя элемента обязательно.");
         var m = Clone() with { Root = CatalogItemRoot.CreateInstance(Model.Root.Kind, name) }; return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> UpdateDetails(string photo, string notes, string brand, string fantasyPartner)
     {
         var m = Clone() with { Photo = photo, Notes = notes, Brand = brand, FantasyPartner = fantasyPartner };
-        if (!new BrandToyOnlyValidator().IsSatisfiedBy(m)) return Fail("brand заполняется только для toy.");
+        if (!new BrandToyOnlySpecification().IsSatisfiedBy(m)) return Fail("brand заполняется только для toy.");
         return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Archive()
     {
-        if (!new ArchiveToyOnlyValidator().IsSatisfiedBy(Model)) return Fail("Archive применяется только для toy.");
+        if (!new ArchiveToyOnlySpecification().IsSatisfiedBy(Model)) return Fail("Archive применяется только для toy.");
         var m = Clone() with { Archived = true }; return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Restore()
     {
-        if (!new ArchiveToyOnlyValidator().IsSatisfiedBy(Model)) return Fail("Restore применяется только для toy.");
+        if (!new ArchiveToyOnlySpecification().IsSatisfiedBy(Model)) return Fail("Restore применяется только для toy.");
         var m = Clone() with { Archived = false }; return Success(m);
     }
     public AggregateResult<ICatalog, ICatalogAnemicModel> Remove() => Success(Clone());
