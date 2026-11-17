@@ -1,17 +1,34 @@
 namespace DailyMetrics.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using DailyMetrics.Domain;
 using DailyMetrics.Domain.Abstraction;
 using DailyMetrics.Domain.Specifications;
 using XDiary.Contracts;
 
-internal sealed class Aggregate
+internal sealed class Aggregate : IDailyMetricsAggregate
 {
     public IDailyMetricsAnemicModel Model { get; }
     private Aggregate(IDailyMetricsAnemicModel model) => Model = model;
     public static Aggregate CreateInstance(IDailyMetricsAnemicModel model) => new(model);
 
+    // IAggregate<TBC> / IAnemicModel<TBC>:
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    // IDailyMetricsAnemicModel:
+    public IDailyMetricsRoot Root => Model.Root;
+    public int Stress => Model.Stress;
+    public int RestingHr => Model.RestingHr;
+    public int Hrv => Model.Hrv;
+    public ISleep Sleep => Model.Sleep;
+    public Guid? ClientId => Model.ClientId;
     private AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> Success(AnemicModel m)
     { var d = BusinessOperationData<IDailyMetrics, IDailyMetricsAnemicModel>.Commit<IDailyMetrics, IDailyMetricsAnemicModel>(Model, m); return new AggregateResultSuccess<IDailyMetrics, IDailyMetricsAnemicModel>(d); }
     private AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> Fail(string e)

@@ -1,17 +1,30 @@
 namespace Privacy.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Privacy.Domain;
 using Privacy.Domain.Abstraction;
 using Privacy.Domain.Specifications;
 using XDiary.Contracts;
 
-internal sealed class Aggregate
+internal sealed class Aggregate : IPinCredentialAggregate
 {
     public IPinCredentialAnemicModel Model { get; }
     private Aggregate(IPinCredentialAnemicModel model) => Model = model;
     public static Aggregate CreateInstance(IPinCredentialAnemicModel model) => new(model);
 
+    // IAggregate<TBC> / IAnemicModel<TBC>:
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    // IPrivacyAnemicModel:
+    public IPinCredentialRoot Root => Model.Root;
+    public bool Locked => Model.Locked;
     private AggregateResult<IPrivacy, IPinCredentialAnemicModel> Success(AnemicModel m)
     { var d = BusinessOperationData<IPrivacy, IPinCredentialAnemicModel>.Commit<IPrivacy, IPinCredentialAnemicModel>(Model, m); return new AggregateResultSuccess<IPrivacy, IPinCredentialAnemicModel>(d); }
     private AggregateResult<IPrivacy, IPinCredentialAnemicModel> Fail(string e)
