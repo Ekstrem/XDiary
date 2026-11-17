@@ -70,10 +70,16 @@ async function main() {
     : 'ИТОГ: идемпотентность НЕ подтверждена (стенд ведёт себя как «до контракта» либо дубли)');
   process.exitCode = ok ? 0 : 1;
 
-  // Уборка: удаляем созданные позиции, чтобы не копить данные на стенде.
-  for (const it of items.filter((x) => x && x.name === name)) {
-    await fetch(BASE + '/api/v1/catalog/' + it.id + '/remove', { method: 'POST', headers: H });
+  // Уборка (@FE 2026-11-17 23:52: после прогона остались 2 позиции — мой фильтр по `name` их не нашёл).
+  // Удаляем по ЯВНЫМ id из ответов (надёжно), плюс страховка по `name` из списка; печатаем статусы.
+  const createdIds = [a.data && a.data.id, b.data && b.data.id].filter(Boolean);
+  const listedIds = items.filter((x) => x && x.name === name).map((x) => x.id);
+  const toRemove = Array.from(new Set(createdIds.concat(listedIds)));
+  for (const rid of toRemove) {
+    const r = await fetch(BASE + '/api/v1/catalog/' + rid + '/remove', { method: 'POST', headers: H });
+    console.log('cleanup catalog:', rid, '->', r.status);
   }
+  if (!toRemove.length) console.log('cleanup catalog: удалять нечего (id в ответах отсутствуют)');
 }
 
 main().catch((e) => { console.log('НЕ ИЗМЕРЕНО:', String((e && e.message) || e).slice(0, 200)); process.exitCode = 2; });
