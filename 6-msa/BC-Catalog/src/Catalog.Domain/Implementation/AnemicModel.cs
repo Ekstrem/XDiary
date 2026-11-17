@@ -25,5 +25,14 @@ internal sealed record AnemicModel : ICatalogAnemicModel
 
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
 
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["ClientId"] = new ClientIdValueObject(ClientId),
+        ["Photo"] = new StringValueObject(Photo),
+        ["Notes"] = new StringValueObject(Notes),
+        ["Brand"] = new StringValueObject(Brand),
+        ["Archived"] = new BoolValueObject(Archived),
+        ["FantasyPartner"] = new StringValueObject(FantasyPartner),
+    };
 }
