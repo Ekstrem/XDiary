@@ -15,7 +15,10 @@ public sealed class Notifier : DomainEventNotifier<IJournal, IRecordAggregate>, 
 {
     private readonly List<IObserver<AggregateResult<IJournal, IJournalAnemicModel>>> _observers = new();
 
-    public Notifier(IRecordAggregate aggregate) : base(aggregate) { }
+    // QG-005: агрегат — приватный конструктор + статическая фабрика Create.
+    private Notifier(IRecordAggregate aggregate) : base(aggregate) { }
+
+    public static Notifier Create(IRecordAggregate aggregate) => new(aggregate);
 
     // IAggregate<IJournal>:
     public Guid Id => Aggregate.Id;

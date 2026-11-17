@@ -19,13 +19,13 @@ public sealed class AggregateProvider : IAggregateProvider<IJournal, IRecordAggr
     {
         var models = await _repository.GetById(id, cancellationToken);
         var model = models.FirstOrDefault() ?? DefaultAnemicModel.Create(id);
-        return new Notifier(Aggregate.CreateInstance(model));
+        return Notifier.Create(Aggregate.CreateInstance(model));
     }
 
     public async Task<IRecordAggregate> GetAggregateAsync(Guid id, long version, CancellationToken cancellationToken = default)
     {
         var model = await _repository.GetByIdAndVersion(id, version, cancellationToken);
-        return new Notifier(Aggregate.CreateInstance(model));
+        return Notifier.Create(Aggregate.CreateInstance(model));
     }
 
     public IRecordAggregate GetAggregate(Guid id, long version)
