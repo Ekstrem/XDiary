@@ -334,8 +334,13 @@ bash "$RUNNER" >/dev/null 2>&1 || true
 __ok=0
 __deadline=$(( $(date +%s) + 30 ))
 while [ "$(date +%s)" -lt "$__deadline" ]; do
-  if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+  __st=""
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
     __st="$(podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  elif command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  fi
+  if [ -n "$__st" ]; then
     if [ "$__st" = "0 0" ]; then
       __hp="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:${HPORT:-8080}/health" 2>/dev/null || echo 000)"
       case "$__hp" in 2??|401) __ok=1; break;; esac
@@ -377,7 +382,11 @@ done
 # Раньше на этом месте была только строка «не поднялся», и три прогона подряд
 # (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`
 # нельзя отличить «нет Jwt__SigningKey» от «конфликт сети» или «упал на миграциях».
-say "  диагностика $CONTAINER (stderr podman run и логи):" >&2
+say "  диагностика $CONTAINER (оба store + логи):" >&2
+{ podman ps -a --filter "name=$CONTAINER" --format '    rootless| {{.Names}} {{.Status}}' 2>/dev/null || true
+  command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --filter "name=$CONTAINER" --format '    root| {{.Names}} {{.Status}}' 2>/dev/null || true
+  podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null ||     sudo -n podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null || true
+} >&2
 if [ -f "$RUNNER" ]; then bash "$RUNNER" 2>&1 | tail -n 20 | sed 's/^/    run| /' >&2 || true; fi
 podman inspect "$CONTAINER" --format '    exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null >&2 || true
 podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /' >&2 || true
