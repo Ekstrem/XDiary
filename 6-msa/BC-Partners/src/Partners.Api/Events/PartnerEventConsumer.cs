@@ -122,7 +122,8 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) —
     // без этого Handle не вызывается (InvalidCastException глушится). Адаптер:
     // @TE 05:04 — fire-and-forget, чтобы синхронный consumer не держал запрос (504).
-    public void OnNext(IDomainEvent<IPartners> e) => _ = HandleAsync(e);
+    public void OnNext(IDomainEvent<IPartners> e)
+        => _ = HandleAsync(e).ContinueWith(t => { if (t.IsFaulted) Console.Error.WriteLine("[BE-128] " + t.Exception?.GetBaseException()); });
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }
