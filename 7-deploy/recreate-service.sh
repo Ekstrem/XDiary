@@ -104,20 +104,36 @@ check_hosts() {
     say "  check-hosts $svc: ожиданий нет (генератор недоступен) — пропуск"
     return 0
   fi
-  if ! podman ps --format '{{.Names}}' | grep -qx "xdiary-$svc"; then
-    say "  check-hosts $svc: контейнера нет" >&2
-    return 1
+  # DO-145 (@FE 02:32): recreate идёт в root-store (update.sh: `$PODMAN_SUDO bash RECREATE`),
+  # поэтому смотреть надо ОБА store — иначе «контейнера нет» при живом (прогон 44420713858).
+  __cs="rootless"
+  if ! podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
+      __cs="root"
+    else
+      say "  check-hosts $svc: контейнера нет (ни rootless, ни root)" >&2
+      return 1
+    fi
   fi
-  actual="$(podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  if [ "$__cs" = "root" ]; then
+    actual="$(sudo -n podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  else
+    actual="$(podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  fi
   if [ "${actual:-0}" -lt "$expected" ]; then
     say "ОШИБКА: $svc ExtraHosts=$actual, ожидалось $expected — флаги попали НЕ в podman" >&2
     return 1
   fi
   if [ "$svc" = "api-gateway" ]; then
+    if [ "$__cs" = "root" ]; then
+      sudo -n podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
+        || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
+    else
     podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
       || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
+    fi
   fi
-  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected), clients есть — ok"
+  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected), clients есть — ok ($__cs)"
   return 0
 }
 
