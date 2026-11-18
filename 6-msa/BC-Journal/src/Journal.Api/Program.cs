@@ -71,6 +71,13 @@ using (var scope = app.Services.CreateScope())
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
     readDb.Database.Migrate();
 }
+// BE-129: глобальный ловец исключений до контроллера — [journal] EX в WithOwner не ловит,
+// т.к. 500 приходит из middleware/routing/DI-конструктора, а не из action.
+app.Use(async (ctx, next) =>
+{
+    try { await next(); }
+    catch (Exception ex) { Console.WriteLine("[mw] EX: " + ex); throw; }
+});
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();
 app.UseAuthentication();
