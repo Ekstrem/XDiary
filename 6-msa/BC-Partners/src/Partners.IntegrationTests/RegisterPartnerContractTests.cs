@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using Partners.InternalContracts;
 using XDiary.Contracts;
 using Xunit;
+using Xunit.Abstractions;
 
 /// <summary>
 /// BE-128: уровень 3 — контрактный. Полный HTTP через WebApplicationFactory:
@@ -19,8 +20,9 @@ using Xunit;
 public class RegisterPartnerContractTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly ITestOutputHelper _output;
 
-    public RegisterPartnerContractTests(WebApplicationFactory<Program> factory)
+    public RegisterPartnerContractTests(WebApplicationFactory<Program> factory, ITestOutputHelper output)
     {
         var cs = Environment.GetEnvironmentVariable("XDIARY_TEST_POSTGRES")
                  ?? throw new InvalidOperationException("XDIARY_TEST_POSTGRES не задан");
@@ -32,6 +34,7 @@ public class RegisterPartnerContractTests : IClassFixture<WebApplicationFactory<
                 ["Jwt:SigningKey"] = "eGRpYXJ5LWRldi1zaWduaW5nLWtleS1taW5pbXVtLTMyLWJ5dGVzLTIwMjY=",
                 ["Jwt:Issuer"] = "xdiary",
             })));
+        _output = output;
     }
 
     [Fact]
@@ -42,18 +45,23 @@ public class RegisterPartnerContractTests : IClassFixture<WebApplicationFactory<
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", MakeJwt(clientId));
 
         var reg = await client.PostAsJsonAsync("/api/v1/partners", new { name = "actor-test-partner" });
-        Assert.True(reg.IsSuccessStatusCode, await reg.Content.ReadAsStringAsync());
+        var body = await reg.Content.ReadAsStringAsync();
+        _output.WriteLine($"POST status={reg.StatusCode} body={body}");
 
-        using var regDoc = JsonDocument.Parse(await reg.Content.ReadAsStringAsync());
+        Assert.True(reg.IsSuccessStatusCode, body);
+
+        using var regDoc = JsonDocument.Parse(body);
         var partnerId = regDoc.RootElement.GetProperty("id").GetGuid();
 
         // BE-128: проекция асинхронная (fire-and-forget) — даём ей завершиться перед чтением.
         await Task.Delay(2000);
 
         var list = await client.GetFromJsonAsync<List<PartnersReadModel>>("/api/v1/partners");
+        _output.WriteLine($"GET count={list?.Count} partnerId={partnerId}");
         Assert.NotNull(list);
 
         var created = list!.FirstOrDefault(x => x.Id == partnerId);
+        _output.WriteLine(created is null ? "created=NULL" : $"created.ClientId={created.ClientId}");
         Assert.NotNull(created);
         Assert.Equal(clientId, created!.ClientId);
     }
