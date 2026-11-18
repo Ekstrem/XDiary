@@ -23,6 +23,7 @@ public class CatalogBusAdapterVersionTests
         var rename = Aggregate.CreateInstance(start.Model()).Rename("Big Ball");
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 

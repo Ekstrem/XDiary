@@ -11,8 +11,6 @@ using Partners.Storage;
 
 namespace Partners.Storage.Migrations.ReadStore
 {
-    [DbContext(typeof(ReadDbContext))]
-    [Migration("20261117210000_AddVersionToPartnersRead")]
     partial class AddVersionToPartnersRead
     {
         /// <inheritdoc />

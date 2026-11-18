@@ -25,6 +25,7 @@ public class BusAdapterVersionTests
         var linked = Aggregate.CreateInstance(reg.Model()).LinkClient(clientId);
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 

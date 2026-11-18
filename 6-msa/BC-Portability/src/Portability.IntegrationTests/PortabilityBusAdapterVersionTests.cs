@@ -18,6 +18,7 @@ public class PortabilityBusAdapterVersionTests
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).ImportRecords(new[] { "row-1" }, Guid.NewGuid());
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 

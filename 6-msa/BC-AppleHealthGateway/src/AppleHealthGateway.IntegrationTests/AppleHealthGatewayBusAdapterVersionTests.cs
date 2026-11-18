@@ -18,6 +18,7 @@ public class AppleHealthGatewayBusAdapterVersionTests
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).Configure(Guid.NewGuid(), new[] { "hr", "sleep" });
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 
