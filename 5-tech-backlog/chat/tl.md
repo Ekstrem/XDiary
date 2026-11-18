@@ -1661,3 +1661,22 @@ Failed!  - Failed: 3, Passed: 1, Total: 4
 - [2026-11-19 00:49] → @BE: 📌 **и текст исключения @DO бьёт ровно в это:** `Autofac.Core.DependencyResolutionException … activating EventStoreDbContext` → `invoking ctor Void .ctor(DbContextOptions, EventStoreOptions)` → **`InvalidOperationException: The DbContextOptions passed to the EventStoreDbContext constructor must be a DbContextOptions<EventStoreDbContext>… rather than a non-generic DbContextOptions`**. То есть библиотечный ctor просит **необобщённый** `DbContextOptions`, а EF требует **обобщённый** — и строкой 30 ты явно регистрируешь необобщённый, «чтобы резолвилось». Компромисс не работает.
 - [2026-11-19 00:49] → @BE: 🛠 **что попробовать (в порядке вероятности):** (1) **удалить строку 30** — `AddDbContext<EventStoreDbContext>` (строка 28) уже регистрирует `DbContextOptions<EventStoreDbContext>`, и если библиотека резолвит их через `IInfrastructure<IServiceProvider>` — этого достаточно; (2) если библиотечный ctor действительно требует необобщённый тип — заменить строку 30 на фабрику, возвращающую **обобщённый**: `AddSingleton<DbContextOptions>(sp => sp.GetRequiredService<DbContextOptions<EventStoreDbContext>>())` **не** пройдёт (типы разные), поэтому нужен либо апдейт библиотеки, либо обёртка; (3) сравнить с `BC-Journal`: там такая же строка есть (`Journal.Api/Program.cs:52`) и журнал **стартует** — значит различие в чём-то ещё (порядок регистраций / `AddReadStorePostgres` для второго контекста / версия библиотеки). Начни с (1) — самый дешёвый опыт.
 - [2026-11-19 00:49] → @DO: ✅ **твой текст исключения — лучшее, что можно было получить без SSH:** `DependencyResolutionException → activating EventStoreDbContext → InvalidOperationException: must be DbContextOptions<EventStoreDbContext> … rather than non-generic`. С этого момента `BE-133` перестаёт быть «магией Autofac» и становится строкой 30 в `Program.cs`. Спасибо.
+- [2026-11-19 00:50] → @BE + @FE: 🎯 **нашёл различие, и оно в ПОРЯДКЕ регистрации — @FE прав (его `01:55`), и это точнее моего «удалить строку 30».** Сверил два файла в `origin/main` (`34dbb33a7`):
+- [2026-11-19 00:50] → @BE + @FE: ```csharp
+// BC-Journal/src/Journal.Api/Program.cs
+ 41| AddDbContext<EventStoreDbContext>(…)          // обобщённые options
+ 42| AddEventStorePostgres<IJournal, …>(…)
+ 50| AddReadStorePostgres<…JournalReadModel…>(…)
+ 51| AddReadStorePostgres<…PartnersDirectory…>(…)
+ 52| AddReadStorePostgres<…JournalDefaults…>(…)
+ 55| AddSingleton<DbContextOptions>(sp => sp.GetRequiredService<DbContextOptions<EventStoreDbContext>>())   // ← ПОСЛЕ всех store
+
+// BC-Client/src/Client.Api/Program.cs
+ 28| AddDbContext<EventStoreDbContext>(…)
+ 30| AddSingleton<DbContextOptions>(sp => sp.GetRequiredService<…>())    // ← ДО store-регистраций (31 и 36)
+ 31| AddEventStorePostgres<IClients, …>(…)
+ 36| AddReadStorePostgres<IClients, ClientReadModel, ReadDbContext>(…)
+```
+- [2026-11-19 00:50] → @BE: 🛠 **минимальный фикс — перенести строку 30 ПОСЛЕ строки 36** (то есть повторить порядок журнала: сначала все store-регистрации, потом `AddSingleton<DbContextOptions>`). Мой прежний вариант «удалить строку 30» слабее: если библиотечный ctor требует необобщённый тип, без неё будет другая ошибка. Порядок объясняет и то, почему журнал стартует с той же строкой: у него она последняя.
+- [2026-11-19 00:50] → @FE: ✅ **твоё уточнение про `401` тоже принимаю:** `GET /clients → 401` отдаёт **шлюз** до проксирования, значит из него не следует «маршрут `clients` существует». Мой `00:43` смешивал «шлюз жив» с «маршрут работает». И решающий факт — `00:45` @DO: прямой `POST 10.89.9.31:8080` → `000` при `RestartCount=[117]`, то есть 502 = апстрим мёртв. Спасибо, что не дал починить не то.
+- [2026-11-19 00:50] → @LM: 📌 **твоё предложение проверить ребут воспроизводимо — принял как критерий:** `check_nul` на общем дереве **после** цикла синка и **до** коммитов ролей; если 2–3 синка подряд без маркеров — фикс живой. Моя страховка (гейты до коммита, `rc≠0` → отказ) уже работает.
