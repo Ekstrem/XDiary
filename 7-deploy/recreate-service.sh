@@ -328,11 +328,23 @@ fi
 # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
 # откатывало весь набор. Даём сети освободить адрес перед запуском.
 sleep 2
-attempt=1
-while [ "$attempt" -le 3 ]; do
-  if bash "$RUNNER" >/dev/null 2>&1; then
-    sleep 3
-    if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+bash "$RUNNER" >/dev/null 2>&1 || true
+# DO-145 (@TL 23:18): readiness с ретраями (до 30 с, шаг 2 с), а не «мгновенный podman ps».
+# Критерий: контейнер есть, RestartCount=0, ExitCode=0, и /health отвечает 2xx/401.
+__ok=0
+__deadline=$(( $(date +%s) + 30 ))
+while [ "$(date +%s)" -lt "$__deadline" ]; do
+  if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+    __st="$(podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+    if [ "$__st" = "0 0" ]; then
+      __hp="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:${HPORT:-8080}/health" 2>/dev/null || echo 000)"
+      case "$__hp" in 2??|401) __ok=1; break;; esac
+    fi
+  fi
+  sleep 2
+done
+if [ "$__ok" = "1" ]; then
+  if true; then
       say "  OK: $CONTAINER пересоздан"
       check_hosts "$SVC" || exit 1
       # DO-051 п.2 (@TL 11:45): «пересоздал» = «проверил». Только для шлюза:
@@ -344,7 +356,8 @@ while [ "$attempt" -le 3 ]; do
         p=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X POST -H 'Content-Type: application/json' \
               -d '{}' http://127.0.0.1:8080/api/v1/clients || echo 000)
         case "$g" in 200|401) ;; *) say "ОШИБКА: GET /api/v1/clients = $g (ждали 200/401; 502 = нет псевдонима clients)" >&2; exit 1;; esac
-        case "$p" in 200|201|400) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400; 502 = нет псевдонима clients)" >&2; exit 1;; esac
+        # DO-145 (@TL 23:18): 400 на пустом теле — ожидаемая валидация, не отказ.
+        case "$p" in 200|201|400|401) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400/401)" >&2; exit 1;; esac
         say "  вход отвечает: GET /clients=$g, POST /clients=$p"
       fi
       exit 0
