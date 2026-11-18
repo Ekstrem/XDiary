@@ -171,7 +171,14 @@ if [ -n "$IMAGE_OVERRIDE" ]; then
   python3 - "$BODY" "$IMAGE_OVERRIDE" <<'PY'
 import sys
 path, img = sys.argv[1:3]
-line = open(path, encoding='utf-8').read().strip()
+raw = open(path, encoding='utf-8').read().replace('\r', '')
+# DO-144 (@DO 2026-11-18): body ОБЯЗАН быть одной командой в одну строку.
+# Было: из-за `\\`-продолжений/хвостов в body попадала вторая строка (голый хеш),
+# runner получал `line 6: <hash>: command not found`, контейнер не пересоздавался,
+# а старый держал имя ⇒ `name "xdiary-client" is already in use` (deploy-dev 19:48Z).
+lines = [l for l in raw.splitlines() if l.strip()]
+line = next((l for l in lines if 'podman run' in l), lines[0] if lines else '')
+line = line.strip()
 parts = line.rsplit(' ', 1)
 assert len(parts) == 2, 'нет образа в конце строки'
 open(path, 'w', encoding='utf-8').write(parts[0] + ' ' + img + '\n')
@@ -233,6 +240,9 @@ elif grep -q -- '--add-host' "$RUNNER"; then
 fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
+# DO-144: страховка от «второй строки» в runner (битый image-override).
+run_cnt="$(grep -c '^podman run' "$RUNNER" || true)"
+[ "$run_cnt" = "1" ] || die "в runner $run_cnt команд podman run (ожидалась 1) — контейнер не трогаю"
 
 # 2026-11-10 (@DO): ПОРЯДОК ВАЖЕН — образ проверяем/тянем ДО удаления контейнера.
 # Инцидент: lock указывал на новый тег, которого не было локально; скрипт удалил старый
