@@ -1,4 +1,4 @@
-﻿using Autofac;
+using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Journal.Application;
 using Journal.Domain;
@@ -43,6 +43,9 @@ builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Co
 // QG-301/override-СЂРµРїР»РµР№: РїРµСЂРµРєР»СЋС‡Р°РµРј IEventStoreRepository РЅР° РЅР°СЃР»РµРґРЅРёРєР° СЃ СЂРµР°Р»СЊРЅС‹Рј fold (RecordEventReplay),
 // РёРЅР°С‡Рµ FullEventSourcingRepository.GetById РІРѕР·РІСЂР°С‰Р°РµС‚ РїСѓСЃС‚РѕР№ СЃРїРёСЃРѕРє (TODO РІ Р±РёР±Р»РёРѕС‚РµРєРµ).
 builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStoreRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
+// BE-129: реальный реплей и как IAnemicModelRepository — иначе AggregateProvider берёт библиотечный
+// FullEventSourcingRepository.GetById и реконструкция не использует RecordEventReplay.
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
