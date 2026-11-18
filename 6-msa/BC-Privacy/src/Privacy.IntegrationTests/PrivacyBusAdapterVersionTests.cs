@@ -18,6 +18,7 @@ public class PrivacyBusAdapterVersionTests
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).SetPin(Guid.NewGuid(), "salt", "hash", 100000);
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 
