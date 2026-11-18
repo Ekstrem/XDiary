@@ -192,7 +192,7 @@ jobs:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
-          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64
+          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64
           script: |
             set -eu
             for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
