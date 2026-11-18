@@ -1,4 +1,5 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Client.Storage.Migrations.ReadStore
 {
     /// <inheritdoc />
+    [DbContext(typeof(Client.Storage.ReadDbContext))]
+    [Migration("20261105170000_AddReadStores")]
     public partial class AddReadStores : Migration
     {
         /// <inheritdoc />
