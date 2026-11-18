@@ -122,6 +122,8 @@ jobs:
         run: python tools/gen_images_lock.py --check
 
       - name: Закоммитить, если изменилось
+        env:
+          GH_TOKEN: ${{ github.token }}   # gh pr list/create без него падает
         run: |
           set -euo pipefail
           if git diff --quiet -- 7-deploy/images.lock; then
