@@ -342,6 +342,12 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
   fi
   if [ -n "$__st" ]; then
     if [ "$__st" = "0 0" ]; then
+      # DO-145 (@TL 23:58): HTTP-проверка — ТОЛЬКО для шлюза. Остальные сервисы портов
+      # на хост не публикуют, и `127.0.0.1:8080/health` попадает в чужой listener
+      # (Caddy/APIM) → ложное «не поднялся» при живом контейнере (прогон 44395812395).
+      if [ "$SVC" != "api-gateway" ]; then
+        __ok=1; break
+      fi
       __hp="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:${HPORT:-8080}/health" 2>/dev/null || echo 000)"
       case "$__hp" in 2??|401) __ok=1; break;; esac
     fi
