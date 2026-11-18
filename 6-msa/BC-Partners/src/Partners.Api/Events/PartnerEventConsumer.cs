@@ -92,7 +92,6 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 // @TL 15:58: полноты нет → не пишем и не публикуем (симметрия с else); удаление публикуем всегда.
                 if (!string.IsNullOrEmpty(existing.Name) || existing.DeletedAt is not null)
                 {
-                    Console.WriteLine($"[handle] upsert Id={existing.Id} Name={existing.Name} ClientId={existing.ClientId} Version={existing.Version}");
                     await _readStore.UpsertAsync(existing);
                     // BE-082: публикуем текущее состояние партнёра в Journal (partners_directory).
                     await _publisher.PublishAsync(existing.Id, existing.Name, existing.ClientId, existing.DeletedAt, CancellationToken.None);
@@ -130,7 +129,6 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 // @TL 15:58: полноты нет → не материализуем строку с пустым именем и не публикуем (симметрия с веткой merge).
                 if (!string.IsNullOrEmpty(name) || deletedAt is not null)
                 {
-                    Console.WriteLine($"[handle] upsert Id={created.Id} Name={created.Name} ClientId={created.ClientId} Version={created.Version}");
                     await _readStore.UpsertAsync(created);
                     await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
                 }
@@ -141,8 +139,7 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) —
     // без этого Handle не вызывается (InvalidCastException глушится). Адаптер:
     // @TE 05:04 — fire-and-forget, чтобы синхронный consumer не держал запрос (504).
-    public void OnNext(IDomainEvent<IPartners> e)
-        => _ = HandleAsync(e).ContinueWith(t => { if (t.IsFaulted) Console.WriteLine("[handle] EX: " + t.Exception?.GetBaseException()); });
+    public void OnNext(IDomainEvent<IPartners> e) => _ = HandleAsync(e);
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 }
