@@ -113,7 +113,14 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
                 if (!string.IsNullOrEmpty(name) || deletedAt is not null)
                 {
                     Console.WriteLine($"[handle] upsert Id={created.Id} Name={created.Name} ClientId={created.ClientId} Version={created.Version}");
-                    await _readStore.UpsertAsync(created);
+                    try
+                    {
+                        await _readStore.UpsertAsync(created);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("[handle] EX: " + ex);
+                    }
                     await _publisher.PublishAsync(created.Id, created.Name, created.ClientId, created.DeletedAt, CancellationToken.None);
                 }
             }
