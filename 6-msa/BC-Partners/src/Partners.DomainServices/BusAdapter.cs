@@ -38,7 +38,7 @@ public sealed class BusAdapter : IObserver<AggregateResult<IPartners, IPartnerAn
 
     public void OnCompleted() { }
 
-    private Task SaveEventAsync(AggregateResult<IPartners, IPartnerAnemicModel> result)
+    private async Task SaveEventAsync(AggregateResult<IPartners, IPartnerAnemicModel> result)
     {
         var jsonOptions = new JsonSerializerOptions();
         jsonOptions.Converters.Add(new IValueObjectJsonConverter());
@@ -50,7 +50,7 @@ public sealed class BusAdapter : IObserver<AggregateResult<IPartners, IPartnerAn
         var entry = new DomainEventEntry
         {
             Id = result.Event.Id,
-            Version = result.Event.Version,
+            Version = await _store.GetEventCountAsync(result.Event.Id) + 1,
             CorrelationToken = result.Event.CorrelationToken,
             BoundedContext = result.Event.ContextName,
             CommandName = cmdName,
@@ -59,6 +59,6 @@ public sealed class BusAdapter : IObserver<AggregateResult<IPartners, IPartnerAn
             Result = result.Event.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        return _store.SaveEventAsync(entry);
+        await _store.SaveEventAsync(entry);
     }
 }
