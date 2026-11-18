@@ -12,7 +12,7 @@ public sealed class ListPartnersHandler : IRequestHandler<ListPartnersQuery, IRe
     private readonly IReadRepository<IPartners, PartnersReadModel> _read;
     public ListPartnersHandler(IReadRepository<IPartners, PartnersReadModel> read) => _read = read;
     public async Task<IReadOnlyList<PartnersReadModel>> Handle(ListPartnersQuery r, CancellationToken ct)
-        => (await _read.GetAllAsync(new Paging(0, int.MaxValue), ct)).Where(x => x.ClientId == r.ClientId && x.DeletedAt == null).ToList();
+        => (await _read.GetAllAsync(new Paging(1, int.MaxValue), ct)).Where(x => x.ClientId == r.ClientId && x.DeletedAt == null).ToList();
 }
 public sealed class GetPartnerByIdHandler : IRequestHandler<GetPartnerByIdQuery, PartnersReadModel?>, IQueryHandler
 {
