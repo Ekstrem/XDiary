@@ -54,25 +54,8 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
 
     public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
     {
-        Console.WriteLine("[handle] entered");
-        // @TE 04:32 — ChangedValueObjectsJson пишется с $type-дискриминатором, иначе
-        // event-sourced GetById (IAnemicModelRepository) не может реконструировать IValueObject.
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
-        var entry = new DomainEventEntry
-        {
-            Id = domainEvent.Id,
-            Version = domainEvent.Version,
-            CorrelationToken = domainEvent.CorrelationToken,
-            BoundedContext = domainEvent.ContextName,
-            CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
-            SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
-            Result = domainEvent.Result.ToString(),
-            CreatedAt = DateTime.UtcNow,
-        };
-        await _store.SaveEventAsync(entry);
-
+        // BE-128: событие УЖЕ сохранено BusAdapter'ом (SaveEventAsync до PublishAsync).
+        // Повторный SaveEventAsync здесь был дублем (INSERT по тому же Id) и валил проекцию.
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
         {
