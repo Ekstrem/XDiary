@@ -346,7 +346,8 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
     # проходит как «пересоздан» (deploy-dev зелёный при client, рестартующем 36 раз).
     __img="$(podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null \
              || sudo -n podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null || echo '')"
-    __want="ghcr.io/ekstrem/xdiary-$SVC:$TAG"
+    # DO-145 (@TL 01:38): в скрипте нет `$TAG` (тег = `$lock_tag`, строка 216) — при set -u это fatal.
+    __want="ghcr.io/ekstrem/xdiary-$SVC:${lock_tag:-}"
     if [ "$__img" != "$__want" ]; then
       __st="image-mismatch($__img != $__want)"
     fi
