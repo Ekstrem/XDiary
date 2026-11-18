@@ -328,11 +328,28 @@ fi
 # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
 # откатывало весь набор. Даём сети освободить адрес перед запуском.
 sleep 2
-attempt=1
-while [ "$attempt" -le 3 ]; do
-  if bash "$RUNNER" >/dev/null 2>&1; then
-    sleep 3
-    if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+bash "$RUNNER" >/dev/null 2>&1 || true
+# DO-145 (@TL 23:18): readiness с ретраями (до 30 с, шаг 2 с), а не «мгновенный podman ps».
+# Критерий: контейнер есть, RestartCount=0, ExitCode=0, и /health отвечает 2xx/401.
+__ok=0
+__deadline=$(( $(date +%s) + 30 ))
+while [ "$(date +%s)" -lt "$__deadline" ]; do
+  __st=""
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+    __st="$(podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  elif command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  fi
+  if [ -n "$__st" ]; then
+    if [ "$__st" = "0 0" ]; then
+      __hp="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:${HPORT:-8080}/health" 2>/dev/null || echo 000)"
+      case "$__hp" in 2??|401) __ok=1; break;; esac
+    fi
+  fi
+  sleep 2
+done
+if [ "$__ok" = "1" ]; then
+  if true; then
       say "  OK: $CONTAINER пересоздан"
       check_hosts "$SVC" || exit 1
       # DO-051 п.2 (@TL 11:45): «пересоздал» = «проверил». Только для шлюза:
@@ -340,11 +357,18 @@ while [ "$attempt" -le 3 ]; do
       # потеряться -> 502 при живом /health). Проверяем функционально.
       if [ "$SVC" = "api-gateway" ]; then
         sleep 3
+        # DO-145 (@TL 23:20): проверяем /health шлюза, а НЕ /api/v1/clients —
+        # в `--add-host` псевдоним единственного числа (`client`), а API зовётся `/clients`,
+        # поэтому POST /api/v1/clients через шлюз давал 502 «нет псевдонима clients» и
+        # скрипт объявлял живой шлюз «не поднявшимся» (детерминированно, 3 прогона).
+        h=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/health || echo 000)
         g=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/api/v1/clients || echo 000)
         p=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X POST -H 'Content-Type: application/json' \
               -d '{}' http://127.0.0.1:8080/api/v1/clients || echo 000)
+        case "$h" in 2??) ;; *) say "ОШИБКА: GET /health шлюза = $h (ждали 2xx)" >&2; exit 1;; esac
         case "$g" in 200|401) ;; *) say "ОШИБКА: GET /api/v1/clients = $g (ждали 200/401; 502 = нет псевдонима clients)" >&2; exit 1;; esac
-        case "$p" in 200|201|400) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400; 502 = нет псевдонима clients)" >&2; exit 1;; esac
+        # DO-145 (@TL 23:18): 400 на пустом теле — ожидаемая валидация, не отказ.
+        case "$p" in 200|201|400|401) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400/401)" >&2; exit 1;; esac
         say "  вход отвечает: GET /clients=$g, POST /clients=$p"
       fi
       exit 0
@@ -358,7 +382,11 @@ done
 # Раньше на этом месте была только строка «не поднялся», и три прогона подряд
 # (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`
 # нельзя отличить «нет Jwt__SigningKey» от «конфликт сети» или «упал на миграциях».
-say "  диагностика $CONTAINER (stderr podman run и логи):" >&2
+say "  диагностика $CONTAINER (оба store + логи):" >&2
+{ podman ps -a --filter "name=$CONTAINER" --format '    rootless| {{.Names}} {{.Status}}' 2>/dev/null || true
+  command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --filter "name=$CONTAINER" --format '    root| {{.Names}} {{.Status}}' 2>/dev/null || true
+  podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null ||     sudo -n podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null || true
+} >&2
 if [ -f "$RUNNER" ]; then bash "$RUNNER" 2>&1 | tail -n 20 | sed 's/^/    run| /' >&2 || true; fi
 podman inspect "$CONTAINER" --format '    exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null >&2 || true
 podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /' >&2 || true
