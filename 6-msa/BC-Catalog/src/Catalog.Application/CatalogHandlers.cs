@@ -1,50 +1,87 @@
 namespace Catalog.Application.Commands;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using MediatR;
 using Catalog.Domain;
 using Catalog.Domain.Abstraction;
-using Catalog.Domain.Implementation;
 using XDiary.Contracts;
 
-public sealed class AddCatalogItemHandler : IRequestHandler<AddCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
+public sealed class AddCatalogItemHandler : IRequestHandler<AddCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
-    public AddCatalogItemHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
+    private readonly IAggregateProvider<ICatalog, ICatalogAggregate> _provider;
+    private readonly IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> _observer;
+    private readonly IActorProvider _actor;
+    public AddCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer, IActorProvider actor) { _provider = provider; _observer = observer; _actor = actor; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(AddCatalogItemCommand r, CancellationToken ct)
-    { var id = r.Id ?? Guid.NewGuid(); var res = Aggregate.CreateInstance(new AnemicModel { Id = id }).AddItem(r.Kind, r.Name, r.ClientId); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var id = r.Id ?? Guid.NewGuid();
+        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
+        return aggregate.AddItem(r.Kind, r.Name, _actor.ClientId);
+    }
 }
-public sealed class RenameCatalogItemHandler : IRequestHandler<RenameCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
+public sealed class RenameCatalogItemHandler : IRequestHandler<RenameCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
-    public RenameCatalogItemHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
+    private readonly IAggregateProvider<ICatalog, ICatalogAggregate> _provider;
+    private readonly IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> _observer;
+    public RenameCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(RenameCatalogItemCommand r, CancellationToken ct)
-    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return CatalogResults.Fail("Catalog item not found."); var res = Aggregate.CreateInstance(m).Rename(r.Name); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
+        if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
+        return aggregate.Rename(r.Name);
+    }
 }
-public sealed class UpdateCatalogItemDetailsHandler : IRequestHandler<UpdateCatalogItemDetailsCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
+public sealed class UpdateCatalogItemDetailsHandler : IRequestHandler<UpdateCatalogItemDetailsCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
-    public UpdateCatalogItemDetailsHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
+    private readonly IAggregateProvider<ICatalog, ICatalogAggregate> _provider;
+    private readonly IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> _observer;
+    public UpdateCatalogItemDetailsHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(UpdateCatalogItemDetailsCommand r, CancellationToken ct)
-    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return CatalogResults.Fail("Catalog item not found."); var res = Aggregate.CreateInstance(m).UpdateDetails(r.Photo, r.Notes, r.Brand, r.FantasyPartner); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
+        if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
+        return aggregate.UpdateDetails(r.Photo, r.Notes, r.Brand, r.FantasyPartner);
+    }
 }
-public sealed class ArchiveCatalogItemHandler : IRequestHandler<ArchiveCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
+public sealed class ArchiveCatalogItemHandler : IRequestHandler<ArchiveCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
-    public ArchiveCatalogItemHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
+    private readonly IAggregateProvider<ICatalog, ICatalogAggregate> _provider;
+    private readonly IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> _observer;
+    public ArchiveCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(ArchiveCatalogItemCommand r, CancellationToken ct)
-    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return CatalogResults.Fail("Catalog item not found."); var res = Aggregate.CreateInstance(m).Archive(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
+        if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
+        return aggregate.Archive();
+    }
 }
-public sealed class RestoreCatalogItemHandler : IRequestHandler<RestoreCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
+public sealed class RestoreCatalogItemHandler : IRequestHandler<RestoreCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
-    public RestoreCatalogItemHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
+    private readonly IAggregateProvider<ICatalog, ICatalogAggregate> _provider;
+    private readonly IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> _observer;
+    public RestoreCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(RestoreCatalogItemCommand r, CancellationToken ct)
-    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return CatalogResults.Fail("Catalog item not found."); var res = Aggregate.CreateInstance(m).Restore(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
+        if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
+        return aggregate.Restore();
+    }
 }
-public sealed class RemoveCatalogItemHandler : IRequestHandler<RemoveCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>
+public sealed class RemoveCatalogItemHandler : IRequestHandler<RemoveCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ICatalog, ICatalogAnemicModel> _repo;
-    public RemoveCatalogItemHandler(IRepository<ICatalog, ICatalogAnemicModel> repo) => _repo = repo;
+    private readonly IAggregateProvider<ICatalog, ICatalogAggregate> _provider;
+    private readonly IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> _observer;
+    public RemoveCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(RemoveCatalogItemCommand r, CancellationToken ct)
-    { var m = await _repo.GetByIdAsync(r.AggregateId, ct); if (m is null) return CatalogResults.Fail("Catalog item not found."); var res = Aggregate.CreateInstance(m).Remove(); if (res.IsSuccess()) await _repo.SaveAsync(res, ct); return res; }
+    {
+        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
+        if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
+        return aggregate.Remove();
+    }
 }

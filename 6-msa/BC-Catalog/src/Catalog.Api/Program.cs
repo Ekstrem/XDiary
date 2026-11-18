@@ -2,6 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Catalog.Api;
 using Catalog.Api.HealthChecks;
 using Catalog.Domain;
 using Catalog.Domain.Abstraction;
@@ -9,6 +10,11 @@ using Catalog.DomainServices;
 using Catalog.InternalContracts;
 using Catalog.Storage;
 using XDiary.Contracts;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
+using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
+using Catalog.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
@@ -20,16 +26,24 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Catalog.Application.Commands.AddCatalogItemCommand>());
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
-builder.Services.AddScoped<IRepository<ICatalog, ICatalogAnemicModel>, CatalogCommandRepository>();
-builder.Services.AddScoped<ICatalogQueryRepository, CatalogReadRepository>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Catalog.Storage")));
+
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
+builder.Services.AddEventStorePostgres<ICatalog, ICatalogAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
+builder.Services.AddScoped<CatalogEventReplay>();
+builder.Services.AddEventBusInMemory();
+builder.Services.AddReadStorePostgres<ICatalog, CatalogReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();

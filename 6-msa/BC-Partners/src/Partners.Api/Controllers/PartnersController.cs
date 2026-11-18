@@ -37,6 +37,7 @@ public sealed class PartnersController : ControllerBase
     {
         var clientId = ClientId();
         if (clientId is null) return Unauthorized();
+        HttpContext.Items["ActorClientId"] = clientId.Value;
         return Respond(await _mediator.Send(c, ct));
     }
 

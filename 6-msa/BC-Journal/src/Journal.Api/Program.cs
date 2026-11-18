@@ -44,7 +44,7 @@ builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Co
 // РёРЅР°С‡Рµ FullEventSourcingRepository.GetById РІРѕР·РІСЂР°С‰Р°РµС‚ РїСѓСЃС‚РѕР№ СЃРїРёСЃРѕРє (TODO РІ Р±РёР±Р»РёРѕС‚РµРєРµ).
 builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStoreRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
 // BE-129: реальный реплей и как IAnemicModelRepository — иначе AggregateProvider берёт библиотечный
-// FullEventSourcingRepository.GetById и реконструкция не использует RecordEventReplay.
+// FullEventSourcingRepository.GetById (TODO → пустой список) и реконструкция всегда DefaultAnemicModel.
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);

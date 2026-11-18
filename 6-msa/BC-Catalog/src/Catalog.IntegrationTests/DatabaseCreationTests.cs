@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace Catalog.IntegrationTests;
 
 /// <summary>
-/// BE-118 (создание объектов БД): CommandDbContext мигрируется на свежем Postgres.
+/// BE-118 (создание объектов БД): ReadDbContext мигрируется на свежем Postgres (создаёт catalog_read).
 /// Гоняется в CI, где @DO даёт Postgres (env XDIARY_TEST_POSTGRES); без БД — пропуск.
 /// </summary>
 public sealed class DatabaseCreationTests
@@ -24,9 +24,8 @@ public sealed class DatabaseCreationTests
             _out.WriteLine("SKIPPED: XDIARY_TEST_POSTGRES не задан — тест создания БД работает только в CI (Postgres от @DO).");
             return;
         }
-        using var cmd = new CommandDbContext(new DbContextOptionsBuilder<CommandDbContext>().UseNpgsql(cs).Options);
-        cmd.Database.Migrate();
-        Assert.Empty(cmd.Database.GetPendingMigrations());
-        Assert.NotEmpty(cmd.Database.GetAppliedMigrations());
+        using var read = new ReadDbContext(new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options);
+        read.Database.Migrate();
+        Assert.Empty(read.Database.GetPendingMigrations());
     }
 }

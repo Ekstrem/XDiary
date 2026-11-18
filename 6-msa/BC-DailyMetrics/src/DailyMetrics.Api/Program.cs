@@ -2,6 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using DailyMetrics.Api;
 using DailyMetrics.Api.Events;
 using DailyMetrics.Api.HealthChecks;
 using DailyMetrics.Domain;
@@ -10,6 +11,10 @@ using DailyMetrics.DomainServices;
 using DailyMetrics.Application;
 using DailyMetrics.InternalContracts;
 using DailyMetrics.Storage;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
+using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 using XDiary.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,11 +27,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<DailyMetrics.Application.Commands.RecordStressCommand>());
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
-builder.Services.AddScoped<IRepository<IDailyMetrics, IDailyMetricsAnemicModel>, DailyMetricsCommandRepository>();
-builder.Services.AddScoped<DailyMetricsCommandRepository>();
-builder.Services.AddScoped<IDailyMetricsQueryRepository, DailyMetricsReadRepository>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("DailyMetrics.Storage")));
+
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
+builder.Services.AddEventStorePostgres<IDailyMetrics, IDailyMetricsAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<IDailyMetrics, IDailyMetricsAnemicModel>, DailyMetricsEventSourcingRepository>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IDailyMetrics, IDailyMetricsAnemicModel>, DailyMetricsEventSourcingRepository>();
+builder.Services.AddScoped<DailyMetricsEventReplay>();
+builder.Services.AddEventBusInMemory();
+builder.Services.AddReadStorePostgres<IDailyMetrics, DailyMetricsReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
+
+
+
+
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IDailyMetricsEventPublisher, HttpDailyMetricsEventPublisher>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
@@ -34,7 +49,8 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();

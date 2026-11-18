@@ -26,7 +26,7 @@ public sealed class SomaticSeriesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> RecordPoint([FromBody] RecordPointCommand c, CancellationToken ct)
-    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Respond(await _mediator.Send(c with { ClientId = clientId.Value }, ct)); }
+    { var clientId = ClientId(); if (clientId is null) return Unauthorized(); return Respond(await _mediator.Send(c, ct)); }
 
     [HttpGet("slice")]
     [ProducesResponseType(StatusCodes.Status200OK)]

@@ -1,17 +1,25 @@
 namespace SomaticSeries.Application.Commands;
 using SomaticSeries.Application;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using MediatR;
 using SomaticSeries.Domain;
 using SomaticSeries.Domain.Abstraction;
-using SomaticSeries.Domain.Implementation;
 using XDiary.Contracts;
 
-public sealed class RecordPointHandler : IRequestHandler<RecordPointCommand, AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>>
+public sealed class RecordPointHandler : IRequestHandler<RecordPointCommand, AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>>, ICommandHandler
 {
-    private readonly IRepository<ISomaticSeries, ISomaticSeriesAnemicModel> _repo;
+    private readonly IAggregateProvider<ISomaticSeries, ISomaticSeriesAggregate> _provider;
+    private readonly IObserver<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> _observer;
+    private readonly IActorProvider _actor;
     private readonly ISomaticSeriesEventPublisher _publisher;
-    public RecordPointHandler(IRepository<ISomaticSeries, ISomaticSeriesAnemicModel> repo, ISomaticSeriesEventPublisher publisher) { _repo = repo; _publisher = publisher; }
+    public RecordPointHandler(IAggregateProvider<ISomaticSeries, ISomaticSeriesAggregate> provider, IObserver<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> observer, IActorProvider actor, ISomaticSeriesEventPublisher publisher) { _provider = provider; _observer = observer; _actor = actor; _publisher = publisher; }
     public async Task<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> Handle(RecordPointCommand r, CancellationToken ct)
-    { var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint(r.T, r.Hr, r.BodyBattery, r.ClientId); if (res.IsSuccess()) { await _repo.SaveAsync(res, ct); _ = _publisher.PublishPointAsync(r.T, r.Hr, r.BodyBattery, CancellationToken.None); } return res; }
+    {
+        var aggregate = await _provider.GetAggregateAsync(Guid.NewGuid(), ct);
+        ((IObservable<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>>)aggregate).Subscribe(_observer);
+        var res = aggregate.RecordPoint(r.T, r.Hr, r.BodyBattery, _actor.ClientId);
+        if (res.IsSuccess()) { _ = _publisher.PublishPointAsync(r.T, r.Hr, r.BodyBattery, CancellationToken.None); }
+        return res;
+    }
 }

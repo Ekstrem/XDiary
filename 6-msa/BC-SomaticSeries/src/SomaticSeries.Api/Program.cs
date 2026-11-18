@@ -2,6 +2,7 @@ using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using SomaticSeries.Api;
 using SomaticSeries.Api.Events;
 using SomaticSeries.Api.HealthChecks;
 using SomaticSeries.Domain;
@@ -10,6 +11,10 @@ using SomaticSeries.DomainServices;
 using SomaticSeries.Application;
 using SomaticSeries.InternalContracts;
 using SomaticSeries.Storage;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
+using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 using XDiary.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,10 +27,20 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<SomaticSeries.Application.Commands.RecordPointCommand>());
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
-builder.Services.AddScoped<IRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesCommandRepository>();
-builder.Services.AddScoped<ISomaticSeriesQueryRepository, SomaticSeriesReadRepository>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("SomaticSeries.Storage")));
+
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
+builder.Services.AddEventStorePostgres<ISomaticSeries, ISomaticSeriesAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesEventSourcingRepository>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesEventSourcingRepository>();
+builder.Services.AddScoped<SomaticSeriesEventReplay>();
+builder.Services.AddEventBusInMemory();
+builder.Services.AddReadStorePostgres<ISomaticSeries, SomaticSeriesReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
+
+
+
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ISomaticSeriesEventPublisher, HttpSomaticSeriesEventPublisher>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
@@ -33,7 +48,8 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();

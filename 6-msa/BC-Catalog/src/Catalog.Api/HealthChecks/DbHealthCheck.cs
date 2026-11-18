@@ -1,12 +1,12 @@
 namespace Catalog.Api.HealthChecks;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Catalog.Storage;
+using DigiTFactory.Libraries.CommandRepository.Postgres;
 
 public sealed class DbHealthCheck : IHealthCheck
 {
-    private readonly CommandDbContext _db;
-    public DbHealthCheck(CommandDbContext db) => _db = db;
+    private readonly EventStoreDbContext _db;
+    public DbHealthCheck(EventStoreDbContext db) => _db = db;
 
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {

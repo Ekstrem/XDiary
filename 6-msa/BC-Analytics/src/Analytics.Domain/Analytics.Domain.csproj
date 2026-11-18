@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.5.1" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.6.0" />
   </ItemGroup>
 
 </Project>
