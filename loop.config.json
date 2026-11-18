@@ -281,5 +281,11 @@
     "from_chat": "5-tech-backlog/chat/lm.md",
     "to": "@TL",
     "idle_minutes": 15
-  }
+  },
+  "escalation": {
+    "silent_minutes": 15,
+    "after_attempts": 3,
+    "_comment": "TL: без квитанции запрос не передан; повтор каждые silent_minutes; после after_attempts молчаний — эскалация владельцу (RULES.TechLead.md §1-2)"
+  },
+  "commit_required": true
 }
