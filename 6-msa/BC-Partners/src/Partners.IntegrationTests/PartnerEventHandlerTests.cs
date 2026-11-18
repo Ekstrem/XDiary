@@ -37,7 +37,9 @@ public class PartnerEventHandlerTests
 
     private sealed class FakeRead : IReadRepository<IPartners, PartnersReadModel>
     {
-        public Task<PartnersReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<PartnersReadModel?>(null);
+        private readonly PartnersReadModel? _existing;
+        public FakeRead(PartnersReadModel? existing = null) => _existing = existing;
+        public Task<PartnersReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult(_existing);
         public Task<IReadOnlyList<PartnersReadModel>> GetAllAsync(IPaging paging, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<PartnersReadModel>>(new List<PartnersReadModel>());
         public Task<long> CountAsync(CancellationToken ct = default) => Task.FromResult(0L);
     }
@@ -87,6 +89,33 @@ public class PartnerEventHandlerTests
 
         Assert.NotNull(readStore.Upserted);
         Assert.NotNull(readStore.Upserted!.DeletedAt); // soft-delete доехал в MV
+    }
+
+    // BE-131: legacy-строка с Version = ms-таймстамп (как на стенде 22:50: 1795031466908)
+    // при Version:2 события. Старый stale-skip сравнивал 1.79e12 >= 2 и отбрасывал Remove.
+    // Фикс (LegacyTimestampFloor) пропускает legacy-строку к записи.
+    [Fact]
+    public void Handle_Remove_LegacyMsTimestampVersion_IsNotDropped()
+    {
+        var clientId = Guid.NewGuid();
+        var reg = Aggregate.CreateInstance(new AnemicModel()).Register("Алиса", clientId);
+        var removed = Aggregate.CreateInstance(reg.Model()).Remove();
+
+        var store = new FakeStore();
+        var readStore = new FakeReadStore();
+        var legacy = new PartnersReadModel
+        {
+            Id = removed.Event!.Id,
+            Version = 1_795_031_466_908, // ms-таймстамп — legacy
+            Name = "Алиса",
+            ClientId = clientId,
+        };
+        var handler = new PartnerEventHandler(store, readStore, new FakeRead(legacy), new FakePublisher(), store);
+
+        handler.HandleAsync(removed.Event!).GetAwaiter().GetResult();
+
+        Assert.NotNull(readStore.Upserted);
+        Assert.NotNull(readStore.Upserted!.DeletedAt); // Remove НЕ отброшен stale-skip'ом
     }
 
     // @AR 12:47: детерминированный кейс TE-102 (адрес 3) — частичное событие (profile) приходит
