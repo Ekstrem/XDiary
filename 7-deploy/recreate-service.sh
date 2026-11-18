@@ -332,7 +332,8 @@ bash "$RUNNER" >/dev/null 2>&1 || true
 # DO-145 (@TL 23:18): readiness с ретраями (до 30 с, шаг 2 с), а не «мгновенный podman ps».
 # Критерий: контейнер есть, RestartCount=0, ExitCode=0, и /health отвечает 2xx/401.
 __ok=0
-__deadline=$(( $(date +%s) + 30 ))
+__rt="${READINESS_TIMEOUT:-120}"   # DO-145 (@FE 00:20): 30 с было меньше старта EF+миграций (~35 с)
+__deadline=$(( $(date +%s) + __rt ))
 while [ "$(date +%s)" -lt "$__deadline" ]; do
   __st=""
   if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
@@ -375,7 +376,8 @@ say "  диагностика $CONTAINER (оба store + логи):" >&2
   command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --filter "name=$CONTAINER" --format '    root| {{.Names}} {{.Status}}' 2>/dev/null || true
   podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null ||     sudo -n podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null || true
 } >&2
-if [ -f "$RUNNER" ]; then bash "$RUNNER" 2>&1 | tail -n 20 | sed 's/^/    run| /' >&2 || true; fi
+# DO-145 (@FE 00:20): НЕ перезапускаем runner — его «name in use» это следствие, а не причина.
+if [ -f "$RUNNER" ]; then sed 's/^/    cmd| /' "$RUNNER" | tail -n 3 >&2 || true; fi
 podman inspect "$CONTAINER" --format '    exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null >&2 || true
 podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /' >&2 || true
 die "$CONTAINER не поднялся. Восстановить: bash $RUNNER"
