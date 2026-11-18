@@ -41,9 +41,17 @@ public sealed class JournalController : ControllerBase
 
     private async Task<IActionResult> WithOwner(Guid id, Func<Task<IActionResult>> action)
     {
-        if (!TryClientId(out var clientId)) return Unauthorized();
-        var guard = await EnsureOwns(id, clientId);
-        return guard ?? await action();
+        try
+        {
+            if (!TryClientId(out var clientId)) return Unauthorized();
+            var guard = await EnsureOwns(id, clientId);
+            return guard ?? await action();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[journal] EX: " + ex);
+            throw;
+        }
     }
 
     [HttpPost("records")]
