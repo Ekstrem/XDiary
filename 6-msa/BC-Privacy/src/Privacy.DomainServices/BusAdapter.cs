@@ -25,14 +25,14 @@ public sealed class BusAdapter : IObserver<AggregateResult<IPrivacy, IPinCredent
     public void OnError(Exception error) { }
     public void OnCompleted() { }
 
-    private Task SaveEventAsync(AggregateResult<IPrivacy, IPinCredentialAnemicModel> result)
+    private async Task SaveEventAsync(AggregateResult<IPrivacy, IPinCredentialAnemicModel> result)
     {
         var jsonOptions = new JsonSerializerOptions();
         jsonOptions.Converters.Add(new IValueObjectJsonConverter());
         var entry = new DomainEventEntry
         {
             Id = result.Event.Id,
-            Version = result.Event.Version,
+            Version = await _store.GetEventCountAsync(result.Event.Id) + 1,
             CorrelationToken = result.Event.CorrelationToken,
             BoundedContext = result.Event.ContextName,
             CommandName = result.Event.Command?.GetType().Name ?? string.Empty,
@@ -41,6 +41,6 @@ public sealed class BusAdapter : IObserver<AggregateResult<IPrivacy, IPinCredent
             Result = result.Event.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        return _store.SaveEventAsync(entry);
+        await _store.SaveEventAsync(entry);
     }
 }
