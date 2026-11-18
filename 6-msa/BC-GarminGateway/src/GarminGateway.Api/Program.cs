@@ -29,6 +29,7 @@ builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddEventStorePostgres<IGarminGateway, IGarminGatewayAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<IGarminGateway, IGarminGatewayAnemicModel>, GarminGatewayEventSourcingRepository>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IGarminGateway, IGarminGatewayAnemicModel>, GarminGatewayEventSourcingRepository>();
 builder.Services.AddScoped<GarminGatewayEventReplay>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IGarminGateway, GarminSyncReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
