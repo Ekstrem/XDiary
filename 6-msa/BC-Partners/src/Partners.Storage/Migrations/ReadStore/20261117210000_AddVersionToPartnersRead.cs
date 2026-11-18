@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Partners.Storage.Migrations.ReadStore
 {
     /// <inheritdoc />
+    [Microsoft.EntityFrameworkCore.Infrastructure.DbContextAttribute(typeof(Partners.Storage.ReadDbContext))]
+    [Microsoft.EntityFrameworkCore.Migrations.MigrationAttribute("20261117210000_AddVersionToPartnersRead")]
     public partial class AddVersionToPartnersRead : Migration
     {
         /// <inheritdoc />
