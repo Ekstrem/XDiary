@@ -63,8 +63,13 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
             var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default);
             if (existing is not null)
             {
-                // QG-305: stale-skip — повторное/отставшее событие не перезаписывает read-модель.
-                if (existing.Version >= domainEvent.Version) return;
+                // BE-131 (@TL): stale-skip сравнивал несравнимое — у legacy-строк PartnersReadModel.Version
+                // содержит ms-таймстамп (AnemicModel.Version по умолчанию = ToUnixTimeMilliseconds()), а у события
+                // Version — маленькое число (1,2,3). Тогда existing.Version >= domainEvent.Version всегда истинно
+                // и ЛЮБОЕ обновление (в т.ч. Remove) молча отбрасывается: партнёр не исчезает из списка.
+                // Сравниваем только сопоставимые значения: ms-таймстамп считаем legacy и пропускаем к записи.
+                const long LegacyTimestampFloor = 1_000_000_000_000L;
+                if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor) return;
                 existing.Version = domainEvent.Version;
                 if (read.Name is not null) existing.Name = read.Name;
                 if (read.Photo is not null) existing.Photo = read.Photo;
