@@ -337,9 +337,9 @@ __deadline=$(( $(date +%s) + __rt ))
 while [ "$(date +%s)" -lt "$__deadline" ]; do
   __st=""
   if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
-    __st="$(podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+    __st="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
   elif command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
-    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.State.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
   fi
   if [ -n "$__st" ]; then
     if [ "$__st" = "0 0" ]; then
@@ -374,7 +374,7 @@ fi
 say "  диагностика $CONTAINER (оба store + логи):" >&2
 { podman ps -a --filter "name=$CONTAINER" --format '    rootless| {{.Names}} {{.Status}}' 2>/dev/null || true
   command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --filter "name=$CONTAINER" --format '    root| {{.Names}} {{.Status}}' 2>/dev/null || true
-  podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null ||     sudo -n podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.State.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null || true
+  podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null ||     sudo -n podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null || true
 } >&2
 # DO-145 (@FE 00:20): НЕ перезапускаем runner — его «name in use» это следствие, а не причина.
 if [ -f "$RUNNER" ]; then sed 's/^/    cmd| /' "$RUNNER" | tail -n 3 >&2 || true; fi
