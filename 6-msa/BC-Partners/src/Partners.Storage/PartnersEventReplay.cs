@@ -27,6 +27,7 @@ public sealed class PartnersEventReplay
     {
         var events = await _db.Events
             .Where(e => e.Id == id)
+            .AsNoTracking()
             .OrderBy(e => e.Version)
             .ToListAsync(ct);
 

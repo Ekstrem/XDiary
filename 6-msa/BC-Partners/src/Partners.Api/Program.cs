@@ -40,6 +40,10 @@ if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Partners.Storage")));
 builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
+// BE-130: регистрируем реальный реплей и как IAnemicModelRepository — иначе AggregateProvider
+// берёт библиотечный FullEventSourcingRepository.GetById (TODO → пустой список), реконструкция всегда
+// DefaultAnemicModel (Version=0) и вторая команда коллизирует по (Id,Version) с первой.
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
 builder.Services.AddScoped<PartnersEventReplay>();
 builder.Services.AddEventBusInMemory();
 // BE-082: связь Partners → Journal (partners_directory).
