@@ -483,7 +483,15 @@ jobs:
             last="clients=$c1 clients/me=$c2 POST/clients=$c3"
             case "$c1" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
             case "$c2" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
-            case "$c3" in 5*|000) echo "  попытка $i: $last — сервис clients ещё поднимается"; sleep 3; continue ;; esac
+            case "$c3" in 5*|000)
+              # DO-145 (@FE 02:02): при RestartCount>3 это НЕ «поднимается», а CrashLoop.
+              rc="$(sudo -n podman inspect xdiary-client --format '{{.RestartCount}}' 2>/dev/null || echo 0)"
+              if [ "${rc:-0}" -gt 3 ] 2>/dev/null; then
+                echo "  попытка $i: $last — сервис clients в CrashLoop (restarts=$rc), см. podman logs xdiary-client"
+              else
+                echo "  попытка $i: $last — сервис clients ещё поднимается"
+              fi
+              sleep 3; continue ;; esac
             echo "::notice::API dev готов: $last (попытка $i; 401 = шлюз жив, 400 = сервис clients жив)"
             exit 0
           done
