@@ -53,6 +53,9 @@ public class RegisterPartnerContractTests : IClassFixture<WebApplicationFactory<
         Console.WriteLine($"DIAG clientId={clientId} regClientId={regClientId} body={await reg.Content.ReadAsStringAsync()}");
         Assert.Equal(clientId, regClientId);
 
+        // BE-128: проекция асинхронная (fire-and-forget) — даём ей завершиться перед чтением.
+        await Task.Delay(2000);
+
         var list = await client.GetFromJsonAsync<List<PartnersReadModel>>("/api/v1/partners");
         Assert.NotNull(list);
 
