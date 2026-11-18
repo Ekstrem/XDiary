@@ -7,11 +7,11 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-d7ab3fb     6-msa/BC-Journal  commit=d7ab3fb  digest=sha256:c162ce9363dfbbd26d304fe7a3be3489f0b642637cbcb06e738cb9b07d93aacb
-partners             single-d7ab3fb     6-msa/BC-Partners  commit=d7ab3fb  digest=sha256:76b27443dec7468f98a53e33d92718b5584138d271dcdc0f697671636253cc88
-catalog              single-d7ab3fb     6-msa/BC-Catalog  commit=d7ab3fb  digest=sha256:09d95c082de70580174d7959cf80c663d59125ff4ea50cea8c89a2e5cc58cfae
-somatic-series       single-d7ab3fb     6-msa/BC-SomaticSeries  commit=d7ab3fb  digest=sha256:f440339fee211a97385643ffa5c31c5bcf5354fa04609a6afc8cd77a6f182df2
-daily-metrics        single-d7ab3fb     6-msa/BC-DailyMetrics  commit=d7ab3fb  digest=sha256:15cf9e133c029652f3a8f672f4889d88b156fcae65f328fc5d5558bbb25a37a3
+journal              single-d9df6f5     6-msa/BC-Journal  commit=d9df6f5  digest=sha256:fcaa6dedc5e63f9c73853cdfb5157194f38a31347e948531ea9d3272185a3db8
+partners             single-d9df6f5     6-msa/BC-Partners  commit=d9df6f5  digest=sha256:235a3b5bf00d35a2fc8fc518b7ecff721fbf76a7bd307f38e563f478e18259f3
+catalog              single-d9df6f5     6-msa/BC-Catalog  commit=d9df6f5  digest=sha256:3fd46beb029c6e8d86409087d1df11cfeeeb901791a32107de0468e390d44ac1
+somatic-series       single-d9df6f5     6-msa/BC-SomaticSeries  commit=d9df6f5  digest=sha256:dcff848d9d087564278ce300f23ba9fa0f7a97824dec143a75f8b203767252fc
+daily-metrics        single-d9df6f5     6-msa/BC-DailyMetrics  commit=d9df6f5  digest=sha256:f95c8285d8534664c0fe524aa2425648a5b42fb7b0995159c722413ccd282cf3
 garmin-gateway       single-d7ab3fb     6-msa/BC-GarminGateway  commit=d7ab3fb  digest=sha256:eec6fdfc4b14e74b49dc56f77fa8bc85d9d11041fcbde0ac31c09c528d36b5e8
 apple-health-gateway single-d7ab3fb     6-msa/BC-AppleHealthGateway  commit=d7ab3fb  digest=sha256:20d86b2e3a16c5a7b53aa19bc54c0797d9d26ce91ae7d6ca646302edfaa4f179
 analytics            single-d7ab3fb     6-msa/BC-Analytics  commit=d7ab3fb  digest=sha256:1b414b24aefda1f43c07bd6ce74cda4eb16d14917e853740858c1defbde83169
