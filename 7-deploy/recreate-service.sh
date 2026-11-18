@@ -46,6 +46,12 @@ SVCS_ALL="journal partners catalog somatic-series daily-metrics garmin-gateway a
 say() { printf '%s\n' "$*"; }
 die() { printf 'recreate-service: ОШИБКА: %s\n' "$*" >&2; exit 1; }
 
+# DO-128 (@TL 2026-11-18 00:10): выровнять rootless/sudo. Если sudo есть, но без пароля
+# не работает — сообщаем заранее, а не в середине rm -f.
+if command -v sudo >/dev/null 2>&1 && ! sudo -n true 2>/dev/null; then
+  echo "recreate-service: ПРЕДУПРЕЖДЕНИЕ: sudo доступен, но sudo -n true не проходит — root-пространство не чистим" >&2
+fi
+
 [ -f "$DEPLOY_SH" ] || die "нет $DEPLOY_SH"
 
 if [ "${1:-}" = "--list" ]; then
@@ -297,6 +303,15 @@ done
 podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
 if command -v sudo >/dev/null 2>&1; then
   sudo -n podman rm -f "$CONTAINER" >/dev/null 2>&1 || true
+fi
+# DO-128 (@TL 2026-11-18 00:10): не глотать ошибку rm. Если контейнер всё ещё существует
+# (rootless vs root — rm прошёл в чужом пространстве), печатаем владельца и падаем с контекстом,
+# иначе следующий `podman run` упадёт на имени с невнятной ошибкой.
+if podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+  die "контейнер $CONTAINER всё ещё существует после rm -f (podman: $(podman inspect "$CONTAINER" --format '{{.Config.User}} {{.State.Status}}' 2>/dev/null || echo 'нет'))"
+fi
+if command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+  die "контейнер $CONTAINER всё ещё существует в root-пространстве после rm -f (sudo: $(sudo -n podman inspect "$CONTAINER" --format '{{.Config.User}} {{.State.Status}}' 2>/dev/null || echo 'нет'))"
 fi
 # 2026-11-07: CNI не всегда успевает освободить IP сразу после `rm -f`, и первый
 # `podman run` падает с "error configuring network namespace". В `update.sh` это
