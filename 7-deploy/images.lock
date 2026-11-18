@@ -7,16 +7,16 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal                single-b536455  6-msa/BC-Journal  commit=b536455  digest=sha256:09b9422bc51d515506fe657f108f909125dbca56abe7b6c9411b891b9e7b98dc
-partners               single-b536455  6-msa/BC-Partners  commit=b536455  digest=sha256:dfe20aa79ed16e5aa9fb9c38d5cc06a1fbba6e019d1486edaa724930c7261c3e
-catalog                single-b536455  6-msa/BC-Catalog  commit=b536455  digest=sha256:d5544df79a0af3ce9897cded00c7fe54cbaf4ff9eca9084fcec98af0fa6b9108
-somatic-series         single-b536455  6-msa/BC-SomaticSeries  commit=b536455  digest=sha256:1958fdf7b8391b44ad146ecac88eacfc67a059ccd3735a2fd725f4795fb3d90a
-daily-metrics          single-b536455  6-msa/BC-DailyMetrics  commit=b536455  digest=sha256:86a66448f8797d62999417b491b1f91f03f5e0cf1a04291f89b43195c776f2e0
-garmin-gateway         single-b536455  6-msa/BC-GarminGateway  commit=b536455  digest=sha256:b4fa739cb5773644ce34e199a148fbf66a9af19897e5ea640ef703f78e0e842b
-apple-health-gateway   single-b536455  6-msa/BC-AppleHealthGateway  commit=b536455  digest=sha256:22f727d616a3fa5a06bc105b83f549f59f8e34049696dc5d3b3726cabd693e77
-analytics              single-b536455  6-msa/BC-Analytics  commit=b536455  digest=sha256:c0b7e590871baede5b59efcc336dd9831303cbb245b21f5420dec4f5994dd94d
-privacy                single-b536455  6-msa/BC-Privacy  commit=b536455  digest=sha256:fd574314fe6f679656f5b3868d248564ed87fddfe26ff17142a899609f9cab31
-portability            single-b536455  6-msa/BC-Portability  commit=b536455  digest=sha256:691b2736c5f38a9bd0353d4aac2ce053877e7289c5a97277a692222d9207bcac
-client                 single-b536455  6-msa/BC-Client  commit=b536455  digest=sha256:ee99a78b153feb9540b419cfb83b4174fdc31a2573feebd3e971f1889082e634
-api-gateway            single-b536455  6-msa/ApiGateway  commit=b536455  digest=sha256:a703ccae2dcb63a5fe1e550a214c8c7ca5141242b794eb7f6136ff2adc0c5a14
-front                  single-b536455  8-front  commit=b536455  digest=-
+journal              single-9acec45     6-msa/BC-Journal  commit=9acec45  digest=sha256:30bf148a9166491280c554be5c7a092156166442da9e692015d9df92b5b4a166
+partners             single-9acec45     6-msa/BC-Partners  commit=9acec45  digest=sha256:f2d26f0e6eaf176fbc2a93d38f5de8dea4439cb6e2e6a0fe0c5b2d1da866f4a5
+catalog              single-9acec45     6-msa/BC-Catalog  commit=9acec45  digest=sha256:51649fa10acbea358e0dff1df648c916eb2b9c17acf4b22b15c51036cb51899d
+somatic-series       single-9acec45     6-msa/BC-SomaticSeries  commit=9acec45  digest=sha256:8e0c5858959b584e47559fe510765d7b6bcbd982392effa4893bc8cf87b6ff6c
+daily-metrics        single-9acec45     6-msa/BC-DailyMetrics  commit=9acec45  digest=sha256:03aa6be8809989de40f14eea605e2768dfef9490f73823c2f9ffb38668fca1da
+garmin-gateway       single-9acec45     6-msa/BC-GarminGateway  commit=9acec45  digest=sha256:af15a570d5560d1094416e1634d86bbb4dfda6aa927e2b6f2da850eea18c0b23
+apple-health-gateway single-9acec45     6-msa/BC-AppleHealthGateway  commit=9acec45  digest=sha256:bf55bc68ae7647be58e42489d2483f8f5f3cbd8daca8909983af61ab80d6dc44
+analytics            single-9acec45     6-msa/BC-Analytics  commit=9acec45  digest=sha256:3992235f0d57706bae5923f81c904f467c24d00fcebba53c5ca0bd599bd2c6f1
+privacy              single-9acec45     6-msa/BC-Privacy  commit=9acec45  digest=sha256:343ca9ff4064720a43662af38c434d8b8cb63a3fb1a52348612f8b9246a3e57d
+portability          single-9acec45     6-msa/BC-Portability  commit=9acec45  digest=sha256:a6512310313c75201f287a264a2d593edbe2e0e5a94cd6cff9de006f9f58e815
+client               single-9acec45     6-msa/BC-Client  commit=9acec45  digest=sha256:5936c9cdf73cd73f18463114e2e33f88b5785833e51e8498551c4957c3475b58
+api-gateway          single-9acec45     6-msa/ApiGateway  commit=9acec45  digest=sha256:df559298f15769f50a9571c50223967e82a63a22c065fb71f86a88285bea9fa1
+front                single-3a9c857     8-front  commit=3a9c857  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-

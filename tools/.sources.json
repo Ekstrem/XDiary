@@ -171,7 +171,7 @@
       "upstream": "tools/check_read_model_freshness.py"
     },
     "check_readstore_ddl.py": {
-      "sha256": "d0239b23e7bdf41ba3c52ff10be6716b4c74368308dae218b8c705acc70e92bd",
+      "sha256": "05768a8335c0c7990954c944f9e111c54fd295a05d888544b23710a55353eefe",
       "synced_at": "2026-11-13",
       "upstream": "tools/check_readstore_ddl.py"
     },

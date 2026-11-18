@@ -78,12 +78,20 @@ public sealed class PartnersController : ControllerBase
     [Authorize]
     public async Task<IActionResult> LinkClient(Guid id, [FromBody] LinkPartnerClientCommand c, CancellationToken ct)
     {
-        var clientId = ClientId();
-        if (clientId is null) return Unauthorized();
-        var guard = await OwnerGuardAsync(id, clientId.Value, ct);
-        if (guard is not null) return guard;
-        // BE-085: ClientId не из тела, а из sub (актор из IActorProvider).
-        return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+        try
+        {
+            var clientId = ClientId();
+            if (clientId is null) return Unauthorized();
+            var guard = await OwnerGuardAsync(id, clientId.Value, ct);
+            if (guard is not null) return guard;
+            // BE-085: ClientId не из тела, а из sub (актор из IActorProvider).
+            return Respond(await _mediator.Send(c with { AggregateId = id }, ct));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[link] EX: " + ex);
+            throw;
+        }
     }
 
     [HttpPost("{id:guid}/unlink-client")]

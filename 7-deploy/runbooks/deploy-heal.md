@@ -26,6 +26,9 @@ curl -s -o /dev/null -w 'clients=%{http_code}\n' https://<стенд>/api/v1/cli
 sudo podman ps --format '{{.Names}} {{.Status}}'
 # 3) список сервисов, который ждём (12)
 python3 /opt/xdiary/7-deploy/gen-hosts.py --check
+# 4) если /clients 502 — где контейнер и кто его владелец (DO-128: rootless vs root)
+sudo podman ps -a --filter name=xdiary-client --format '{{.Names}} {{.Status}} {{.Image}}'
+sudo podman inspect xdiary-client --format 'user={{.Config.User}} state={{.State.Status}}' 2>/dev/null
 ```
 
 Ожидание: `health=200`, `clients=200` (на dev корень `/` отдаёт **200 «API-only»**, а не 502).

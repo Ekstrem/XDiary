@@ -16,6 +16,17 @@ on:
         description: 'Собрать без пуша и без коммита lock'
         type: boolean
         default: false
+  # DO-125 (@TL 2026-11-18): release был только workflow_dispatch — из-за этого lock отставал на дни
+  # (9 красных deploy из-за «образ старше кода»). Автоматический триггер: ночная сборка (страховка)
+  # + push по коду сервисов/фронта (свежие образы сразу после мержа). Частоту ограничивает
+  # concurrency.group: release + cancel-in-progress:false (не накапливаем прогоны).
+  schedule:
+    - cron: '30 0 * * *'   # ежедневно 00:30 UTC
+  push:
+    branches: [main]
+    paths:
+      - '6-msa/**'
+      - '8-front/**'
 
 permissions:
   contents: write

@@ -55,7 +55,8 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
     public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
     {
         // BE-128: событие УЖЕ сохранено BusAdapter'ом (SaveEventAsync до PublishAsync).
-        // Повторный SaveEventAsync здесь был дублем (INSERT по тому же Id) и валил проекцию.
+        // Повторный SaveEventAsync здесь был дублем (тот же Id) и падал в отброшенную задачу
+        // (_ = HandleAsync(e)), из-за чего проекция не доходила до UpsertAsync.
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
         {
