@@ -1,0 +1,70 @@
+namespace Client.Api.Events;
+
+using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
+using Client.Domain;
+using Client.Domain.Abstraction;
+using Client.Domain.Implementation;
+using Client.InternalContracts;
+
+/// <summary>
+/// E1: консьюмер событий Client. Подписывает хендлер на in-memory шину;
+/// хендлер проектирует read-модель (client_read) из changed-VO (UpsertAsync).
+/// Без этой проекции client_read остаётся пустой и GET /clients/me отдаёт 404 (BE-134).
+/// </summary>
+public sealed class ClientEventConsumer : BackgroundService
+{
+    private readonly IEventBusConsumer _consumer;
+
+    public ClientEventConsumer(IEventBusConsumer consumer, ClientEventHandler handler)
+    {
+        _consumer = consumer;
+        _consumer.Subscribe(handler);
+        Console.WriteLine("[consumer] subscribed");
+    }
+
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+}
+
+public sealed class ClientEventHandler : IDomainEventHandler<IClients>, IObserver<IDomainEvent<IClients>>
+{
+    private readonly IReadModelStore<IClients, ClientReadModel> _readStore;
+    private readonly IReadRepository<IClients, ClientReadModel> _readRepo;
+
+    public ClientEventHandler(IReadModelStore<IClients, ClientReadModel> readStore, IReadRepository<IClients, ClientReadModel> readRepo)
+    { _readStore = readStore; _readRepo = readRepo; }
+
+    public async Task HandleAsync(IDomainEvent<IClients> domainEvent)
+    {
+        var vos = domainEvent.ChangedValueObjects;
+        if (vos is null || vos.Count == 0) return;
+        var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new ClientReadModel { Id = domainEvent.Id };
+        if (existing.Version >= domainEvent.Version) return; // QG-305: идемпотентность по версии (stale-skip)
+        ClientProjection.ApplyVos(existing, vos);
+        existing.Version = domainEvent.Version;
+        await _readStore.UpsertAsync(existing);
+    }
+
+    // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.
+    // fire-and-forget с видимым падением (как Journal), чтобы потеря события не была молчаливой.
+    public void OnNext(IDomainEvent<IClients> e) => _ = HandleAsync(e).ContinueWith(t =>
+    {
+        if (t.IsFaulted) Console.Error.WriteLine($"[event] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
+    }, TaskScheduler.Default);
+    public void OnError(Exception error) { }
+    public void OnCompleted() { }
+}
+
+public static class ClientProjection
+{
+    // per-field: применяет только поля, которые реально есть в diff.
+    public static void ApplyVos(ClientReadModel m, IDictionary<string, IValueObject> vos)
+    {
+        if (vos.TryGetValue("Root", out var r) && r is IClientRoot root) m.Phone = root.Phone;
+        if (vos.TryGetValue("DisplayName", out var d) && d is StringValueObject dv) m.DisplayName = dv.Value;
+        if (vos.TryGetValue("Gender", out var g) && g is StringValueObject gv) m.Gender = gv.Value;
+        if (vos.TryGetValue("PhotoUrl", out var p) && p is NullableStringValueObject pv) m.PhotoUrl = pv.Value;
+        if (vos.TryGetValue("Verified", out var v) && v is BoolValueObject vv) m.Verified = vv.Value;
+    }
+}
