@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write   # PR для lock (main защищён — GH006)
 
 concurrency:
   group: lock-sync
@@ -121,6 +122,8 @@ jobs:
         run: python tools/gen_images_lock.py --check
 
       - name: Закоммитить, если изменилось
+        env:
+          GH_TOKEN: ${{ github.token }}   # gh pr list/create без него падает
         run: |
           set -euo pipefail
           if git diff --quiet -- 7-deploy/images.lock; then
@@ -133,35 +136,16 @@ jobs:
           # `[skip ci]` — второй предохранитель: бот не должен каскадом будить другие
           # workflow, даже если фильтры путей когда-нибудь изменятся (@TL 09:41).
           git commit -m "bot: images.lock синхронизирован с git (lock-sync) [skip ci]"
-          # чужой пуш мог опередить — интегрируем и повторяем, до трёх раз
-          for i in 1 2 3; do
-            if git push; then exit 0; fi
-            git fetch origin main
-            git merge --no-edit origin/main || { echo "::error::конфликт в lock-sync"; exit 1; }
-            # DO-117 (@TL): источник lock — РЕЕСТР, а не git-рендер.
-            # В git-рендере digest взять неоткуда (`merge_digests` сохраняет его только
-            # для ТОГО ЖЕ тега), поэтому ретрай обнулял digest и ADR-027 не выполнялся.
-            python tools/gen_images_lock.py --from-registry --write || {
-              echo "::error::lock-sync: реестр не отдал образы — lock не трогаю (DO-117)"
-              git checkout -- 7-deploy/images.lock
-              exit 1
-            }
-            # DO-113/DO-117: guard проверяется на КАЖДОЙ попытке, а не только до ретрая.
-            grc=0
-            python tools/gen_images_lock.py --check-digests || grc=$?
-            if [ "$grc" = "1" ]; then
-              echo "::error::lock-sync: digest-строк стало МЕНЬШЕ — откатываю lock (DO-113/DO-117)"
-              git checkout -- 7-deploy/images.lock
-              exit 1
-            fi
-            git add 7-deploy/images.lock
-            # @TE 09:50: «нечего коммитить» — это НЕ ошибка, и её нельзя глушить `|| true`
-            # (иначе цикл из трёх попыток упадёт с ложным `::error::`, хотя причина — пустой диф).
-            if git diff --cached --quiet -- 7-deploy/images.lock; then
-              echo "после интеграции lock не изменился — нечего коммитить"
-              exit 0
-            fi
-            git commit -m "bot: images.lock синхронизирован с git (lock-sync, повтор $i) [skip ci]"
-          done
-          echo "::error::lock-sync не смог закоммитить за 3 попытки"
-          exit 1
+          # main защищён (GH006: Protected branch update failed) — бот не пушит в main.
+          # Вариант (б): ветка lock-sync/<sha> + PR (TL 15:50). Protection не трогаем.
+          BR="lock-sync/$(git rev-parse --short HEAD)"
+          git checkout -B "$BR"
+          git push origin "HEAD:refs/heads/$BR"
+          # PR создаём один раз (если для ветки уже есть открытый — не дублируем)
+          if ! gh pr list --head "$BR" --state open --json number --jq '.[].number' | grep -q .; then
+            gh pr create --base main --head "$BR" \
+              --title "bot: images.lock синхронизирован (lock-sync)" \
+              --body "Автоматический lock-sync: обновлён 7-deploy/images.lock (digest из реестра). Мерж — по обычному порядку."
+          fi
+          echo "lock-sync: ветка $BR запушена, PR открыт/существует"
+          exit 0
