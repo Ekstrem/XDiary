@@ -1,4 +1,5 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,8 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Partners.Storage.Migrations.ReadStore
 {
     /// <inheritdoc />
-    [Microsoft.EntityFrameworkCore.Infrastructure.DbContextAttribute(typeof(Partners.Storage.ReadDbContext))]
-    [Microsoft.EntityFrameworkCore.Migrations.MigrationAttribute("20261117210000_AddVersionToPartnersRead")]
+    [DbContext(typeof(Partners.Storage.ReadDbContext))]
+    [Migration("20261117210000_AddVersionToPartnersRead")]
     public partial class AddVersionToPartnersRead : Migration
     {
         /// <inheritdoc />

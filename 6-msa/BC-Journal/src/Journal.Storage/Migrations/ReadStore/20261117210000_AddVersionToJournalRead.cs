@@ -1,4 +1,5 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,8 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Journal.Storage.Migrations.ReadStore
 {
     /// <inheritdoc />
-    [Microsoft.EntityFrameworkCore.Infrastructure.DbContextAttribute(typeof(Journal.Storage.ReadDbContext))]
-    [Microsoft.EntityFrameworkCore.Migrations.MigrationAttribute("20261117210000_AddVersionToJournalRead")]
+    [DbContext(typeof(Journal.Storage.ReadDbContext))]
+    [Migration("20261117210000_AddVersionToJournalRead")]
     public partial class AddVersionToJournalRead : Migration
     {
         /// <inheritdoc />
