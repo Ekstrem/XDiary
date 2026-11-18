@@ -35,9 +35,17 @@ public sealed class PartnersEventReplay
         var model = new AnemicModel { Id = id };
         foreach (var e in events)
         {
-            var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(e.ChangedValueObjectsJson, _json);
-            if (vos is null || vos.Count == 0) continue;
-            model = Apply(model, vos, e);
+            try
+            {
+                var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(e.ChangedValueObjectsJson, _json);
+                if (vos is null || vos.Count == 0) continue;
+                model = Apply(model, vos, e);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[replay] EX: " + ex);
+                throw;
+            }
         }
 
         return model;

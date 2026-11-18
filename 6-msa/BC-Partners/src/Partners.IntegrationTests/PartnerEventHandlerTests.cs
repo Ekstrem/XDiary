@@ -11,7 +11,7 @@ using XDiary.Contracts;
 using Xunit;
 
 /// <summary>
-/// Материализация MV: консьюмер обязан (1) сохранить событие и (2) сделать UpsertAsync read-модели.
+/// Материализация MV: событие сохраняет BusAdapter (до PublishAsync), консьюмер только делает UpsertAsync read-модели.
 /// Лаг допустим, но «материализации нет вообще» — баг: если UpsertAsync не вызван, тест падает.
 /// </summary>
 public class PartnerEventHandlerTests
@@ -65,7 +65,7 @@ public class PartnerEventHandlerTests
 
         handler.HandleAsync(reg.Event!).GetAwaiter().GetResult();
 
-        Assert.Equal(1, store.SavedEvents);          // событие в event store
+        Assert.Equal(0, store.SavedEvents);          // событие сохраняет BusAdapter, консьюмер только материализует MV
         Assert.NotNull(readStore.Upserted);          // MV материализована
         Assert.Equal("Алиса", readStore.Upserted!.Name);
         Assert.Equal(clientId, readStore.Upserted.ClientId);
