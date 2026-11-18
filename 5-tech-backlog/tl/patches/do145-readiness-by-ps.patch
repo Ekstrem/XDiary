@@ -1,0 +1,45 @@
+diff --git a/7-deploy/recreate-service.sh b/7-deploy/recreate-service.sh
+index e56e69505..9f3f68b9f 100644
+--- a/7-deploy/recreate-service.sh
++++ b/7-deploy/recreate-service.sh
+@@ -332,27 +332,22 @@ bash "$RUNNER" >/dev/null 2>&1 || true
+ # DO-145 (@TL 23:18): readiness с ретраями (до 30 с, шаг 2 с), а не «мгновенный podman ps».
+ # Критерий: контейнер есть, RestartCount=0, ExitCode=0, и /health отвечает 2xx/401.
+ __ok=0
+-__rt="${READINESS_TIMEOUT:-120}"   # DO-145 (@FE 00:20): 30 с было меньше старта EF+миграций (~35 с)
++__rt="${READINESS_TIMEOUT:-120}"
+ __deadline=$(( $(date +%s) + __rt ))
++# DO-145 (@TL 00:26): критерий — статус "Up" из `podman ps`, а не `inspect --format
++# "{{.State.RestartCount}} {{.State.ExitCode}}"`: в этом окружении inspect отдаёт ПУСТЫЕ
++# значения, сравнение с "0 0" не совпадает никогда (прогон 44399631494: контейнер
++# Up 2 minutes, проверка — «не поднялся»). Смотрим ОБА store: rootless, затем root.
+ while [ "$(date +%s)" -lt "$__deadline" ]; do
+-  __st=""
+-  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+-    __st="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+-  elif command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+-    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+-  fi
+-  if [ -n "$__st" ]; then
+-    if [ "$__st" = "0 0" ]; then
+-      # DO-145 (@TL 23:58): HTTP-проверка — ТОЛЬКО для шлюза. Остальные сервисы портов
+-      # на хост не публикуют, и `127.0.0.1:8080/health` попадает в чужой listener
+-      # (Caddy/APIM) → ложное «не поднялся» при живом контейнере (прогон 44395812395).
+-      if [ "$SVC" != "api-gateway" ]; then
+-        __ok=1; break
+-      fi
+-      __hp="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:${HPORT:-8080}/health" 2>/dev/null || echo 000)"
+-      case "$__hp" in 2??|401) __ok=1; break;; esac
+-    fi
++  __st="$(podman ps --format '{{.Names}}	{{.Status}}' 2>/dev/null \
++        | awk -v n="$CONTAINER" -F'\t' '$1==n {print $2; exit}')"
++  if [ -z "$__st" ] && command -v sudo >/dev/null 2>&1; then
++    __st="$(sudo -n podman ps --format '{{.Names}}	{{.Status}}' 2>/dev/null \
++          | awk -v n="$CONTAINER" -F'\t' '$1==n {print $2; exit}')"
+   fi
++  case "$__st" in
++    Up*) __ok=1; break;;
++  esac
+   sleep 2
+ done
+ if [ "$__ok" = "1" ]; then
