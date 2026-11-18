@@ -68,15 +68,12 @@ public class RegisterPartnerContractTests : IClassFixture<WebApplicationFactory<
     {
         JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
         var handler = new JwtSecurityTokenHandler();
-        var token = handler.CreateToken(new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(new[] { new Claim("sub", clientId.ToString()) }),
-            Issuer = "xdiary",
-            Expires = DateTime.UtcNow.AddMinutes(5),
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(JwtSigningKey.Resolve(null, true)),
-                SecurityAlgorithms.HmacSha256)
-        });
+        var key = new SymmetricSecurityKey(JwtSigningKey.Resolve(null, true));
+        var token = new JwtSecurityToken(
+            issuer: "xdiary",
+            claims: new[] { new Claim("sub", clientId.ToString()) },
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256));
         return handler.WriteToken(token);
     }
 }
