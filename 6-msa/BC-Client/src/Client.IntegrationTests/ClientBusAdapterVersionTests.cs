@@ -18,6 +18,7 @@ public class ClientBusAdapterVersionTests
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).UpdateProfile("Alice", "female", null);
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 

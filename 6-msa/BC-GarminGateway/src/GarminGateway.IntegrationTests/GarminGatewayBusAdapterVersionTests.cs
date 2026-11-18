@@ -18,6 +18,7 @@ public class GarminGatewayBusAdapterVersionTests
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2026-11-01T00:00"));
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 

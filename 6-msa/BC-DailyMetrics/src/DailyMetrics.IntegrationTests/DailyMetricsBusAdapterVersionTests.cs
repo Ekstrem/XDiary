@@ -18,6 +18,7 @@ public class DailyMetricsBusAdapterVersionTests
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).RecordStress("2026-10-29", 50, Guid.NewGuid());
 
         var sc = new ServiceCollection();
+        sc.AddLogging();
         sc.AddEventBusInMemory();
         using var sp = sc.BuildServiceProvider();
 
