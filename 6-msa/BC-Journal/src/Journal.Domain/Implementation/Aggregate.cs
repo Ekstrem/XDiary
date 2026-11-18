@@ -48,7 +48,7 @@ internal sealed class Aggregate : IRecordAggregate
 
     private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {
-        newModel = newModel with { Version = Model.Version + 1, CommandName = commandName }; // BE-129/130: следующая версия события, иначе PK (Id,Version) коллизирует
+        newModel = newModel with { CommandName = commandName }; // РєР°РЅРѕРЅ В§7: СЃРѕР±С‹С‚РёРµ СЃРѕСЂР°Р·РјРµСЂРЅРѕ РјРµС‚РѕРґСѓ
         return BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel)
             .ValidateCommand(specs);
     }

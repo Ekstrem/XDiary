@@ -30,7 +30,6 @@ internal sealed class Aggregate : IPartnerAggregate
 
     private AggregateResult<IPartners, IPartnerAnemicModel> Success(AnemicModel m)
     {
-        m = m with { Version = Model.Version + 1 }; // BE-130: событие должно нести следующую версию (иначе PK (Id,Version) коллизирует)
         var data = BusinessOperationData<IPartners, IPartnerAnemicModel>.Commit<IPartners, IPartnerAnemicModel>(Model, m);
         return new AggregateResultSuccess<IPartners, IPartnerAnemicModel>(data);
     }
