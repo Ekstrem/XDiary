@@ -101,10 +101,12 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
             {
                 // @AR 12:15: не материализуем строку из частичной дельты — если Root не в дельте
                 // (например profile пришёл раньше register), пересобираем полное состояние из event store.
+                // BE-128: ClientId тоже может не попасть в DIFF события — при create с пустым полем
+                // в read-модель уходит null, хотя в агрегате он есть. Подгружаем агрегат и при пустом ClientId.
                 var name = read.Name;
                 var clientId = read.ClientId;
                 var deletedAt = read.DeletedAt;
-                if (read.Name is null)
+                if (read.Name is null || read.ClientId is null)
                 {
                     var agg = (await _events.GetById(domainEvent.Id, default)).LastOrDefault();
                     // @TL 14:26: Root может быть null у реконструированного состояния.
