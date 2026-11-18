@@ -38,7 +38,7 @@ public sealed class BusAdapter : IObserver<AggregateResult<IJournal, IJournalAne
 
     public void OnCompleted() { }
 
-    private Task SaveEventAsync(AggregateResult<IJournal, IJournalAnemicModel> result)
+    private async Task SaveEventAsync(AggregateResult<IJournal, IJournalAnemicModel> result)
     {
         // Перенесено из JournalCommandRepository.SaveAsync: событие персистится ДО публикации
         // (BusAdapter «сохранить И опубликовать»), а не пишется consumer'ом fire-and-forget.
@@ -52,7 +52,7 @@ public sealed class BusAdapter : IObserver<AggregateResult<IJournal, IJournalAne
         var entry = new DomainEventEntry
         {
             Id = result.Event.Id,
-            Version = result.Event.Version,
+            Version = await _store.GetEventCountAsync(result.Event.Id) + 1,
             CorrelationToken = result.Event.CorrelationToken,
             BoundedContext = result.Event.ContextName,
             CommandName = cmdName,
@@ -61,6 +61,6 @@ public sealed class BusAdapter : IObserver<AggregateResult<IJournal, IJournalAne
             Result = result.Event.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
-        return _store.SaveEventAsync(entry);
+        await _store.SaveEventAsync(entry);
     }
 }
