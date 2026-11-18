@@ -50,6 +50,7 @@ public class RegisterPartnerContractTests : IClassFixture<WebApplicationFactory<
         // BE-128 диагностика: если clientId в POST-ответе уже пустой — потеря в HttpActorProvider (до записи).
         var cidEl = regDoc.RootElement.GetProperty("clientId");
         var regClientId = cidEl.ValueKind == JsonValueKind.Null ? Guid.Empty : cidEl.GetGuid();
+        Console.WriteLine($"DIAG clientId={clientId} regClientId={regClientId} body={await reg.Content.ReadAsStringAsync()}");
         Assert.Equal(clientId, regClientId);
 
         var list = await client.GetFromJsonAsync<List<PartnersReadModel>>("/api/v1/partners");
