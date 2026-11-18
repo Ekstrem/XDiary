@@ -1,0 +1,13 @@
+diff --git a/6-msa/BC-Partners/src/Partners.Storage/Migrations/ReadStore/20261117210000_AddVersionToPartnersRead.cs b/6-msa/BC-Partners/src/Partners.Storage/Migrations/ReadStore/20261117210000_AddVersionToPartnersRead.cs
+index bccc9e841..7380a9e97 100644
+--- a/6-msa/BC-Partners/src/Partners.Storage/Migrations/ReadStore/20261117210000_AddVersionToPartnersRead.cs
++++ b/6-msa/BC-Partners/src/Partners.Storage/Migrations/ReadStore/20261117210000_AddVersionToPartnersRead.cs
+@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
+ namespace Partners.Storage.Migrations.ReadStore
+ {
+     /// <inheritdoc />
++    [Microsoft.EntityFrameworkCore.Infrastructure.DbContextAttribute(typeof(Partners.Storage.ReadDbContext))]
++    [Microsoft.EntityFrameworkCore.Migrations.MigrationAttribute("20261117210000_AddVersionToPartnersRead")]
+     public partial class AddVersionToPartnersRead : Migration
+     {
+         /// <inheritdoc />
