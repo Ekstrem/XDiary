@@ -1,0 +1,13 @@
+diff --git a/6-msa/BC-Partners/src/Partners.Api/Events/PartnerEventConsumer.cs b/6-msa/BC-Partners/src/Partners.Api/Events/PartnerEventConsumer.cs
+index 6466dc287..2606391ce 100644
+--- a/6-msa/BC-Partners/src/Partners.Api/Events/PartnerEventConsumer.cs
++++ b/6-msa/BC-Partners/src/Partners.Api/Events/PartnerEventConsumer.cs
+@@ -104,7 +104,7 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
+                 var name = read.Name;
+                 var clientId = read.ClientId;
+                 var deletedAt = read.DeletedAt;
+-                if (read.Name is null)
++                if (read.Name is null || read.ClientId is null)
+                 {
+                     var agg = (await _events.GetById(domainEvent.Id, default)).LastOrDefault();
+                     // @TL 14:26: Root может быть null у реконструированного состояния.
