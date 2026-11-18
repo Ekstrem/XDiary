@@ -7,16 +7,16 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal                single-378a56c  6-msa/BC-Journal  commit=378a56c  digest=sha256:512f923d5c338943f4b668b74110c27d850e9781723d159aa0a10dc60d83f389
-partners               single-378a56c  6-msa/BC-Partners  commit=378a56c  digest=sha256:8fe6a725c4b9517ddb09e1887c0943cbfb23f75eb1d18218840bbdbb3ede272d
-catalog                single-378a56c  6-msa/BC-Catalog  commit=378a56c  digest=sha256:cfb0e0de1cbae4ef0e917f4bdacd3b6da9bef9c21ce731401bee790afbb2161f
-somatic-series         single-378a56c  6-msa/BC-SomaticSeries  commit=378a56c  digest=sha256:5af13da9cea55a1e0b6c4d3819d44f92b4b27efc24a5b8ddf16a514d9c69ad5b
-daily-metrics          single-378a56c  6-msa/BC-DailyMetrics  commit=378a56c  digest=sha256:4ca1b87f7ba62a3e5036186530b423a33d1ef8dbbbafabadcedaaac3301b482c
-garmin-gateway         single-378a56c  6-msa/BC-GarminGateway  commit=378a56c  digest=sha256:af01c94c585b8e81e8b4a0465f842bdec2b1c290e4bb1aba788f609a29b05859
-apple-health-gateway   single-378a56c  6-msa/BC-AppleHealthGateway  commit=378a56c  digest=sha256:2e2a58cc56e2f5a6aeb89666160705a7c7b3e0ec6e7c684c2a1ce1abd8bb2a7e
-analytics              single-378a56c  6-msa/BC-Analytics  commit=378a56c  digest=sha256:75f47e1c828bc24a002140c8bcc40ff1b03766b3d372a6ceb6a30a0f2adeb0ff
-privacy                single-378a56c  6-msa/BC-Privacy  commit=378a56c  digest=sha256:c402fdb1d5867ecefad81405fccb937ff3f126a745d481957bd249377623aed1
-portability            single-378a56c  6-msa/BC-Portability  commit=378a56c  digest=sha256:21f1f81b93c3b603e8c152209743ec9f53767e841567ceb0fa8ea2610d46bc15
-client                 single-378a56c  6-msa/BC-Client  commit=378a56c  digest=sha256:76e0483bfa864dc3ba9386035f8e3885e7caa7afbea5e6bccf3697d002f0e574
-api-gateway            single-378a56c  6-msa/ApiGateway  commit=378a56c  digest=sha256:7f753f2d219b516785a6895a6b59c8af7c7a27d90aed3f13b68e3c6fcfdc2c7c
-front                  single-378a56c  8-front  commit=378a56c  digest=-
+journal                single-9c69c08  6-msa/BC-Journal  commit=9c69c08  digest=sha256:0204c3a2df5560f6c5241eb9aec0b49251a207a75256fc533b568afeafddafdd
+partners               single-9c69c08  6-msa/BC-Partners  commit=9c69c08  digest=sha256:084e9d47a2251adc6ff60ff07ac0c4534fe265e69fb80fcde29335b04dd3f7a3
+catalog                single-9c69c08  6-msa/BC-Catalog  commit=9c69c08  digest=sha256:2d77e3a2e2660ffb2e47ca931874821cd0b8e597c039d19560bdc56796df35b1
+somatic-series         single-9c69c08  6-msa/BC-SomaticSeries  commit=9c69c08  digest=sha256:eed39b1a683b517dd33720c6fcb284f1eeb78360df63c49828294533571acc8a
+daily-metrics          single-9c69c08  6-msa/BC-DailyMetrics  commit=9c69c08  digest=sha256:63213b597a0f923e6f09177802a9153f171293fb05af339c89734eedb2762f4b
+garmin-gateway         single-9c69c08  6-msa/BC-GarminGateway  commit=9c69c08  digest=sha256:07bf9b1246d15d8fe858d1fde2bafb1aaa404b87d1d3b77293bc8b72e770e6d9
+apple-health-gateway   single-9c69c08  6-msa/BC-AppleHealthGateway  commit=9c69c08  digest=sha256:6c417f19a5b1c753cdf1ffdb48bbc68868c523e3bf5b81a3548db80fe5baaec8
+analytics              single-9c69c08  6-msa/BC-Analytics  commit=9c69c08  digest=sha256:faa1073bbe8d06bb09f505dda17a77c350e6e23ea64874527dc06833a4d239af
+privacy                single-9c69c08  6-msa/BC-Privacy  commit=9c69c08  digest=sha256:94926bcf1f9cf1541c4871683028d942e17eec507279e89e96ac724fef88184e
+portability            single-9c69c08  6-msa/BC-Portability  commit=9c69c08  digest=sha256:f6832d4695278685b53968f5f4f51778fe4074ad638ab9fe49e98088d1d058d7
+client                 single-9c69c08  6-msa/BC-Client  commit=9c69c08  digest=sha256:9456953d21e7fb710ab610239497798bbc42eb7dc97ed91e6b726ba114b9e4dd
+api-gateway            single-9c69c08  6-msa/ApiGateway  commit=9c69c08  digest=sha256:ad1e7f7d9e1792dff0cd126d8df7106f75e381c8c89a69e676833115c0455861
+front                  single-9c69c08  8-front  commit=9c69c08  digest=-
