@@ -198,6 +198,11 @@ jobs:
         run: |
           python tools/check_readstore_ddl.py --selftest
           python tools/check_readstore_ddl.py --root 6-msa
+      - name: "Миграции видимы для EF ([Migration]/[DbContext]) — BE-127 (@TE 09:10)"
+        if: always()
+        run: |
+          python 9-tests/scripts/check_migration_attributes.py --selftest
+          python 9-tests/scripts/check_migration_attributes.py
       - name: Канон «read-модель смаплена в контексте» (BE-068)
         if: always()
         run: |
