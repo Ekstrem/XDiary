@@ -32,6 +32,9 @@ builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAn
 builder.Services.AddScoped<ClientEventReplay>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IClients, ClientReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+// BE-133 (@TL): DbContextOptions регистрируем ПОСЛЕ store-регистраций (как в Journal) —
+// иначе не-generic регистрация до AddReadStorePostgres ломает резолв EventStoreDbContext.
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddSingleton<ClientTokenService>();
 var otpChannel = builder.Configuration["Otp:Channel"] ?? "log";
 OtpChannelGuard.EnsureValid(otpChannel, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
