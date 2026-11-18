@@ -7,9 +7,9 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-9b7f2fa     6-msa/BC-Journal  commit=9b7f2fa  digest=sha256:7017a36b18d2c02e9ded670b0eb24135b541590828d32fad66645cd2a46a6961
-partners             single-9b7f2fa     6-msa/BC-Partners  commit=9b7f2fa  digest=sha256:4179a39ab00d11cbb95746b3029aae859fd981926da402f56c05b8879e61c214
-catalog              single-9b7f2fa     6-msa/BC-Catalog  commit=9b7f2fa  digest=sha256:3a986ca029bca828a66087c4d0d019fd2ef949ece466c36e56de23214579fe82
+journal              single-04c2238     6-msa/BC-Journal  commit=04c2238  digest=sha256:fd3cc7c3eb1a10c97ecbdbf2bf85c8d3ae0e57c269e6428930bb90190e47af0a
+partners             single-04c2238     6-msa/BC-Partners  commit=04c2238  digest=sha256:1b2c1c8c2ecf4ece39f811917e559996c9d57978b9023b444c4710524c716fb7
+catalog              single-04c2238     6-msa/BC-Catalog  commit=04c2238  digest=sha256:8e4b73bf728f0a09d4635e772d469c45b8d501c1334216664986015ef88c97ed
 somatic-series       single-9b7f2fa     6-msa/BC-SomaticSeries  commit=9b7f2fa  digest=sha256:3d94bd478348aa25264316e5063149f5ed265303f482f78d289af711e0ab12aa
 daily-metrics        single-9b7f2fa     6-msa/BC-DailyMetrics  commit=9b7f2fa  digest=sha256:ad3834c9d6634319f512d8477825f885f4250a31c5c5b6eb5973d26e09be4309
 garmin-gateway       single-9b7f2fa     6-msa/BC-GarminGateway  commit=9b7f2fa  digest=sha256:1b95614603b6ae1f912e693fbc1e455f1e4df8ce0ce51dad9d22dc79282f7d2d
