@@ -14,7 +14,10 @@ public sealed class HttpActorProvider : IActorProvider
     {
         get
         {
-            var user = _http.HttpContext?.User;
+            var ctx = _http.HttpContext;
+            if (ctx is not null && ctx.Items.TryGetValue("ActorClientId", out var v) && v is Guid gv)
+                return gv;
+            var user = ctx?.User;
             var sub = user?.FindFirst("sub")?.Value
                       ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value
                       ?? user?.FindFirst("nameidentifier")?.Value
