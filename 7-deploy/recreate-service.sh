@@ -342,6 +342,16 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
     __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
   fi
   if [ -n "$__st" ]; then
+    # DO-145 (@FE 02:34): readiness ОБЯЗАН сверять образ с lock — иначе старый образ
+    # проходит как «пересоздан» (deploy-dev зелёный при client, рестартующем 36 раз).
+    __img="$(podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null \
+             || sudo -n podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null || echo '')"
+    __want="ghcr.io/ekstrem/xdiary-$SVC:$TAG"
+    if [ "$__img" != "$__want" ]; then
+      __st="image-mismatch($__img != $__want)"
+    fi
+  fi
+  if [ -n "$__st" ]; then
     if [ "$__st" = "0 0" ]; then
       # DO-145 (@TL 23:58): HTTP-проверка — ТОЛЬКО для шлюза. Остальные сервисы портов
       # на хост не публикуют, и `127.0.0.1:8080/health` попадает в чужой listener
