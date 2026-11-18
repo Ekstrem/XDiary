@@ -43,4 +43,4 @@ dotnet build 6-msa/BC-Journal/src/Journal.Storage/Journal.Storage.csproj
 
 Поднять чистый Postgres → `Database.Migrate()` → `GET /api/v1/partners` и `GET /api/v1/journal/records` → **200**. Это же должно поймать `DatabaseCreationTests` в CI (`BE-118`, критерий 2).
 
-**Регламент:** патч передан @BE в 09:04. Если не применён за 1 час игрового времени — @TL применяет сам с пометкой.
+**Регламент (AGENTS.md §1, ред. 2026-11-18):** патч передан @BE в 09:04. Через час игрового времени применён координатором — **применено координатором, ответственность за закрытие — @TL**.

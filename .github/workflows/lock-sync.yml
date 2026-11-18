@@ -92,6 +92,12 @@ jobs:
       # Состояние «теги этого коммита ещё не в GHCR» остаётся ИНФОРМАЦИОННЫМ: по решению
       # (см. комментарий выше, строки 45-54) lock — производная от git, а «можно ли катить»
       # решает `lock-published` в `deploy.yml`. Смешивать эти две ответственности нельзя.
+      - name: Заполнить digest из реестра (DO-113)
+        # @TL 2026-11-18 13:05: при смене релизного тега merge_digests не переносит
+        # digest (другой тег) — без этого шага 12 digest-строк становятся 0 и Guard откатывает lock.
+        # front не публикуется (NO_REGISTRY_SERVICES) — потому `|| true`.
+        run: python tools/gen_images_lock.py --fill-digests || true
+
       - name: Guard — digest не уменьшился (DO-113)
         run: |
           set -uo pipefail
