@@ -352,9 +352,15 @@ if [ "$__ok" = "1" ]; then
       # потеряться -> 502 при живом /health). Проверяем функционально.
       if [ "$SVC" = "api-gateway" ]; then
         sleep 3
+        # DO-145 (@TL 23:20): проверяем /health шлюза, а НЕ /api/v1/clients —
+        # в `--add-host` псевдоним единственного числа (`client`), а API зовётся `/clients`,
+        # поэтому POST /api/v1/clients через шлюз давал 502 «нет псевдонима clients» и
+        # скрипт объявлял живой шлюз «не поднявшимся» (детерминированно, 3 прогона).
+        h=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/health || echo 000)
         g=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/api/v1/clients || echo 000)
         p=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X POST -H 'Content-Type: application/json' \
               -d '{}' http://127.0.0.1:8080/api/v1/clients || echo 000)
+        case "$h" in 2??) ;; *) say "ОШИБКА: GET /health шлюза = $h (ждали 2xx)" >&2; exit 1;; esac
         case "$g" in 200|401) ;; *) say "ОШИБКА: GET /api/v1/clients = $g (ждали 200/401; 502 = нет псевдонима clients)" >&2; exit 1;; esac
         # DO-145 (@TL 23:18): 400 на пустом теле — ожидаемая валидация, не отказ.
         case "$p" in 200|201|400|401) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400/401)" >&2; exit 1;; esac
