@@ -303,7 +303,9 @@ jobs:
           TW=$(python -c "import sys; sys.path.insert(0,'9-tests/scripts'); import check_apim_auth as c; print(c.PROBE_TIMEOUT)" 2>/dev/null || echo "?")
           echo "::notice::канон: предел пробы ${TW} с (из check_apim_auth.PROBE_TIMEOUT), ретраев на unknown: 3"
           T0=$SECONDS
-          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
+          # DO-145 (@TL 01:50): канон идёт по ДЕВУ до deploy-prod — иначе он требует прод-деплой,
+          # которого ещё нет, и краснеет на неизменённых эндпоинтах (ложное красное).
+          python 9-tests/scripts/check_apim_auth.py --all --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
           echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (предел пробы ${TW} с, из кода)"
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
@@ -316,7 +318,9 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
             sleep 15
             T1=$SECONDS
-            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
+            # DO-145 (@TL 01:50): канон идёт по ДЕВУ до deploy-prod — иначе он требует прод-деплой,
+          # которого ещё нет, и краснеет на неизменённых эндпоинтах (ложное красное).
+          python 9-tests/scripts/check_apim_auth.py --all --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
             echo "::notice::канон (попытка 2): rc=$rc за $((SECONDS - T1)) с"
             [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
           fi
