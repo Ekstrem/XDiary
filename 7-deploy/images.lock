@@ -7,12 +7,12 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-1219ec6     6-msa/BC-Journal  commit=1219ec6  digest=sha256:90d57fd91469f766729afc917a0411807055b8581dfef743defb1b170848b4e1
-partners             single-1219ec6     6-msa/BC-Partners  commit=1219ec6  digest=sha256:264c8f6f68c0bf8022807b367ee2cdf051b356715ce67fcfbe4431248a101dbd
-catalog              single-1219ec6     6-msa/BC-Catalog  commit=1219ec6  digest=sha256:0546c1268ec0e6518792316eda8fc4d35e122ea22ab1a7d9ea3a5d725e1293b2
-somatic-series       single-1219ec6     6-msa/BC-SomaticSeries  commit=1219ec6  digest=sha256:792bdf5c82f4c123f9ccbe0cd3ecbedcb4dc0ad019d2db72ad0ac953ab0b164e
-daily-metrics        single-1219ec6     6-msa/BC-DailyMetrics  commit=1219ec6  digest=sha256:afeced86d0a8dca7b3d25f2ab343852b45bb02bbe38112471b705c651da45c7b
-garmin-gateway       single-1219ec6     6-msa/BC-GarminGateway  commit=1219ec6  digest=sha256:28bb61c162e1c5a81bfaae90268fd19eba54ce9ef28f67dedae914e1fdc0597f
+journal              single-b2ddbb4     6-msa/BC-Journal  commit=b2ddbb4  digest=sha256:a574f3add82a9ac33bcb2d57d7766b2c822cd6adf37e1bacc3b73b958e8cbd3e
+partners             single-b2ddbb4     6-msa/BC-Partners  commit=b2ddbb4  digest=sha256:53a1eef39db5cce49d18987502d36a0f27ad535c52949de8b0dce7b2d252133c
+catalog              single-b2ddbb4     6-msa/BC-Catalog  commit=b2ddbb4  digest=sha256:a52f9c400d55b8a7ce589b0531c3d266a24b988ee8f418d62eda444f3dc97872
+somatic-series       single-b2ddbb4     6-msa/BC-SomaticSeries  commit=b2ddbb4  digest=sha256:e2b47bc1e11f5915067b7778977aeb0ab0a5baf66929168fe7ec157e7abe70ca
+daily-metrics        single-b2ddbb4     6-msa/BC-DailyMetrics  commit=b2ddbb4  digest=sha256:8c56ec5d0d0b1a92a4b6966ceda253cab6b3bbb57f7b4c5195a200d2eaa2834d
+garmin-gateway       single-b2ddbb4     6-msa/BC-GarminGateway  commit=b2ddbb4  digest=sha256:957d04367b669ae7196c3b5bfdbf6ed05d004d25d8d5692dc8dfba9fc1f8eb92
 apple-health-gateway single-1219ec6     6-msa/BC-AppleHealthGateway  commit=1219ec6  digest=sha256:71ba676d32e520dd3c6ac11e8b49f856ae05da4795ac2055e1c03ef91e809998
 analytics            single-1219ec6     6-msa/BC-Analytics  commit=1219ec6  digest=sha256:2027fb083c552c41cdad0d80902239f18a2c4de225c8d11b93a9ea3c717461b9
 privacy              single-1219ec6     6-msa/BC-Privacy  commit=1219ec6  digest=sha256:d26cf3bd5ea36fa40c06779055cb63fb564b57a7103133cb4ae61c0f810c0008
