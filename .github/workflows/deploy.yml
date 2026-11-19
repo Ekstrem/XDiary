@@ -180,8 +180,6 @@ jobs:
           set -euo pipefail
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
           echo "DEV_E2E_B64=$(base64 -w0 7-deploy/env/dev.e2e.env)" >> "$GITHUB_ENV"
-          echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
-          echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
           # DO-145 (@AR 19:17): `deploy.sh` — источник строк запуска для `recreate-service.sh`
           # (он извлекает из него команду сервиса). В CI он НЕ доставлялся, поэтому на хосте
           # оставалась копия от 17 Nov (без `--replace`) — расхождение дало «прод на :single»
@@ -200,7 +198,7 @@ jobs:
           # (10 с + 20 с) перестало укладываться в дефолтные 10 мин → прогон падал
           # `Run Command Timeout` на ПОСЛЕДНЕМ сервисе (api-gateway), хотя 11 уже были ок.
           command_timeout: 30m
-          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64
+          envs: TAG,LOCK_B64,DEV_E2E_B64
           script: |
             set -eu
             for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
@@ -210,8 +208,19 @@ jobs:
             cd /opt/xdiary/7-deploy
             # применить lock и скрипты из репозитория (иначе деплой идёт по устаревшему lock)
             echo "$LOCK_B64" | base64 -d > images.lock
-            echo "$UPDATE_B64" | base64 -d > update.sh
-            echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            # DO-145 (@TE 2026-11-20 00:10): env-payload дорос до 119 870 Б из MAX_ARG_STRLEN 131 072 —
+            # drone-ssh падал с `Argument list too long` за 2.6 с ДО соединения (E2BIG). Крупные файлы
+            # (update.sh 32 КБ b64, recreate-service.sh 48 КБ b64) доставляем по HTTP из raw, как deploy.sh.
+            __sha="${{ github.sha }}"
+            __repo="${{ github.repository }}"
+            for __f in update.sh recreate-service.sh; do
+              curl -fsSL -m 30 "https://raw.githubusercontent.com/${__repo}/${__sha}/7-deploy/${__f}" -o "/opt/xdiary/7-deploy/${__f}" \
+                || { echo "::error::не удалось скачать ${__f} из raw"; exit 1; }
+              [ "$(wc -c < "/opt/xdiary/7-deploy/${__f}")" -gt 500 ] \
+                || { echo "::error::${__f} подозрительно мал после скачивания"; exit 1; }
+              chmod +x "/opt/xdiary/7-deploy/${__f}"
+              echo "  ${__f} → /opt/xdiary/7-deploy/${__f} ($(wc -c < "/opt/xdiary/7-deploy/${__f}") Б)"
+            done
             # DO-145 (@DO 2026-11-19 21:05): докладываем `deploy.sh` В ТОТ КАТАЛОГ, откуда его читает
             # `recreate-service.sh` (`$(dirname $0)/deploy.sh`, т.е. `/opt/xdiary/7-deploy/deploy.sh`),
             # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
@@ -700,8 +709,6 @@ jobs:
         run: |
           set -euo pipefail
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
-          echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
-          echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
           # DO-124 ч.2: шим `/home/deploy/update.sh` падал на своём стороже ДО вызова живого
           # скрипта, потому что `legacy-shims.sh` на VPS-1 отсутствовал. envs уже расширены
           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
@@ -749,7 +756,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
+          envs: TAG,CODE_TS,LOCK_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -854,8 +861,19 @@ jobs:
             # именно там лежала устаревшая копия (say: command not found).
             cd /opt/xdiary/7-deploy
             echo "$LOCK_B64" | base64 -d > images.lock
-            echo "$UPDATE_B64" | base64 -d > update.sh
-            echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            # DO-145 (@TE 2026-11-20 00:10): env-payload дорос до 119 870 Б из MAX_ARG_STRLEN 131 072 —
+            # drone-ssh падал с `Argument list too long` за 2.6 с ДО соединения (E2BIG). Крупные файлы
+            # (update.sh 32 КБ b64, recreate-service.sh 48 КБ b64) доставляем по HTTP из raw, как deploy.sh.
+            __sha="${{ github.sha }}"
+            __repo="${{ github.repository }}"
+            for __f in update.sh recreate-service.sh; do
+              curl -fsSL -m 30 "https://raw.githubusercontent.com/${__repo}/${__sha}/7-deploy/${__f}" -o "/opt/xdiary/7-deploy/${__f}" \
+                || { echo "::error::не удалось скачать ${__f} из raw"; exit 1; }
+              [ "$(wc -c < "/opt/xdiary/7-deploy/${__f}")" -gt 500 ] \
+                || { echo "::error::${__f} подозрительно мал после скачивания"; exit 1; }
+              chmod +x "/opt/xdiary/7-deploy/${__f}"
+              echo "  ${__f} → /opt/xdiary/7-deploy/${__f} ($(wc -c < "/opt/xdiary/7-deploy/${__f}") Б)"
+            done
             # DO-145 (@DO 2026-11-19 21:05): докладываем `deploy.sh` В ТОТ КАТАЛОГ, откуда его читает
             # `recreate-service.sh` (`$(dirname $0)/deploy.sh`, т.е. `/opt/xdiary/7-deploy/deploy.sh`),
             # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
