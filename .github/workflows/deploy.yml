@@ -182,7 +182,6 @@ jobs:
           echo "DEV_E2E_B64=$(base64 -w0 7-deploy/env/dev.e2e.env)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
-          echo "DEPLOY_B64=$(base64 -w0 7-deploy/deploy.sh)" >> "$GITHUB_ENV"
           # DO-145 (@AR 19:17): `deploy.sh` — источник строк запуска для `recreate-service.sh`
           # (он извлекает из него команду сервиса). В CI он НЕ доставлялся, поэтому на хосте
           # оставалась копия от 17 Nov (без `--replace`) — расхождение дало «прод на :single»
@@ -220,18 +219,21 @@ jobs:
             # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
             # @TE 21:16: пустой DEPLOY_B64 дал бы ПУСТОЙ deploy.sh вместо старого — это хуже.
             [ -n "${DEPLOY_B64:-}" ] || { echo "::error::DEPLOY_B64 пуст — деплой не начинаю"; exit 1; }
-            if [ -n "${DEPLOY_B64:-}" ]; then
-              echo "$DEPLOY_B64" | base64 -d > /opt/xdiary/7-deploy/deploy.sh
-              chmod +x /opt/xdiary/7-deploy/deploy.sh
-              grep -q -- '--replace' /opt/xdiary/7-deploy/deploy.sh || { echo "::error::deploy.sh без --replace — не то содержимое"; exit 1; }
-              [ "$(wc -c < /opt/xdiary/7-deploy/deploy.sh)" -gt 1000 ] || { echo "::error::deploy.sh подозрительно мал — не то содержимое"; exit 1; }
-              echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true))"
-              echo "$DEPLOY_B64" | base64 -d > "$HOME/deploy.sh.real"
-              chmod +x "$HOME/deploy.sh.real"
-              echo "  deploy.sh → $HOME/deploy.sh.real (копия для update.sh)"
-            else
-              echo "::warning::DEPLOY_B64 не передан — на хосте останется прежняя копия deploy.sh"
-            fi
+# DO-145 (@TL 21:39): `DEPLOY_B64` в env переполнял ARG_MAX — дрон-ssh падал за 2.6 с
+            # (`Argument list too long`). Доставляем `deploy.sh` по HTTP из raw (репозиторий публичный):
+            # без env, без токена, без base64. Инвариант проверяем ДО использования (@AR §28).
+            __sha="${{ github.sha }}"
+            __url="https://raw.githubusercontent.com/${{ github.repository }}/${__sha}/7-deploy/deploy.sh"
+            curl -fsSL -m 30 "$__url" -o /opt/xdiary/7-deploy/deploy.sh \
+              || { echo "::error::не удалось скачать deploy.sh из $__url"; exit 1; }
+            grep -q -- '--replace' /opt/xdiary/7-deploy/deploy.sh \
+              || { echo "::error::deploy.sh без --replace — не то содержимое (шим?)"; exit 1; }
+            [ "$(wc -c < /opt/xdiary/7-deploy/deploy.sh)" -gt 1000 ] \
+              || { echo "::error::deploy.sh подозрительно мал"; exit 1; }
+            chmod +x /opt/xdiary/7-deploy/deploy.sh
+            cp -f /opt/xdiary/7-deploy/deploy.sh "$HOME/deploy.sh.real"
+            chmod +x "$HOME/deploy.sh.real"
+            echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true)) + $HOME/deploy.sh.real"
             chmod +x update.sh recreate-service.sh
             # dev-оверлей E2E: идемпотентно влить в secrets/.env (без дублей ключей)
             echo "$DEV_E2E_B64" | base64 -d > /tmp/dev.e2e.env
@@ -861,16 +863,21 @@ jobs:
             # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
             # (748 Б) и затирал наш файл. Факт с прода: `/home/deploy/deploy.sh` mtime 20:21 size **748**
             # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
-            if [ -n "${DEPLOY_B64:-}" ]; then
-              echo "$DEPLOY_B64" | base64 -d > /opt/xdiary/7-deploy/deploy.sh
-              chmod +x /opt/xdiary/7-deploy/deploy.sh
-              echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true))"
-              echo "$DEPLOY_B64" | base64 -d > "$HOME/deploy.sh.real"
-              chmod +x "$HOME/deploy.sh.real"
-              echo "  deploy.sh → $HOME/deploy.sh.real (копия для update.sh)"
-            else
-              echo "::warning::DEPLOY_B64 не передан — на хосте останется прежняя копия deploy.sh"
-            fi
+# DO-145 (@TL 21:39): `DEPLOY_B64` в env переполнял ARG_MAX — дрон-ssh падал за 2.6 с
+            # (`Argument list too long`). Доставляем `deploy.sh` по HTTP из raw (репозиторий публичный):
+            # без env, без токена, без base64. Инвариант проверяем ДО использования (@AR §28).
+            __sha="${{ github.sha }}"
+            __url="https://raw.githubusercontent.com/${{ github.repository }}/${__sha}/7-deploy/deploy.sh"
+            curl -fsSL -m 30 "$__url" -o /opt/xdiary/7-deploy/deploy.sh \
+              || { echo "::error::не удалось скачать deploy.sh из $__url"; exit 1; }
+            grep -q -- '--replace' /opt/xdiary/7-deploy/deploy.sh \
+              || { echo "::error::deploy.sh без --replace — не то содержимое (шим?)"; exit 1; }
+            [ "$(wc -c < /opt/xdiary/7-deploy/deploy.sh)" -gt 1000 ] \
+              || { echo "::error::deploy.sh подозрительно мал"; exit 1; }
+            chmod +x /opt/xdiary/7-deploy/deploy.sh
+            cp -f /opt/xdiary/7-deploy/deploy.sh "$HOME/deploy.sh.real"
+            chmod +x "$HOME/deploy.sh.real"
+            echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true)) + $HOME/deploy.sh.real"
             chmod +x update.sh recreate-service.sh
             grep -q 'tag_of' update.sh || { echo "::error::update.sh без tag_of — доставка не удалась"; exit 1; }
             grep -q 'say()' update.sh || { echo "::error::update.sh без say() — та же устаревшая копия"; exit 1; }
