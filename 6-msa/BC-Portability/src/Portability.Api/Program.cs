@@ -34,6 +34,9 @@ builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IPortability, CsvDocumentReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-125/BE-133: не-generic DbContextOptions для библиотечного EventStoreDbContext (иначе Autofac падает).
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
+// BE-140: без консьюмера/хендлера проекции csv_document_read остаётся пустой (класс BE-134/BE-138).
+builder.Services.AddHostedService<Portability.Api.Events.PortabilityEventConsumer>();
+builder.Services.AddSingleton<Portability.Api.Events.PortabilityEventHandler>();
 
 
 
