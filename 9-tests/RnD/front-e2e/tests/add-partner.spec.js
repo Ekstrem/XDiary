@@ -58,8 +58,11 @@ test('E2E: партнёр — добавить в приложении, увид
     const names = await page
       .locator('#partners-list .partner-row')
       .evaluateAll((rows) => rows.map((r) => {
-        const n = r.querySelector('.partner-row-name, span');
-        const txt = ((n && n.textContent) || r.innerText || '').trim();
+        // ВАЖНО (@TE 2026-11-19): `.partner-row-name, span` матчил АВАТАР (первый span в
+        // порядке документа, `avatar-initial` = первая буква) — отсюда ложное «в DOM имя "T"».
+        const n = r.querySelector('.partner-row-name') ||
+          r.querySelector('.partner-row-text') || r;
+        const txt = (n.textContent || '').trim();
         return txt.slice(0, 40);
       }).slice(0, 10))
       .catch(() => []);
