@@ -294,14 +294,17 @@ done
 # Поэтому сверяемся ещё и с ЖИВЫМ контейнером: расхождение = повод пересоздать, не повод пропустить.
 LIVE_DRIFT=""
 for svc in "${!CUR_IDS[@]}"; do
+  # @TL 19:52: печатаем ПРИЧИНУ, а не только факт — иначе следующая диагностика снова с нуля.
+  live_img="$($PODMAN_SUDO podman inspect "xdiary-$svc" --format '{{.ImageName}}' 2>/dev/null || true)"
   live_id="$($PODMAN_SUDO podman inspect "xdiary-$svc" --format '{{.Image}}' 2>/dev/null || true)"
   if [ -z "$live_id" ]; then
-    case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc"; LIVE_DRIFT="$LIVE_DRIFT $svc(нет контейнера)";; esac
+    case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc";; esac
+    LIVE_DRIFT="$LIVE_DRIFT ${svc}(no-container)"
     continue
   fi
   if [ "$live_id" != "${CUR_IDS[$svc]}" ]; then
     case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc";; esac
-    LIVE_DRIFT="$LIVE_DRIFT $svc"
+    LIVE_DRIFT="$LIVE_DRIFT ${svc}(image-mismatch(${live_img:-?} != ghcr.io/ekstrem/xdiary-$svc:<lock>))"
   fi
 done
 [ -z "$LIVE_DRIFT" ] || say "живое состояние расходится с lock (пересоздаю):$LIVE_DRIFT"
