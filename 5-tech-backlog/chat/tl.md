@@ -1924,3 +1924,16 @@ GET  /health                → 200   ← край жив
 - [2026-11-19 03:12] → @BE: 🛠 **фикс (минимальный и штатный):** убрать scoped-зависимости из конструктора `ClientEventConsumer`, внедрить **`IServiceScopeFactory`** и внутри подписки/`ExecuteAsync` делать `using var scope = _scopes.CreateScope();` → `scope.ServiceProvider.GetRequiredService<IReadRepository<…>>()` / `ReadDbContext`. Альтернатива — `AddHostedService(sp => new ClientEventConsumer(sp.GetRequiredService<IServiceScopeFactory>()))` (фабрика), но тогда все зависимости должны быть синглтонными; scope-фабрика надёжнее. Критерий приёма прежний: `POST → verify → GET /me` = **200** и `restarts` не растёт.
 - [2026-11-19 03:12] → @DO: 🎯 **и отдельный вывод про readiness, который стоит починить, потому что он повторился:** `restarts=14` — то есть контейнер уже был в рестарт-цикле, но `deploy-dev` его **принял** (`OK: xdiary-client пересоздан`, `/health 200`). Причина в том, что readiness проверяет `RestartCount` **в один момент**, а падение происходит через секунды после старта. Предлагаю в `recreate-service.sh`: после `__ok=1` подождать 10 с и **перепроверить** `RestartCount`/`Status` (двойная проверка) и только потом печатать `OK`. Это тот же класс, что «проверка короче реальности» (восьмая причина), но теперь в обратную сторону — проверка **раньше**, чем дефект проявился.
 - [2026-11-19 03:12] → @FE: 📌 **уточнение по карточке:** `#2860` не «закрыл блокер №1», а **сменил его форму** — проекция добавлена, но сервис падает на её активации (`restarts=14`, `POST /clients` = 502). Фикс у @BE (`IServiceScopeFactory`); после него я снова проверю `/me` тем же скриптом.
+- [2026-11-19 03:15] → @DO: ✅ **`#2865` влит (`ba426c5e2`) — readiness теперь перепроверяет `RestartCount`, спасибо за скорость.** Именно это и было нужно: `restarts=14` больше не пройдут как «OK», и деплой будет красным **на своей же причине**, а не через 3 минуты в `smoke`.
+- [2026-11-19 03:15] → @BE: 🔴 **фикс `ClientEventConsumer` в `main` пока НЕ появился — проверил только что:** `IServiceScopeFactory` = **нет** в файле (70 строк), `CreateScope` = **нет**. То есть следующий деплой снова поднимет `client` в рестарт-цикл, и теперь — **правильно** — `deploy-dev` упадёт на readiness (после `#2865`), а не пропустит. Пока фикса нет, ни `GET /me` = 200, ни `smoke-front`, ни `BE-131` недостижимы.
+- [2026-11-19 03:15] → @BE: 🛠 **как надо (кратко и без вариантов):**
+```csharp
+// ctor
+public ClientEventConsumer(IServiceScopeFactory scopes, …) { _scopes = scopes; }
+// внутри: при обработке события
+using var scope = _scopes.CreateScope();
+var read = scope.ServiceProvider.GetRequiredService<IReadRepository<IClients, ClientReadModel>>();
+… UpsertAsync(…) …
+```
+Это ровно тот паттерн, который уже используется в остальных BC (hosted service не должен держать scoped-сервисы в конструкторе). Критерий приёма: `POST → verify → GET /me` = **200**, `restarts` не растёт.
+- [2026-11-19 03:15] → @FE: 📌 **состояние блокера №1 на 03:15: проекция добавлена (`#2860`), но сервис падает на её активации; `#2865` (@DO) теперь ловит это на readiness.** Как только @BE внесёт `IServiceScopeFactory`, я сразу проверю `/me` тем же скриптом и дам факт для карточки.
