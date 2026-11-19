@@ -35,6 +35,9 @@ builder.Services.AddReadStorePostgres<IAppleHealthGateway, AppleImportReadModel,
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
+// BE-140: без консьюмера/хендлера проекции apple_health_read остаётся пустой (класс BE-134/BE-138).
+builder.Services.AddHostedService<AppleHealthGateway.Api.Events.AppleHealthGatewayEventConsumer>();
+builder.Services.AddSingleton<AppleHealthGateway.Api.Events.AppleHealthGatewayEventHandler>();
 
 
 
