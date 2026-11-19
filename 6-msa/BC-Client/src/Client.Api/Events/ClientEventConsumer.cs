@@ -7,6 +7,7 @@ using Client.Domain;
 using Client.Domain.Abstraction;
 using Client.Domain.Implementation;
 using Client.InternalContracts;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// E1: консьюмер событий Client. Подписывает хендлер на in-memory шину;
@@ -29,31 +30,36 @@ public sealed class ClientEventConsumer : BackgroundService
 
 public sealed class ClientEventHandler : IDomainEventHandler<IClients>, IObserver<IDomainEvent<IClients>>
 {
-    private readonly IReadModelStore<IClients, ClientReadModel> _readStore;
-    private readonly IReadRepository<IClients, ClientReadModel> _readRepo;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public ClientEventHandler(IReadModelStore<IClients, ClientReadModel> readStore, IReadRepository<IClients, ClientReadModel> readRepo)
-    { _readStore = readStore; _readRepo = readRepo; }
-
-    public async Task HandleAsync(IDomainEvent<IClients> domainEvent)
+    // BE-134 fix: hosted service резолвится из root-scope, а IReadModelStore/IReadRepository —
+    // scoped (root их резолвить не может, Autofac DependencyResolutionException).
+    // Поэтому хендлер держит только IServiceScopeFactory (singleton) и резолвит scoped на каждое событие.
+    public ClientEventHandler(IServiceScopeFactory scopeFactory)
     {
-        var vos = domainEvent.ChangedValueObjects;
-        if (vos is null || vos.Count == 0) return;
-        var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new ClientReadModel { Id = domainEvent.Id };
-        if (existing.Version >= domainEvent.Version) return; // QG-305: идемпотентность по версии (stale-skip)
-        ClientProjection.ApplyVos(existing, vos);
-        existing.Version = domainEvent.Version;
-        await _readStore.UpsertAsync(existing);
+        _scopeFactory = scopeFactory;
     }
 
-    // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.
-    // fire-and-forget с видимым падением (как Journal), чтобы потеря события не была молчаливой.
     public void OnNext(IDomainEvent<IClients> e) => _ = HandleAsync(e).ContinueWith(t =>
     {
         if (t.IsFaulted) Console.Error.WriteLine($"[event] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
     }, TaskScheduler.Default);
     public void OnError(Exception error) { }
     public void OnCompleted() { }
+
+    public async Task HandleAsync(IDomainEvent<IClients> domainEvent)
+    {
+        var vos = domainEvent.ChangedValueObjects;
+        if (vos is null || vos.Count == 0) return;
+        using var scope = _scopeFactory.CreateScope();
+        var readStore = scope.ServiceProvider.GetRequiredService<IReadModelStore<IClients, ClientReadModel>>();
+        var readRepo = scope.ServiceProvider.GetRequiredService<IReadRepository<IClients, ClientReadModel>>();
+        var existing = await readRepo.GetByIdAsync(domainEvent.Id, default) ?? new ClientReadModel { Id = domainEvent.Id };
+        if (existing.Version >= domainEvent.Version) return; // QG-305: идемпотентность по версии (stale-skip)
+        ClientProjection.ApplyVos(existing, vos);
+        existing.Version = domainEvent.Version;
+        await readStore.UpsertAsync(existing);
+    }
 }
 
 public static class ClientProjection
