@@ -563,9 +563,20 @@ jobs:
       # 2026-11-10 (@TE 11:45): у @TE нет доступа к артефактам и к контуру, поэтому классы
       # падений печатаются прямо в лог прогона — без скачивания.
       - name: Классы падений (e2e_triage)
-        if: failure()
+        # DO-145 (@TE 09:2x, @TL 09:27): триаж падал rc=2 «не читается pw.log — No such file»,
+        # потому что путь считался от КОРНЯ, а `tee` пишет от `9-tests/RnD/front-e2e`
+        # (working-directory шага «UI smoke»). Теперь рабочая директория та же, а
+        # отсутствие лога — notice (не ошибка), чтобы не маскировать настоящую причину.
+        if: always()
+        working-directory: 9-tests/RnD/front-e2e
         run: |
-          python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
+          set -uo pipefail
+          LOG=test-results/pw.log
+          if [ ! -f "$LOG" ]; then
+            echo "::notice::e2e_triage: лог $LOG отсутствует (тесты не запускались или шаг упал раньше) — триаж пропущен"
+            exit 0
+          fi
+          python 9-tests/scripts/e2e_triage.py --input "$LOG" || true
 
   # Гейт паритета API между стендами (@TL 2026-11-15, запрос владельца):
   # сегодняшний баг «Фантазии/акт падают с 500 на проде, а на dev работают» — это
