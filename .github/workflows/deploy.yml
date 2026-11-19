@@ -201,7 +201,7 @@ jobs:
           # (10 с + 20 с) перестало укладываться в дефолтные 10 мин → прогон падал
           # `Run Command Timeout` на ПОСЛЕДНЕМ сервисе (api-gateway), хотя 11 уже были ок.
           command_timeout: 30m
-          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64,DEPLOY_B64
+          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64
           script: |
             set -eu
             for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
@@ -702,10 +702,6 @@ jobs:
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
-          # DO-145 (@TE 21:10): в блоке deploy-prod `DEPLOY_B64` ОТСУТСТВОВАЛ (был только в dev),
-          # поэтому на VPS-1 оставалась копия `deploy.sh` от 17 Nov без `--replace` — recreate
-          # извлекал старую строку запуска, шлюз не пересоздавался. Аннотация: «DEPLOY_B64 не передан».
-          echo "DEPLOY_B64=$(base64 -w0 7-deploy/deploy.sh)" >> "$GITHUB_ENV"
           # DO-124 ч.2: шим `/home/deploy/update.sh` падал на своём стороже ДО вызова живого
           # скрипта, потому что `legacy-shims.sh` на VPS-1 отсутствовал. envs уже расширены
           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
@@ -753,7 +749,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,DEPLOY_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
