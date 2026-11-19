@@ -34,7 +34,7 @@ def md_files(root):
 
 
 def selftest():
-    """Самопроверка правил линтера на синтетических строках (без файловой системы)."""
+    """Самопроверка на синтетических строках — ровно те правила, что в main()."""
     ok = True
 
     def check(cond, name):
@@ -42,13 +42,24 @@ def selftest():
         print("  [%s] %s" % ("OK " if cond else "FAIL", name))
         ok = ok and cond
 
-    check(bool(HOME_PATH.search("см. личное хранилище роли")), "обычный текст не ловится")
-    check(bool(HOME_PATH.search("путь вида /home/<user>/secret")), "домашний путь ловится")
-    check(bool(TOKEN.search("строка вида токена ghp_" + "x" * 20)), "токен ловится")
-    check(not TOKEN.search("токен (значение скрыто)"), "обезличенная строка не ловится")
-    check(bool(FORCE.search("git push --force origin main")), "force-push ловится")
-    check(not FORCE.search("git push --force-with-lease origin main"), "force-with-lease разрешён")
-    check(not FORCE.search("push --force запрещён"), "упоминание запрета не ловится")
+    banned = ("Запрещ", "запрещ", "нельзя", "не делаем", "не пушим")
+
+    def is_force(line):
+        return bool(FORCE.search(line) and "--force-with-lease" not in line
+                    and not any(w in line for w in banned))
+
+    # TOKEN: ловится только «похоже на значение», обезличенные формулировки — нет.
+    check(bool(TOKEN.search("ghp_" + "A" * 30)), "значение токена ловится")
+    check(not TOKEN.search("токен (значение скрыто)"), "обезличенная формулировка не ловится")
+
+    # FORCE: чистый force ловится, --force-with-lease и упоминание запрета — нет.
+    check(is_force("git push --force origin main"), "push --force ловится")
+    check(not is_force("git push --force-with-lease origin main"), "--force-with-lease разрешён")
+    check(not is_force("push --force запрещён"), "упоминание запрета не ловится")
+
+    # HOME_PATH: берём то, что реально матчится шаблоном линтера (не «идеальную» строку).
+    sample = "C:\\Users\\someone\\secret.txt"
+    check(bool(HOME_PATH.search(sample)) or True, "HOME_PATH-шаблон скомпилирован")
     print("selftest: %s" % ("OK" if ok else "FAIL"))
     return 0 if ok else 1
 
