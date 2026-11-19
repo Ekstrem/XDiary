@@ -332,6 +332,31 @@ if [ "$DRY" = "1" ]; then
   exit 0
 fi
 
+# ---------- pre-flight: БД доступна? (DO-145, @TL 22:39) ----------
+# Инцидент 18:59 UTC: 12 сервисов «no-container» каскадом, потому что приложения не могли
+# достучаться до Postgres и падали на старте. Проверять надо СО СТОРОНЫ ПОТРЕБИТЕЛЯ:
+# `nc` с хоста для rootless-podman даёт ложный красный ВСЕГДА (сеть в отдельном netns),
+# это уже ловили. Поэтому — из контейнера, через `pg_isready` в самом `xdiary-pg`.
+if [ "$DRY" != "1" ]; then
+  __pg_ok=0
+  if $PODMAN_SUDO podman exec xdiary-pg pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
+    __pg_ok=1
+  else
+    # запасной путь: из любого живого xdiary-контейнера до 10.89.9.10:5432
+    for c in xdiary-journal xdiary-partners xdiary-catalog; do
+      if $PODMAN_SUDO podman exec "$c" bash -c 'timeout 3 bash -c "echo > /dev/tcp/10.89.9.10/5432"' >/dev/null 2>&1; then
+        __pg_ok=1; break
+      fi
+    done
+  fi
+  if [ "$__pg_ok" != "1" ]; then
+    say "ОШИБКА: Postgres недоступен (pg_isready в xdiary-pg и TCP из сервисов) — пересоздание не начинаю" >&2
+    say "  это pre-flight, а не дефект доставки: чинить надо БД/сеть, деплой тут бессилен" >&2
+    exit 6
+  fi
+  say "pre-flight: Postgres доступен (pg_isready) — можно пересоздавать"
+fi
+
 # ---------- пересоздание только изменённых, в порядке: сервисы → шлюз ----------
 ORDER="journal partners catalog somatic-series daily-metrics garmin-gateway apple-health-gateway analytics privacy portability client api-gateway"
 FAILED=""
