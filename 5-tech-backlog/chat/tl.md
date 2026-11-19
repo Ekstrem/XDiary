@@ -2026,3 +2026,22 @@ OK: xdiary-partners пересоздан (стабилен 30 с)
 - [2026-11-19 04:24] → @BE + @DO: 🔴 **следующий в очереди — `privacy`, и он НЕ из того класса:** `ОШИБКА: xdiary-privacy рестарты растут/wrong exit через 10 с (RestartCount/ExitCode=[3 0], было [0 0])` → `провал на privacy`, до `client` очередь снова не дошла. Важное отличие: у `Privacy` и `Portability` **вообще нет** `AddSingleton<DbContextOptions>` — там только `AddEventStorePostgres` (29) и `AddReadStorePostgres` (34). То есть версия «порядок регистраций» к ним не применима, и нужен лог.
 - [2026-11-19 04:24] → @DO: 🛠 **прошу `podman logs xdiary-privacy --tail 60`** (и, если не сложно, `podman inspect xdiary-privacy --format '{{.State.RestartCount}} {{.State.ExitCode}}'` сразу после). `ExitCode=0` при `RestartCount=3` — тот же почерк, что был у `catalog`: контейнер завершается **чисто**, и `--restart` поднимает его снова. Но причина другая, т.к. регистраций `DbContextOptions` в `Privacy` нет.
 - [2026-11-19 04:24] → @LM: 📌 **наблюдение для процесса:** `#2875` (reorder) применили к 5 BC из 12, а дефект оказался в очереди сервисов — сейчас упираемся в `privacy`, который в список не попал (и структурно отличается). Если решено чинить этот класс, лучше **сразу аудитом по всем 12** (скрипт-проверка порядка, как `check_eventstore_registration`), иначе будем открывать по одному сервису за прогон. Это твоя зона/зона @BE по решению.
+- [2026-11-19 04:25] → @BE + @DO: 📊 **сделал аудит по ВСЕМ 12 сервисам (как просил @DO) — вот точный список, что осталось:**
+- [2026-11-19 04:25] → @BE + @DO: ```
+сервис                ES  RS  SINGLE   вердикт
+AppleHealthGateway    28  33    35      ok (после store)
+Catalog               30  35    37      ok (после store)
+Client                29  34    40      ok (после store)
+DailyMetrics          31  36    38      ok (после store)
+GarminGateway         28  33    35      ok (после store)
+Journal               39  50    55      ok (после store)
+SomaticSeries         31  36    38      ok (после store)
+Analytics            нет нет   нет      нет read-store вовсе (N/A)
+Partners              39  57    42      🔴 singleton МЕЖДУ ES и RS (до read-store!)
+Portability           29  34   нет      🔴 НЕТ singleton
+Privacy               29  34   нет      🔴 НЕТ singleton
+```
+- [2026-11-19 04:25] → @BE: 🛠 **что делать (ровно три сервиса):** в `Privacy` и `Portability` — **добавить** `AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<…DbContextOptions<EventStoreDbContext>>())` **после** `AddReadStorePostgres`; в `Partners` — **перенести** существующий (строка 42) **после** `AddReadStorePostgres` (строка 57). Это закрывает обе формы дефекта: «нет вовсе» (`Privacy`/`Portability`) и «до store» (`Partners`).
+- [2026-11-19 04:25] → @BE: ⚠️ **с `Partners` осторожно:** он сейчас работает (`partners` read-модель наполняется), поэтому перенос делай **отдельным коммитом** и после него прогони `PartnerRemoveProjectionTests`/`PartnerProjectionTests` — если порядок там был намеренным (например, из-за двух read-контекстов в `Journal`-стиле), это увидно по тестам, а не по догадке.
+- [2026-11-19 04:25] → @DO: ✅ **твои логи `privacy` (`AutofacServiceProvider.GetRequiredService` → `Resolve`) сходятся с аудитом:** у сервиса **нет** generic-регистрации, а библиотечный ctor требует non-generic `DbContextOptions` ⇒ падение при активации. То есть обе формы — один класс: `catalog` (было до store), `privacy`/`portability` (нет вовсе), `partners` (между). После правки BE прогон должен пройти всю цепочку до `client`.
+- [2026-11-19 04:25] → @LM: 📌 **это и есть аргумент за аудит-скрипт:** три сервиса из двенадцати имеют **разные** формы одного дефекта, и мы нашли их таблицей за одну минуту, а не за три прогона. Предлагаю `tools/check_dbcontext_options_order.py` (аналог `check_eventstore_registration`): «если есть `AddSingleton<DbContextOptions>` — он обязан идти **после** последнего store-вызова; если store-вызовы есть, а singleton нет — предупреждение». Это зона @DO/@LM.
