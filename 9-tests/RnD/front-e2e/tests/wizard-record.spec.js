@@ -35,11 +35,26 @@ async function findRecord(page, startedAt) {
 }
 
 async function deleteRecord(page, id) {
+  // @TL 2026-11-19 05:30: удаление черновика домен запрещает (`400 RecordDeletable: delete applies
+  // only to a Recorded record`). Поэтому перед delete доводим запись до статуса Recorded —
+  // `when` (если не задано) + `complete`; ошибки этих шагов не валят уборку, но печатаются.
   return page.evaluate(async ({ base, id }) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
     const headers = t ? { Authorization: 'Bearer ' + t } : {};
-    const r = await fetch(base + '/api/v1/journal/records/' + id + '/delete', { method: 'POST', headers });
-    return { ok: r.ok, status: r.status };
+    const steps = [];
+    const post = async (path, body) => {
+      const r = await fetch(base + path, {
+        method: 'POST',
+        headers: Object.assign({}, headers, body ? { 'Content-Type': 'application/json' } : {}),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      steps.push(path.split('/').pop() + ':' + r.status);
+      return r;
+    };
+    await post('/api/v1/journal/records/' + id + '/when', { startedAt: new Date().toISOString() });
+    await post('/api/v1/journal/records/' + id + '/complete');
+    const r = await post('/api/v1/journal/records/' + id + '/delete');
+    return { ok: r.ok, status: r.status, steps: steps.join(',') };
   }, { base: API_BASE, id });
 }
 

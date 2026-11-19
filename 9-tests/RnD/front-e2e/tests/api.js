@@ -368,10 +368,13 @@ async function seedSessionOnce(page) {
     // а старый двухшаговый путь (партнёр + шим `link-partner`) пока оставляем — он нужен
     // образам до 0.88 и спекам, которые ожидают партнёра. Режим печатаем, чтобы
     // "зелёный на старом образе" не выглядел как "новый контракт проверен".
+    // @TL 2026-11-19 05:38 + @FE (код `app.js:365-377`): фронт открывает журнал только при
+    // `verified && displayName`, и профиль уходит как `{DisplayName, Gender}` (канон `submitOnbProfile`).
+    // Регистр не важен для биндинга, но держим канон, чтобы не спорить с бэкендом.
     const prof = await j(await fetch(base + "/api/v1/clients/me/profile", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-      body: JSON.stringify({ displayName: "TE-SEED", gender: "female" }),
+      body: JSON.stringify({ DisplayName: "TE-SEED", Gender: "female" }),
     }));
     const profileOk = prof.status >= 200 && prof.status < 300;
     const profileMode = profileOk ? "profile" : (prof.status === 404 || prof.status === 405 ? "pre-profile-image" : "profile-rejected:" + prof.status);
