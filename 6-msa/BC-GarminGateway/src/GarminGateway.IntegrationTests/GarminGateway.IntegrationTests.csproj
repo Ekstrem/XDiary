@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GarminGateway.Domain\GarminGateway.Domain.csproj" /><ProjectReference Include="..\GarminGateway.DomainServices\GarminGateway.DomainServices.csproj" />
+    <ProjectReference Include="..\GarminGateway.Api\GarminGateway.Api.csproj" />
     <ProjectReference Include="..\GarminGateway.Storage\GarminGateway.Storage.csproj" />
     <ProjectReference Include="..\GarminGateway.InternalContracts\GarminGateway.InternalContracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
