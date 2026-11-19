@@ -340,12 +340,12 @@ fi
 if [ "$DRY" != "1" ]; then
   __pg_ok=0
   if $PODMAN_SUDO podman exec xdiary-pg pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-    __pg_ok=1
+    __pg_ok=1; __pg_via="pg_isready"
   else
     # запасной путь: из любого живого xdiary-контейнера до 10.89.9.10:5432
     for c in xdiary-journal xdiary-partners xdiary-catalog; do
       if $PODMAN_SUDO podman exec "$c" bash -c 'timeout 3 bash -c "echo > /dev/tcp/10.89.9.10/5432"' >/dev/null 2>&1; then
-        __pg_ok=1; break
+        __pg_ok=1; __pg_via="tcp:$c"; break
       fi
     done
   fi
@@ -354,7 +354,13 @@ if [ "$DRY" != "1" ]; then
     say "  это pre-flight, а не дефект доставки: чинить надо БД/сеть, деплой тут бессилен" >&2
     exit 6
   fi
-  say "pre-flight: Postgres доступен (pg_isready) — можно пересоздавать"
+  # @TE 23:58: печатаем ПОЛОЖИТЕЛЬНЫЙ результат с указанием, ЧЕМ измерено — иначе по логу
+  # нельзя отличить «проверка прошла» от «проверка не выполнялась» (класс «нет строки = не было»).
+  case "${__pg_via:-}" in
+    pg_isready) say "pre-flight: Postgres доступен (pg_isready внутри xdiary-pg) — можно пересоздавать" ;;
+    tcp:*)      say "pre-flight: Postgres доступен (${__pg_via#tcp:} из netns сервиса) — можно пересоздавать" ;;
+    *)          say "pre-flight: Postgres доступен (${__pg_via:-способ не записан}) — можно пересоздавать" ;;
+  esac
 fi
 
 # ---------- пересоздание только изменённых, в порядке: сервисы → шлюз ----------
