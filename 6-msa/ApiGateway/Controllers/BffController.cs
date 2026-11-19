@@ -36,7 +36,7 @@ public class BffController : ControllerBase
 
         try
         {
-            var journal = await GetStringAsync(client, $"{journalBase}/api/v1/journal", auth, ct);
+            var journal = await GetStringAsync(client, $"{journalBase}/api/v1/journal/records", auth, ct);
             var metrics = await GetStringAsync(client,
                 $"{dailyMetricsBase}/api/v1/daily-metrics/series?fromDate=1970-01-01&toDate=2999-12-31", auth, ct);
 
