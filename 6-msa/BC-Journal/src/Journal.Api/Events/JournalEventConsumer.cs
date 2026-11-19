@@ -69,7 +69,11 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         {
             var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new JournalReadModel { Id = domainEvent.Id };
             // Канон §15.1/§8.4: идемпотентность по версии — событие старше/равное уже применённому пропускаем.
-            if (existing.Version >= domainEvent.Version)
+            // BE-137 (@TL 2026-11-19): у legacy-строк Version — ms-таймстамп (AnemicModel.Version по умолчанию
+            // = ToUnixTimeMilliseconds()), а у события Version — 1,2,3. Тогда existing.Version >= domainEvent.Version
+            // всегда истинно → read-модель не движется. Тот же пол, что в BC-Client (#2889) и BC-Partners (BE-131).
+            const long LegacyTimestampFloor = 1_000_000_000_000L;
+            if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor)
             {
                 Console.WriteLine("[handle] stale event (version) — skip projection");
             }
