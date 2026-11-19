@@ -341,8 +341,25 @@ test('E2E: визард подставляет последние партнёр
     await expect(page.locator('#w-partner-grid'), 'шаг 1 — «Партнёр»').toBeVisible({ timeout: 10000 });
 
     // Шаг 1 — партнёр: выбранная карточка = последний партнёр.
+    // @FE 2026-11-19 08:30: это отдельное утверждение, но «ожидалось 1» не говорит почему.
+    // Диагностика снимаетсяbest-effort и НЕ бросает (иначе dryrun падает на пустом DOM):
+    // пустая сетка ⇒ партнёр не виден (`GET /partners` = 0, класс `BE-128`); сетка есть,
+    // а selected 0 ⇒ UX визарда; карточка ищется по имени из фикстуры.
+    let diag = 'диагностика недоступна';
+    try {
+      const totalCards = await page.locator('#w-partner-grid .partner-card').count();
+      const ourCards = await page.locator('#w-partner-grid .partner-card')
+        .filter({ hasText: partnerName }).count();
+      const selectedAllCount = await page.locator('#w-partner-grid .partner-card.selected').count();
+      diag = 'карточек ' + totalCards + ', наших ' + ourCards + ', selected ' + selectedAllCount +
+        (totalCards === 0 ? ' ⇒ сетка пуста: GET /partners не вернул партнёров (класс BE-128)' : '') +
+        (totalCards > 0 && ourCards === 0 ? ' ⇒ нашей карточки нет в выдаче (BE-128/фильтр по sub)' : '');
+    } catch (e) {
+      diag = 'диагностика недоступна: ' + String((e && e.message) || e).slice(0, 120);
+    }
     const selected = page.locator('#w-partner-grid .partner-card.selected');
-    await expect(selected, 'последний партнёр должен быть выбран по умолчанию').toHaveCount(1, { timeout: 20000 });
+    await expect(selected, 'последний партнёр должен быть выбран по умолчанию (' + diag + ')')
+      .toHaveCount(1, { timeout: 20000 });
     await expect(selected).toContainText(partnerName);
 
     // Шаг 2 — место: `draft.place` подставляется в поле значения (app.js: `input.value = draft.place`).
