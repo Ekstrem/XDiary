@@ -38,8 +38,6 @@ if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("Command
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
 // BE-075 (порядок важен, НЕ менять): AddDbContext с MigrationsAssembly обязан идти ДО AddEventStorePostgres.
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Partners.Storage")));
-
-builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
 // BE-130: регистрируем реальный реплей и как IAnemicModelRepository — иначе AggregateProvider
