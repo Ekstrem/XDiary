@@ -245,3 +245,34 @@ device`, при этом `df -h /` показывает **десятки гиг�
 
 **Почему это в ранбуке:** «освободил место и всё заработало» здесь неверно — заработает
 только после пересоздания слоя, и это стоит помнить при следующем ENOSPC.
+
+## DO-148: `heal-network` как источник «окна деградации» (инцидент 2026-11-19 19:00–19:58)
+
+**Признак окна (по чему узнать):**
+- `podman ps -a` показывает **все 12 сервисов как отсутствующие/`no-container`**, при этом `xdiary-pg` жив
+  и его `StartedAt` — **старая дата** (значит БД не падала);
+- `journalctl --user -u heal-network.service` содержит `Failed with result 'timeout'` и
+  `Killing process … with signal SIGKILL`;
+- через 20–60 минут состояние **восстанавливается само** (`restart_policy=unless-stopped` поднимает контейнеры).
+
+**Что НЕ делать руками в этот момент:** не `podman rm`, не `podman network rm`, не «перезапустить всё».
+Окно закрывается само; ручное вмешательство рвёт пересоздание и удлиняет простой.
+
+**Что проверить со стороны потребителя** (а не с хоста — для rootless `nc`/`ping` из хоста врут):
+```
+podman exec xdiary-pg pg_isready -h 127.0.0.1 -p 5432
+podman exec xdiary-journal bash -c 'echo > /dev/tcp/10.89.9.10/5432'
+```
+
+**Почему падал сам `heal-network`:** дефолтный `TimeoutStopSec` (~90 с) убивал скрипт **в середине**
+пересоздания шлюза (`sudo mount` + `sudo iptables` + `podman rm -f` + `podman run`). Теперь юнит
+версионирован: `7-deploy/systemd/heal-network.service` с `TimeoutStartSec=300` / `TimeoutStopSec=300`,
+таймер — `Persistent=false` (не догоняем пропущенные запуски после простоя).
+
+**Установка юнита на VPS:**
+```
+mkdir -p ~/.config/systemd/user
+cp /opt/xdiary/7-deploy/systemd/heal-network.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now heal-network.timer
+```
