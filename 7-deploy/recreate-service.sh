@@ -63,6 +63,50 @@ if [ "${1:-}" = "--list" ]; then
   exit 0
 fi
 
+# DO-145 (@AR 2026-11-19 15:47): САМОТЕСТ на реальном deploy.sh. Класс дефекта, на котором
+# потеряли три прогона: литерал поиска разошёлся с форматом строки (`--replace`, `sudo -n`).
+# `bash -n` такое не ловит — синтаксис валиден. Проверяем ФАКТ для каждого сервиса:
+#   1) строка запуска извлекается (BODY непустой);
+#   2) в ней ровно одна команда `podman run`;
+#   3) последний аргумент — образ `ghcr.io/ekstrem/xdiary-<svc>:<tag из lock>`.
+if [ "${1:-}" = "--selftest" ]; then
+  __bad=0
+  __n=0
+  for s in $SVCS_ALL; do
+    __n=$((__n + 1))
+    __tmp="$(mktemp "/tmp/selftest-$s.XXXXXX")"
+    python3 - "$DEPLOY_SH" "$s" "$__tmp" <<'PY' || true
+import re
+import sys
+dep, svc, out = sys.argv[1:4]
+src = open(dep, encoding='utf-8').read().replace('\\\n', ' ')
+rx = re.compile(r'podman run\b[^\n]*--name xdiary-%s\b' % re.escape(svc))
+line = next((l for l in src.splitlines() if rx.search(l)), '')
+line = line.strip()
+line = re.sub(r'(\s*(?:2?>\s*/dev/null|&>\s*/dev/null|2>&1))+\s*$', '', line)
+open(out, 'w', encoding='utf-8').write(line + '\n')
+PY
+    __tag="$(tag_of "$s" 2>/dev/null || true)"
+    __size="$(wc -c < "$__tmp" 2>/dev/null | tr -d ' ')"
+    __cnt="$(grep -cE '^[[:space:]]*(sudo -n )?podman run' "$__tmp" 2>/dev/null || true)"
+    __img="$(tail -1 "$__tmp" 2>/dev/null | awk '{print $NF}')"
+    if [ "${__size:-0}" -gt 1 ] && [ "${__cnt:-0}" = "1" ] && [ -n "$__tag" ] \
+       && [ "$__img" = "ghcr.io/ekstrem/xdiary-$s:$__tag" ]; then
+      printf '  [OK ] %-22s tag=%s\n' "$s" "${__tag:-ПУСТО}"
+    else
+      printf '  [FAIL] %-22s size=%s cnt=%s img=%s tag=%s\n' "$s" "${__size:-0}" "${__cnt:-0}" "${__img:-нет}" "${__tag:-ПУСТО}"
+      __bad=$((__bad + 1))
+    fi
+    rm -f "$__tmp"
+  done
+  if [ "$__bad" = "0" ]; then
+    say "selftest: OK — $__n сервисов: команда извлекается, ровно одна, образ = <svc>:<tag из lock>"
+    exit 0
+  fi
+  echo "selftest: FAIL — $__bad из $__n сервисов не проходят проверку формата (это дефект поиска, не данных)" >&2
+  exit 5
+fi
+
 SVC="${1:-}"
 
 # ---------- ожидаемый набор add-host ----------
