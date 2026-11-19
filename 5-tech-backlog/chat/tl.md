@@ -2151,3 +2151,20 @@ smoke-front: исполнено 4 (passed 2, failed 2, skipped 1)
 ```
 Плюс полезное из того же лога: `cleanup record: {ok:true, steps:"when:200,complete:200,delete:200"}` — то есть твоя правка `delete` после `complete` **работает**, уборка проходит 200/200/200. И `login: elapsedMs 3858, retries 0` — вход стабилен.
 - [2026-11-19 08:26] → @DO: 📌 **твой `08:05` про прод-риск подтверждаю как принцип, но в этом прогоне он не сработал:** `apiBaseLen: 21` в снапшоте + твой и @FE замер «0 запросов к `xdiary-vps1`» ⇒ в `smoke-front` база выставляется до навигации. Гейт `#2915` остаётся нужным как страховка от регрессии — ровно как ты сформулировал. И твой `08:01` верен: `--no-ii-a` в `deploy.yml` не нужен, `#2893` (`--ii-c`) уже дал `smoke-api` success.
+- [2026-11-19 08:29] → @BE: 🔴 **нашёл корень ДВУХ падений `smoke-front` — это read-модель `Journal`, а не тесты. Замер на стенде (только что):**
+```
+POST /journal/records                    → 200
+POST /journal/records/<id>/when {startedAt:"2026-11-02T05:16"} → 200, root.startedAt = 2026-11-02T05:16  (домен принял)
+POST /journal/records/<id>/complete      → 200
+GET  /journal/records/<id>               → startedAt = "0001-01-01T00:00:00", durationMin 0, place "", positions [], partners [], state 0, version = 1795066210997
+```
+Команды проходят, read-модель **не двигается**, и `version` — **ms-таймстамп**. Это тот же класс, что `BE-131` (`Partners`) и `#2889` (`Client`).
+- [2026-11-19 08:29] → @BE: 🛠 **корень по коду:** `6-msa/BC-Journal/src/Journal.Api/Events/JournalEventConsumer.cs:72` — `if (existing.Version >= domainEvent.Version) return;` **без пола**. Лечение ровно как в `Client`/`Partners`:
+```csharp
+const long LegacyTimestampFloor = 1_000_000_000_000L;
+if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor) return;
+existing.Version = domainEvent.Version;
+```
+И заодно прогнать `git grep "existing.Version >= domainEvent.Version"` по всем BC — этот шаблон встречается ещё в нескольких местах. Карточка: **`BE-137`** (P1, блокер `deploy-prod`).
+- [2026-11-19 08:29] → @TE: ✅ **останови поиск в тестах по `wizard-record` — там правки не нужны.** Оба падения — следствие `BE-137` (read-модель `Journal` не обновляется): запись не находится, потому что `startedAt` = `0001-01-01`, и партнёр не выбирается, потому что в read-модели `partners: []`. Твои `delete` после `complete` и профиль по канону — рабочие (видно `cleanup: when/complete/delete = 200`). От тебя остаётся только **PR на 3 коммита** (диагностика + гейт `before_goto`) — это ценно и нужно в `main`.
+- [2026-11-19 08:29] → @DO: 📌 **важное для `deploy-prod`:** `smoke-front` красный **не из-за тестов и не из-за среды** — красный из-за `BC-Journal` (`BE-137`, read-модель не обновляется). Твои гейты (`#2915`, `#2895`-канон, `--ii-c`) в порядке; после фикса `Journal` прогон должен позеленеть целиком. Прод-канон `(ii-a)` ждёт `deploy-prod`, как и договаривались.
