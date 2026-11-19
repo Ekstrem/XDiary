@@ -56,9 +56,60 @@ fi
 
 if [ "${1:-}" = "--list" ]; then
   for s in $SVCS_ALL; do
-    grep -q "podman run -d --name xdiary-$s " "$DEPLOY_SH" && echo "$s"
+    # DO-145 (@AR 15:43): в deploy.sh все строки имеют `--replace` (и `sudo -n`), поэтому
+    # жёсткий литерал `podman run -d --name` не матчился НИ РАЗУ. Ищем по маркеру `--name`.
+    grep -Eq "podman run .*--name xdiary-$s([[:space:]]|$)" "$DEPLOY_SH" && echo "$s"
   done
   exit 0
+fi
+
+# DO-145 (@AR 2026-11-19 15:47): САМОТЕСТ на реальном deploy.sh. Класс дефекта, на котором
+# потеряли три прогона: литерал поиска разошёлся с форматом строки (`--replace`, `sudo -n`).
+# `bash -n` такое не ловит — синтаксис валиден. Проверяем ФАКТ для каждого сервиса:
+#   1) строка запуска извлекается (BODY непустой);
+#   2) в ней ровно одна команда `podman run`;
+#   3) последний аргумент — образ `ghcr.io/ekstrem/xdiary-<svc>:<tag из lock>`.
+if [ "${1:-}" = "--selftest" ]; then
+  __bad=0
+  __n=0
+  for s in $SVCS_ALL; do
+    __n=$((__n + 1))
+    __tmp="$(mktemp "/tmp/selftest-$s.XXXXXX")"
+    python3 - "$DEPLOY_SH" "$s" "$__tmp" <<'PY' || true
+import re
+import sys
+dep, svc, out = sys.argv[1:4]
+src = open(dep, encoding='utf-8').read().replace('\\\n', ' ')
+rx = re.compile(r'podman run\b[^\n]*--name xdiary-%s\b' % re.escape(svc))
+line = next((l for l in src.splitlines() if rx.search(l)), '')
+line = line.strip()
+line = re.sub(r'(\s*(?:2?>\s*/dev/null|&>\s*/dev/null|2>&1))+\s*$', '', line)
+open(out, 'w', encoding='utf-8').write(line + '\n')
+PY
+    __tag="$(tag_of "$s" 2>/dev/null || true)"
+    __size="$(wc -c < "$__tmp" 2>/dev/null | tr -d ' ')"
+    __cnt="$(grep -cE '^[[:space:]]*(sudo -n )?podman run' "$__tmp" 2>/dev/null || true)"
+    __img="$(tail -1 "$__tmp" 2>/dev/null | awk '{print $NF}')"
+    # В deploy.sh образ записан как `ghcr.io/.../<svc>:$TAG` — переменная подставляется в runner
+    # строкой `TAG=<lock_tag>` выше. Поэтому принимаем либо `:$TAG`, либо уже подставленный тег:
+    # проверяем, что образ указывает на ЭТОТ сервис и его тег — `$TAG` либо `$lock_tag`.
+    __want_var="ghcr.io/ekstrem/xdiary-$s:\$TAG"
+    __want_lit="ghcr.io/ekstrem/xdiary-$s:$__tag"
+    if [ "${__size:-0}" -gt 1 ] && [ "${__cnt:-0}" = "1" ] && [ -n "$__tag" ] \
+       && { [ "$__img" = "$__want_var" ] || [ "$__img" = "$__want_lit" ]; }; then
+      printf '  [OK ] %-22s tag=%s img=%s\n' "$s" "${__tag:-ПУСТО}" "${__img##*:}"
+    else
+      printf '  [FAIL] %-22s size=%s cnt=%s img=%s tag=%s\n' "$s" "${__size:-0}" "${__cnt:-0}" "${__img:-нет}" "${__tag:-ПУСТО}"
+      __bad=$((__bad + 1))
+    fi
+    rm -f "$__tmp"
+  done
+  if [ "$__bad" = "0" ]; then
+    say "selftest: OK — $__n сервисов: команда извлекается, ровно одна, образ = <svc>:<tag из lock>"
+    exit 0
+  fi
+  echo "selftest: FAIL — $__bad из $__n сервисов не проходят проверку формата (это дефект поиска, не данных)" >&2
+  exit 5
 fi
 
 SVC="${1:-}"
@@ -80,7 +131,10 @@ gen_expected() {
   # Замер: прогон deploy 43452089927, лог `add-host добавлен для client (11 хостов)`
   # против 10 у остальных. Теперь исключаем ЛЮБОЙ псевдоним, указывающий на свой IP.
   local own_ip=""
-  own_ip="$(awk -v n="xdiary-$svc " 'index($0, "podman run -d --name " n) {for (i=1;i<NF;i++) if ($i=="--ip") {print $(i+1); exit}}' \
+  # DO-145 (@AR 15:47): искали `podman run -d --name <n>`, а в deploy.sh между ними стоит
+# `--replace` ⇒ `own_ip` всегда пуст ⇒ ветка `else` не отфильтровывала чужой алиас на свой IP
+# (инцидент client/clients, который комментарий выше считает вылеченным). Ищем по `--name`.
+own_ip="$(awk -v n="xdiary-$svc " 'index($0, "--name " n) {for (i=1;i<NF;i++) if ($i=="--ip") {print $(i+1); exit}}' \
     "$DEPLOY_SH" 2>/dev/null || true)"
   if [ -n "$own_ip" ]; then
     printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | grep -v ":$own_ip$" | tr '\n' ' '
@@ -168,8 +222,12 @@ import re
 import sys
 dep, svc, out = sys.argv[1:4]
 src = open(dep, encoding='utf-8').read().replace('\\\n', ' ')
-needle = 'podman run -d --name xdiary-%s ' % svc
-line = next((l for l in src.splitlines() if needle in l), '')
+# DO-145 (@AR 15:43): жёсткий литерал `podman run -d --name ...` не совпадал со строками
+# deploy.sh, где между `run` и `--name` стоит `-d --replace` (а перед `podman` — `sudo -n`).
+# Из-за этого `BODY` был пуст, срабатывал `die "нет команды"`, и сервис оставался на старом
+# образе (`api-gateway` держал `:single`), а шаг `Deploy prod` красился.
+rx = re.compile(r'podman run\b[^\n]*--name xdiary-%s\b' % re.escape(svc))
+line = next((l for l in src.splitlines() if rx.search(l)), '')
 line = line.strip()
 # Убираем хвостовые редиректы ДО разбора «последний аргумент = образ».
 # Без этого `--image` подменял не образ, а `>/dev/null`: подмена уходила в конец,
@@ -249,7 +307,8 @@ runner, hosts = sys.argv[1:3]
 lines = open(runner, encoding='utf-8').read().splitlines()
 out = []
 for l in lines:
-    if 'podman run -d --name' in l:
+    # DO-145 (@AR 15:47): `podman run -d --name` не встречается (в строке `-d --replace --name`).
+    if '--name xdiary-' in l:
         parts = l.rsplit(' ', 1)
         if len(parts) == 2:
             add = ' '.join('--add-host ' + h for h in hosts.split() if ':' in h)
@@ -264,7 +323,9 @@ fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
 # DO-144: страховка от «второй строки» в runner (битый image-override).
-run_cnt="$(grep -c '^podman run' "$RUNNER" || true)"
+# DO-145 (@AR 15:47): извлечённая строка начинается с `sudo -n podman run`, поэтому
+# `^podman run` давал 0 и скрипт падал на «0 команд (ожидалась 1)». Считаем с учётом префикса.
+run_cnt="$(grep -cE '^[[:space:]]*(sudo -n )?podman run' "$RUNNER" || true)"
 [ "$run_cnt" = "1" ] || die "в runner $run_cnt команд podman run (ожидалась 1) — контейнер не трогаю"
 
 # 2026-11-10 (@DO): ПОРЯДОК ВАЖЕН — образ проверяем/тянем ДО удаления контейнера.
