@@ -658,8 +658,11 @@ jobs:
           # Проверка фактом: сразу после такого «failure» тот же замер даёт `rc=0`,
           # 25 операций, 0 расхождений. Поэтому — вторая попытка через паузу; если и она
           # не `0`, вердикт остаётся красным (rc=2 → «не измерено», rc=1 → «расходится»).
-          ATTEMPTS="${PARITY_ATTEMPTS:-2}"
-          PAUSE="${PARITY_PAUSE:-20}"
+          # DO-150 (@TE 2026-11-20 00:22): 2 попытки с паузой 20 с НЕ спасли — обе попали в окно
+          # пересоздания `analytics` (`deploy-dev` только что перезапустил сервисы, старт ~40-60 с).
+          # Делаем 3 попытки с РАСТУЩЕЙ паузой (30/60 с): вторая и третья гарантированно вне окна.
+          ATTEMPTS="${PARITY_ATTEMPTS:-3}"
+          PAUSE="${PARITY_PAUSE:-30}"
           attempt=1
           rc=1
           while [ "$attempt" -le "$ATTEMPTS" ]; do
@@ -669,7 +672,11 @@ jobs:
             rc=${PIPESTATUS[0]}
             { echo "### Паритет APIM прод ↔ dev (попытка $attempt, rc=$rc)"; echo; cat parity.txt; } >> "$GITHUB_STEP_SUMMARY"
             [ "$rc" = "0" ] && break
-            [ "$attempt" -lt "$ATTEMPTS" ] && { echo "пауза ${PAUSE} с перед повтором"; sleep "$PAUSE"; }
+            if [ "$attempt" -lt "$ATTEMPTS" ]; then
+              __pause=$(( PAUSE * attempt ))   # 30, затем 60 — вне окна старта
+              echo "пауза ${__pause} с перед повтором (окно старта analytics)"
+              sleep "$__pause"
+            fi
             attempt=$((attempt + 1))
           done
           if [ "$rc" = "0" ]; then echo "::notice::паритет APIM: расхождений нет"; exit 0; fi
