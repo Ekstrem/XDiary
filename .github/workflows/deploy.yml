@@ -702,6 +702,10 @@ jobs:
           APIM_TARGET: ${{ inputs.apim_target }}
           FIX_MIGRATIONS: ${{ inputs.fix_migrations }}
         with:
+          # DO-145 (@TL 14:23): прод пересоздаёт 12 сервисов (pull + recreate + стабилизация 30 с)
+          # ⇒ больше дефолтных 10 мин. Прогон 44507166256 умер на 11-м сервисе (`client`):
+          # `2026/11/19 11:01:19 Run Command Timeout`, хотя доставка шла нормально.
+          command_timeout: 30m
           port: 8237
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
