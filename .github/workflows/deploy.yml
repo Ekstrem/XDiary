@@ -922,10 +922,29 @@ jobs:
           PROD_BASE: https://xdiary-vps1.taile0b6ee.ts.net
         run: |
           set -uo pipefail
-          python 9-tests/scripts/check_apim_auth.py --all --base "$PROD_BASE" --retry-unknown 3
-          rc=$?
-          echo "канон (ii-a) по проду: rc=$rc"
-          exit $rc
+          # DO-145 (@DO 2026-11-19): первый прогон канона на проде поймал 500 на
+          # `GET /api/v1/bff/analytics-summary` — это было ОКНО выкатки (сервис пересоздавался,
+          # апстрим не отвечал ⇒ APIM отдал 500), а через минуту тот же эндпоинт даёт 401.
+          # Квитанция релиза не должна красить прогон за транзиент, но и прятать нарушителя нельзя:
+          # даём ВТОРУЮ попытку через 20 с и печатаем обе (как make-канон на деве).
+          ATTEMPTS="${CANON_ATTEMPTS:-2}"
+          PAUSE="${CANON_PAUSE:-20}"
+          attempt=1
+          rc=1
+          while [ "$attempt" -le "$ATTEMPTS" ]; do
+            echo "::notice::канон (ii-a) по проду: попытка $attempt/$ATTEMPTS"
+            python 9-tests/scripts/check_apim_auth.py --all --base "$PROD_BASE" --retry-unknown 3
+            rc=$?
+            echo "::notice::канон (ii-a) по проду: rc=$rc (попытка $attempt)"
+            [ "$rc" = "0" ] && break
+            [ "$attempt" -lt "$ATTEMPTS" ] && { echo "пауза ${PAUSE} с перед повтором"; sleep "$PAUSE"; }
+            attempt=$((attempt + 1))
+          done
+          if [ "$rc" != "0" ]; then
+            echo "::error::канон (ii-a) по проду: rc=$rc после $ATTEMPTS попыток — это нарушитель, а не транзиент"
+            exit "$rc"
+          fi
+          echo "OK: канон (ii-a) по проду — все операции защищены"
 
   # DO-106 (2026-11-06): CORS на ПРОД-входе — отдельный джоб, потому что этот класс дефекта
   # не виден ни одному прежнему гейту: они проверяют коды без `Origin` и не делают preflight.
