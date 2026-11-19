@@ -196,8 +196,8 @@
       "upstream": "tools/check_schema.py"
     },
     "check_secrets.py": {
-      "sha256": "1b858fdaf3b86e69959aa128f7b5a8564798966b0a55456f2c68e30afa2ac17f",
-      "synced_at": "2026-11-13",
+      "sha256": "108b82bd2a5bf62c4238e7c1aeb83845a54256baa19a26cf72667f6070c3c185",
+      "synced_at": "2026-11-19",
       "upstream": "tools/check_secrets.py"
     },
     "check_service_auth.py": {
