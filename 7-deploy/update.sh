@@ -328,8 +328,25 @@ if [ -n "$FAILED" ]; then
   exit 1
 fi
 
-if ! curl -fsS -m 8 http://127.0.0.1:8080/health >/dev/null 2>&1; then
-  say "после деплоя /health не 200 — это дефект доставки, разбираемся (не «докручиваем на живом»)"
+# DO-145 (@DO 2026-11-19 14:2x): ОДИН curl без ретраев красил релиз за окно подъёма шлюза.
+# Факт (прогон 44507166256): прод выкачен на нужный образ, все 12 контейнеров Up, `/health` = 200
+# при ручной проверке через минуту, а шаг упал — `api-gateway` (последний в ORDER) ещё поднимался.
+# Теперь ждём до HEALTH_WAIT с шагом HEALTH_STEP (как readiness), и только потом красим.
+HEALTH_WAIT="${HEALTH_WAIT:-60}"
+HEALTH_STEP="${HEALTH_STEP:-5}"
+__hw=0
+__hok=0
+while [ "$__hw" -lt "$HEALTH_WAIT" ]; do
+  if curl -fsS -m 8 http://127.0.0.1:8080/health >/dev/null 2>&1; then
+    __hok=1
+    [ "$__hw" -gt 0 ] && say "  /health 200 на ${__hw} с ожидания (шлюз поднимался)"
+    break
+  fi
+  __hw=$((__hw + HEALTH_STEP))
+  [ "$__hw" -lt "$HEALTH_WAIT" ] && sleep "$HEALTH_STEP"
+done
+if [ "$__hok" != "1" ]; then
+  say "после деплоя /health не 200 за ${HEALTH_WAIT} с — это дефект доставки, разбираемся (не «докручиваем на живом»)"
   exit 1
 fi
 
