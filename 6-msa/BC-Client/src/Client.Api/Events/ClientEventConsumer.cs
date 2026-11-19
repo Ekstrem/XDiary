@@ -55,7 +55,10 @@ public sealed class ClientEventHandler : IDomainEventHandler<IClients>, IObserve
         var readStore = scope.ServiceProvider.GetRequiredService<IReadModelStore<IClients, ClientReadModel>>();
         var readRepo = scope.ServiceProvider.GetRequiredService<IReadRepository<IClients, ClientReadModel>>();
         var existing = await readRepo.GetByIdAsync(domainEvent.Id, default) ?? new ClientReadModel { Id = domainEvent.Id };
-        if (existing.Version >= domainEvent.Version) return; // QG-305: идемпотентность по версии (stale-skip)
+        // BE-134 follow-up (@TL 04:55): register-событие несёт Version = ms-таймстамп (1795053…), а verify — маленькое число (2).
+        // Без порога existing.Version (ms) >= domainEvent.Version (2) отбрасывает verify → verified остаётся false.
+        const long LegacyTimestampFloor = 1_000_000_000_000L;
+        if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor) return;
         ClientProjection.ApplyVos(existing, vos);
         existing.Version = domainEvent.Version;
         await readStore.UpsertAsync(existing);
