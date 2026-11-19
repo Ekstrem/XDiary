@@ -347,6 +347,27 @@ jobs:
           dotnet test 6-msa/BC-Journal/src/Journal.ApiTests/Journal.ApiTests.csproj \
             --filter "FullyQualifiedName~PartnerSoftDelete" \
             --verbosity minimal
+      # DO-145 (@TL 09:11, @TE 09:48, #2949): дешёвая квитанция «фикс в `main` → в образе» ДО
+      # трёхминутного `smoke-front`. Проба создаёт клиента/партнёра/запись, делает when/partners/place/
+      # complete и смотрит `GET /journal/recent`: `rc=0` — read-модель обновляется (фикс доехал);
+      # иначе — «пусто/не измерено» (печатается в лог, но НЕ валит прогон: это диагностика, а не гейт).
+      - name: Проба journal recent (квитанция «BE-137 доехал до стенда»)
+        if: always()
+        env:
+          XDIARY_API_BASE: ${{ env.XDIARY_E2E_BASE_URL }}
+        run: |
+          set -uo pipefail
+          set +e
+          node 9-tests/scripts/probe_journal_recent.js --base "$XDIARY_API_BASE"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "::notice::проба journal recent: rc=0 (read-модель обновляется — фикс в образе)" ;;
+            2) echo "::notice::проба journal recent: rc=2 (не измерено — стенд/OTP недоступны)" ;;
+            *) echo "::warning::проба journal recent: rc=$rc (read-модель не обновилась — фикс не в образе?)" ;;
+          esac
+          exit 0
+
   # Браузерный гейт: только фронт. Отдельный джоб, чтобы фронтовый баг не блокировал
   # доставку бэкенда (DO-035).
   # @TL 2026-11-07 08:26 п.(2): «постоянный красный перестаёт быть сигналом (§5.4/§8)» —
