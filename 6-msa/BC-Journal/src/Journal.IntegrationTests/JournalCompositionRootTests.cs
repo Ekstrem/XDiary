@@ -20,7 +20,7 @@ public class JournalCompositionRootTests
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventStorePostgres<IJournal, IJournalAnemicModel>("Host=localhost;Database=es", null);
-        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<RecordEventReplay>();
         // BE-129: реальный реплей как IAnemicModelRepository (иначе библиотечная заглушка).
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IJournal, IJournalAnemicModel>, JournalEventSourcingRepository>();

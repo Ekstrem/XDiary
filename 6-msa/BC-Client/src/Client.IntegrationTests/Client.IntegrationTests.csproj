@@ -13,7 +13,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-  </ItemGroup>
+      <PackageReference Include="DigiTFactory.Libraries.Analyzers.Testing" Version="0.1.0" PrivateAssets="all" />
+</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Client.Api\Client.Api.csproj" />
   </ItemGroup>

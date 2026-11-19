@@ -42,14 +42,14 @@ public class CatalogReadModelEndToEndTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventBusInMemory();
         sc.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(
-            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Catalog.Storage")));
+            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Catalog.Storage").EnableRetryOnFailure()));
         sc.AddEventStorePostgres<ICatalog, ICatalogAnemicModel>(cs, null);
         sc.AddScoped<IEventStoreRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();

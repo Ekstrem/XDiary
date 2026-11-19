@@ -1,4 +1,4 @@
-﻿using DigiTFactory.Libraries.CommandRepository.Postgres;
+using DigiTFactory.Libraries.CommandRepository.Postgres;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
 using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -26,10 +26,10 @@ public class PartnerHostSmokeTest
 
         // РџРѕСЂСЏРґРѕРє вЂ” РєР°Рє РІ Partners.Api/Program.cs.
         services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>("Host=localhost;Database=es", null);
-        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>("Host=localhost;Database=read", null);
-        services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql("Host=localhost;Database=cmd"));
-        services.AddDbContext<ReadDbContext>(o => o.UseNpgsql("Host=localhost;Database=read"));
+        services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql("Host=localhost;Database=cmd", o => o.EnableRetryOnFailure()));
+        services.AddDbContext<ReadDbContext>(o => o.UseNpgsql("Host=localhost;Database=read", o => o.EnableRetryOnFailure()));
         // РњРѕСЃС‚: РЅРµРѕР±РѕР±С‰С‘РЅРЅС‹Р№ DbContextOptions в†’ С‚РёРїРёР·РёСЂРѕРІР°РЅРЅС‹Р№ EventStoreDbContext.
         services.AddSingleton<DbContextOptions>(sp => sp.GetRequiredService<DbContextOptions<EventStoreDbContext>>());
 

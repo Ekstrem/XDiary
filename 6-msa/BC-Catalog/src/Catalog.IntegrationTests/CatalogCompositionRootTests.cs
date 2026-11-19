@@ -20,7 +20,7 @@ public class CatalogCompositionRootTests
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventStorePostgres<ICatalog, ICatalogAnemicModel>("Host=localhost;Database=es", null);
-        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<CatalogEventReplay>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
 

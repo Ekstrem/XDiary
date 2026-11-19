@@ -15,7 +15,7 @@ public class SomaticSeriesCompositionRootTests
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventStorePostgres<ISomaticSeries, ISomaticSeriesAnemicModel>("Host=localhost;Database=es", null);
-        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<SomaticSeriesEventReplay>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesEventSourcingRepository>();
         using var sp = sc.BuildServiceProvider();

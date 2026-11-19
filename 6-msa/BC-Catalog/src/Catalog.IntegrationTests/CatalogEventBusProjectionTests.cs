@@ -36,7 +36,7 @@ public class CatalogEventBusProjectionTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var reg = Aggregate.CreateInstance(new AnemicModel()).AddItem("toy", "Ball", Guid.NewGuid());

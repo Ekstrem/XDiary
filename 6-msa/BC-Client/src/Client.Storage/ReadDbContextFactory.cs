@@ -12,7 +12,7 @@ public sealed class ReadDbContextFactory : IDesignTimeDbContextFactory<ReadDbCon
     public ReadDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<ReadDbContext>()
-            .UseNpgsql("Host=localhost;Port=5433;Database=xdiary_test;Username=postgres")
+            .UseNpgsql("Host=localhost;Port=5433;Database=xdiary_test;Username=postgres", o => o.EnableRetryOnFailure())
             .Options;
         return new ReadDbContext(options);
     }

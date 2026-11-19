@@ -34,7 +34,7 @@ public class ClientEventBusProjectionTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var res = Aggregate.CreateInstance(new AnemicModel()).Register(Phone, "123456");

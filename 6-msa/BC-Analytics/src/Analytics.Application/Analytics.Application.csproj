@@ -8,7 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="MediatR" Version="12.4.1" />
-  </ItemGroup>
+      <PackageReference Include="DigiTFactory.Libraries.Analyzers.Application" Version="0.1.6" PrivateAssets="all" />
+</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Analytics.Domain\Analytics.Domain.csproj" />

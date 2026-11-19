@@ -25,7 +25,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Portability.Application.Commands.ExportRecordsCommand>());
 // Явно указана сборка миграций (контекст в Portability.Storage — по умолчанию EF и так берёт сборку контекста).
-builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Portability.Storage")));
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Portability.Storage").EnableRetryOnFailure()));
 builder.Services.AddEventStorePostgres<IPortability, ICsvDocumentAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();

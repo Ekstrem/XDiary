@@ -24,7 +24,7 @@ public sealed class DatabaseCreationTests
             _out.WriteLine("SKIPPED: XDIARY_TEST_POSTGRES не задан — тест создания БД работает только в CI (Postgres от @DO).");
             return;
         }
-        using var read = new ReadDbContext(new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options);
+        using var read = new ReadDbContext(new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options);
         read.Database.Migrate();
         Assert.Empty(read.Database.GetPendingMigrations());
         Assert.NotEmpty(read.Database.GetAppliedMigrations());

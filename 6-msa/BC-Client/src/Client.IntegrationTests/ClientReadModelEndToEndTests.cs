@@ -46,14 +46,14 @@ public class ClientReadModelEndToEndTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventBusInMemory();
         sc.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(
-            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Client.Storage")));
+            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Client.Storage").EnableRetryOnFailure()));
         sc.AddEventStorePostgres<IClients, IClientAnemicModel>(cs, null);
         sc.AddScoped<IEventStoreRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();

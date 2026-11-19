@@ -38,7 +38,7 @@ public sealed class DatabaseCreationTests
 
         // Регистрация как в Program.cs: порядок важен (MigrationsAssembly до AddEventStorePostgres).
         var services = new ServiceCollection();
-        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Journal.Storage")));
+        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Journal.Storage").EnableRetryOnFailure()));
         services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(cs, null);
         services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(cs, null);
         services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(cs, null);

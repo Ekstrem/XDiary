@@ -1,4 +1,4 @@
-﻿namespace Partners.Storage;
+namespace Partners.Storage;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -8,7 +8,7 @@ public sealed class OutboxDbContextFactory : IDesignTimeDbContextFactory<OutboxD
     public OutboxDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<OutboxDbContext>()
-            .UseNpgsql("Host=localhost;Port=5432;Database=design_time;Username=postgres;Password=postgres")
+            .UseNpgsql("Host=localhost;Port=5432;Database=design_time;Username=postgres;Password=postgres", o => o.EnableRetryOnFailure())
             .Options;
         return new OutboxDbContext(options);
     }
