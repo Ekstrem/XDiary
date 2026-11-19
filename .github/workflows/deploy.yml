@@ -520,6 +520,26 @@ jobs:
           mkdir -p test-results
           npx playwright test add-partner wizard-record change-pin --trace on 2>&1 | tee test-results/pw.log
 
+      # DO-145 (@FE 08:20): страховка от тестов, бьющих в ПРОД. `baseUrl()` уважает
+      # `xdiary.apiBase` только при `window.__XDIARY_E2E__ === true`, иначе чистит ключ и
+      # отдаёт DEFAULT_BASE = https://xdiary-vps1... — то есть спека без `installBase` до
+      # `goto` меняет ПРОД-данные (POST/delete). Фильтр — только ЗАПРОСЫ, не env-строки
+      # (в логе 24 легитимных `XDIARY_PROD_BASE_URL`), иначе гейт краснел бы ложно.
+      - name: Тесты не ходили в ПРОД (страховка)
+        if: always()
+        working-directory: 9-tests/RnD/front-e2e
+        run: |
+          set -uo pipefail
+          LOG=test-results/pw.log
+          [ -f "$LOG" ] || { echo "::notice::лог E2E отсутствует — проверка пропущена"; exit 0; }
+          HITS=$(grep -E '(GET|POST|PUT|DELETE|PATCH) [^ ]*xdiary-vps1|browser http error .*xdiary-vps1|API network error: [A-Z]+ [^ ]*xdiary-vps1' "$LOG" || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::тесты ходили в ПРОД (xdiary-vps1) — не выставлен xdiary.apiBase/__XDIARY_E2E__ до goto"
+            printf '%s\n' "$HITS" | head -10
+            exit 1
+          fi
+          echo "OK: запросов к проду из E2E нет"
+
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
       - name: Артефакты падения (trace, скриншоты, error-context)
