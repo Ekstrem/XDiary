@@ -15,7 +15,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-  </ItemGroup>
+      <PackageReference Include="DigiTFactory.Libraries.Testing" Version="0.1.0" />
+</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Journal.Domain\Journal.Domain.csproj" />
     <ProjectReference Include="..\Journal.Storage\Journal.Storage.csproj" />
