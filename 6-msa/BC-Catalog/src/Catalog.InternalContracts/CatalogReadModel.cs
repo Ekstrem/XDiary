@@ -4,6 +4,8 @@ using XDiary.Contracts;
 public sealed class CatalogReadModel : IReadModel<Catalog.Domain.ICatalog>
 {
     public Guid Id { get; set; }
+    // BE-138: версия события для stale-skip (QG-305) — без неё повторное/старое событие перезапишет read-модель.
+    public long Version { get; set; }
     public string Kind { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Photo { get; set; } = string.Empty;
