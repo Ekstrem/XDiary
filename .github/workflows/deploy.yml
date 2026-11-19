@@ -192,6 +192,10 @@ jobs:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
+          # DO-145 (@TL 09:07): пересоздание 12 сервисов с двойной проверкой стабильности
+          # (10 с + 20 с) перестало укладываться в дефолтные 10 мин → прогон падал
+          # `Run Command Timeout` на ПОСЛЕДНЕМ сервисе (api-gateway), хотя 11 уже были ок.
+          command_timeout: 30m
           envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64
           script: |
             set -eu
