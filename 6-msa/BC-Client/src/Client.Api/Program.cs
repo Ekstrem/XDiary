@@ -26,9 +26,6 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Client.Application.Commands.RegisterClientCommand>());
 builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Client.Storage")));
-// BE-133 follow-up (@FE 03:28): явный MigrationsAssembly для ReadDbContext ДО AddReadStorePostgres,
-// иначе рантайм ищет read-миграции в entry-сборке (Client.Api), где их нет -> Migrate() no-op -> 42P01.
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb"), x => x.MigrationsAssembly("Client.Storage")));
 builder.Services.AddEventStorePostgres<IClients, IClientAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
