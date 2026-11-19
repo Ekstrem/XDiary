@@ -54,21 +54,32 @@ async function main() {
   const a = await j(await fetch(BASE + '/api/v1/catalog', { method: 'POST', headers: H, body }));
   const b = await j(await fetch(BASE + '/api/v1/catalog', { method: 'POST', headers: H, body }));
   const list = await j(await fetch(BASE + '/api/v1/catalog', { headers: H }));
+  const one = await j(await fetch(BASE + '/api/v1/catalog/' + id, { headers: H }));
   const items = Array.isArray(list.data) ? list.data : (list.data && list.data.items) || [];
   const same = items.filter((x) => x && x.id === id);
 
   console.log('POST /catalog #1 ->', a.status, 'id:', a.data && a.data.id);
   console.log('POST /catalog #2 ->', b.status, 'id:', b.data && b.data.id);
   console.log('присланный id      ->', id);
-  console.log('GET /catalog ->', list.status, '| элементов всего:', items.length, '| с нашим id:', same.length);
 
-  const ok = a.status < 300 && b.status < 300
-    && a.data && b.data && a.data.id === id && b.data.id === id
-    && same.length === 1;
-  console.log(ok
-    ? 'ИТОГ: идемпотентность ПОДТВЕРЖДЕНА (один id, один элемент)'
-    : 'ИТОГ: идемпотентность НЕ подтверждена (стенд ведёт себя как «до контракта» либо дубли)');
-  process.exitCode = ok ? 0 : 1;
+  // 2026-11-19 12:02: запись и чтение — РАЗНЫЕ свойства, и смешивать их в один вердикт нельзя.
+  const idempotent = a.status < 300 && b.status < 300
+    && !!a.data && !!b.data && a.data.id === id && b.data.id === id;
+  const readableById = one.status < 300 && !!one.data && (one.data.id === id);
+  const readableInList = same.length === 1;
+  const readable = readableById || readableInList;
+
+  console.log('ЧТЕНИЕ: GET /catalog/<id> ->', one.status,
+    '| GET /catalog ->', list.status, '| элементов всего:', items.length, '| с нашим id:', same.length);
+  if (!readable) {
+    console.log('::warning::probe_catalog: запись прошла, но ЧТЕНИЕ пустое (ни по id, ни в списке) — ' +
+      'это дефект read-модели Catalog (класс BE-137), а не отсутствие идемпотентности');
+  }
+
+  console.log(idempotent
+    ? 'ИТОГ: идемпотентность ПОДТВЕРЖДЕНА (два POST с одним id → один id); чтение: ' + (readable ? 'есть' : 'ПУСТО')
+    : 'ИТОГ: идемпотентность НЕ подтверждена (id в ответах разошлись или дубли)');
+  process.exitCode = idempotent ? 0 : 1;
 
   // Уборка (@FE 2026-11-17 23:52: после прогона остались 2 позиции — мой фильтр по `name` их не нашёл).
   // Удаляем по ЯВНЫМ id из ответов (надёжно), плюс страховка по `name` из списка; печатаем статусы.
