@@ -10,7 +10,7 @@ using Xunit;
 
 namespace DailyMetrics.IntegrationTests;
 
-/// <summary>BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137) для `daily_metrics_read`.</summary>
+/// <summary>BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137) РґР»СЏ `daily_metrics_read`.</summary>
 public class DailyMetricsStaleSkipTests
 {
     private const long LegacyMs = 1_795_000_000_000L;
@@ -28,7 +28,7 @@ public class DailyMetricsStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<DailyMetrics.Domain.IDailyMetrics, DailyMetricsReadModel>>(store);
         sc.AddSingleton<IReadRepository<DailyMetrics.Domain.IDailyMetrics, DailyMetricsReadModel>>(new FakeReadRepo(existingVersion));
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new DailyMetricsEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 

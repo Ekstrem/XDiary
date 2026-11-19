@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Privacy.IntegrationTests;
 
-/// <summary>BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137) для `pin_credential_read`.</summary>
+/// <summary>BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137) РґР»СЏ `pin_credential_read`.</summary>
 public class PrivacyStaleSkipTests
 {
     private const long LegacyMs = 1_795_000_000_000L;
@@ -28,7 +28,7 @@ public class PrivacyStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<Privacy.Domain.IPrivacy, PinCredentialReadModel>>(store);
         sc.AddSingleton<IReadRepository<Privacy.Domain.IPrivacy, PinCredentialReadModel>>(new FakeReadRepo(existingVersion));
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new PrivacyEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 

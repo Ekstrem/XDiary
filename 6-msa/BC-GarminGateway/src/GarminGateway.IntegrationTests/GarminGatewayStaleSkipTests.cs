@@ -10,7 +10,7 @@ using Xunit;
 
 namespace GarminGateway.IntegrationTests;
 
-/// <summary>BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137) для `garmin_sync_read`.</summary>
+/// <summary>BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137) РґР»СЏ `garmin_sync_read`.</summary>
 public class GarminGatewayStaleSkipTests
 {
     private const long LegacyMs = 1_795_000_000_000L;
@@ -28,7 +28,7 @@ public class GarminGatewayStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<GarminGateway.Domain.IGarminGateway, GarminSyncReadModel>>(store);
         sc.AddSingleton<IReadRepository<GarminGateway.Domain.IGarminGateway, GarminSyncReadModel>>(new FakeReadRepo(existingVersion));
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new GarminGatewayEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 

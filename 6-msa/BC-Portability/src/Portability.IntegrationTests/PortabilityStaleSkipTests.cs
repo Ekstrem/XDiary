@@ -10,14 +10,14 @@ using Xunit;
 
 namespace Portability.IntegrationTests;
 
-/// <summary>BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137) для `csv_document_read`.</summary>
+/// <summary>BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137) РґР»СЏ `csv_document_read`.</summary>
 public class PortabilityStaleSkipTests
 {
     private const long LegacyMs = 1_795_000_000_000L;
 
     private static IDomainEvent<Portability.Domain.IPortability> Event()
     {
-        var res = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "id,name", "1,Аня" }, Guid.NewGuid());
+        var res = Aggregate.CreateInstance(new AnemicModel()).ExportRecords(new[] { "id,name", "1,РђРЅСЏ" }, Guid.NewGuid());
         Assert.True(res.IsSuccess());
         return res.Event!;
     }
@@ -28,7 +28,7 @@ public class PortabilityStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<Portability.Domain.IPortability, CsvDocumentReadModel>>(store);
         sc.AddSingleton<IReadRepository<Portability.Domain.IPortability, CsvDocumentReadModel>>(new FakeReadRepo(existingVersion));
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new PortabilityEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 

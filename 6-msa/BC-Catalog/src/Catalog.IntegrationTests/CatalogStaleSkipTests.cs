@@ -11,7 +11,7 @@ using Xunit;
 namespace Catalog.IntegrationTests;
 
 /// <summary>
-/// BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137) для `catalog_read`.
+/// BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137) РґР»СЏ `catalog_read`.
 /// </summary>
 public class CatalogStaleSkipTests
 {
@@ -30,7 +30,7 @@ public class CatalogStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<Catalog.Domain.ICatalog, CatalogReadModel>>(store);
         sc.AddSingleton<IReadRepository<Catalog.Domain.ICatalog, CatalogReadModel>>(new FakeReadRepo(existingVersion));
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new CatalogEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 
