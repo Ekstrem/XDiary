@@ -5,8 +5,11 @@ using Catalog.Domain.Abstraction;
 
 // Канон EDM §8.1: иммутабельный агрегат — бизнес-метод порождает НОВУЮ версию,
 // поэтому поля init-only, а не set (мутация через `with`, не через сеттеры).
-public sealed record AnemicModel : ICatalogAnemicModel
+internal sealed record AnemicModel : ICatalogAnemicModel
 {
+    // QG-012: фабрика начального (пустого) состояния с явным Id.
+    public static ICatalogAnemicModel Create(Guid id) => new AnemicModel { Id = id };
+
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;
@@ -22,5 +25,14 @@ public sealed record AnemicModel : ICatalogAnemicModel
 
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
 
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["ClientId"] = new ClientIdValueObject(ClientId),
+        ["Photo"] = new StringValueObject(Photo),
+        ["Notes"] = new StringValueObject(Notes),
+        ["Brand"] = new StringValueObject(Brand),
+        ["Archived"] = new BoolValueObject(Archived),
+        ["FantasyPartner"] = new StringValueObject(FantasyPartner),
+    };
 }

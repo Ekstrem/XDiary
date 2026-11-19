@@ -1,3 +1,3 @@
 namespace SomaticSeries.Domain.Abstraction;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-public interface ISomaticPointRoot : IValueObject { string T { get; } }
+public interface ISomaticPointRoot : IAggregateRoot<ISomaticSeries> { string T { get; } }

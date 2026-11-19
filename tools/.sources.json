@@ -11,8 +11,8 @@
       "upstream": "tools/chat_inbox.py"
     },
     "chat_lint.py": {
-      "sha256": "7b228e2e85b7cef8bbb54e56a4fb866b074d247b55505be58355ac57d8556c1a",
-      "synced_at": "2026-11-13",
+      "sha256": "bb2a0cee89994263b008aad4cff0ff1fa1f7398ea3b8268b6a6e9502295c95ef",
+      "synced_at": "2026-11-19",
       "upstream": "tools/chat_lint.py"
     },
     "chat_rotate.py": {
@@ -424,6 +424,11 @@
       "sha256": "6c8a2a96de67e74aad9ae478e655d5812ef16151c9e209e037ba6eb96213a64e",
       "synced_at": "2026-11-13",
       "upstream": "tools/wip.py"
+    },
+    "check_dbcontext_options_order.py": {
+      "sha256": "b65c6e60bcfa4d266cb9efc92bc50ae193385a396ff3a06b18e33f937f21486d",
+      "synced_at": "2026-11-19",
+      "upstream": "tools/check_dbcontext_options_order.py"
     }
   },
   "upstream": "Ekstrem/LoopMaker"

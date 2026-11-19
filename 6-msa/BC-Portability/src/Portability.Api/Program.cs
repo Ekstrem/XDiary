@@ -8,6 +8,10 @@ using Portability.Domain.Abstraction;
 using Portability.DomainServices;
 using Portability.InternalContracts;
 using Portability.Storage;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
+using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 using XDiary.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,16 +25,25 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Portability.Application.Commands.ExportRecordsCommand>());
 // Явно указана сборка миграций (контекст в Portability.Storage — по умолчанию EF и так берёт сборку контекста).
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Portability.Storage")));
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
-builder.Services.AddScoped<IPortabilityRepository, PortabilityCommandRepository>();
-builder.Services.AddScoped<IPortabilityQueryRepository, PortabilityReadRepository>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Portability.Storage")));
+builder.Services.AddEventStorePostgres<IPortability, ICsvDocumentAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();
+builder.Services.AddScoped<PortabilityEventReplay>();
+builder.Services.AddEventBusInMemory();
+builder.Services.AddReadStorePostgres<IPortability, CsvDocumentReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+// BE-125/BE-133: не-generic DbContextOptions для библиотечного EventStoreDbContext (иначе Autofac падает).
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
+
+
+
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();

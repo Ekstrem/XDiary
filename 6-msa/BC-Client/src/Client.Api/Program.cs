@@ -10,6 +10,11 @@ using Client.DomainServices;
 using Client.InternalContracts;
 using Client.Storage;
 using XDiary.Contracts;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
+using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
+using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
+using Client.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
@@ -20,10 +25,19 @@ builder.Services.AddHttpClient();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Client.Application.Commands.RegisterClientCommand>());
-builder.Services.AddDbContext<CommandDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
-builder.Services.AddDbContext<ReadDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("ReadDb")));
-builder.Services.AddScoped<IRepository<IClients, IClientAnemicModel>, ClientCommandRepository>();
-builder.Services.AddScoped<IClientQueryRepository, ClientReadRepository>();
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Client.Storage")));
+builder.Services.AddEventStorePostgres<IClients, IClientAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
+builder.Services.AddScoped<IEventStoreRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
+builder.Services.AddScoped<ClientEventReplay>();
+builder.Services.AddEventBusInMemory();
+builder.Services.AddReadStorePostgres<IClients, ClientReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+// BE-134: проекция read-модели (иначе client_read пустая -> GET /clients/me = 404).
+builder.Services.AddHostedService<Client.Api.Events.ClientEventConsumer>();
+builder.Services.AddSingleton<Client.Api.Events.ClientEventHandler>();
+// BE-133 (@TL 00:50): DbContextOptions ПОСЛЕ store-регистраций (порядок как в Journal, строка 55) —
+// иначе не-generic регистрация до AddReadStorePostgres ломает резолв EventStoreDbContext.
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddSingleton<ClientTokenService>();
 var otpChannel = builder.Configuration["Otp:Channel"] ?? "log";
 OtpChannelGuard.EnsureValid(otpChannel, Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
@@ -50,7 +64,8 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    scope.ServiceProvider.GetRequiredService<CommandDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>().Database.Migrate();
+    scope.ServiceProvider.GetRequiredService<ReadDbContext>().Database.Migrate();
 }
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();

@@ -1,0 +1,13 @@
+diff --git a/7-deploy/recreate-service.sh b/7-deploy/recreate-service.sh
+index fdf7f1007..a8d02f292 100644
+--- a/7-deploy/recreate-service.sh
++++ b/7-deploy/recreate-service.sh
+@@ -346,7 +346,7 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
+     # проходит как «пересоздан» (deploy-dev зелёный при client, рестартующем 36 раз).
+     __img="$(podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null \
+              || sudo -n podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null || echo '')"
+-    __want="ghcr.io/ekstrem/xdiary-$SVC:$TAG"
++    __want="ghcr.io/ekstrem/xdiary-$SVC:${lock_tag:-single}"   # DO-145: lock_tag уже вычислен через tag_of (стр. 216); $TAG не существует
+     if [ "$__img" != "$__want" ]; then
+       __st="image-mismatch($__img != $__want)"
+     fi

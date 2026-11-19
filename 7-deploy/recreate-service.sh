@@ -104,20 +104,36 @@ check_hosts() {
     say "  check-hosts $svc: ожиданий нет (генератор недоступен) — пропуск"
     return 0
   fi
-  if ! podman ps --format '{{.Names}}' | grep -qx "xdiary-$svc"; then
-    say "  check-hosts $svc: контейнера нет" >&2
-    return 1
+  # DO-145 (@FE 02:32): recreate идёт в root-store (update.sh: `$PODMAN_SUDO bash RECREATE`),
+  # поэтому смотреть надо ОБА store — иначе «контейнера нет» при живом (прогон 44420713858).
+  __cs="rootless"
+  if ! podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
+      __cs="root"
+    else
+      say "  check-hosts $svc: контейнера нет (ни rootless, ни root)" >&2
+      return 1
+    fi
   fi
-  actual="$(podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  if [ "$__cs" = "root" ]; then
+    actual="$(sudo -n podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  else
+    actual="$(podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
+  fi
   if [ "${actual:-0}" -lt "$expected" ]; then
     say "ОШИБКА: $svc ExtraHosts=$actual, ожидалось $expected — флаги попали НЕ в podman" >&2
     return 1
   fi
   if [ "$svc" = "api-gateway" ]; then
+    if [ "$__cs" = "root" ]; then
+      sudo -n podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
+        || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
+    else
     podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
       || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
+    fi
   fi
-  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected), clients есть — ok"
+  say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected), clients есть — ok ($__cs)"
   return 0
 }
 
@@ -171,7 +187,14 @@ if [ -n "$IMAGE_OVERRIDE" ]; then
   python3 - "$BODY" "$IMAGE_OVERRIDE" <<'PY'
 import sys
 path, img = sys.argv[1:3]
-line = open(path, encoding='utf-8').read().strip()
+raw = open(path, encoding='utf-8').read().replace('\r', '')
+# DO-144 (@DO 2026-11-18): body ОБЯЗАН быть одной командой в одну строку.
+# Было: из-за `\\`-продолжений/хвостов в body попадала вторая строка (голый хеш),
+# runner получал `line 6: <hash>: command not found`, контейнер не пересоздавался,
+# а старый держал имя ⇒ `name "xdiary-client" is already in use` (deploy-dev 19:48Z).
+lines = [l for l in raw.splitlines() if l.strip()]
+line = next((l for l in lines if 'podman run' in l), lines[0] if lines else '')
+line = line.strip()
 parts = line.rsplit(' ', 1)
 assert len(parts) == 2, 'нет образа в конце строки'
 open(path, 'w', encoding='utf-8').write(parts[0] + ' ' + img + '\n')
@@ -233,6 +256,9 @@ elif grep -q -- '--add-host' "$RUNNER"; then
 fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
+# DO-144: страховка от «второй строки» в runner (битый image-override).
+run_cnt="$(grep -c '^podman run' "$RUNNER" || true)"
+[ "$run_cnt" = "1" ] || die "в runner $run_cnt команд podman run (ожидалась 1) — контейнер не трогаю"
 
 # 2026-11-10 (@DO): ПОРЯДОК ВАЖЕН — образ проверяем/тянем ДО удаления контейнера.
 # Инцидент: lock указывал на новый тег, которого не было локально; скрипт удалил старый
@@ -318,38 +344,89 @@ fi
 # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
 # откатывало весь набор. Даём сети освободить адрес перед запуском.
 sleep 2
-attempt=1
-while [ "$attempt" -le 3 ]; do
-  if bash "$RUNNER" >/dev/null 2>&1; then
-    sleep 3
-    if podman ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
-      say "  OK: $CONTAINER пересоздан"
-      check_hosts "$SVC" || exit 1
-      # DO-051 п.2 (@TL 11:45): «пересоздал» = «проверил». Только для шлюза:
-      # ExtraHosts=12 ещё не значит, что вход отвечает (псевдоним `clients` мог
-      # потеряться -> 502 при живом /health). Проверяем функционально.
-      if [ "$SVC" = "api-gateway" ]; then
-        sleep 3
-        g=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/api/v1/clients || echo 000)
-        p=$(curl -s -o /dev/null -w '%{http_code}' -m 10 -X POST -H 'Content-Type: application/json' \
-              -d '{}' http://127.0.0.1:8080/api/v1/clients || echo 000)
-        case "$g" in 200|401) ;; *) say "ОШИБКА: GET /api/v1/clients = $g (ждали 200/401; 502 = нет псевдонима clients)" >&2; exit 1;; esac
-        case "$p" in 200|201|400) ;; *) say "ОШИБКА: POST /api/v1/clients = $p (ждали 200/201/400; 502 = нет псевдонима clients)" >&2; exit 1;; esac
-        say "  вход отвечает: GET /clients=$g, POST /clients=$p"
-      fi
-      exit 0
+bash "$RUNNER" >/dev/null 2>&1 || true
+# DO-145 (@TL 23:18): readiness с ретраями (до 30 с, шаг 2 с), а не «мгновенный podman ps».
+# Критерий: контейнер есть, RestartCount=0, ExitCode=0, и /health отвечает 2xx/401.
+__ok=0
+__rt="${READINESS_TIMEOUT:-120}"   # DO-145 (@FE 00:20): 30 с было меньше старта EF+миграций (~35 с)
+__deadline=$(( $(date +%s) + __rt ))
+while [ "$(date +%s)" -lt "$__deadline" ]; do
+  __st=""
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+    __st="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  elif command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  fi
+  if [ -n "$__st" ]; then
+    # DO-145 (@FE 02:34): readiness ОБЯЗАН сверять образ с lock — иначе старый образ
+    # проходит как «пересоздан» (deploy-dev зелёный при client, рестартующем 36 раз).
+    __img="$(podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null \
+             || sudo -n podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null || echo '')"
+    # DO-145 (@TL 01:38): в скрипте нет `$TAG` (тег = `$lock_tag`, строка 216) — при set -u это fatal.
+    __want="ghcr.io/ekstrem/xdiary-$SVC:${lock_tag:-}"
+    if [ "$__img" != "$__want" ]; then
+      __st="image-mismatch($__img != $__want)"
     fi
   fi
-  say "  попытка $attempt не удалась, повтор…"
-  attempt=$((attempt + 1))
-  sleep 5
+  if [ -n "$__st" ]; then
+    # DO-145 (@FE 03:48): `catalog` дал `[1 0]` — ОДИН рестарт на старте (ждал БД) при ExitCode=0.
+    # Это норма, а дефект — РОСТ RestartCount. Разрешаем <=1 при ExitCode=0.
+    if awk 'NF==2 && $1<=1 && $2==0 {found=1} END{exit(found?0:1)}' <<< "$__st" 2>/dev/null; then
+      # DO-145 (@TL 23:58): HTTP-проверка — ТОЛЬКО для шлюза. Остальные сервисы портов
+      # на хост не публикуют, и `127.0.0.1:8080/health` попадает в чужой listener
+      # (Caddy/APIM) → ложное «не поднялся» при живом контейнере (прогон 44395812395).
+      if [ "$SVC" != "api-gateway" ]; then
+        __ok=1; break
+      fi
+      __hp="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "http://127.0.0.1:${HPORT:-8080}/health" 2>/dev/null || echo 000)"
+      case "$__hp" in 2??|401) __ok=1; break;; esac
+    fi
+  fi
+  sleep 2
 done
+if [ "$__ok" = "1" ]; then
+  # DO-145 (@TL 03:12, 03:35): ОДИН замер в момент старта пропускает рестарт-цикл (restarts=14,
+  # а deploy-dev зелёный). Падение Autofac приходит ПОЗЖЕ 10 с (@TL: 502 через ~2 мин), поэтому
+  # проверяем ДВАЖДЫ: 10 с и 30 с — дефект, который проявляется позже, не пройдёт как OK.
+  __r_prev="$(awk 'NF==2{print $1}' <<< "$__st" 2>/dev/null || echo 0)"
+  sleep 10
+  __st2="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  __r2="$(awk 'NF==2{print $1; exit}' <<< "$__st2" 2>/dev/null || echo x)"
+  __e2="$(awk 'NF==2{print $2; exit}' <<< "$__st2" 2>/dev/null || echo x)"
+  if [ "${__r2:-x}" != "x" ] && { [ "${__e2:-1}" != "0" ] || [ "${__r2:-0}" -gt "${__r_prev:-0}" ]; }; then
+    say "ОШИБКА: $CONTAINER рестарты растут/wrong exit через 10 с (RestartCount/ExitCode=[$__st2], было [$__st])" >&2
+    exit 1
+  fi
+  sleep 20
+  __st3="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  __r3="$(awk 'NF==2{print $1; exit}' <<< "$__st3" 2>/dev/null || echo x)"
+  __e3="$(awk 'NF==2{print $2; exit}' <<< "$__st3" 2>/dev/null || echo x)"
+  if [ "${__r3:-x}" != "x" ] && { [ "${__e3:-1}" != "0" ] || [ "${__r3:-0}" -gt "${__r2:-0}" ]; }; then
+    say "ОШИБКА: $CONTAINER рестарты растут/wrong exit через 30 с (RestartCount/ExitCode=[$__st3], было [$__st2])" >&2
+    exit 1
+  fi
+  say "  OK: $CONTAINER пересоздан (стабилен 30 с)"
+  check_hosts "$SVC" || exit 1
+  # DO-051 п.2: «пересоздал» = «проверил». Только для шлюза.
+  if [ "$SVC" = "api-gateway" ]; then
+    sleep 3
+    h=$(curl -s -o /dev/null -w '%{http_code}' -m 10 http://127.0.0.1:8080/health || echo 000)
+    case "$h" in 2??) ;; *) say "ОШИБКА: GET /health шлюза = $h (ждали 2xx)" >&2; exit 1;; esac
+    say "  вход отвечает: /health=$h"
+  fi
+  exit 0
+fi
 # DO-128 (@TL 2026-11-13 19:2x): при провале печатаем ПОЧЕМУ сервис не поднялся.
 # Раньше на этом месте была только строка «не поднялся», и три прогона подряд
 # (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`
 # нельзя отличить «нет Jwt__SigningKey» от «конфликт сети» или «упал на миграциях».
-say "  диагностика $CONTAINER (stderr podman run и логи):" >&2
-if [ -f "$RUNNER" ]; then bash "$RUNNER" 2>&1 | tail -n 20 | sed 's/^/    run| /' >&2 || true; fi
+say "  диагностика $CONTAINER (оба store + логи):" >&2
+{ podman ps -a --filter "name=$CONTAINER" --format '    rootless| {{.Names}} {{.Status}}' 2>/dev/null || true
+  command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --filter "name=$CONTAINER" --format '    root| {{.Names}} {{.Status}}' 2>/dev/null || true
+  podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null ||     sudo -n podman inspect "$CONTAINER" --format '    inspect| {{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null || true
+} >&2
+# DO-145 (@FE 00:20): НЕ перезапускаем runner — его «name in use» это следствие, а не причина.
+if [ -f "$RUNNER" ]; then sed 's/^/    cmd| /' "$RUNNER" | tail -n 3 >&2 || true; fi
 podman inspect "$CONTAINER" --format '    exit={{.State.ExitCode}} err={{.State.Error}}' 2>/dev/null >&2 || true
 podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /' >&2 || true
 die "$CONTAINER не поднялся. Восстановить: bash $RUNNER"

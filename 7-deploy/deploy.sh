@@ -63,6 +63,17 @@ TAG="$(awk '!/^#/ && NF>=2 {print $2; exit}' "$LOCK_FILE")"
 cd /opt/xdiary/7-deploy
 NET=xdiary
 LBL='--label io.containers.autoupdate=registry'
+# DO-145 (@TE 09:38): `pull_by_digest` была ОПРЕДЕЛЕНА, но НИ РАЗУ НЕ ВЫЗВАНА —
+# поэтому образы не тянулись, `podman run --replace` поднимал то, что лежало локально,
+# и `deploy-prod` падал «12 образов отсутствует локально» без единой строки `pull`.
+# Теперь тянем ВСЕ образы из lock по digest ДО `podman run` (ADR-027).
+echo "DO-113: тянем образы по digest из images.lock"
+for __s in journal partners catalog somatic-series daily-metrics garmin-gateway \
+           apple-health-gateway analytics privacy portability client api-gateway; do
+  pull_by_digest "$__s" || { echo "::error::DO-113: не удалось pull $__s — деплой невоспроизводим" >&2; exit 1; }
+done
+echo "DO-113: образы из lock вытянуты"
+
 # DO-143 (@TL 16:50): цикл `rm` УДАЛЁН — с `sudo` он снёс бы APIM (xdiary-apim-*, up.sh:24-29),
 # а `--replace` на каждом `podman run` сам заменяет нужные контейнеры; pg/APIM не трогаются.
 sudo -n podman run -d --replace --name xdiary-journal --network $NET --ip 10.89.9.20 --hostname journal $LBL --env-file secrets/.env -e "ConnectionStrings__CommandDb=Host=10.89.9.10;Port=5432;Database=journal;Username=journal;Password=${DBPW_JOURNAL}" -e "ConnectionStrings__ReadDb=Host=10.89.9.10;Port=5432;Database=journal;Username=journal;Password=${DBPW_JOURNAL}" -e ASPNETCORE_ENVIRONMENT=Single --memory 256m --pids-limit 512 --read-only --tmpfs /tmp --restart unless-stopped ghcr.io/ekstrem/xdiary-journal:$TAG >/dev/null

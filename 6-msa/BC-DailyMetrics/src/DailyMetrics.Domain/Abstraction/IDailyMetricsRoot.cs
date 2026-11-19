@@ -1,3 +1,3 @@
 namespace DailyMetrics.Domain.Abstraction;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
-public interface IDailyMetricsRoot : IValueObject { string Date { get; } }
+public interface IDailyMetricsRoot : IAggregateRoot<IDailyMetrics> { string Date { get; } }

@@ -126,7 +126,7 @@ verify_image_age() {
   [ -n "${CODE_TS:-}" ] || return 0
   code_epoch="$(date -d "$CODE_TS" +%s 2>/dev/null || echo 0)"
   [ "$code_epoch" -gt 0 ] || return 0
-  created="$(sudo -n podman image inspect "$img" --format '{{.Created}}' 2>/dev/null || true)"
+  created="$($PODMAN_SUDO podman image inspect "$img" --format '{{.Created}}' 2>/dev/null || true)"
   [ -n "$created" ] || return 1
   created_epoch="$(date -d "$(printf '%s' "$created" | sed -E 's/\.[0-9]+//; s/ UTC$//')" +%s 2>/dev/null || echo 0)"
   [ "$created_epoch" -gt 0 ] || return 0
@@ -261,7 +261,7 @@ declare -A CUR_IDS=()
 NEW_STATE=""
 MISSING=0
 for img in $IMAGES; do
-  id="$(sudo -n podman image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
+  id="$($PODMAN_SUDO podman image inspect "$img" --format '{{.Id}}' 2>/dev/null || true)"
   if [ -z "$id" ]; then
     say "образ $img отсутствует локально" >&2
     MISSING=$((MISSING + 1))
@@ -319,15 +319,12 @@ for svc in $ORDER; do
 done
 
 # ---------- пост-проверка ----------
+# DO-145 (@TL 2026-11-18 23:20): НЕ откатываем весь набор из-за одного сервиса.
+# Раньше один ложный «не поднялся» (например, проверка входа по неверному пути) откатывал
+# все 12 сервисов → полный простой конвейера. Теперь: фиксируем и выходим с кодом 1,
+# стенд остаётся диагностируемым (остальные сервисы уже на новых образах).
 if [ -n "$FAILED" ]; then
-  say "провал на $FAILED: откат на предыдущие образы"
-  for svc in $ORDER; do
-    case " $CHANGED " in *" $svc "*) ;; *) continue ;; esac
-    old_id="$(printf '%s' "$OLD_STATE" | awk -v s="$svc" '$1==s {print $2}')"
-    [ -n "$old_id" ] || continue
-    say "  откат $svc → $old_id"
-    $PODMAN_SUDO bash "$RECREATE" "$svc" --image "$old_id" || say "  откат $svc не удался (нужно вручную)"
-  done
+  say "провал на $FAILED: откат остальных НЕ выполняю (DO-145); стенд оставлен для диагностики"
   exit 1
 fi
 

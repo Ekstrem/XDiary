@@ -1,4 +1,4 @@
-﻿using Autofac;
+using Autofac;
 using Autofac.Extensions.DependencyInjection;
 using Journal.Application;
 using Journal.Domain;
@@ -43,6 +43,9 @@ builder.Services.AddEventStorePostgres<IJournal, IJournalAnemicModel>(builder.Co
 // QG-301/override-СЂРµРїР»РµР№: РїРµСЂРµРєР»СЋС‡Р°РµРј IEventStoreRepository РЅР° РЅР°СЃР»РµРґРЅРёРєР° СЃ СЂРµР°Р»СЊРЅС‹Рј fold (RecordEventReplay),
 // РёРЅР°С‡Рµ FullEventSourcingRepository.GetById РІРѕР·РІСЂР°С‰Р°РµС‚ РїСѓСЃС‚РѕР№ СЃРїРёСЃРѕРє (TODO РІ Р±РёР±Р»РёРѕС‚РµРєРµ).
 builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStoreRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
+// BE-129: реальный реплей и как IAnemicModelRepository — иначе AggregateProvider берёт библиотечный
+// FullEventSourcingRepository.GetById (TODO → пустой список) и реконструкция всегда DefaultAnemicModel.
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IJournal, IJournalAnemicModel>, Journal.Storage.JournalEventSourcingRepository>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
@@ -68,6 +71,13 @@ using (var scope = app.Services.CreateScope())
     var readDb = scope.ServiceProvider.GetRequiredService<ReadDbContext>();
     readDb.Database.Migrate();
 }
+// BE-129: глобальный ловец исключений до контроллера — [journal] EX в WithOwner не ловит,
+// т.к. 500 приходит из middleware/routing/DI-конструктора, а не из action.
+app.Use(async (ctx, next) =>
+{
+    try { await next(); }
+    catch (Exception ex) { Console.WriteLine("[mw] EX: " + ex); throw; }
+});
 app.UseXdiarySwagger();
 app.UseHttpsRedirection();
 app.UseAuthentication();

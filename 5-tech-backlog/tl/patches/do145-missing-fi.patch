@@ -1,0 +1,12 @@
+diff --git a/7-deploy/recreate-service.sh b/7-deploy/recreate-service.sh
+index 6758eb86a..27006eaf1 100644
+--- a/7-deploy/recreate-service.sh
++++ b/7-deploy/recreate-service.sh
+@@ -359,6 +359,7 @@ if [ "$__ok" = "1" ]; then
+     say "  вход отвечает: /health=$h"
+   fi
+   exit 0
++fi
+ # DO-128 (@TL 2026-11-13 19:2x): при провале печатаем ПОЧЕМУ сервис не поднялся.
+ # Раньше на этом месте была только строка «не поднялся», и три прогона подряд
+ # (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`

@@ -3,8 +3,10 @@ using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Client.Domain.Abstraction;
 // Канон EDM §8.1: иммутабельный агрегат — бизнес-метод порождает НОВУЮ версию,
 // поэтому поля init-only, а не set (мутация через `with`, не через сеттеры).
-public sealed record AnemicModel : IClientAnemicModel
+internal sealed record AnemicModel : IClientAnemicModel
 {
+    public static IClientAnemicModel Create(Guid id) => new AnemicModel { Id = id };
+
     public Guid Id { get; init; } = Guid.NewGuid();
     public long Version { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     public string CommandName { get; init; } = string.Empty;
@@ -19,5 +21,15 @@ public sealed record AnemicModel : IClientAnemicModel
     public string? PhotoUrl { get; init; }
     public bool Verified { get; init; }
     public IDictionary<string, IValueObject> Invariants => GetValueObjects();
-    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject> { ["Root"] = Root };
+    public IDictionary<string, IValueObject> GetValueObjects() => new Dictionary<string, IValueObject>
+    {
+        ["Root"] = Root,
+        ["DisplayName"] = new StringValueObject(DisplayName),
+        ["Gender"] = new StringValueObject(Gender),
+        ["PhotoUrl"] = new NullableStringValueObject(PhotoUrl),
+        ["OtpCode"] = new StringValueObject(OtpCode),
+        ["OtpExpiresAt"] = new DateTimeValueObject(OtpExpiresAt),
+        ["OtpAttempts"] = new IntValueObject(OtpAttempts),
+        ["Verified"] = new BoolValueObject(Verified),
+    };
 }

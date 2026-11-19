@@ -192,7 +192,11 @@ jobs:
           host: ${{ secrets.DEV_SSH_HOST }}
           username: ${{ secrets.DEV_SSH_USER }}
           key: ${{ secrets.DEV_SSH_KEY }}
-          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64
+          # DO-145 (@TL 09:07): пересоздание 12 сервисов с двойной проверкой стабильности
+          # (10 с + 20 с) перестало укладываться в дефолтные 10 мин → прогон падал
+          # `Run Command Timeout` на ПОСЛЕДНЕМ сервисе (api-gateway), хотя 11 уже были ок.
+          command_timeout: 30m
+          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64
           script: |
             set -eu
             for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
@@ -303,7 +307,10 @@ jobs:
           TW=$(python -c "import sys; sys.path.insert(0,'9-tests/scripts'); import check_apim_auth as c; print(c.PROBE_TIMEOUT)" 2>/dev/null || echo "?")
           echo "::notice::канон: предел пробы ${TW} с (из check_apim_auth.PROBE_TIMEOUT), ретраев на unknown: 3"
           T0=$SECONDS
-          python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
+          # DO-145 (@TL 01:50): канон идёт по ДЕВУ до deploy-prod — иначе он требует прод-деплой,
+          # которого ещё нет, и краснеет на неизменённых эндпоинтах (ложное красное).
+          # AR 05:30 + TL 05:59: на деве (ii-a) НЕ засчитывается (ADR-030) — dev-канон идёт как (ii-c) (внутренние эндпоинты), без требования via; (ii-a) снимается по ПРОДУ после deploy-prod.
+          python 9-tests/scripts/check_apim_auth.py --ii-c --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
           echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (предел пробы ${TW} с, из кода)"
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
@@ -316,7 +323,10 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
             sleep 15
             T1=$SECONDS
-            python 9-tests/scripts/check_apim_auth.py --all --base "$XDIARY_PROD_BASE_URL" --retry-unknown 3; rc=$?
+            # DO-145 (@TL 01:50): канон идёт по ДЕВУ до deploy-prod — иначе он требует прод-деплой,
+          # которого ещё нет, и краснеет на неизменённых эндпоинтах (ложное красное).
+          # AR 05:30 + TL 05:59: на деве (ii-a) НЕ засчитывается (ADR-030) — dev-канон идёт как (ii-c) (внутренние эндпоинты), без требования via; (ii-a) снимается по ПРОДУ после deploy-prod.
+          python 9-tests/scripts/check_apim_auth.py --ii-c --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
             echo "::notice::канон (попытка 2): rc=$rc за $((SECONDS - T1)) с"
             [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
           fi
@@ -337,6 +347,27 @@ jobs:
           dotnet test 6-msa/BC-Journal/src/Journal.ApiTests/Journal.ApiTests.csproj \
             --filter "FullyQualifiedName~PartnerSoftDelete" \
             --verbosity minimal
+      # DO-145 (@TL 09:11, @TE 09:48, #2949): дешёвая квитанция «фикс в `main` → в образе» ДО
+      # трёхминутного `smoke-front`. Проба создаёт клиента/партнёра/запись, делает when/partners/place/
+      # complete и смотрит `GET /journal/recent`: `rc=0` — read-модель обновляется (фикс доехал);
+      # иначе — «пусто/не измерено» (печатается в лог, но НЕ валит прогон: это диагностика, а не гейт).
+      - name: Проба journal recent (квитанция «BE-137 доехал до стенда»)
+        if: always()
+        env:
+          XDIARY_API_BASE: ${{ env.XDIARY_E2E_BASE_URL }}
+        run: |
+          set -uo pipefail
+          set +e
+          node 9-tests/scripts/probe_journal_recent.js --base "$XDIARY_API_BASE"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "::notice::проба journal recent: rc=0 (read-модель обновляется — фикс в образе)" ;;
+            2) echo "::notice::проба journal recent: rc=2 (не измерено — стенд/OTP недоступны)" ;;
+            *) echo "::warning::проба journal recent: rc=$rc (read-модель не обновилась — фикс не в образе?)" ;;
+          esac
+          exit 0
+
   # Браузерный гейт: только фронт. Отдельный джоб, чтобы фронтовый баг не блокировал
   # доставку бэкенда (DO-035).
   # @TL 2026-11-07 08:26 п.(2): «постоянный красный перестаёт быть сигналом (§5.4/§8)» —
@@ -483,7 +514,15 @@ jobs:
             last="clients=$c1 clients/me=$c2 POST/clients=$c3"
             case "$c1" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
             case "$c2" in 5*|000) echo "  попытка $i: $last — шлюз ещё не готов"; sleep 3; continue ;; esac
-            case "$c3" in 5*|000) echo "  попытка $i: $last — сервис clients ещё поднимается"; sleep 3; continue ;; esac
+            case "$c3" in 5*|000)
+              # DO-145 (@FE 02:02): при RestartCount>3 это НЕ «поднимается», а CrashLoop.
+              rc="$(sudo -n podman inspect xdiary-client --format '{{.RestartCount}}' 2>/dev/null || echo 0)"
+              if [ "${rc:-0}" -gt 3 ] 2>/dev/null; then
+                echo "  попытка $i: $last — сервис clients в CrashLoop (restarts=$rc), см. podman logs xdiary-client"
+              else
+                echo "  попытка $i: $last — сервис clients ещё поднимается"
+              fi
+              sleep 3; continue ;; esac
             echo "::notice::API dev готов: $last (попытка $i; 401 = шлюз жив, 400 = сервис clients жив)"
             exit 0
           done
@@ -506,6 +545,26 @@ jobs:
           mkdir -p test-results
           npx playwright test add-partner wizard-record change-pin --trace on 2>&1 | tee test-results/pw.log
 
+      # DO-145 (@FE 08:20): страховка от тестов, бьющих в ПРОД. `baseUrl()` уважает
+      # `xdiary.apiBase` только при `window.__XDIARY_E2E__ === true`, иначе чистит ключ и
+      # отдаёт DEFAULT_BASE = https://xdiary-vps1... — то есть спека без `installBase` до
+      # `goto` меняет ПРОД-данные (POST/delete). Фильтр — только ЗАПРОСЫ, не env-строки
+      # (в логе 24 легитимных `XDIARY_PROD_BASE_URL`), иначе гейт краснел бы ложно.
+      - name: Тесты не ходили в ПРОД (страховка)
+        if: always()
+        working-directory: 9-tests/RnD/front-e2e
+        run: |
+          set -uo pipefail
+          LOG=test-results/pw.log
+          [ -f "$LOG" ] || { echo "::notice::лог E2E отсутствует — проверка пропущена"; exit 0; }
+          HITS=$(grep -E '(GET|POST|PUT|DELETE|PATCH) [^ ]*xdiary-vps1|browser http error .*xdiary-vps1|API network error: [A-Z]+ [^ ]*xdiary-vps1' "$LOG" || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::тесты ходили в ПРОД (xdiary-vps1) — не выставлен xdiary.apiBase/__XDIARY_E2E__ до goto"
+            printf '%s\n' "$HITS" | head -10
+            exit 1
+          fi
+          echo "OK: запросов к проду из E2E нет"
+
       # 2026-11-07: у падений E2E не было артефактов (`artifacts: 0` в #1785), поэтому
       # разбор шёл по строкам лога, а не по DOM/сети. Теперь трассы поднимаются всегда.
       - name: Артефакты падения (trace, скриншоты, error-context)
@@ -525,9 +584,20 @@ jobs:
       # 2026-11-10 (@TE 11:45): у @TE нет доступа к артефактам и к контуру, поэтому классы
       # падений печатаются прямо в лог прогона — без скачивания.
       - name: Классы падений (e2e_triage)
-        if: failure()
+        # DO-145 (@TE 09:2x, @TL 09:27): триаж падал rc=2 «не читается pw.log — No such file»,
+        # потому что путь считался от КОРНЯ, а `tee` пишет от `9-tests/RnD/front-e2e`
+        # (working-directory шага «UI smoke»). Теперь рабочая директория та же, а
+        # отсутствие лога — notice (не ошибка), чтобы не маскировать настоящую причину.
+        if: always()
+        working-directory: 9-tests/RnD/front-e2e
         run: |
-          python 9-tests/scripts/e2e_triage.py --input 9-tests/RnD/front-e2e/test-results/pw.log || true
+          set -uo pipefail
+          LOG=test-results/pw.log
+          if [ ! -f "$LOG" ]; then
+            echo "::notice::e2e_triage: лог $LOG отсутствует (тесты не запускались или шаг упал раньше) — триаж пропущен"
+            exit 0
+          fi
+          python 9-tests/scripts/e2e_triage.py --input "$LOG" || true
 
   # Гейт паритета API между стендами (@TL 2026-11-15, запрос владельца):
   # сегодняшний баг «Фантазии/акт падают с 500 на проде, а на dev работают» — это

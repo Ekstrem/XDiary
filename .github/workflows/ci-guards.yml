@@ -16,6 +16,10 @@ on:
       - 'loop.config.json'
       - 'tools/**'
       - '.github/workflows/ci-guards.yml'
+      # DO-145 (@FE 00:28): `7-deploy/**` и shell-скрипты — иначе правка deploy/recreate
+      # доезжает до main без `bash -n` (дважды: attempt unbound, syntax error EOF).
+      - '7-deploy/**'
+      - '*.sh'
   pull_request:
   workflow_dispatch:
 

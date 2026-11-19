@@ -1,9 +1,10 @@
 namespace Catalog.Storage;
 using Microsoft.EntityFrameworkCore;
+using Catalog.InternalContracts;
 public sealed class ReadDbContext : DbContext
 {
     public ReadDbContext(DbContextOptions<ReadDbContext> options) : base(options) { }
-    public DbSet<CatalogItemEntity> Items => Set<CatalogItemEntity>();
+    public DbSet<CatalogReadModel> Items => Set<CatalogReadModel>();
     protected override void OnModelCreating(ModelBuilder b)
-    { b.Entity<CatalogItemEntity>(e => { e.ToTable("catalog_items"); e.HasKey(x => x.Id); e.Property(x => x.Name).HasMaxLength(256).IsRequired(); e.Property(x => x.Kind).HasMaxLength(32).IsRequired(); e.Property(x => x.ClientId); e.HasIndex(x => x.ClientId); }); }
+    { b.Entity<CatalogReadModel>(e => { e.ToTable("catalog_read"); e.HasKey(x => x.Id); e.HasIndex(x => x.ClientId); }); }
 }

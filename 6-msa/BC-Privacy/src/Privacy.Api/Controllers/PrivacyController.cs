@@ -24,27 +24,27 @@ public sealed class PrivacyController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c with { ClientId = CurrentClientId() }, ct));
+    public async Task<IActionResult> SetPin([FromBody] SetPinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c, ct));
     [HttpPost("pin/change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c with { ClientId = CurrentClientId() }, ct));
+    public async Task<IActionResult> ChangePin([FromBody] ChangePinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c, ct));
     [HttpPost("pin/remove")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Remove([FromBody] RemovePinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c with { ClientId = CurrentClientId() }, ct));
+    public async Task<IActionResult> Remove([FromBody] RemovePinCommand c, CancellationToken ct) => RespondAuth(await _mediator.Send(c, ct));
     [HttpPost("pin/lock")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Lock(CancellationToken ct) => Respond(await _mediator.Send(new LockPinCommand(CurrentClientId()), ct));
+    public async Task<IActionResult> Lock(CancellationToken ct) => Respond(await _mediator.Send(new LockPinCommand(), ct));
     [HttpPost("pin/unlock")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Unlock(CancellationToken ct) => Respond(await _mediator.Send(new UnlockPinCommand(CurrentClientId()), ct));
+    public async Task<IActionResult> Unlock(CancellationToken ct) => Respond(await _mediator.Send(new UnlockPinCommand(), ct));
     [HttpGet("pin/has")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -53,7 +53,7 @@ public sealed class PrivacyController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> VerifyPin([FromBody] VerifyPinQuery q, CancellationToken ct) => Ok(await _mediator.Send(q with { ClientId = CurrentClientId() }, ct));
+    public async Task<IActionResult> VerifyPin([FromBody] VerifyPinQuery q, CancellationToken ct) => Ok(await _mediator.Send(q, ct));
 
     [HttpPost("token")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -63,7 +63,7 @@ public sealed class PrivacyController : ControllerBase
     {
         var clientId = CurrentClientId();
         if (clientId == Guid.Empty) return Unauthorized();
-        var r = await _mediator.Send(c with { ClientId = clientId }, ct);
+        var r = await _mediator.Send(c, ct);
         return r is null ? Unauthorized() : Ok(r);
     }
 

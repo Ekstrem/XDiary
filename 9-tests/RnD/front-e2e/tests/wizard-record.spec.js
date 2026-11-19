@@ -23,23 +23,62 @@ async function viewState(page) {
 }
 
 async function findRecord(page, startedAt) {
+  // @FE 2026-11-19 08:00: строгое совпадение строки ломалось, если сервис отдаёт время
+  // с секундами/в ином формате. Сравниваем как даты с допуском 120 с и всегда возвращаем
+  // то, что реально пришло (`received`), чтобы падение называло причину.
   return page.evaluate(async ({ base, startedAt }) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
     const headers = t ? { Authorization: 'Bearer ' + t } : {};
     const r = await fetch(base + '/api/v1/journal/records', { headers });
     if (!r.ok) return { ok: false, status: r.status };
     const list = await r.json();
-    const it = (list || []).find((x) => String(x.startedAt || '').indexOf(startedAt) === 0);
-    return { ok: true, found: !!it, id: it && it.id };
+    const arr = Array.isArray(list) ? list : [];
+    const want = Date.parse(startedAt);
+    const norm = (v) => {
+      const s = String(v || '');
+      const d = Date.parse(s);
+      return Number.isFinite(d) ? d : (Number.isFinite(Date.parse(s + ':00Z')) ? Date.parse(s + ':00Z') : NaN);
+    };
+    const near = arr.filter((x) => {
+      const got = norm(x && x.startedAt);
+      if (!Number.isFinite(got) || !Number.isFinite(want)) {
+        return String((x && x.startedAt) || '').indexOf(startedAt) === 0;
+      }
+      return Math.abs(got - want) <= 120000;
+    });
+    const it = near.length ? near.sort((a, b) => norm(b.startedAt) - norm(a.startedAt))[0] : null;
+    return {
+      ok: true,
+      found: !!it,
+      id: it && it.id,
+      matchedStartedAt: it && it.startedAt,
+      received: arr.slice(0, 6).map((x) => String((x && x.startedAt) || '')),
+      total: arr.length,
+    };
   }, { base: API_BASE, startedAt });
 }
 
 async function deleteRecord(page, id) {
+  // @TL 2026-11-19 05:30: удаление черновика домен запрещает (`400 RecordDeletable: delete applies
+  // only to a Recorded record`). Поэтому перед delete доводим запись до статуса Recorded —
+  // `when` (если не задано) + `complete`; ошибки этих шагов не валят уборку, но печатаются.
   return page.evaluate(async ({ base, id }) => {
     const t = localStorage.getItem('xdiary.accessToken') || '';
     const headers = t ? { Authorization: 'Bearer ' + t } : {};
-    const r = await fetch(base + '/api/v1/journal/records/' + id + '/delete', { method: 'POST', headers });
-    return { ok: r.ok, status: r.status };
+    const steps = [];
+    const post = async (path, body) => {
+      const r = await fetch(base + path, {
+        method: 'POST',
+        headers: Object.assign({}, headers, body ? { 'Content-Type': 'application/json' } : {}),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      steps.push(path.split('/').pop() + ':' + r.status);
+      return r;
+    };
+    await post('/api/v1/journal/records/' + id + '/when', { startedAt: new Date().toISOString() });
+    await post('/api/v1/journal/records/' + id + '/complete');
+    const r = await post('/api/v1/journal/records/' + id + '/delete');
+    return { ok: r.ok, status: r.status, steps: steps.join(',') };
   }, { base: API_BASE, id });
 }
 
@@ -218,7 +257,12 @@ test('E2E: запись через визард — создаётся и вид
 
     const found = await findRecord(page, WHEN);
     expect(found.ok, 'GET /api/v1/journal/records → ' + apiLog.slice(-5).join(' | ')).toBe(true);
-    expect(found.found, 'запись ' + WHEN + ' не найдена; API: ' + apiLog.slice(-8).join(' | ')).toBe(true);
+    expect(
+      found.found,
+      'запись ' + WHEN + ' не найдена; сопоставление по времени с допуском 120 с; ' +
+        'пришло всего=' + String(found.total) + ' первыми: ' + JSON.stringify(found.received) +
+        '; API: ' + apiLog.slice(-8).join(' | ')
+    ).toBe(true);
     id = found.id;
   } finally {
     if (id) {
@@ -297,8 +341,25 @@ test('E2E: визард подставляет последние партнёр
     await expect(page.locator('#w-partner-grid'), 'шаг 1 — «Партнёр»').toBeVisible({ timeout: 10000 });
 
     // Шаг 1 — партнёр: выбранная карточка = последний партнёр.
+    // @FE 2026-11-19 08:30: это отдельное утверждение, но «ожидалось 1» не говорит почему.
+    // Диагностика снимаетсяbest-effort и НЕ бросает (иначе dryrun падает на пустом DOM):
+    // пустая сетка ⇒ партнёр не виден (`GET /partners` = 0, класс `BE-128`); сетка есть,
+    // а selected 0 ⇒ UX визарда; карточка ищется по имени из фикстуры.
+    let diag = 'диагностика недоступна';
+    try {
+      const totalCards = await page.locator('#w-partner-grid .partner-card').count();
+      const ourCards = await page.locator('#w-partner-grid .partner-card')
+        .filter({ hasText: partnerName }).count();
+      const selectedAllCount = await page.locator('#w-partner-grid .partner-card.selected').count();
+      diag = 'карточек ' + totalCards + ', наших ' + ourCards + ', selected ' + selectedAllCount +
+        (totalCards === 0 ? ' ⇒ сетка пуста: GET /partners не вернул партнёров (класс BE-128)' : '') +
+        (totalCards > 0 && ourCards === 0 ? ' ⇒ нашей карточки нет в выдаче (BE-128/фильтр по sub)' : '');
+    } catch (e) {
+      diag = 'диагностика недоступна: ' + String((e && e.message) || e).slice(0, 120);
+    }
     const selected = page.locator('#w-partner-grid .partner-card.selected');
-    await expect(selected, 'последний партнёр должен быть выбран по умолчанию').toHaveCount(1, { timeout: 20000 });
+    await expect(selected, 'последний партнёр должен быть выбран по умолчанию (' + diag + ')')
+      .toHaveCount(1, { timeout: 20000 });
     await expect(selected).toContainText(partnerName);
 
     // Шаг 2 — место: `draft.place` подставляется в поле значения (app.js: `input.value = draft.place`).

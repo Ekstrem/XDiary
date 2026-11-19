@@ -1,9 +1,10 @@
 namespace DailyMetrics.Storage;
 using Microsoft.EntityFrameworkCore;
+using DailyMetrics.InternalContracts;
 public sealed class ReadDbContext : DbContext
 {
     public ReadDbContext(DbContextOptions<ReadDbContext> options) : base(options) { }
-    public DbSet<DailyMetricsEntity> Daily => Set<DailyMetricsEntity>();
+    public DbSet<DailyMetricsReadModel> Items => Set<DailyMetricsReadModel>();
     protected override void OnModelCreating(ModelBuilder b)
-    { b.Entity<DailyMetricsEntity>(e => { e.ToTable("daily_metrics"); e.HasKey(x => x.Id); e.Property(x => x.ClientId); e.HasIndex(x => new { x.ClientId, x.Date }).IsUnique(); e.Property(x => x.Date).HasMaxLength(10).IsRequired(); }); }
+    { b.Entity<DailyMetricsReadModel>(e => { e.ToTable("daily_metrics_read"); e.HasKey(x => x.Id); e.HasIndex(x => x.ClientId); }); }
 }

@@ -1,17 +1,32 @@
 namespace Portability.Domain.Implementation;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Portability.Domain;
 using Portability.Domain.Abstraction;
 using Portability.Domain.Specifications;
 using XDiary.Contracts;
 
-public sealed class Aggregate
+internal sealed class Aggregate : ICsvDocumentAggregate
 {
     public ICsvDocumentAnemicModel Model { get; }
     private Aggregate(ICsvDocumentAnemicModel model) => Model = model;
     public static Aggregate CreateInstance(ICsvDocumentAnemicModel model) => new(model);
 
+    // IAggregate<TBC> / IAnemicModel<TBC>:
+    public Guid Id => Model.Id;
+    public long Version => Model.Version;
+    public Guid CorrelationToken => Model.CorrelationToken;
+    public string CommandName => Model.CommandName;
+    public string SubjectName => Model.SubjectName;
+    public IDictionary<string, IValueObject> Invariants => Model.Invariants;
+    public IDictionary<string, IValueObject> GetValueObjects() => Model.GetValueObjects();
+
+    // IPortabilityAnemicModel:
+    public ICsvDocumentRoot Root => Model.Root;
+    public IReadOnlyList<string> Rows => Model.Rows;
+    public string Kind => Model.Kind;
+    public Guid? ClientId => Model.ClientId;
     private AggregateResult<IPortability, ICsvDocumentAnemicModel> Success(AnemicModel m)
     { var d = BusinessOperationData<IPortability, ICsvDocumentAnemicModel>.Commit<IPortability, ICsvDocumentAnemicModel>(Model, m); return new AggregateResultSuccess<IPortability, ICsvDocumentAnemicModel>(d); }
     private AggregateResult<IPortability, ICsvDocumentAnemicModel> Fail(string e)
@@ -20,7 +35,7 @@ public sealed class Aggregate
 
     private AggregateResult<IPortability, ICsvDocumentAnemicModel> Build(IReadOnlyList<string> headers, IReadOnlyList<string> rows, string kind, Guid clientId)
     {
-        var v = new HeaderContractValidator();
+        var v = new HeaderContractSpecification();
         if (!v.IsSatisfiedBy(headers)) return Fail(v.Reason);
         return Success(Clone() with { Root = CsvDocumentRoot.CreateInstance(headers), Rows = rows, Kind = kind, ClientId = clientId });
     }
