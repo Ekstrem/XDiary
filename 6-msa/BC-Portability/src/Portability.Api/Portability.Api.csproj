@@ -14,6 +14,7 @@
     <PackageReference Include="DigiTFactory.Libraries.ReadRepository.Postgres" Version="0.1.1" />
       <PackageReference Include="DigiTFactory.Libraries.Analyzers.CrossCutting" Version="0.4.0" PrivateAssets="all" />
     <PackageReference Include="DigiTFactory.Libraries.Analyzers.Resilience" Version="0.1.0" PrivateAssets="all" />
+    <PackageReference Include="DigiTFactory.Libraries.CrossCutting" Version="0.1.0" />
 </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,4 @@
+# BE-056 (E3): IRepository — последний самописный интерфейс, удаляется раскаткой E1.
+# До удаления QG106 держим как warning (по плану @DR: QG106/QG603/QG006 = warning).
+[*.cs]
+dotnet_diagnostic.QG106.severity = warning
