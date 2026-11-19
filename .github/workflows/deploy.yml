@@ -305,8 +305,8 @@ jobs:
           T0=$SECONDS
           # DO-145 (@TL 01:50): канон идёт по ДЕВУ до deploy-prod — иначе он требует прод-деплой,
           # которого ещё нет, и краснеет на неизменённых эндпоинтах (ложное красное).
-          # AR 05:30: на деве (ii-a) НЕ засчитывается (ADR-030) — канон идёт как (ii-b)/(ii-c) без via; (ii-a) снимается по ПРОДУ отдельным шагом после deploy-prod.
-          python 9-tests/scripts/check_apim_auth.py --all --no-ii-a --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
+          # AR 05:30 + TL 05:59: на деве (ii-a) НЕ засчитывается (ADR-030) — dev-канон идёт как (ii-c) (внутренние эндпоинты), без требования via; (ii-a) снимается по ПРОДУ после deploy-prod.
+          python 9-tests/scripts/check_apim_auth.py --ii-c --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
           echo "::notice::канон (попытка 1): rc=$rc за $((SECONDS - T0)) с (предел пробы ${TW} с, из кода)"
           if [ "$rc" = "2" ]; then
             echo "::warning::канон вернул rc=2 (не измерено) — повтор через 15 с"
@@ -321,8 +321,8 @@ jobs:
             T1=$SECONDS
             # DO-145 (@TL 01:50): канон идёт по ДЕВУ до deploy-prod — иначе он требует прод-деплой,
           # которого ещё нет, и краснеет на неизменённых эндпоинтах (ложное красное).
-          # AR 05:30: на деве (ii-a) НЕ засчитывается (ADR-030) — канон идёт как (ii-b)/(ii-c) без via; (ii-a) снимается по ПРОДУ отдельным шагом после deploy-prod.
-          python 9-tests/scripts/check_apim_auth.py --all --no-ii-a --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
+          # AR 05:30 + TL 05:59: на деве (ii-a) НЕ засчитывается (ADR-030) — dev-канон идёт как (ii-c) (внутренние эндпоинты), без требования via; (ii-a) снимается по ПРОДУ после deploy-prod.
+          python 9-tests/scripts/check_apim_auth.py --ii-c --base "${XDIARY_DEV_BASE_URL:-https://xdiary-vps2.taile0b6ee.ts.net}" --retry-unknown 3; rc=$?
             echo "::notice::канон (попытка 2): rc=$rc за $((SECONDS - T1)) с"
             [ "$rc" = "0" ] && echo "::notice::повтор канона дал rc=0 — первый прогон был флейком пробы"
           fi
