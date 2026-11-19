@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.122"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.123"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -1501,6 +1501,22 @@
     });
   }
 
+  // FE-054/E2E add-partner: read-модель партнёров обновляется с задержкой, поэтому после
+  // создания список перерисовываем несколько раз, пока новый партнёр не появится (макс ~4 с).
+  // Иначе UI показывает «1 карточку», хотя POST /partners уже вернул 200 (класс «создал — не видно»).
+  function renderPartnersUntil(name, tries) {
+    var left = (typeof tries === "number") ? tries : 8;
+    renderPartners();
+    if (!name || left <= 0) return;
+    setTimeout(function () {
+      DB.getAllPartners().then(function (list) {
+        var has = (list || []).some(function (p) { return p && p.name === name; });
+        if (has) { renderPartners(); return; }
+        renderPartnersUntil(name, left - 1);
+      }, function () { renderPartnersUntil(name, left - 1); });
+    }, 500);
+  }
+
   function renderMyGender() {
     if ($("my-gender-male")) $("my-gender-male").classList.toggle("active", myGender === "male");
     if ($("my-gender-female")) $("my-gender-female").classList.toggle("active", myGender === "female");
@@ -1603,7 +1619,8 @@
         reopenWizard();
       } else {
         showView("partners");
-        renderPartners();
+        // FE-054: новый партнёр может появиться в read-модели через 1–3 с — дорисовываем.
+        renderPartnersUntil(wasNew ? name : "");
       }
     }).catch(function (e) { toast("Ошибка сохранения: " + e.message); });
   }
