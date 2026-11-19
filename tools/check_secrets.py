@@ -167,6 +167,8 @@ def expand_patterns(root, cfg):
     sec = cfg.get("secrets") or {}
     patterns = sec.get("paths") or default_paths(cfg)
     skip = set(sec.get("skip") or ["_dialogue.md", "_lint.md"])
+    # Собственные тест-фикстуры сканера (фейковые секреты в selftest) — не утечки.
+    skip |= {"test_check_secrets.py", "check_env_hosts.py"}
     files = []
     for pat in patterns:
         pat = pat.replace("\\", "/")
@@ -198,7 +200,8 @@ def _glob(pattern):
             alts.add(pat.replace("/**/", "/"))
         for dirpath, dirnames, filenames in os.walk(root_dir):
             dirnames[:] = [d for d in dirnames
-                           if d not in (".git", "node_modules", "bin", "obj", ".loopmaker")]
+                           if d not in (".git", "node_modules", "bin", "obj", ".loopmaker")
+                           and not d.startswith(".tmp-")]
             for fn in filenames:
                 full = os.path.join(dirpath, fn).replace("\\", "/")
                 if any(fnmatch.fnmatch(full, a) for a in alts):
@@ -333,8 +336,12 @@ def scan_text(text, allow_shapes=True):
                 for m in rx.finditer(line):
                     if looks_like_identifier_chain(m.group(0)):
                         continue          # цепочка идентификаторов, не ключ (дефект 2026-11-10)
-                    if name == "hex-long" and _hex_is_identifier(m.group(0)):
-                        continue          # git-объект/sha256-дайджест — не секрет (дефект 2026-11-07)
+                    if name == "hex-long":
+                        if _hex_is_identifier(m.group(0)):
+                            continue      # git-объект/sha256-дайджест — не секрет (дефект 2026-11-07)
+                        prefix = line[max(0, m.start() - 24):m.start()].lower()
+                        if "sha256" in prefix:
+                            continue      # усечённый digest=sha256:… (43 hex) — публичный чексум, не секрет
                     # если у шаблона есть группа — проверяем ЗАХВАЧЕННОЕ значение,
                     # иначе `PGPASSWORD=abcdefgh12` проверялся целиком (с именем переменной)
                     # и не считался секретом (@AR 2026-11-07 11:41 п.4).
