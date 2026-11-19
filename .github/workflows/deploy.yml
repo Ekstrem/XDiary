@@ -219,7 +219,7 @@ jobs:
             # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
             # @TE 21:16: пустой DEPLOY_B64 дал бы ПУСТОЙ deploy.sh вместо старого — это хуже.
             [ -n "${DEPLOY_B64:-}" ] || { echo "::error::DEPLOY_B64 пуст — деплой не начинаю"; exit 1; }
-# DO-145 (@TL 21:39): `DEPLOY_B64` в env переполнял ARG_MAX — дрон-ssh падал за 2.6 с
+            # DO-145 (@TL 21:39): `DEPLOY_B64` в env переполнял ARG_MAX — дрон-ssh падал за 2.6 с
             # (`Argument list too long`). Доставляем `deploy.sh` по HTTP из raw (репозиторий публичный):
             # без env, без токена, без base64. Инвариант проверяем ДО использования (@AR §28).
             __sha="${{ github.sha }}"
@@ -863,7 +863,7 @@ jobs:
             # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
             # (748 Б) и затирал наш файл. Факт с прода: `/home/deploy/deploy.sh` mtime 20:21 size **748**
             # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
-# DO-145 (@TL 21:39): `DEPLOY_B64` в env переполнял ARG_MAX — дрон-ssh падал за 2.6 с
+            # DO-145 (@TL 21:39): `DEPLOY_B64` в env переполнял ARG_MAX — дрон-ssh падал за 2.6 с
             # (`Argument list too long`). Доставляем `deploy.sh` по HTTP из raw (репозиторий публичный):
             # без env, без токена, без base64. Инвариант проверяем ДО использования (@AR §28).
             __sha="${{ github.sha }}"
