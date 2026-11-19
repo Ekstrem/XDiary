@@ -219,9 +219,13 @@ jobs:
             # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
             # (748 Б) и затирал наш файл. Факт с прода: `/home/deploy/deploy.sh` mtime 20:21 size **748**
             # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
+            # @TE 21:16: пустой DEPLOY_B64 дал бы ПУСТОЙ deploy.sh вместо старого — это хуже.
+            [ -n "${DEPLOY_B64:-}" ] || { echo "::error::DEPLOY_B64 пуст — деплой не начинаю"; exit 1; }
             if [ -n "${DEPLOY_B64:-}" ]; then
               echo "$DEPLOY_B64" | base64 -d > /opt/xdiary/7-deploy/deploy.sh
               chmod +x /opt/xdiary/7-deploy/deploy.sh
+              grep -q -- '--replace' /opt/xdiary/7-deploy/deploy.sh || { echo "::error::deploy.sh без --replace — не то содержимое"; exit 1; }
+              [ "$(wc -c < /opt/xdiary/7-deploy/deploy.sh)" -gt 1000 ] || { echo "::error::deploy.sh подозрительно мал — не то содержимое"; exit 1; }
               echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true))"
               echo "$DEPLOY_B64" | base64 -d > "$HOME/deploy.sh.real"
               chmod +x "$HOME/deploy.sh.real"
@@ -699,6 +703,10 @@ jobs:
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+          # DO-145 (@TE 21:10): в блоке deploy-prod `DEPLOY_B64` ОТСУТСТВОВАЛ (был только в dev),
+          # поэтому на VPS-1 оставалась копия `deploy.sh` от 17 Nov без `--replace` — recreate
+          # извлекал старую строку запуска, шлюз не пересоздавался. Аннотация: «DEPLOY_B64 не передан».
+          echo "DEPLOY_B64=$(base64 -w0 7-deploy/deploy.sh)" >> "$GITHUB_ENV"
           # DO-124 ч.2: шим `/home/deploy/update.sh` падал на своём стороже ДО вызова живого
           # скрипта, потому что `legacy-shims.sh` на VPS-1 отсутствовал. envs уже расширены
           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
