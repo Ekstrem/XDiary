@@ -1,0 +1,27 @@
+# DO-148 (P2, @TL 23:34): `heal-network.service` падал по таймауту с SIGKILL
+# (`Failed with result 'timeout'`, `Killing process … SIGKILL`, 20:34) и сам становился
+# источником окна деградации: в этот момент сеть xdiary пересоздаётся, все 12 сервисов
+# выглядят как «no-container», а `restart_policy=unless-stopped` поднимает их обратно —
+# снаружи это неотличимо от «сеть пропала навсегда» (инцидент 19:00–19:58).
+#
+# ПОЧЕМУ ТАЙМАУТ: скрипт делает `sudo mount`, `sudo iptables` и, если /health не отвечает,
+# `podman rm -f` + пересоздание шлюза. На холодную сеть это дольше дефолтных 90 с
+# (TimeoutStopSec), и systemd прибивает его SIGKILL **в середине** пересоздания —
+# то есть юнит сам создаёт разорванное состояние, которое потом «лечит».
+[Unit]
+Description=Heal rootless podman network for XDiary (DO-010, DO-148)
+Documentation=file:///opt/xdiary/7-deploy/runbooks/deploy-heal.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/xdiary/7-deploy/heal-network.sh
+# DO-148: даём скрипту завершиться, вместо того чтобы убивать его на середине.
+TimeoutStartSec=300
+TimeoutStopSec=300
+# идемпотентность: повторный запуск на живой сети не должен ничего пересоздавать
+# (скрипт проверяет rshared/iptables и /health — это его контракт, см. runbook)
+RemainAfterExit=no
+
+[Install]
+WantedBy=default.target
