@@ -412,7 +412,30 @@ fi
 # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
 # откатывало весь набор. Даём сети освободить адрес перед запуском.
 sleep 2
-bash "$RUNNER" >/dev/null 2>&1 || true
+# DO-145 (@TL 19:19): не глотаем stderr и код `podman run` — иначе причина не видна.
+# Первая попытка часто падает на «error configuring network namespace» (CNI не освободил IP),
+# поднимается со второй — и это объясняет штатный `RestartCount=1`.
+__run_err="/tmp/recreate-$SVC.err"
+: > "$__run_err" 2>/dev/null || true
+bash "$RUNNER" >/dev/null 2>>"$__run_err"
+__run_rc=$?
+if [ "$__run_rc" != "0" ]; then
+  say "  podman run вернул rc=$__run_rc — ретрай через 2 с (см. $__run_err)" >&2
+  sleep 2
+  bash "$RUNNER" >/dev/null 2>>"$__run_err"
+  __run_rc=$?
+  [ "$__run_rc" = "0" ] || say "  повторный podman run rc=$__run_rc" >&2
+fi
+
+# DO-145 (@TL 19:19): диагностика на ЛЮБОМ провале readiness. Раньше она была только на
+# финальном `die`, а рестарт-цикл/image-mismatch уходили в `exit 1` молча — три прогона
+# разбирались вслепую.
+diag_fail() {
+  say "  диагностика $CONTAINER (почему не поднялся):" >&2
+  { podman inspect "$CONTAINER" --format '    inspect| status={{.State.Status}} restarts={{.RestartCount}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' 2>/dev/null || echo "    inspect| контейнера нет"; } >&2
+  { [ -s "$__run_err" ] && sed 's/^/    run-err| /' "$__run_err" | tail -15; } >&2 || true
+  { podman logs --tail 40 "$CONTAINER" 2>&1 | sed 's/^/    log| /'; } >&2 || true
+}
 # DO-145 (@TL 23:18): readiness с ретраями (до 30 с, шаг 2 с), а не «мгновенный podman ps».
 # Критерий: контейнер есть, RestartCount=0, ExitCode=0, и /health отвечает 2xx/401.
 __ok=0
@@ -463,6 +486,7 @@ if [ "$__ok" = "1" ]; then
   __e2="$(awk 'NF==2{print $2; exit}' <<< "$__st2" 2>/dev/null || echo x)"
   if [ "${__r2:-x}" != "x" ] && { [ "${__e2:-1}" != "0" ] || [ "${__r2:-0}" -gt "${__r_prev:-0}" ]; }; then
     say "ОШИБКА: $CONTAINER рестарты растут/wrong exit через 10 с (RestartCount/ExitCode=[$__st2], было [$__st])" >&2
+    diag_fail
     exit 1
   fi
   sleep 20
@@ -471,6 +495,7 @@ if [ "$__ok" = "1" ]; then
   __e3="$(awk 'NF==2{print $2; exit}' <<< "$__st3" 2>/dev/null || echo x)"
   if [ "${__r3:-x}" != "x" ] && { [ "${__e3:-1}" != "0" ] || [ "${__r3:-0}" -gt "${__r2:-0}" ]; }; then
     say "ОШИБКА: $CONTAINER рестарты растут/wrong exit через 30 с (RestartCount/ExitCode=[$__st3], было [$__st2])" >&2
+    diag_fail
     exit 1
   fi
   say "  OK: $CONTAINER пересоздан (стабилен 30 с)"
@@ -488,6 +513,7 @@ fi
 # Раньше на этом месте была только строка «не поднялся», и три прогона подряд
 # (43455070581, 43457921240, 43459800205) разбирались вслепую: без `podman logs`
 # нельзя отличить «нет Jwt__SigningKey» от «конфликт сети» или «упал на миграциях».
+diag_fail
 say "  диагностика $CONTAINER (оба store + логи):" >&2
 { podman ps -a --filter "name=$CONTAINER" --format '    rootless| {{.Names}} {{.Status}}' 2>/dev/null || true
   command -v sudo >/dev/null 2>&1 && sudo -n podman ps -a --filter "name=$CONTAINER" --format '    root| {{.Names}} {{.Status}}' 2>/dev/null || true
