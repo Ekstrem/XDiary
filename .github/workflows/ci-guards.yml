@@ -178,6 +178,18 @@ jobs:
           python tools/check_api_index.py --require-request
           python 04-architecture/gen_openapi.py --check
 
+      # DO-145 (@AR 2026-11-19 14:31, дефект 502 на `bff/analytics-summary`): гейт выше сверяет
+      # индекс с КОНТРОЛЛЕРАМИ и со спекой, но не со СТРОКАМИ ВЫЗОВОВ. Поэтому несуществующий
+      # путь `/api/v1/journal` (у Journal есть только `/journal/records`) дошёл до `main`:
+      # компилятор литерал не видит, `check_apim_auth` проверяет auth, `gen_openapi` — спеку.
+      # Итог был 404 на апстриме → `HttpRequestException` → 502 наружу при зелёных гейтах.
+      - name: Вызовы `/api/v1/...` существуют в api-index (литералы ↔ реестр)
+        if: always()
+        run: |
+          set -uo pipefail
+          python tools/check_api_calls.py --selftest
+          python tools/check_api_calls.py --root . --verbose
+
       # AR-024 (@AR, @TL 22:30): YAML молча оставляет ПОСЛЕДНЕЕ значение при дубле ключа —
       # файл «валиден», а половина данных исчезает. `safe_load` этого не видит, поэтому
       # отдельный гейт через `yaml.compose()`. PyYAML ставим, только если его нет.
