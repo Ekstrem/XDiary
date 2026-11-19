@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-# КОПИЯ из LoopMaker/chat_lint.py (источник правды там; правка — в обоих местах).
 """Линтер чата: находит строки, которые парсер не понял, и пишет автору.
 
-Зачем: формат строки чата — контракт трёх потребителей (`lib/parse.js`,
+Зачем: формат строки чата — контракт потребителей (`lib/parse.js`,
 `tools/chat_bot.py`). Если роль напишет адресата не так
 (`→ @DO + TE:`, без двоеточия, без времени), строка **молча** выпадает: ни
 доставки, ни сводки, ни ошибки. Реальный случай 03.11: 6 сообщений с двумя
@@ -29,7 +28,6 @@ import datetime
 import hashlib
 import json
 import os
-import shutil
 import re
 import sys
 import time
@@ -359,13 +357,12 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
     Не ошибка формата: старые файлы писались «по памяти» и уехали вперёд,
     поэтому по умолчанию это предупреждения (см. --strict-times).
 
-    Две шкалы, и их нельзя путать (иначе правило «максимум по чату + 1 минута»
-    невыполнимо):
-      * ПРОВЕРЯЕМАЯ зона — строки после маркера «метка = часы машины»; только они
-        могут получить вердикт "future".
-      * ОПОРА — максимум по ВСЕМУ чату, включая легаси до маркера: другие роли
-        пишут в своей зоне, и если опора смотрит только в проверяемую зону,
-        любая свежая метка выглядит «впереди» на дни.
+    Порядок проверяется по ВСЕМУ файлу, без маркера «метка = часы машины»:
+    раньше гейт смотрел только строки после маркера, и файлы без маркера (или с
+    маркером, уехавшим в середину при сортировке ботом) выпадали из проверки
+    (DO-138 дефект 5). Легаси до ORDER_CUTOFF — грандфазеринг, не ошибка.
+    ОПОРА для «впереди шкалы» — максимум по всему чату (все файлы) + часы: иначе
+    роль, пишущая в свежей шкале, выглядит «впереди» на дни.
     """
     future, order, grandfathered = [], [], []
     collected = []
@@ -377,13 +374,8 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
         if role not in known_roles:
             continue
         prev = None
-        new_scale = False
         with open(os.path.join(chat_dir, name), encoding="utf-8-sig") as handle:
             for line in handle:
-                if "метка = часы машины" in line:
-                    new_scale = True
-                    prev = None
-                    continue
                 m = TS_CANON.match(line.strip())
                 if not m:
                     continue
@@ -394,8 +386,6 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
                     continue
                 if ts > global_max.get(name, ts):
                     global_max[name] = ts
-                if not new_scale:
-                    continue
                 if prev is not None and ts < prev:
                     # Решение @TL 2026-11-11: историю НЕ переписываем. Строки ДО ORDER_CUTOFF —
                     # grandfathered: печатаются как след, но rc не красят. После cutoff — проверяются.
@@ -419,43 +409,6 @@ def scan_times(chat_dir, known_roles, now, tolerance_min=120, shift_hours=0, use
             lag = ts - reference
             future.append((name, raw, int(lag.total_seconds() // 3600)))
     return future, order, grandfathered
-
-def scan_multiline_messages(chat_dir, known_roles, since=None):
-    """Предупреждения: сообщение «оборвано» и продолжается прозой на следующих строках.
-
-    Норма §4: одна строка = одно сообщение. Многострочное сообщение не попадает в
-    сводку `_dialogue.md` целиком — читатель видит обрыв (случай @TL 2026-11-14 28:11,
-    `chat/tl.md` 1584-1587, обрыв на «…а „контракт“:»). Аргумент @AR 2026-11-14 28:25.
-
-    Почему предупреждение, а не ошибка: в истории чата есть и `code`-блоки, и списки
-    внутри одного сообщения (pasted YAML в `te.md` — сотни строк). Жёсткое правило
-    сделало бы гейт красным на истории, поэтому ловим только явный признак обрыва:
-    строка сообщения заканчивается на `:` или `:**`, а следующая строка — проза.
-    """
-    import re as _re
-    warnings = []
-    stamp = _re.compile(r"^-\s*\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})\]")
-    for name in sorted(os.listdir(chat_dir)):
-        if not name.endswith(".md") or name.lower() in SKIP:
-            continue
-        if name[:-3].lower() not in known_roles:
-            continue
-        path = os.path.join(chat_dir, name)
-        with open(path, encoding="utf-8-sig", errors="replace") as handle:
-            lines = handle.read().splitlines()
-        for i, line in enumerate(lines):
-            m = stamp.match(line.strip())
-            if not m:
-                continue
-            body = line.strip()
-            if not _re.search(r"(:|\*\*:)\s*$", body):
-                continue
-            nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if not nxt or nxt.startswith(("- [", "#", "|", ">", "```")):
-                continue
-            warnings.append((name, i + 1, "%s-%s-%s %s:%s" % m.groups()))
-    return warnings
-
 
 def scan_invalid_times(chat_dir, known_roles, since=None):
     """Метки с невозможным временем (час > 23, минута > 59).
@@ -534,23 +487,6 @@ def selftest():
     case(is_garbage('- [без метки] -> @TE: x'), 'метка-мусор ловится (DO/AR-023)')
     case(not is_garbage('- 2026-11-11 20:00 → @AR: x'), 'bare-метка — не мусор')
     case(CANON.match('- [2026-11-11 20:00] → @AR + @DO: x') is not None, 'мультиадресат + распознаётся')
-
-    # @AR 2026-11-13 03:59: дефект-плечо для будущих меток. Пока опора — максимум по чату
-    # (`use_clock=False`), будущая метка сама себе эталон и гейт мёртв: `2099` проходил как rc=0.
-    # Два кейса закрепляют ОБА условия жизни гейта: маркер «метка = часы машины» + опора на часы.
-    _d = os.path.join(HERE, '.tmp-chat-lint-selftest')
-    shutil.rmtree(_d, ignore_errors=True)
-    os.makedirs(_d)
-    with open(os.path.join(_d, 'do.md'), 'w', encoding='utf-8') as _fh:
-        _fh.write('# CHAT\n\n<!-- метка = часы машины -->\n'
-                  '- [2099-01-01 00:00] → @TL: будущее\n')
-    _now = datetime.datetime.now()
-    _f_clock, _, _ = scan_times(_d, {'do'}, _now, 120, 0, True)
-    _f_max, _, _ = scan_times(_d, {'do'}, _now, 120, 0, False)
-    case(bool(_f_clock), 'будущая метка ловится при опоре на часы (AR 03:16)')
-    case(not _f_max, 'без опоры на часы не ловится — дефект, который закрыт')
-    shutil.rmtree(_d, ignore_errors=True)
-
     print('chat_lint --selftest: %d/%d' % (ok, total))
     return 0 if ok == total else 1
 
@@ -664,18 +600,7 @@ def main():
         order_since = ORDER_CUTOFF
     invalid, invalid_grand = scan_invalid_times(chat_dir, set(titles.keys()), order_since)
     future, order, grandfathered = scan_times(chat_dir, set(titles.keys()), now_project,
-                                               tolerance, shift, use_clock=True)   # @AR 03:16: опора — ЧАСЫ МАШИНЫ; при use_clock=False
-                                              # эталоном становилась сама будущая метка (max по чату)
-
-    multi = scan_multiline_messages(chat_dir, set(titles.keys()), order_since)
-    if (args.report or args.check) and multi:
-        print("многострочные сообщения (норма §4: одна строка = одно сообщение): %d"
-              % len(multi))
-        for name, line, stamp in multi[:10]:
-            print("  %s:%d — метка %s обрывается на ':' и продолжается прозой" % (name, line, stamp))
-        for name, line, stamp in multi[:10]:
-            print("::warning title=[chat] многострочное сообщение::%s:%d (%s)"
-                  % (name, line, stamp))
+                                               tolerance, shift, use_clock=False)
 
     if args.report or args.check:
         print("нераспознанных строк: %d (новых: %d)" % (len(problems), len(fresh)))
@@ -728,6 +653,10 @@ def main():
                 print("  %s:%d — «%s»" % (name, ln, s))
         bad = (problems or bool(invalid) or ((future or order) and args.strict_times)
                or new_no_at or new_slash or garbage)
+        if args.strict_times and not args.check:
+            # Порядок/адресаты напечатаны выше, но rc=1 только с --check: без него
+            # «rc=0» ложно читается как «чисто» (инцидент TL 2026-11-19, два круга).
+            print("⚠️  --strict-times без --check: находки выше, но rc=0. Для гейта: --check --strict-times")
         if getattr(args, "fail_no_at", False) and no_at:
             return 1
         return 1 if bad and args.check else 0
@@ -769,10 +698,7 @@ def main_with_retry(attempts=3):
             if attempt < attempts:
                 print("chat_lint: чтение прервано (%s) — повтор %d/%d"
                       % (type(exc).__name__, attempt, attempts - 1))
-                # @AR 03:56 (флейк rc=2 при бот-записи): 0.3 с попадали в то же окно перезаписи,
-                # поэтому пауза растёт с номером попытки, а попыток три. Ретрай без ожидания
-                # проверяет не файл, а свою удачу.
-                _time.sleep(min(2.0, 0.7 * attempt))
+                _time.sleep(0.3)
     print("::error::chat_lint: файл менялся во время чтения — НЕ ИЗМЕРЕНО (%s: %s)"
           % (type(last).__name__, last))
     return 2
