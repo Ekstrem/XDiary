@@ -33,13 +33,40 @@ def md_files(root):
         yield path
 
 
+def selftest():
+    """Самопроверка правил линтера на синтетических строках (без файловой системы)."""
+    ok = True
+
+    def check(cond, name):
+        nonlocal ok
+        print("  [%s] %s" % ("OK " if cond else "FAIL", name))
+        ok = ok and cond
+
+    check(bool(HOME_PATH.search("см. личное хранилище роли")), "обычный текст не ловится")
+    check(bool(HOME_PATH.search("путь вида /home/<user>/secret")), "домашний путь ловится")
+    check(bool(TOKEN.search("строка вида токена ghp_" + "x" * 20)), "токен ловится")
+    check(not TOKEN.search("токен (значение скрыто)"), "обезличенная строка не ловится")
+    check(bool(FORCE.search("git push --force origin main")), "force-push ловится")
+    check(not FORCE.search("git push --force-with-lease origin main"), "force-with-lease разрешён")
+    check(not FORCE.search("push --force запрещён"), "упоминание запрета не ловится")
+    print("selftest: %s" % ("OK" if ok else "FAIL"))
+    return 0 if ok else 1
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description="Линтер доков правил (пути и токены)")
     ap.add_argument("--root", default=None)
     ap.add_argument("--report", action="store_true")
+    # DO-095 (@TL 23:23): `ci-guards.yml:281` зовёт `--selftest`, а флага не было —
+    # шаг падал `unrecognized arguments: --selftest` (exit 2) и держал main красным.
+    ap.add_argument("--selftest", action="store_true",
+                    help="проверить сам линтер на синтетических строках")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     root = args.root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     findings = []
