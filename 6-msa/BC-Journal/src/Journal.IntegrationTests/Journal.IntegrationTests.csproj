@@ -10,6 +10,7 @@
     <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.2.1" />
     <PackageReference Include="DigiTFactory.Libraries.ReadRepository.Postgres" Version="0.1.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="DigiTFactory.Libraries.Analyzers.Testing" Version="0.1.0" PrivateAssets="all" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
