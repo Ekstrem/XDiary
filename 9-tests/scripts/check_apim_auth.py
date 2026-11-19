@@ -1150,6 +1150,10 @@ def main() -> int:
     ap.add_argument("--all", action="store_true", dest="all_conditions",
                     help="одна квитанция на все условия: (ii-a) публичный вход + (ii-c) /internal/** "
                          "(при --direct дополнительно (ii-b))")
+    ap.add_argument("--no-ii-a", action="store_true", dest="no_ii_a",
+                    help="не измерять (ii-a) (публичный вход): на dev-стадии она по построению "
+                         "даёт rc=2 (вход ещё не переключён), и это валит deploy-dev. "
+                         "В квитанции печатается как SKIP, тождество протокола не проверяется")
     ap.add_argument("--ii-c", action="store_true", dest="ii_c",
                     help="условие (ii-c): /internal/** снаружи обязан давать 401/403/404, 2xx = публикация внутреннего API (rc=1)")
     ap.add_argument("--json", action="store_true")
@@ -1232,12 +1236,20 @@ def main() -> int:
             return 2
         # @TL 2026-11-06 22:45: internal-операции измеряет (ii-c), иначе они считаются
         # дважды: (ii-a) 76 включала 4 internal, и тождество 76+4=80 против 78 не сходилось.
-        ops_all = [o for o in load_ops(args.index) if requires_auth(o) and not o.get("internal")]
-        res_all = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in ops_all]
-        v_a, c_a, u_a, p_a = verdict(res_all, args.five_xx_unknown if args.direct else True,
-                                     direct=args.direct)
-        rc_a = identity_rc(final_rc(v_a, c_a, u_a, p_a, len(ops_all)), p_a,
-                           len(v_a), len(c_a), len(u_a), len(ops_all))
+        if args.no_ii_a:
+            # --no-ii-a (@TL 2026-11-19 05:34): на dev вход ещё не переключён ⇒ (ii-a) по
+            # построению rc=2, и это не дефект. Не «тихо пропускаем»: печатаем SKIP и не
+            # считаем (ii-a) в тождестве протокола.
+            ops_all, v_a, c_a, u_a, p_a, rc_a = [], [], [], [], 0, 0
+            print("::notice::check_apim_auth: (ii-a) НЕ измерялась (--no-ii-a): "
+                  "на этой стадии публичный вход не переключён, rc по (ii-a) не выводится")
+        else:
+            ops_all = [o for o in load_ops(args.index) if requires_auth(o) and not o.get("internal")]
+            res_all = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in ops_all]
+            v_a, c_a, u_a, p_a = verdict(res_all, args.five_xx_unknown if args.direct else True,
+                                         direct=args.direct)
+            rc_a = identity_rc(final_rc(v_a, c_a, u_a, p_a, len(ops_all)), p_a,
+                               len(v_a), len(c_a), len(u_a), len(ops_all))
         iops = internal_ops(load_ops(args.index))
         res_c = [(op, *probe_op(args.base, op, args.retry_unknown)) for op in iops]
         ok_c, bad_c, unk_c = verdict_internal(res_c)
@@ -1245,7 +1257,8 @@ def main() -> int:
         where = args.where or args.base
         # `via_rc` ДО печати: иначе квитанция скажет `PASS rc=0`, а ИТОГ — `rc=2` (разные вердикты
         # об одном замере — ровно тот класс, который вычищаем).
-        rc_a = via_rc(rc_a, "ii-a")
+        if not args.no_ii_a:
+            rc_a = via_rc(rc_a, "ii-a")
         rc_c = via_rc(rc_c, "ii-c")
         print(receipt_line("ii-a", current_ref(), p_a, len(ops_all), rc_a, where,
                            len(v_a), len(c_a), len(u_a),
@@ -1305,12 +1318,15 @@ def main() -> int:
         # Тождество: всё, что не `anonymous`, покрыто либо (ii-a), либо (ii-c).
         # `internal: true` из (ii-a) исключены (их меряет (ii-c)), поэтому 74 + 4 = 78 = 82 − 4.
         expected = len(all_ops) - anon_cnt
-        if protocol_sum != expected:
+        if args.no_ii_a:
+            print("   тождество протокола не проверяется: (ii-a) выключена флагом --no-ii-a")
+        elif protocol_sum != expected:
             print(f"::error::check_apim_auth: знаменатели не покрывают индекс: "
                   f"{len(ops_all)} + {len(iops)} = {protocol_sum}, ожидалось {expected} "
                   f"(в индексе {len(all_ops)}, anonymous {anon_cnt}) — протокол недействителен (rc=2)")
             worst = 2
-        print(f"ИТОГ: (ii-a) {names[rc_a]} {p_a}/{len(ops_all)} · (ii-c) {names[rc_c]} "
+        label_a = "SKIP" if args.no_ii_a else names[rc_a]
+        print(f"ИТОГ: (ii-a) {label_a} {p_a}/{len(ops_all)} · (ii-c) {names[rc_c]} "
               f"{len(ok_c)}/{len(iops)} · знаменатели {len(ops_all)}+{len(iops)}={protocol_sum} "
               f"из {len(all_ops)} (anonymous {anon_cnt}) · rc={worst}")
         return worst
