@@ -2076,3 +2076,19 @@ front-e2e: исполнено 4, пропущено 1 (passed 0, failed 4, flaky
 То есть тесты **впервые дошли до исполнения** (раньше было 0 исполненных), но падают **в before-hook**, то есть до самих сценариев — на логине/подготовке. Это согласуется с тем, что клиент после `verify` остаётся `verified:false`: UI-логин, вероятно, требует подтверждённого клиента.
 - [2026-11-19 05:01] → @BE: 🛠 **по `verified` прошу начать с (1) — stale-skip по legacy-версии:** в ответе `POST /clients` приходит `version: 1795053339401` (**ms-таймстамп**), тогда как события нумеруются как `GetEventCountAsync + 1` (1, 2, 3…). Если это значение попало в `ClientReadModel.Version`, то проверка `if (existing.Version >= domainEvent.Version) return;` **отбросит** событие `verify` — ровно тот дефект, который мы ловили в `Partners` (`BE-131`) и лечили `LegacyTimestampFloor`. Проверка на стенде дешёвая: `select "Id","Version" from client_read limit 5;` — если `Version` ≈ 1.79e12, версия подтверждена.
 - [2026-11-19 05:01] → @FE: 📌 **сдвиг по `smoke-front` зафиксирован:** было «POST /clients = 502, 0 тестов», стало «4 теста исполняются, все падают в Before Hooks». То есть login-стадия прошла дальше, и новый блокер — не auth как таковой, а состояние клиента (`verified=false`) либо ожидания before-hook. Твоя зона — посмотреть, что именно before-hook ждёт (если он проверяет `verified`, то это ровно `BE-134`-остаток).
+- [2026-11-19 05:02] → @BE: 🎯 **@DO подтвердил замером: `Version` в `client_read` — это ms-таймстамп ⇒ `verified` теряется именно на stale-skip.** Значит правка ровно та, что мы делали в `Partners` (`BE-131`), и код-эталон уже в `main` — `6-msa/BC-Partners/src/Partners.Api/Events/PartnerEventConsumer.cs:67-74`:
+```csharp
+// LegacyTimestampFloor: existing.Version может быть ms-таймстампом, а у события Version — 1,2,3
+const long LegacyTimestampFloor = 1_000_000_000_000L;
+if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor) return;
+existing.Version = domainEvent.Version;
+```
+- [2026-11-19 05:02] → @BE: 🛠 **в `BC-Client/src/Client.Api/Events/ClientEventConsumer.cs` сейчас (строки 57-61):**
+```csharp
+var existing = await readRepo.GetByIdAsync(domainEvent.Id, default) ?? new ClientReadModel { Id = domainEvent.Id };
+if (existing.Version >= domainEvent.Version) return;   // ← без пола: ms-версия навсегда блокирует все последующие события
+existing.Version = domainEvent.Version;
+```
+Правка — вставить `LegacyTimestampFloor` и добавить условие `< LegacyTimestampFloor` (одна строка + комментарий, как в `Partners`). После неё `verify` (version=2) пройдёт поверх ms-строки, и `verified` станет `true`.
+- [2026-11-19 05:02] → @BE: 📌 **это же объясняет и `smoke-front`:** все 4 E2E падают в `Before Hooks`, то есть на подготовке (логин/подтверждённый клиент), а не в сценариях. После правки ждём: `verified: true` в `/me`, затем `smoke-front` идёт дальше в тело тестов. Критерий приёма для `BE-134`-остатка: `verify → GET /me` → `"verified": true`.
+- [2026-11-19 05:02] → @DO: ✅ **и отмечу твой `#2884` (`check_dbcontext_options_order.py`) — гейт найденного класса.** Это лучший исход из возможных: дефект не просто починили, а получили проверку, которая не даст ему вернуться. Сейчас в очереди: правка stale-skip (@BE) + решение по `via=` (`DO-085`/ADR-030) — и `deploy-prod` должен поехать.
