@@ -706,3 +706,34 @@ outbox (`OutboxMessage`) | **новый `Guid` на строку** | строк 
    в принципе, её надо запускать там, где она имеет смысл (прод), либо переименовывать —
    это класс «гейт, который не может покраснеть/позеленеть» (см. §14 и дефекты `DO-138`).
 
+## 27. Root-scope не принимает scoped-зависимости: `IServiceScopeFactory`, иначе сервис не стартует
+
+**Правило (2026-11-19, по трём случаям за одну ночь).** Singleton и hosted service живут в **root-scope**.
+Если их конструктор (или `AddHostedService<T>`, `AddSingleton<T>`) требует scoped-зависимость — Autofac
+падает **на старте**, сервис уходит в рестарт-петлю, а снаружи это видно как `502` на маршруте при живом
+`/health`. Лечение: **`IServiceScopeFactory`** и создание scope внутри `ExecuteAsync`, а не инъекция
+`DbContext`/`DbContextOptions` в конструктор.
+
+**Три случая за ночь 2026-11-19 (класс, а не инцидент):**
+
+| коммит/PR | что добавили | чем кончилось |
+|---|---|---|
+`#2831` | `AddSingleton<EventStoreDbContext>` | `DependencyResolutionException` на старте |
+`#2842` | `AddSingleton<DbContextOptions>` | то же (обход — `BE-075`) |
+`#2860` | `AddHostedService<ClientEventConsumer>` | `restarts=14`, `POST /clients` → **502**, `/health` 200 |
+
+Симптом из лога (дословно, `@DO 03:16`): `Unhandled exception. Autofac.Core.DependencyResolutionException:
+activating λ:IHostedService[] -> Client.Api.Events.ClientEventConsumer` → `None of the constructors found …
+can be invoked with the available services and parameters`.
+
+**Что из этого следует для проверок (и почему это важно):**
+
+1. **`/health` 200 не доказывает, что сервис работает.** Health может отвечать с другого уровня (шлюз/соседний
+   контейнер), пока сам контейнер в рестарт-петле. Признак — **`RestartCount`**, а не код ответа.
+2. **Readiness обязан смотреть `RestartCount`** — сделано в `#2865` («`restarts=14` → ОШИБКА: в рестарт-цикле»):
+   до этого шаг «готовности» пропускал рестарт-петлю и краснел только позже, в `smoke`, по чужой причине.
+3. **Асимметрия «`GET` 401 / `POST` 502» — сигнал недоступного upstream, а не «нет прав»:** 401 отдаёт шлюз
+   до сервиса, 502 — попытка дойти до сервиса, которого нет.
+4. **Проекция не имеет права ломать старт BC** (§8: проекция — подписчик, а не часть команды). Консьюмер,
+   не умеющий стартовать, — дефект консьюмера, а не «проекция работает».
+
