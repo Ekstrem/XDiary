@@ -202,7 +202,7 @@ jobs:
           # (10 с + 20 с) перестало укладываться в дефолтные 10 мин → прогон падал
           # `Run Command Timeout` на ПОСЛЕДНЕМ сервисе (api-gateway), хотя 11 уже были ок.
           command_timeout: 30m
-          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64
+          envs: TAG,LOCK_B64,UPDATE_B64,RECREATE_B64,DEV_E2E_B64,DEPLOY_B64
           script: |
             set -eu
             for f in /home/deploy/deploy.sh /home/deploy/update.sh; do
@@ -214,6 +214,13 @@ jobs:
             echo "$LOCK_B64" | base64 -d > images.lock
             echo "$UPDATE_B64" | base64 -d > update.sh
             echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            if [ -n "${DEPLOY_B64:-}" ]; then
+              echo "$DEPLOY_B64" | base64 -d > deploy.sh
+              chmod +x deploy.sh
+              echo "  deploy.sh доставлен ($(wc -c < deploy.sh) Б)"
+            else
+              echo "::warning::DEPLOY_B64 не передан — на хосте останется прежняя копия deploy.sh"
+            fi
             chmod +x update.sh recreate-service.sh
             # dev-оверлей E2E: идемпотентно влить в secrets/.env (без дублей ключей)
             echo "$DEV_E2E_B64" | base64 -d > /tmp/dev.e2e.env
@@ -731,7 +738,7 @@ jobs:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: ${{ secrets.PROD_SSH_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
+          envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,DEPLOY_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
           script: |
             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
               echo "::warning::РЕМОНТ ПРОДА: канон красный, deploy-prod запущен принудительно (allow_prod_repair=true) — осознанный выход из замкнутого круга: старые образы нарушают контракт, починить их можно только выкаткой"
@@ -838,6 +845,13 @@ jobs:
             echo "$LOCK_B64" | base64 -d > images.lock
             echo "$UPDATE_B64" | base64 -d > update.sh
             echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            if [ -n "${DEPLOY_B64:-}" ]; then
+              echo "$DEPLOY_B64" | base64 -d > deploy.sh
+              chmod +x deploy.sh
+              echo "  deploy.sh доставлен ($(wc -c < deploy.sh) Б)"
+            else
+              echo "::warning::DEPLOY_B64 не передан — на хосте останется прежняя копия deploy.sh"
+            fi
             chmod +x update.sh recreate-service.sh
             grep -q 'tag_of' update.sh || { echo "::error::update.sh без tag_of — доставка не удалась"; exit 1; }
             grep -q 'say()' update.sh || { echo "::error::update.sh без say() — та же устаревшая копия"; exit 1; }
