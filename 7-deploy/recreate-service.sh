@@ -383,15 +383,22 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
   sleep 2
 done
 if [ "$__ok" = "1" ]; then
-  # DO-145 (@TL 03:12): ОДИН замер в момент старта пропускает рестарт-цикл (restarts=14,
-  # а deploy-dev зелёный). Даём 10 с и перепроверяем RestartCount — дефект проявляется позже.
+  # DO-145 (@TL 03:12, 03:35): ОДИН замер в момент старта пропускает рестарт-цикл (restarts=14,
+  # а deploy-dev зелёный). Падение Autofac приходит ПОЗЖЕ 10 с (@TL: 502 через ~2 мин), поэтому
+  # проверяем ДВАЖДЫ: 10 с и 30 с — дефект, который проявляется позже, не пройдёт как OK.
   sleep 10
   __st2="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
   if [ "$__st2" != "0 0" ] && [ -n "$__st2" ]; then
     say "ОШИБКА: $CONTAINER в рестарт-цикле через 10 с (RestartCount/ExitCode=[$__st2])" >&2
     exit 1
   fi
-  say "  OK: $CONTAINER пересоздан (стабилен 10 с)"
+  sleep 20
+  __st3="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  if [ "$__st3" != "0 0" ] && [ -n "$__st3" ]; then
+    say "ОШИБКА: $CONTAINER в рестарт-цикле через 30 с (RestartCount/ExitCode=[$__st3])" >&2
+    exit 1
+  fi
+  say "  OK: $CONTAINER пересоздан (стабилен 30 с)"
   check_hosts "$SVC" || exit 1
   # DO-051 п.2: «пересоздал» = «проверил». Только для шлюза.
   if [ "$SVC" = "api-gateway" ]; then
