@@ -302,7 +302,11 @@ for svc in "${!CUR_IDS[@]}"; do
     LIVE_DRIFT="$LIVE_DRIFT ${svc}(no-container)"
     continue
   fi
-  if [ "$live_id" != "${CUR_IDS[$svc]}" ]; then
+  # @TL 19:55 (@AR): сравниваем ИМЯ ОБРАЗА с ожидаемым тегом, а не `.Image` контейнера с `.Id` образа:
+  # для manifest-list `.Id` = ID списка, а `.Image` = ID платформенного образа ⇒ вечное «расхождение»
+  # ⇒ пересоздание всех 12 сервисов на каждом прогоне. Тег-строка такой ошибки не даёт.
+  want_img="ghcr.io/ekstrem/xdiary-$svc:$(tag_of "$svc")"
+  if [ "$live_img" != "$want_img" ]; then
     case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc";; esac
     LIVE_DRIFT="$LIVE_DRIFT ${svc}(image-mismatch(${live_img:-?} != ghcr.io/ekstrem/xdiary-$svc:<lock>))"
   fi
