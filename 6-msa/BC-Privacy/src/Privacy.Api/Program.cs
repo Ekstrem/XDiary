@@ -36,6 +36,9 @@ builder.Services.AddReadStorePostgres<IPrivacy, PinCredentialReadModel, ReadDbCo
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
+// BE-140: без консьюмера/хендлера проекции pin_credential_read остаётся пустой (класс BE-134/BE-138).
+builder.Services.AddHostedService<Privacy.Api.Events.PrivacyEventConsumer>();
+builder.Services.AddSingleton<Privacy.Api.Events.PrivacyEventHandler>();
 
 
 
