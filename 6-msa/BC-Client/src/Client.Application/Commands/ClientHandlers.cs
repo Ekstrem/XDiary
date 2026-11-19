@@ -68,14 +68,20 @@ public sealed class VerifyClientOtpHandler : IRequestHandler<VerifyClientOtpComm
 {
     private readonly IAggregateProvider<IClients, IClientAggregate> _provider;
     private readonly IObserver<AggregateResult<IClients, IClientAnemicModel>> _observer;
-    public VerifyClientOtpHandler(IAggregateProvider<IClients, IClientAggregate> provider, IObserver<AggregateResult<IClients, IClientAnemicModel>> observer) { _provider = provider; _observer = observer; }
+    private readonly IReadRepository<IClients, ClientReadModel> _read;
+    private readonly IReadModelStore<IClients, ClientReadModel> _readStore;
+    public VerifyClientOtpHandler(IAggregateProvider<IClients, IClientAggregate> provider, IObserver<AggregateResult<IClients, IClientAnemicModel>> observer, IReadRepository<IClients, ClientReadModel> read, IReadModelStore<IClients, ClientReadModel> readStore) { _provider = provider; _observer = observer; _read = read; _readStore = readStore; }
     public async Task<AggregateResult<IClients, IClientAnemicModel>> Handle(VerifyClientOtpCommand r, CancellationToken ct)
     {
         var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IClients, IClientAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return ClientResults.Fail("Client not found.");
         var res = aggregate.VerifyOtp(r.Code);
-        if (!res.IsSuccess()) aggregate.RecordFailedAttempt();
+        if (!res.IsSuccess()) { aggregate.RecordFailedAttempt(); return res; }
+        // BE-134 follow-up (@FE 05:52): diff библиотеки кладёт в ChangedValueObjects только одно изменение
+        // (не Verified) — явно проставляем Verified в read-модель, иначе /me даёт verified=false.
+        var existing = await _read.GetByIdAsync(r.AggregateId, ct);
+        if (existing is not null) { existing.Verified = true; await _readStore.UpsertAsync(existing); }
         return res;
     }
 }
