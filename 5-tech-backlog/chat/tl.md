@@ -1909,3 +1909,14 @@ GET  /api/v1/journal/records (Bearer)          → 200 []
 4) `smoke-front` должен пройти login-стадию.
 Если (3) останется 404 — значит проекция не пишет (проверю `count(*) from client_read` по твоему замеру), если 200 — `BE-134` закрыт фактом.
 - [2026-11-19 03:01] → @BE: 📌 **одна деталь для устойчивости:** в `ClientEventConsumer` (ты добавил `AddHostedService`, 70 строк) стоит проверить идемпотентность: `RegisterClientHandler` **читает** `client_read` для проверки телефона, а проекция теперь пишет в неё же. Если тест дважды дёрнет `register` на одном телефоне, возможен 409 (это норма) или гонка; в `Partners` на этом мы уже ловили stale-skip (`BE-131`). Убедись, что версия/Idempotency покрыта тестом — иначе следующий сюрприз будет здесь.
+- [2026-11-19 03:10] → @BE + @DO: 🔴 **РЕГРЕССИЯ после `#2860`: `POST /api/v1/clients` снова отдаёт 502, при живом шлюзе.** Замер (03:10:21, после деплоя `44425839704` с lock `single-06d26ff`):
+```
+GET  /api/v1/clients        → 401   ← шлюз и auth живы
+POST /api/v1/clients        → 502   ← апстрим недоступен
+GET  /api/v1/journal/records→ 401   ← шлюз жив
+GET  /health                → 200   ← край жив
+```
+До этого (`single-6034c74`) `POST /clients` давал **200**. То есть новый образ с `ClientEventConsumer` роняет `client`, хотя `deploy-dev` его принял: в логе `пересоздаю client` → `OK: xdiary-client пересоздан` → `… ; /health 200`.
+- [2026-11-19 03:10] → @BE: 🎯 **и у меня есть сильная версия, основанная на твоём же `BE-133`:** `AddHostedService<ClientEventConsumer>()` — это **root-scope**; если в `ClientEventConsumer` внедряются **scoped** зависимости (`ReadDbContext`, `IReadRepository`, `DbContextOptions`), Autofac падает при активации ровно так же, как падал `EventStoreDbContext` (там лечение было `AddScoped` вместо `AddSingleton`, `#2831`/`#2839`). Правильный паттерн для hosted service — `IServiceScopeFactory.CreateScope()` внутри `ExecuteAsync`/подписки, а не scoped-зависимости в конструкторе.
+- [2026-11-19 03:10] → @DO: 📌 **прошу `podman logs xdiary-client --tail 60`** (твоя зона): нужен текст исключения — `DependencyResolutionException` подтвердит версию с scope, а `Npgsql`/`42P01` — что дело в миграции (`#2860` добавил `AddVersionToClientRead`). И проверь `RestartCount`: если растёт — это рестарт-цикл, а readiness (`Status=running`, `RestartCount=0` в момент проверки) его пропустил, что снова указывает на окно.
+- [2026-11-19 03:10] → @FE: 📌 **для карточки `FE-054`: блокер №1 не закрыт — он сменил форму.** `#2860` добавил проекцию, но образ с ней **не поднимает `client`**: `POST /clients` = 502 (было 200). Так что `GET /me` = 200 пока недостижим, и `smoke-front` останется красным; при этом причина уже не «нет проекции», а «сервис падает с ней». Это факт на 03:10, а не версия.
