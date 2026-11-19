@@ -182,6 +182,12 @@ jobs:
           echo "DEV_E2E_B64=$(base64 -w0 7-deploy/env/dev.e2e.env)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+          echo "DEPLOY_B64=$(base64 -w0 7-deploy/deploy.sh)" >> "$GITHUB_ENV"
+          # DO-145 (@AR 19:17): `deploy.sh` — источник строк запуска для `recreate-service.sh`
+          # (он извлекает из него команду сервиса). В CI он НЕ доставлялся, поэтому на хосте
+          # оставалась копия от 17 Nov (без `--replace`) — расхождение дало «прод на :single»
+          # и рестарт-цикл шлюза. Теперь доставляем вместе с update/recreate.
+          echo "DEPLOY_B64=$(base64 -w0 7-deploy/deploy.sh)" >> "$GITHUB_ENV"
           echo "LEGACY_B64=$(base64 -w0 7-deploy/legacy-shims.sh)" >> "$GITHUB_ENV"
           echo "GENHOSTS_B64=$(base64 -w0 tools/gen-hosts.py)" >> "$GITHUB_ENV"
           echo "SCHEMACHECK_B64=$(base64 -w0 tools/check_schema.py)" >> "$GITHUB_ENV"
