@@ -37,7 +37,7 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Pa
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("CommandDb"))) throw new InvalidOperationException("ConnectionStrings:CommandDb не задан");
 if (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("ReadDb"))) throw new InvalidOperationException("ConnectionStrings:ReadDb не задан");
 // BE-075 (порядок важен, НЕ менять): AddDbContext с MigrationsAssembly обязан идти ДО AddEventStorePostgres.
-builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Partners.Storage")));
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Partners.Storage").EnableRetryOnFailure()));
 builder.Services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
 // BE-130: регистрируем реальный реплей и как IAnemicModelRepository — иначе AggregateProvider
@@ -53,7 +53,7 @@ builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
 builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
 builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
 builder.Services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
-builder.Services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb")));
+builder.Services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), o => o.EnableRetryOnFailure()));
 // BE-125 (@TL): библиотечный EventStoreDbContext ждёт НЕ-generic DbContextOptions —
 // регистрируем untyped так же, как в BC-Journal (BE-075). Без этого контейнер падает на старте:
 //   InvalidOperationException: ... must be a DbContextOptions<EventStoreDbContext>.

@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using DigiTFactory.Libraries.CommandRepository.Postgres;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Extensions;
 using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
@@ -35,10 +35,10 @@ public sealed class DatabaseCreationTests
         }
 
         var services = new ServiceCollection();
-        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Partners.Storage")));
+        services.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Partners.Storage").EnableRetryOnFailure()));
         services.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(cs, null);
         services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(cs, null);
-        services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(cs));
+        services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(cs, o => o.EnableRetryOnFailure()));
 
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();

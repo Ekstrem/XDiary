@@ -12,7 +12,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-  </ItemGroup>
+      <PackageReference Include="DigiTFactory.Libraries.Analyzers.Testing" Version="0.1.0" PrivateAssets="all" />
+</ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Privacy.Domain\Privacy.Domain.csproj" /><ProjectReference Include="..\Privacy.DomainServices\Privacy.DomainServices.csproj" />
     <ProjectReference Include="..\Privacy.Api\Privacy.Api.csproj" />

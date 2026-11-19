@@ -42,14 +42,14 @@ public class JournalReadModelEndToEndTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventBusInMemory();
         sc.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(
-            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Journal.Storage")));
+            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Journal.Storage").EnableRetryOnFailure()));
         sc.AddEventStorePostgres<IJournal, IJournalAnemicModel>(cs, null);
         sc.AddScoped<IEventStoreRepository<IJournal, IJournalAnemicModel>, JournalEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<IJournal, IJournalAnemicModel>, JournalEventSourcingRepository>();

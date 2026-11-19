@@ -16,7 +16,7 @@ public sealed class EventStoreDbContextFactory : IDesignTimeDbContextFactory<Eve
     {
         var connection = "Host=localhost;Database=xdiary;Username=postgres;Password=postgres";
         var options = new DbContextOptionsBuilder<EventStoreDbContext>()
-            .UseNpgsql(connection, x => x.MigrationsAssembly("Partners.Storage"))
+            .UseNpgsql(connection, x => x.MigrationsAssembly("Partners.Storage").EnableRetryOnFailure())
             .Options;
         return new EventStoreDbContext(options, new EventStoreOptions());
     }

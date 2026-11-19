@@ -15,7 +15,7 @@ public class AppleHealthGatewayCompositionRootTests
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventStorePostgres<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>("Host=localhost;Database=es", null);
-        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<AppleHealthGatewayEventReplay>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>, AppleHealthGatewayEventSourcingRepository>();
         using var sp = sc.BuildServiceProvider();

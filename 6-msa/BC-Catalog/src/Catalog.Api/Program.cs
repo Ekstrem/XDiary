@@ -26,7 +26,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<Catalog.Application.Commands.AddCatalogItemCommand>());
-builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Catalog.Storage")));
+builder.Services.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), x => x.MigrationsAssembly("Catalog.Storage").EnableRetryOnFailure()));
 builder.Services.AddEventStorePostgres<ICatalog, ICatalogAnemicModel>(builder.Configuration.GetConnectionString("CommandDb") ?? "", null);
 builder.Services.AddScoped<IEventStoreRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();

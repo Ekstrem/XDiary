@@ -42,14 +42,14 @@ public class PartnersReadModelEndToEndTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventBusInMemory();
         sc.AddDbContext<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>(
-            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Partners.Storage")));
+            o => o.UseNpgsql(cs, x => x.MigrationsAssembly("Partners.Storage").EnableRetryOnFailure()));
         sc.AddEventStorePostgres<IPartners, IPartnerAnemicModel>(cs, null);
         sc.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();

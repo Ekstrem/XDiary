@@ -36,7 +36,7 @@ public class SomaticSeriesEventBusProjectionTests
             return;
         }
 
-        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs).Options;
+        var options = new DbContextOptionsBuilder<ReadDbContext>().UseNpgsql(cs, o => o.EnableRetryOnFailure()).Options;
         using (var migrate = new ReadDbContext(options)) migrate.Database.Migrate();
 
         var res = Aggregate.CreateInstance(new AnemicModel()).RecordPoint("2026-11-19T10:00", 62, 45, Guid.NewGuid());

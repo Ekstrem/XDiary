@@ -20,7 +20,7 @@ public class PartnersCompositionRootTests
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventStorePostgres<IPartners, IPartnerAnemicModel>("Host=localhost;Database=es", null);
-        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<PartnersEventReplay>();
         // BE-130: регистрация реального реплея как IAnemicModelRepository (иначе библиотечная заглушка).
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();

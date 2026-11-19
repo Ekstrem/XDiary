@@ -11,7 +11,7 @@ public sealed class ReadDbContextFactory : IDesignTimeDbContextFactory<ReadDbCon
     public ReadDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<ReadDbContext>()
-            .UseNpgsql("Host=localhost;Database=xdiary;Username=postgres;Password=postgres")
+            .UseNpgsql("Host=localhost;Database=xdiary;Username=postgres;Password=postgres", o => o.EnableRetryOnFailure())
             .Options;
         return new ReadDbContext(options);
     }

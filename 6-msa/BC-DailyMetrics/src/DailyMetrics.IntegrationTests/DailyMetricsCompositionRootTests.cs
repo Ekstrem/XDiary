@@ -15,7 +15,7 @@ public class DailyMetricsCompositionRootTests
         var sc = new ServiceCollection();
         sc.AddLogging();
         sc.AddEventStorePostgres<IDailyMetrics, IDailyMetricsAnemicModel>("Host=localhost;Database=es", null);
-        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es"));
+        sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<DailyMetricsEventReplay>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IDailyMetrics, IDailyMetricsAnemicModel>, DailyMetricsEventSourcingRepository>();
         using var sp = sc.BuildServiceProvider();
