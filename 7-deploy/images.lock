@@ -7,8 +7,8 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-78092ff     6-msa/BC-Journal  commit=78092ff  digest=sha256:eccfc6c27becadbcc174447684e8038fb1a84af768aab48e3c20f19e5a7ab491
-partners             single-78092ff     6-msa/BC-Partners  commit=78092ff  digest=sha256:c851898d7f6d70a6f5f18c041ae1d43868bf81626256d91924a12aa55f07e2d1
+journal              single-6d243df     6-msa/BC-Journal  commit=6d243df  digest=sha256:d50284e8a6902ebfef057b1c3a736257eaa7df16377c1b14e04030b8b3098c9d
+partners             single-6d243df     6-msa/BC-Partners  commit=6d243df  digest=sha256:86ca97daa06f47a1b5b69f5ee54ef6199507c445ee70d55bcfd1925f408c1db4
 catalog              single-78092ff     6-msa/BC-Catalog  commit=78092ff  digest=sha256:ca37278c684ce3753f3848c637b9b26a3e352bea6fd21bc406a4d98e60f66d0c
 somatic-series       single-78092ff     6-msa/BC-SomaticSeries  commit=78092ff  digest=sha256:fabfe3289eddd2f8d8e04814c556a7e8ccfe2262a42937fbe653b15e039f3546
 daily-metrics        single-78092ff     6-msa/BC-DailyMetrics  commit=78092ff  digest=sha256:adc2babb7069fc85ed596027eb5ba4c4566756bebdd3db329184bc1e934d51e7
