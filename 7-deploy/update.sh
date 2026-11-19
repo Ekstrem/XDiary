@@ -288,6 +288,24 @@ for svc in "${!CUR_IDS[@]}"; do
     CHANGED="$CHANGED $svc"
   fi
 done
+# DO-145 (@AR 2026-11-19 19:50): леджер отвечает «что мы ВЫКАТЫВАЛИ», а не «что сейчас крутится».
+# Инцидент: `api-gateway` уехал на `:single` (auto-update/старый образ), леджер этого не видел,
+# строки совпали ⇒ «изменений нет» ⇒ шлюз НИКОГДА не пересоздавался на образ из lock.
+# Поэтому сверяемся ещё и с ЖИВЫМ контейнером: расхождение = повод пересоздать, не повод пропустить.
+LIVE_DRIFT=""
+for svc in "${!CUR_IDS[@]}"; do
+  live_id="$($PODMAN_SUDO podman inspect "xdiary-$svc" --format '{{.Image}}' 2>/dev/null || true)"
+  if [ -z "$live_id" ]; then
+    case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc"; LIVE_DRIFT="$LIVE_DRIFT $svc(нет контейнера)";; esac
+    continue
+  fi
+  if [ "$live_id" != "${CUR_IDS[$svc]}" ]; then
+    case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc";; esac
+    LIVE_DRIFT="$LIVE_DRIFT $svc"
+  fi
+done
+[ -z "$LIVE_DRIFT" ] || say "живое состояние расходится с lock (пересоздаю):$LIVE_DRIFT"
+
 CHANGED="$(echo "$CHANGED" | tr ' ' '\n' | sed '/^$/d' | sort | tr '\n' ' ')"
 
 if [ -z "$CHANGED" ]; then
