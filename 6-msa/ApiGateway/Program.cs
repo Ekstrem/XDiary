@@ -18,6 +18,23 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
 
+// BE-141: BFF-контроллер должен быть защищён и на уровне ASP.NET (defense-in-depth),
+// а не только кастомным middleware ниже: иначе одна ошибка в списке анонимных путей
+// открывает контроллер, и он отдаёт 500 с текстом ошибки вместо 401.
+var jwtKey = Convert.FromBase64String(
+    builder.Configuration["Jwt:SigningKey"]
+    ?? Convert.ToBase64String(Encoding.UTF8.GetBytes("xdiary-dev-signing-key-32bytes-min!")));
+builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(o => o.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+    {
+        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "xdiary",
+        ValidateIssuer = true,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(jwtKey),
+    });
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 app.UseCors();
@@ -26,10 +43,6 @@ app.UseCors();
 // JWT-проверка (stateless, ADR-008). Тот же signing key, что у privacy.
 // Анонимные запросы (без валидного Bearer) отклоняются, кроме auth-эндпоинтов.
 // ======================================================
-var jwtKey = Convert.FromBase64String(
-    builder.Configuration["Jwt:SigningKey"]
-    ?? Convert.ToBase64String(Encoding.UTF8.GetBytes("xdiary-dev-signing-key-32bytes-min!")));
-
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path.Value ?? string.Empty;
@@ -67,6 +80,9 @@ app.Use(async (context, next) =>
     context.Response.Headers.WWWAuthenticate = "Bearer";
     await context.Response.WriteAsync("Unauthorized");
 });
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapReverseProxy();
 app.MapControllers();
