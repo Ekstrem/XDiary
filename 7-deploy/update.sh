@@ -303,8 +303,18 @@ for svc in "${!CUR_IDS[@]}"; do
     continue
   fi
   if [ "$live_id" != "${CUR_IDS[$svc]}" ]; then
+    # @AR 2026-11-19 19:56: страховка на multi-arch. Для manifest list `.Id` образа (ID списка)
+    # не равен `.Image` контейнера (ID платформенного образа) ⇒ ID расходится ВСЕГДА, и без этой
+    # проверки мы бы пересоздавали все 12 сервисов каждый прогон. Если `ImageName` контейнера
+    # совпадает с нужным `<svc>:<lock_tag>`, то это «тот же образ, другая форма ID» — не дрейф.
+    lock_tag_of_svc="$(tag_of "$svc" 2>/dev/null || true)"
+    want_name="ghcr.io/ekstrem/xdiary-$svc:${lock_tag_of_svc:-}"
+    if [ -n "$lock_tag_of_svc" ] && [ "$live_img" = "$want_name" ]; then
+      say "  $svc: ID расходится, но ImageName совпадает с lock ($live_img) — не дрейф (multi-arch)" >&2
+      continue
+    fi
     case " $CHANGED " in *" $svc "*) ;; *) CHANGED="$CHANGED $svc";; esac
-    LIVE_DRIFT="$LIVE_DRIFT ${svc}(image-mismatch(${live_img:-?} != ghcr.io/ekstrem/xdiary-$svc:<lock>))"
+    LIVE_DRIFT="$LIVE_DRIFT ${svc}(image-mismatch(${live_img:-?} != $want_name))"
   fi
 done
 [ -z "$LIVE_DRIFT" ] || say "живое состояние расходится с lock (пересоздаю):$LIVE_DRIFT"
