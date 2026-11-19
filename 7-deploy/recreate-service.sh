@@ -56,7 +56,9 @@ fi
 
 if [ "${1:-}" = "--list" ]; then
   for s in $SVCS_ALL; do
-    grep -q "podman run -d --name xdiary-$s " "$DEPLOY_SH" && echo "$s"
+    # DO-145 (@AR 15:43): в deploy.sh все строки имеют `--replace` (и `sudo -n`), поэтому
+    # жёсткий литерал `podman run -d --name` не матчился НИ РАЗУ. Ищем по маркеру `--name`.
+    grep -Eq "podman run .*--name xdiary-$s([[:space:]]|$)" "$DEPLOY_SH" && echo "$s"
   done
   exit 0
 fi
@@ -168,8 +170,12 @@ import re
 import sys
 dep, svc, out = sys.argv[1:4]
 src = open(dep, encoding='utf-8').read().replace('\\\n', ' ')
-needle = 'podman run -d --name xdiary-%s ' % svc
-line = next((l for l in src.splitlines() if needle in l), '')
+# DO-145 (@AR 15:43): жёсткий литерал `podman run -d --name ...` не совпадал со строками
+# deploy.sh, где между `run` и `--name` стоит `-d --replace` (а перед `podman` — `sudo -n`).
+# Из-за этого `BODY` был пуст, срабатывал `die "нет команды"`, и сервис оставался на старом
+# образе (`api-gateway` держал `:single`), а шаг `Deploy prod` красился.
+rx = re.compile(r'podman run\b[^\n]*--name xdiary-%s\b' % re.escape(svc))
+line = next((l for l in src.splitlines() if rx.search(l)), '')
 line = line.strip()
 # Убираем хвостовые редиректы ДО разбора «последний аргумент = образ».
 # Без этого `--image` подменял не образ, а `>/dev/null`: подмена уходила в конец,
