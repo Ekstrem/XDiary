@@ -1,4 +1,3 @@
-# КОПИЯ из LoopMaker/check_dbcontext_options_order.py (источник правды там; правка — в обоих местах).
 """check_dbcontext_options_order.py — аудит регистрации non-generic DbContextOptions в BC.
 
 Класс дефекта (BE-133, §27 edm-canon): библиотечные ctor-ы (`EventStoreDbContext`,

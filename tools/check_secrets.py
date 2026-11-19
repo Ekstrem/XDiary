@@ -49,11 +49,18 @@ SCAN_EXTS = (".md", ".txt", ".json", ".yml", ".yaml", ".sh", ".ps1", ".py", ".en
 ALLOWLIST = {
     "tools/check_secrets.py": "собственные шаблоны сканера",
     "tools/check_rule_docs.py": "регэксп-паттерн проверки документации",
+    # DO-065 (2026-11-11): после починки `_glob` в скан впервые попали скрипты ВЕРХНЕГО
+    # уровня `7-deploy/` и `tools/*.py`, и гейт нашёл 7 «утечек» — все оказались фикстурами
+    # наших же самопроверок (образцы форм: JWT-подобная строка, `password: …`, `signingKey = …`).
+    # Это не секреты, а тестовые данные; файл-исключение с причиной — дешевле, чем 7 подавлений
+    # по строкам, и причина видна в коде. Реальные секреты в этих файлах искать нечего.
+    "tools/test_check_secrets.py": "фикстуры тестов сканера (образцы форм, не секреты)",
+    "tools/check_env_hosts.py": "фикстуры самопроверки (образцы строк .env, не секреты)",
 }
 
 SKIP_VALUE_PREFIXES = ("$", "os.", "process.env", "env.", "config.", "getenv", "{", "(")
 SKIP_VALUES = {"", "null", "none", "true", "false", '""', "''", "string", "password",
-               "token", "secret", "write", "read", "admin", "bearer", "postgres",
+               "token", "secret", "write", "read", "admin", "bearer",
                # имена типов в документации: {token: bool, tokenLen: number} — не секреты
                # (список согласован с @TL 20:35: bool, boolean, number, string, int, length, masked)
                "bool", "boolean", "int", "integer", "number", "object", "undefined",
@@ -107,6 +114,12 @@ SHAPES = [
     ("aws-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("telegram-bot", re.compile(r"\b\d{8,10}:[A-Za-z0-9_\-]{30,}")),
     ("pem-private", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    # @AR 2026-11-07 11:41 п.4: три формы, которые гейт не ловил (проверено тремя пробами):
+    # (1) пароль внутри URI-строки подключения, (2) SQL `PASSWORD '<значение>'`,
+    # (3) `PGPASSWORD=` в командах бэкапа/скриптах.
+    ("uri-password", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^@\s/]{8,})@")),
+    ("sql-password", re.compile(r"(?i)\bPASSWORD\s+'([^']{8,})'")),
+    ("pgpassword", re.compile(r"\bPGPASSWORD=(\S{8,})")),
 ]
 
 
@@ -133,10 +146,20 @@ def load_config(root, path=None):
 def default_paths(cfg):
     backlog = cfg.get("backlog") or "5-backlog"
     chat = cfg.get("chat") or os.path.join(backlog, "chat")
-    # AN-03 (2026-11-07): whitelist давал слепую зону (6-msa, ранбуки, отчёты не
-    # сканировались — «известный allowlist» три месяца). Сканируем ВСЁ, кроме явных
-    # исключений: bin/obj/node_modules/.git режет `_glob`, расширения — SCAN_EXTS.
-    return ["**/*"]
+    return [
+        os.path.join(chat, "*.md"),
+        os.path.join(backlog, "**", "*.md"),
+        "README.md", "CHANGELOG.md", "AGENTS.md",
+        # DO-065: зелёный guard-secrets не значил «секретов нет», пока не сканировались
+        # скрипты и инфраструктура. Подложенный `ghp_` в `.sh` проходил незамеченным.
+        "9-tests/**/*.sh",
+        "9-tests/**/*.ps1",
+        "7-deploy/**/*.sh",
+        "7-deploy/**/*.ps1",
+        "7-deploy/**/*.yml",
+        "7-deploy/**/*.yaml",
+        "tools/**/*.py",
+    ]
 
 
 def expand_patterns(root, cfg):
@@ -144,8 +167,6 @@ def expand_patterns(root, cfg):
     sec = cfg.get("secrets") or {}
     patterns = sec.get("paths") or default_paths(cfg)
     skip = set(sec.get("skip") or ["_dialogue.md", "_lint.md"])
-    # Собственные тест-фикстуры сканера (фейковые секреты в selftest) — не утечки.
-    skip |= {"test_check_secrets.py", "check_env_hosts.py"}
     files = []
     for pat in patterns:
         pat = pat.replace("\\", "/")
@@ -166,13 +187,21 @@ def _glob(pattern):
         tail = pattern.split("**", 1)[1].lstrip("/\\")
         root_dir = base if os.path.isdir(base) else os.path.dirname(base)
         out = []
+        # DO-065 (2026-11-11): `fnmatch` по ПОЛНОМУ пути — а `*` в fnmatch матчит и `/`,
+        # поэтому шаблон `7-deploy/**/*.sh` требовал хотя бы один подкаталог: файлы ВЕРХНЕГО
+        # уровня (`7-deploy/deploy.sh`, `update.sh`, `heal-network.sh` — те самые, где живут
+        # токены) не попадали в скан вообще. Проверено подложенным `PGPASSWORD`: `rc=0` и
+        # «файлов проверено: 455» без изменений. Фикс: матчить ещё и вариант без `**/`.
+        pat = pattern.replace("\\", "/")
+        alts = {pat}
+        if "/**/" in pat:
+            alts.add(pat.replace("/**/", "/"))
         for dirpath, dirnames, filenames in os.walk(root_dir):
             dirnames[:] = [d for d in dirnames
-                           if d not in (".git", "node_modules", "bin", "obj", ".loopmaker")
-                           and not d.startswith(".tmp-")]
+                           if d not in (".git", "node_modules", "bin", "obj", ".loopmaker")]
             for fn in filenames:
-                full = os.path.join(dirpath, fn)
-                if fnmatch.fnmatch(full.replace("\\", "/"), pattern.replace("\\", "/")):
+                full = os.path.join(dirpath, fn).replace("\\", "/")
+                if any(fnmatch.fnmatch(full, a) for a in alts):
                     out.append(full)
         return out
     import glob as g
@@ -304,14 +333,14 @@ def scan_text(text, allow_shapes=True):
                 for m in rx.finditer(line):
                     if looks_like_identifier_chain(m.group(0)):
                         continue          # цепочка идентификаторов, не ключ (дефект 2026-11-10)
-                    if name == "hex-long":
-                        if _hex_is_identifier(m.group(0)):
-                            continue      # git-объект/sha256-дайджест — не секрет (дефект 2026-11-07)
-                        prefix = line[max(0, m.start() - 24):m.start()].lower()
-                        if "sha256" in prefix:
-                            continue      # усечённый digest=sha256:… (43 hex) — публичный чексум, не секрет
-                    if looks_like_secret(m.group(0)):
-                        findings.append((name, i, len(m.group(0))))
+                    if name == "hex-long" and _hex_is_identifier(m.group(0)):
+                        continue          # git-объект/sha256-дайджест — не секрет (дефект 2026-11-07)
+                    # если у шаблона есть группа — проверяем ЗАХВАЧЕННОЕ значение,
+                    # иначе `PGPASSWORD=abcdefgh12` проверялся целиком (с именем переменной)
+                    # и не считался секретом (@AR 2026-11-07 11:41 п.4).
+                    value = m.group(1) if m.groups() and m.group(1) is not None else m.group(0)
+                    if looks_like_secret(value):
+                        findings.append((name, i, len(value)))
     return findings
 
 
@@ -324,6 +353,30 @@ def changed_files(root, rev_range):
         return []
     return [os.path.join(root, n) for n in names if os.path.exists(os.path.join(root, n))]
 
+
+
+def _selftest_new_forms():
+    """Три формы @AR 11:41 п.4: URI-креды, SQL PASSWORD, PGPASSWORD — должны ловиться."""
+    cases = [
+        ('postgresql://u:s3cr3tPASS@pg:5432/db', 'uri-password'),
+        ("ALTER ROLE x WITH PASSWORD 's3cr3tPASS'", 'sql-password'),
+        ('PGPASSWORD=abcdefgh12 ./backup.sh', 'pgpassword'),
+    ]
+    ok = 0
+    for text, kind in cases:
+        hits = [h[0] for h in (scan_text(text) or [])]
+        if kind in hits:
+            ok += 1
+        else:
+            print("  [FAIL] форма %s не поймана: %r" % (kind, text[:40]))
+    # контроль: плейсхолдер и короткое значение ловить не должны
+    for text in ('postgresql://u:<password>@pg/db', 'PGPASSWORD=short'):
+        hits = [h[0] for h in (scan_text(text) or [])]
+        if any(h in ('uri-password', 'sql-password', 'pgpassword') for h in hits):
+            print("  [FAIL] ложное срабатывание на %r" % text[:40])
+        else:
+            ok += 1
+    return ok, len(cases) + 2
 
 
 def selftest():
@@ -356,6 +409,24 @@ def selftest():
     f = scan_text("sha256 " + sha256)
     print("  [%s] sha256-дайджест (64-hex) -> находок %d (ожидали 0)" % ("OK " if not f else "FAIL", len(f)))
     bad += 0 if not f else 1
+
+    # @AR 2026-11-07 11:41 п.4: три формы, которые гейт не ловил (URI-креды, SQL PASSWORD,
+    # PGPASSWORD) — плюс контроль «плейсхолдер и короткое значение не ловятся».
+    forms = [
+        ("postgresql://u:s3cr3tPASS@pg:5432/db", "uri-password"),
+        ("ALTER ROLE x WITH PASSWORD 's3cr3tPASS'", "sql-password"),
+        ("PGPASSWORD=abcdefgh12 ./backup.sh", "pgpassword"),
+    ]
+    for text, kind in forms:
+        f = [h[0] for h in (scan_text(text) or [])]
+        got = kind in f
+        print("  [%s] форма %s -> %s" % ("OK " if got else "FAIL", kind, "поймана" if got else "НЕ поймана"))
+        bad += 0 if got else 1
+    for text in ("postgresql://u:<password>@pg/db", "PGPASSWORD=short"):
+        f = [h[0] for h in (scan_text(text) or [])]
+        ok = not any(h in ("uri-password", "sql-password", "pgpassword") for h in f)
+        print("  [%s] контроль %r -> %s" % ("OK " if ok else "FAIL", text[:34], "чисто" if ok else "ложное"))
+        bad += 0 if ok else 1
 
     print("check_secrets: самопроверка %s" % ("пройдена" if bad == 0 else "ПРОВАЛЕНА"))
     return 0 if bad == 0 else 1
@@ -409,6 +480,10 @@ def main():
             print("  ... ещё %d" % (len(results) - 40))
         print("Значение не печатается намеренно. Зачистить строку, затем ротация "
               "секрета через координатора (из истории git без force-push не убрать).")
+        # DO-116: в КРАСНОЙ ветке тоже печатаем, сколько файлов смотрели — иначе «нашёл 1»
+        # неотличимо от «нашёл 1 из 3 просмотренных». Последней строкой остаётся «утечек N»
+        # (на неё опирается tail -1), поэтому счётчик идёт ПЕРЕД ней.
+        print("файлов проверено: %d" % len(files))
         print("утечек %d" % len(results))
     else:
         print("секретов не найдено (файлов проверено: %d)" % len(files))

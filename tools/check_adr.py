@@ -15,6 +15,7 @@
 КОПИЯ в проекте: источник правды — LoopMaker/tools/check_adr.py.
 """
 import argparse
+import io
 import datetime
 import os
 import re
@@ -64,6 +65,52 @@ def count_items(text, label):
             break
         return count
     return 0
+
+# Норма владельца 2026-11-14 («предусловия вместо моратория», AGENTS §5.2): ADR, созданные
+# ПОСЛЕ этой даты, обязаны иметь «Источник» и непустые «Связанные решения». Старые не краснеют —
+# грандфазеринг по дате создания файла (иначе 29 ADR покраснеют и гейт отключат).
+CANON_DATE = datetime.date(2026, 11, 14)
+
+SOURCE_RE = re.compile(r"\*\*Источник:\*\*\s*([^\n]*)")
+RELATED_RE = re.compile(r"\*\*Связанные решения:\*\*\s*([^\n]*)")
+TASK_ID_RE = re.compile(r"\b(?:AR|BE|DO|FE|TE)-\d{2,3}\b")
+ADR_REF_RE = re.compile(r"ADR-\d{3}")
+
+
+def check_owner_norm(text):
+    """Две проверки нормы владельца: «Источник» и «Связанные решения» (DO-070).
+
+    Почему именно так:
+      * «Источник» без задачи и без цитаты владельца — это ADR «из головы»: через месяц
+        никто не восстановит, зачем он; допускаем либо ID задачи, либо дату-цитату.
+      * «Связанные решения» пустое = ADR не пишется (норма §5.2): если ADR того же типа
+        есть, нужно указать **почему меняется** и **соответствует ли комплаенсу прошлого**;
+        явное «— (ADR того же типа нет)» — законный ответ.
+    """
+    errors = []
+
+    m = SOURCE_RE.search(text)
+    if not m or not m.group(1).strip():
+        errors.append("нет поля «Источник» (нужен ID задачи вида AR-012 или цитата владельца с датой)")
+    else:
+        val = m.group(1)
+        if not TASK_ID_RE.search(val) and not re.search(r"\d{4}-\d{2}-\d{2}", val):
+            errors.append("«Источник» не содержит ни ID задачи (AR/BE/DO/FE/TE-NNN), ни цитаты владельца с датой")
+
+    m2 = RELATED_RE.search(text)
+    if not m2 or not m2.group(1).strip():
+        errors.append("нет поля «Связанные решения» (пусто = ADR не пишется)")
+    else:
+        val = m2.group(1).strip()
+        has_adr = bool(ADR_REF_RE.search(val))
+        if has_adr:
+            low = val.lower()
+            if "почему" not in low:
+                errors.append("ссылка на ADR-XXX без «почему меняется»")
+            if "комплаенс" not in low:
+                errors.append("ссылка на ADR-XXX без «комплаенс прошлого»")
+    return errors
+
 
 def check_file(path, strict=False):
     errors, warnings = [], []
@@ -123,7 +170,9 @@ def iter_adrs(adr_dir):
             yield name, os.path.join(adr_dir, name)
 
 
-CUTOFF_DEFAULT = "2026-11-08"   # ADR, созданные раньше, грандфазерятся (warning, не error)
+# @AR 2026-11-05 20:40: граница грандфазеринга = 2026-11-05 (раньше стояла 2026-11-08 —
+# дата в будущем относительно дат коммитов, из-за чего гейт проверял 0 документов).
+CUTOFF_DEFAULT = "2026-11-05"   # ADR, созданные раньше, грандфазерятся (warning, не error)
 
 
 def parse_creation_log(text):
@@ -201,9 +250,13 @@ def main():
                     help="алиас --cutoff для совместимости (AGENTS §5.2); значение меньше "
                          "нормы %s не принимается" % CUTOFF_DEFAULT)
     ap.add_argument("--strict", action="store_true", help="предупреждения считать ошибками")
+    ap.add_argument("--strict-empty", action="store_true",
+                    help="0 проверенных ADR считать НЕ ИЗМЕРЕНО (rc=2), а не «в норме»")
     ap.add_argument("--range", default=None,
                     help="git-диапазон (a..b): проверять только изменённые ADR")
     ap.add_argument("--selftest", action="store_true", help="негативный контроль (D-12)")
+    ap.add_argument("--no-owner-norm", action="store_true",
+                    help="не проверять норму владельца 2026-11-14 (Источник/Связанные решения)")
     args = ap.parse_args()
 
     if args.selftest:
@@ -258,6 +311,9 @@ def main():
             continue
         checked += 1
         errors, warnings = check_file(path, args.strict)
+        # DO-070: норма владельца — только для ADR, созданных после даты канона.
+        if not args.no_owner_norm and created is not None and created >= CANON_DATE:
+            errors += check_owner_norm(open(path, encoding="utf-8-sig").read())
         if is_old and errors:
             # Грандфазеринг по дате создания: правка старого ADR не должна красить гейт.
             # Иначе «исправить одну ссылку в ADR-008» требует переписать весь документ
@@ -277,6 +333,14 @@ def main():
 
     print("check_adr: проверено %d (старых пропущено %d, старых с понижением %d), нарушений %d"
           % (checked, skipped, downgraded, bad))
+
+    # 0 проверенных ADR — это «не смотрел», а не «чисто» (@AR 2026-11-05 17:45, DO-093).
+    if checked == 0:
+        _msg = ("ПРОВЕРЕНО 0 ADR — гейт НЕ СМОТРЕЛ документы (граница %s)" % cutoff)
+        print("::warning::check_adr: " + _msg)
+        if getattr(args, "strict_empty", False):
+            print("::error::check_adr: НЕ ИЗМЕРЕНО — " + _msg)
+            return 2
     return 1 if bad else 0
 
 
@@ -345,6 +409,32 @@ def selftest():
         ok = ok and rc == 0
     shutil.rmtree(tmp, ignore_errors=True)
 
+    # Текст ПРЕДУПРЕЖДЕНИЯ о 0 проверенных (@TL 2026-11-05 15:34): подкласс «гейт считает верно,
+    # а текст врёт». Ровно так я напечатал «граница None», взяв args.cutoff вместо вычисленного.
+    # Теперь это ловится автоматически: в тексте должна быть ВЫЧИСЛЕННАЯ граница, а не None.
+    tmp2 = os.path.join(os.getcwd(), ".tmp-check-adr-empty")
+    shutil.rmtree(tmp2, ignore_errors=True)
+    os.makedirs(tmp2, exist_ok=True)
+    open(os.path.join(tmp2, "adr-997-old.md"), "w", encoding="utf-8", newline="\n").write(BAD)
+    saved_argv = sys.argv
+    sys.argv = ["check_adr.py", "--dir", tmp2, "--cutoff", "2099-01-01"]
+    buf = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = buf
+    try:
+        rc_empty = main()
+    finally:
+        sys.stdout = old_stdout
+        sys.argv = saved_argv
+    text = buf.getvalue()
+    has_date = "граница 2099-01-01" in text
+    no_none = "None" not in text
+    print("  [%s] текст при 0 ADR: граница вычислена=%s, без None=%s, rc=%d"
+          % ("OK " if has_date and no_none and rc_empty == 0 else "FAIL",
+             has_date, no_none, rc_empty))
+    ok = ok and has_date and no_none and rc_empty == 0
+    shutil.rmtree(tmp2, ignore_errors=True)
+
     # Текст сообщения — отдельная проверка (@TL 11:05): гейт может быть прав, а ТЕКСТ врать.
     # Раньше здесь печаталось «создан до None» при default --cutoff.
     try:
@@ -362,6 +452,28 @@ def selftest():
         ok = False
     except ValueError:
         print("  [OK ] downgrade_note(None) -> ValueError (None напечатать нельзя)")
+
+    # --- DO-070: норма владельца (Источник + Связанные решения) ---
+    base_bad = "# ADR-998\n\n- **Статус:** Предложено\n- **Дата:** 2026-11-16\n"
+    cases = [
+        ("нет «Источник»", base_bad, "Источник", True),
+        ("пустые «Связанные решения»", base_bad + "- **Источник:** AR-012\n",
+         "Связанные решения", True),
+        ("«— (ADR того же типа нет)»", base_bad + "- **Источник:** AR-012\n"
+         "- **Связанные решения:** — (ADR того же типа нет)\n", None, False),
+        ("ADR-XXX без «комплаенс прошлого»", base_bad + "- **Источник:** AR-012\n"
+         "- **Связанные решения:** меняет ADR-020; почему — факты другие\n", "комплаенс", True),
+        ("полная ссылка", base_bad + "- **Источник:** owner 2026-11-14\n"
+         "- **Связанные решения:** меняет ADR-020 — почему меняется: механика сменилась; "
+         "комплаенс прошлого сохранён\n", None, False),
+    ]
+    for title, text, needle, expect_bad in cases:
+        errs = check_owner_norm(text)
+        got_bad = bool(errs) if needle is None else any(needle in e for e in errs)
+        passed = got_bad == expect_bad
+        print("  [%s] DO-070: %s -> %s" % ("OK " if passed else "FAIL", title,
+                                           "; ".join(errs)[:90] or "чисто"))
+        ok = ok and passed
 
     print("check_adr: самопроверка %s" % ("пройдена" if ok else "ПРОВАЛЕНА"))
     return 0 if ok else 1
