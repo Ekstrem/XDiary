@@ -10,7 +10,7 @@ using Xunit;
 
 namespace AppleHealthGateway.IntegrationTests;
 
-/// <summary>BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137) для `apple_health_read`.</summary>
+/// <summary>BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137) РґР»СЏ `apple_health_read`.</summary>
 public class AppleHealthGatewayStaleSkipTests
 {
     private const long LegacyMs = 1_795_000_000_000L;
@@ -28,7 +28,7 @@ public class AppleHealthGatewayStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<AppleHealthGateway.Domain.IAppleHealthGateway, AppleImportReadModel>>(store);
         sc.AddSingleton<IReadRepository<AppleHealthGateway.Domain.IAppleHealthGateway, AppleImportReadModel>>(new FakeReadRepo(existingVersion));
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new AppleHealthGatewayEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 

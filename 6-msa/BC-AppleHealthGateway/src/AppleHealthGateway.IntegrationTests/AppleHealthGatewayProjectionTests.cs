@@ -30,8 +30,10 @@ public class AppleHealthGatewayProjectionTests
         AppleHealthGatewayProjection.ApplyVos(read, m.GetValueObjects());
 
         Assert.Equal(clientId, read.ClientId);
+        Assert.Equal("apple", read.SourceId);
         Assert.Equal(new[] { "steps", "hr" }, read.Metrics);
-        Assert.Equal("export.xml", read.LastImport);
+        Assert.Contains("export.xml", read.ProcessedFiles);
+        Assert.False(string.IsNullOrWhiteSpace(read.LastImport));
     }
 
     [Fact]

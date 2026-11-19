@@ -13,9 +13,9 @@ using Xunit;
 namespace Client.IntegrationTests;
 
 /// <summary>
-/// BE-140 L2: stale-skip с `LegacyTimestampFloor` (класс BE-137).
-/// Legacy-строка read-модели хранит ms-таймстамп (1.79e12), а события нумеруются 1,2,3…
-/// Без пола `existing.Version &gt;= event.Version` навсегда отбрасывает события.
+/// BE-140 L2: stale-skip СЃ `LegacyTimestampFloor` (РєР»Р°СЃСЃ BE-137).
+/// Legacy-СЃС‚СЂРѕРєР° read-РјРѕРґРµР»Рё С…СЂР°РЅРёС‚ ms-С‚Р°Р№РјСЃС‚Р°РјРї (1.79e12), Р° СЃРѕР±С‹С‚РёСЏ РЅСѓРјРµСЂСѓСЋС‚СЃСЏ 1,2,3вЂ¦
+/// Р‘РµР· РїРѕР»Р° `existing.Version &gt;= event.Version` РЅР°РІСЃРµРіРґР° РѕС‚Р±СЂР°СЃС‹РІР°РµС‚ СЃРѕР±С‹С‚РёСЏ.
 /// </summary>
 public class ClientStaleSkipTests
 {
@@ -26,7 +26,7 @@ public class ClientStaleSkipTests
     {
         var reg = Aggregate.CreateInstance(new AnemicModel()).Register(Phone, "123456");
         var ver = Aggregate.CreateInstance(reg.Model()).VerifyOtp("123456");
-        Assert.True(ver.IsSuccess(), "verify должен пройти");
+        Assert.True(ver.IsSuccess(), "verify РґРѕР»Р¶РµРЅ РїСЂРѕР№С‚Рё");
         return ver.Event!;
     }
 
@@ -37,7 +37,7 @@ public class ClientStaleSkipTests
         var sc = new ServiceCollection();
         sc.AddSingleton<IReadModelStore<IClients, ClientReadModel>>(store);
         sc.AddSingleton<IReadRepository<IClients, ClientReadModel>>(repo);
-        using var sp = sc.BuildServiceProvider();
+        var sp = sc.BuildServiceProvider(); // BE-140: НЕ dispose — хендлер держит IServiceScopeFactory
         return (new ClientEventHandler(sp.GetRequiredService<IServiceScopeFactory>()), store);
     }
 
@@ -50,14 +50,14 @@ public class ClientStaleSkipTests
         await handler.HandleAsync(ev);
 
         Assert.NotNull(store.Upserted);
-        Assert.True(store.Upserted!.Verified, "событие verify должно примениться поверх legacy ms-версии");
+        Assert.True(store.Upserted!.Verified, "СЃРѕР±С‹С‚РёРµ verify РґРѕР»Р¶РЅРѕ РїСЂРёРјРµРЅРёС‚СЊСЃСЏ РїРѕРІРµСЂС… legacy ms-РІРµСЂСЃРёРё");
     }
 
     [Fact]
     public async Task SmallerExistingVersion_SkipsStaleEvent()
     {
         var ev = VerifyEvent();
-        // existing (5) — маленькая версия; skip ожидается только если она >= версии события.
+        // existing (5) вЂ” РјР°Р»РµРЅСЊРєР°СЏ РІРµСЂСЃРёСЏ; skip РѕР¶РёРґР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РµСЃР»Рё РѕРЅР° >= РІРµСЂСЃРёРё СЃРѕР±С‹С‚РёСЏ.
         var shouldSkip = ev.Version <= 5;
         var (handler, store) = Build(existingVersion: 5);
 
