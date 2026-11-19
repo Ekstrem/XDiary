@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AppleHealthGateway.Domain\AppleHealthGateway.Domain.csproj" /><ProjectReference Include="..\AppleHealthGateway.DomainServices\AppleHealthGateway.DomainServices.csproj" />
+    <ProjectReference Include="..\AppleHealthGateway.Api\AppleHealthGateway.Api.csproj" />
     <ProjectReference Include="..\AppleHealthGateway.Storage\AppleHealthGateway.Storage.csproj" />
     <ProjectReference Include="..\AppleHealthGateway.InternalContracts\AppleHealthGateway.InternalContracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
