@@ -35,6 +35,9 @@ builder.Services.AddReadStorePostgres<IGarminGateway, GarminSyncReadModel, ReadD
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
+// BE-140: без консьюмера/хендлера проекции garmin_sync_read остаётся пустой (класс BE-134/BE-138).
+builder.Services.AddHostedService<GarminGateway.Api.Events.GarminGatewayEventConsumer>();
+builder.Services.AddSingleton<GarminGateway.Api.Events.GarminGatewayEventHandler>();
 
 
 
