@@ -14,6 +14,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
       <PackageReference Include="DigiTFactory.Libraries.Analyzers.Testing" Version="0.1.0" PrivateAssets="all" />
+    <PackageReference Include="DigiTFactory.Libraries.Testing" Version="0.1.0" />
 </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Client.Api\Client.Api.csproj" />
