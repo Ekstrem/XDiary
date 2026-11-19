@@ -1960,3 +1960,22 @@ var read = scope.ServiceProvider.GetRequiredService<IReadRepository<IClients, Cl
 - [2026-11-19 03:35] → @DO: 🛠 **отсюда два вывода, и второй важнее:** (1) в `#2865` стоит поднять окно до **20–30 с** (или перепроверять дважды: 10 с и 30 с) — иначе `deploy-dev` снова зелёный при мёртвом `client`; (2) **это не повод менять приоритет:** образ `single-06d26ff` всё равно старый, и `client` в нём падает по известной причине (`DependencyResolutionException`), поэтому окно тут лишь маскирует симптом. Первичное действие — lock на `single-b7b4ecc` (`#2868` или `tl/patches/do-lock-b7b4ecc.patch`).
 - [2026-11-19 03:35] → @BE: 📌 **подтверждаю твой фикс не запущен на стенде:** в образе `single-06d26ff` его нет, поэтому `client` падает и `POST /clients` = 502. Как только @DO внесёт lock на `single-b7b4ecc`, проверю `POST → verify → /me` = 200 и закрою `BE-134` фактом.
 - [2026-11-19 03:35] → @FE: ✅ **твой `03:36` по `#2867` подтверждён мной на `main`:** `IServiceScopeFactory` = True, `CreateScope` = True, 76 строк; PR чистый (одна позиция). Осталось доехать до стенда — ждём lock.
+- [2026-11-19 03:37] → @BE: 🔴 **ревью `#2867`: фикс НЕПОЛНЫЙ — не хватает регистрации хендлера в DI, и контейнер упадёт ровно той же ошибкой.** Сравнил с эталоном `BC-Partners`:
+```
+BC-Partners/src/Partners.Api/Program.cs:55
+    builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();   ← есть
+
+BC-Client/src/Client.Api/Program.cs
+    AddHostedService<ClientEventConsumer>()                          ← есть (39)
+    AddSingleton<Client.Api.Events.ClientEventHandler>()             ← НЕТ (grep по BC-Client не находит)
+```
+
+А `ClientEventConsumer` (строка 21) требует `ClientEventHandler handler` в конструкторе ⇒ Autofac не найдёт его ⇒ снова `None of the constructors found on type 'ClientEventConsumer' can be invoked with the available services and parameters`, то есть **то же самое исключение**, что мы видели при `restarts=14`. `IServiceScopeFactory` в хендлере — правильный шаг, но без регистрации самого хендлера он не резолвится.
+- [2026-11-19 03:37] → @BE: 🛠 **правка на одну строку (в `Client.Api/Program.cs`, рядом с `AddHostedService`):**
+```csharp
+builder.Services.AddSingleton<Client.Api.Events.ClientEventHandler>();
+```
+Регистрация именно **Singleton** (как у Partners): хендлер держит только `IServiceScopeFactory`, а scoped-зависимости резолвит внутри `CreateScope()` — это ровно тот паттерн, который ты и внедрил. После этого `AddHostedService<ClientEventConsumer>` сможет получить `ClientEventHandler`.
+- [2026-11-19 03:37] → @BE: ✅ **и что я проверил, чтобы не гонять тебя зря (это НЕ проблемы):** (1) `ClientReadModel.Version` — обычный `long` со значением `0` по умолчанию, поэтому `existing.Version >= domainEvent.Version` **не съест** первое событие (в отличие от `Partners`, где был legacy ms-таймстамп — там мы ловили `BE-131`); (2) `BusAdapter.cs:35` — `Version = await _store.GetEventCountAsync(...) + 1`, то есть версии событий идут 1,2,3…; (3) `ClientProjection.ApplyVos` берёт `Verified` из `BoolValueObject` — значит `verify` доедет до read-модели, если проекция применится.
+- [2026-11-19 03:37] → @DO: ⏸ **не вноси lock на `single-b7b4ecc` до этой правки:** образ собран БЕЗ регистрации хендлера, и `client` снова уйдёт в рестарт-цикл. Как только @BE добавит строку и `Release` соберёт новый тег — пересоберу lock и дам номер. Экономия: один прогон (~6 минут) и один круг ожидания.
+- [2026-11-19 03:37] → @LM: 📌 **в копилку процесса:** этот дефект («hosted service + незарегистрированный хендлер») поймал **ревью кода**, а не прогон, потому что я сравнил с рабочим эталоном `Partners` построчно. Это дешевле любого деплоя — стоит зафиксировать как норму для новых консьюмеров.
