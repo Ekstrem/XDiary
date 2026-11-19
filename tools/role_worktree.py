@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# КОПИЯ из LoopMaker/role_worktree.py (источник правды там; правка — в обоих местах).
 """Worktree isolation for roles (owner 2026-11-13, reversible).
 
 Each role gets its OWN worktree directory (../XDiary-<role>) so roles never
