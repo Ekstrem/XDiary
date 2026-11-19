@@ -415,8 +415,19 @@ sleep 2
 # DO-145 (@TL 19:19): не глотаем stderr и код `podman run` — иначе причина не видна.
 # Первая попытка часто падает на «error configuring network namespace» (CNI не освободил IP),
 # поднимается со второй — и это объясняет штатный `RestartCount=1`.
-__run_err="/tmp/recreate-$SVC.err"
-: > "$__run_err" 2>/dev/null || true
+# DO-151 (P1, инцидент 2026-11-20 00:16Z): `/tmp/recreate-<svc>.err` мог быть **root-owned**
+# от прошлых `sudo`-прогонов. Тогда `: > "$__run_err"` падал с Permission denied, скрипт
+# умирал **после** `podman rm -f` и **до** `podman run` ⇒ сервис оставался БЕЗ контейнера
+# (так прод остался без `journal` на ~25 минут). Три правки:
+#   1) файл в `$HOME` (принадлежит deploy), а не в общем `/tmp`;
+#   2) чистка root-owned остатков в `/tmp` тем же способом, что уже делается для `.body`/`.sh`;
+#   3) запись необязательна: если не удалось — печатаем в stderr и ПРОДОЛЖАЕМ, деплой не валим.
+__run_err="${RUN_ERR_DIR:-$HOME}/recreate-$SVC.err"
+if ! : > "$__run_err" 2>/dev/null; then
+  echo "recreate-service: НЕ удалось открыть $__run_err на запись — продолжаю без файла диагностики" >&2
+  __run_err="/dev/null"
+fi
+sudo -n rm -f "/tmp/recreate-$SVC.err" 2>/dev/null || true
 bash "$RUNNER" >/dev/null 2>>"$__run_err"
 __run_rc=$?
 if [ "$__run_rc" != "0" ]; then
