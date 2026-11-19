@@ -620,10 +620,25 @@ jobs:
       - name: Паритет прод ↔ dev (класс ответа по каждой операции)
         run: |
           set -uo pipefail
-          python tools/check_apim_parity.py \
-            --a "$XDIARY_PROD_BASE_URL" --b "$XDIARY_E2E_BASE_URL" --retry-unknown 2 | tee parity.txt
-          rc=${PIPESTATUS[0]}
-          { echo "### Паритет APIM прод ↔ dev"; echo; cat parity.txt; } >> "$GITHUB_STEP_SUMMARY"
+          # DO-145 (@DO 2026-11-19): гейт мерил один раз и красил прогон, когда прод/дев
+          # были в ОКНЕ пересоздания (апстрим не отвечает ⇒ 500/502 у одной из сторон).
+          # Проверка фактом: сразу после такого «failure» тот же замер даёт `rc=0`,
+          # 25 операций, 0 расхождений. Поэтому — вторая попытка через паузу; если и она
+          # не `0`, вердикт остаётся красным (rc=2 → «не измерено», rc=1 → «расходится»).
+          ATTEMPTS="${PARITY_ATTEMPTS:-2}"
+          PAUSE="${PARITY_PAUSE:-20}"
+          attempt=1
+          rc=1
+          while [ "$attempt" -le "$ATTEMPTS" ]; do
+            echo "::notice::паритет APIM: попытка $attempt/$ATTEMPTS"
+            python tools/check_apim_parity.py \
+              --a "$XDIARY_PROD_BASE_URL" --b "$XDIARY_E2E_BASE_URL" --retry-unknown 2 | tee parity.txt
+            rc=${PIPESTATUS[0]}
+            { echo "### Паритет APIM прод ↔ dev (попытка $attempt, rc=$rc)"; echo; cat parity.txt; } >> "$GITHUB_STEP_SUMMARY"
+            [ "$rc" = "0" ] && break
+            [ "$attempt" -lt "$ATTEMPTS" ] && { echo "пауза ${PAUSE} с перед повтором"; sleep "$PAUSE"; }
+            attempt=$((attempt + 1))
+          done
           if [ "$rc" = "0" ]; then echo "::notice::паритет APIM: расхождений нет"; exit 0; fi
           if [ "$rc" = "2" ]; then echo "::error::паритет APIM: измерить не удалось (rc=2) — это не «зелено»"; exit 2; fi
           echo "::error::паритет APIM: конфигурация API на проде и dev расходится (см. summary)"; exit 1
