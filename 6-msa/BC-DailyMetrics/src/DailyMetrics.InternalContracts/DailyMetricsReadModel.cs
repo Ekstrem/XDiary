@@ -4,6 +4,8 @@ using XDiary.Contracts;
 public sealed class DailyMetricsReadModel : IReadModel<DailyMetrics.Domain.IDailyMetrics>
 {
     public Guid Id { get; set; }
+    // BE-140: версия события для stale-skip (QG-305).
+    public long Version { get; set; }
     public string Date { get; set; } = string.Empty;
     public int Stress { get; set; }
     public int RestingHr { get; set; }
