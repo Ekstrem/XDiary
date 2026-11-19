@@ -58,8 +58,11 @@ test('E2E: партнёр — добавить в приложении, увид
     const names = await page
       .locator('#partners-list .partner-row')
       .evaluateAll((rows) => rows.map((r) => {
-        const n = r.querySelector('.partner-row-name, span');
-        const txt = ((n && n.textContent) || r.innerText || '').trim();
+        // ВАЖНО (@TE 2026-11-19): `.partner-row-name, span` матчил АВАТАР (первый span в
+        // порядке документа, `avatar-initial` = первая буква) — отсюда ложное «в DOM имя "T"».
+        const n = r.querySelector('.partner-row-name') ||
+          r.querySelector('.partner-row-text') || r;
+        const txt = (n.textContent || '').trim();
         return txt.slice(0, 40);
       }).slice(0, 10))
       .catch(() => []);
@@ -67,6 +70,15 @@ test('E2E: партнёр — добавить в приложении, увид
       .evaluate(async () => {
         const base = localStorage.getItem('xdiary.apiBase') || '';
         const t = localStorage.getItem('xdiary.accessToken') || '';
+        // @DO 2026-11-19 08:23: пустая база ⇒ запрос ушёл бы относительным (`4173/api/...`) и
+        // выглядел бы как «404 на фронте». Падаем явно: это тест-баг, а не дефект продукта.
+        if (!base) {
+          return {
+            error: 'xdiary.apiBase пуст: диагностический запрос ушёл бы относительным ' +
+              '(127.0.0.1:4173/api/...) — это тест-баг (не выставлена база), а не 404 фронта',
+            apiBaseLen: 0,
+          };
+        }
         const r = await fetch(base + '/api/v1/partners', { headers: t ? { Authorization: 'Bearer ' + t } : {} });
         const list = await r.json().catch(() => null);
         const names = Array.isArray(list) ? list.map((x) => (x && (x.name || x.title)) || '?') : [];
