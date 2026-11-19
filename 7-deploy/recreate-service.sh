@@ -90,9 +90,14 @@ PY
     __size="$(wc -c < "$__tmp" 2>/dev/null | tr -d ' ')"
     __cnt="$(grep -cE '^[[:space:]]*(sudo -n )?podman run' "$__tmp" 2>/dev/null || true)"
     __img="$(tail -1 "$__tmp" 2>/dev/null | awk '{print $NF}')"
+    # В deploy.sh образ записан как `ghcr.io/.../<svc>:$TAG` — переменная подставляется в runner
+    # строкой `TAG=<lock_tag>` выше. Поэтому принимаем либо `:$TAG`, либо уже подставленный тег:
+    # проверяем, что образ указывает на ЭТОТ сервис и его тег — `$TAG` либо `$lock_tag`.
+    __want_var="ghcr.io/ekstrem/xdiary-$s:\$TAG"
+    __want_lit="ghcr.io/ekstrem/xdiary-$s:$__tag"
     if [ "${__size:-0}" -gt 1 ] && [ "${__cnt:-0}" = "1" ] && [ -n "$__tag" ] \
-       && [ "$__img" = "ghcr.io/ekstrem/xdiary-$s:$__tag" ]; then
-      printf '  [OK ] %-22s tag=%s\n' "$s" "${__tag:-ПУСТО}"
+       && { [ "$__img" = "$__want_var" ] || [ "$__img" = "$__want_lit" ]; }; then
+      printf '  [OK ] %-22s tag=%s img=%s\n' "$s" "${__tag:-ПУСТО}" "${__img##*:}"
     else
       printf '  [FAIL] %-22s size=%s cnt=%s img=%s tag=%s\n' "$s" "${__size:-0}" "${__cnt:-0}" "${__img:-нет}" "${__tag:-ПУСТО}"
       __bad=$((__bad + 1))
