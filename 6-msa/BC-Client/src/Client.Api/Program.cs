@@ -37,6 +37,7 @@ builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IClients, ClientReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-134: проекция read-модели (иначе client_read пустая -> GET /clients/me = 404).
 builder.Services.AddHostedService<Client.Api.Events.ClientEventConsumer>();
+builder.Services.AddSingleton<Client.Api.Events.ClientEventHandler>();
 // BE-133 (@TL 00:50): DbContextOptions ПОСЛЕ store-регистраций (порядок как в Journal, строка 55) —
 // иначе не-generic регистрация до AddReadStorePostgres ломает резолв EventStoreDbContext.
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
