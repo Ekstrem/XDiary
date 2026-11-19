@@ -32,6 +32,8 @@ builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAn
 builder.Services.AddScoped<PrivacyEventReplay>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IPrivacy, PinCredentialReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
+// BE-125/BE-133: не-generic DbContextOptions для библиотечного EventStoreDbContext (иначе Autofac падает).
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 
