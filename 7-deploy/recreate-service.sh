@@ -82,7 +82,10 @@ gen_expected() {
   # Замер: прогон deploy 43452089927, лог `add-host добавлен для client (11 хостов)`
   # против 10 у остальных. Теперь исключаем ЛЮБОЙ псевдоним, указывающий на свой IP.
   local own_ip=""
-  own_ip="$(awk -v n="xdiary-$svc " 'index($0, "podman run -d --name " n) {for (i=1;i<NF;i++) if ($i=="--ip") {print $(i+1); exit}}' \
+  # DO-145 (@AR 15:47): искали `podman run -d --name <n>`, а в deploy.sh между ними стоит
+# `--replace` ⇒ `own_ip` всегда пуст ⇒ ветка `else` не отфильтровывала чужой алиас на свой IP
+# (инцидент client/clients, который комментарий выше считает вылеченным). Ищем по `--name`.
+own_ip="$(awk -v n="xdiary-$svc " 'index($0, "--name " n) {for (i=1;i<NF;i++) if ($i=="--ip") {print $(i+1); exit}}' \
     "$DEPLOY_SH" 2>/dev/null || true)"
   if [ -n "$own_ip" ]; then
     printf '%s' "$raw" | tr ' ' '\n' | grep -v "^--add-host$" | grep -v "^${svc}:" | grep -v ":$own_ip$" | tr '\n' ' '
@@ -255,7 +258,8 @@ runner, hosts = sys.argv[1:3]
 lines = open(runner, encoding='utf-8').read().splitlines()
 out = []
 for l in lines:
-    if 'podman run -d --name' in l:
+    # DO-145 (@AR 15:47): `podman run -d --name` не встречается (в строке `-d --replace --name`).
+    if '--name xdiary-' in l:
         parts = l.rsplit(' ', 1)
         if len(parts) == 2:
             add = ' '.join('--add-host ' + h for h in hosts.split() if ':' in h)
@@ -270,7 +274,9 @@ fi
 
 bash -n "$RUNNER" || die "собранная команда не проходит bash -n — контейнер не трогаю"
 # DO-144: страховка от «второй строки» в runner (битый image-override).
-run_cnt="$(grep -c '^podman run' "$RUNNER" || true)"
+# DO-145 (@AR 15:47): извлечённая строка начинается с `sudo -n podman run`, поэтому
+# `^podman run` давал 0 и скрипт падал на «0 команд (ожидалась 1)». Считаем с учётом префикса.
+run_cnt="$(grep -cE '^[[:space:]]*(sudo -n )?podman run' "$RUNNER" || true)"
 [ "$run_cnt" = "1" ] || die "в runner $run_cnt команд podman run (ожидалась 1) — контейнер не трогаю"
 
 # 2026-11-10 (@DO): ПОРЯДОК ВАЖЕН — образ проверяем/тянем ДО удаления контейнера.
