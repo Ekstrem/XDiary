@@ -691,6 +691,11 @@ jobs:
           echo "LOCK_B64=$(base64 -w0 7-deploy/images.lock)" >> "$GITHUB_ENV"
           echo "UPDATE_B64=$(base64 -w0 7-deploy/update.sh)" >> "$GITHUB_ENV"
           echo "RECREATE_B64=$(base64 -w0 7-deploy/recreate-service.sh)" >> "$GITHUB_ENV"
+          # DO-145 (@TE 2026-11-19 21:10): в блоке deploy-prod `DEPLOY_B64` ОТСУТСТВОВАЛ, поэтому
+          # на VPS-1 оставалась копия `deploy.sh` от 17 Nov, и `recreate-service` извлекал из неё
+          # строку запуска без `--replace` ⇒ `die`/readiness, шлюз не пересоздавался.
+          # Аннотация джоба это подтвердила: «DEPLOY_B64 не передан».
+          echo "DEPLOY_B64=$(base64 -w0 7-deploy/deploy.sh)" >> "$GITHUB_ENV"
           # DO-124 ч.2: шим `/home/deploy/update.sh` падал на своём стороже ДО вызова живого
           # скрипта, потому что `legacy-shims.sh` на VPS-1 отсутствовал. envs уже расширены
           # до LEGACY_B64, но сама переменная не готовилась — на стенд уходила пустая строка,
