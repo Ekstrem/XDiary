@@ -369,7 +369,9 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
     fi
   fi
   if [ -n "$__st" ]; then
-    if [ "$__st" = "0 0" ]; then
+    # DO-145 (@FE 03:48): `catalog` дал `[1 0]` — ОДИН рестарт на старте (ждал БД) при ExitCode=0.
+    # Это норма, а дефект — РОСТ RestartCount. Разрешаем <=1 при ExitCode=0.
+    if awk 'NF==2 && $1<=1 && $2==0 {found=1} END{exit(found?0:1)}' <<< "$__st" 2>/dev/null; then
       # DO-145 (@TL 23:58): HTTP-проверка — ТОЛЬКО для шлюза. Остальные сервисы портов
       # на хост не публикуют, и `127.0.0.1:8080/health` попадает в чужой listener
       # (Caddy/APIM) → ложное «не поднялся» при живом контейнере (прогон 44395812395).
@@ -386,16 +388,21 @@ if [ "$__ok" = "1" ]; then
   # DO-145 (@TL 03:12, 03:35): ОДИН замер в момент старта пропускает рестарт-цикл (restarts=14,
   # а deploy-dev зелёный). Падение Autofac приходит ПОЗЖЕ 10 с (@TL: 502 через ~2 мин), поэтому
   # проверяем ДВАЖДЫ: 10 с и 30 с — дефект, который проявляется позже, не пройдёт как OK.
+  __r_prev="$(awk 'NF==2{print $1}' <<< "$__st" 2>/dev/null || echo 0)"
   sleep 10
   __st2="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
-  if [ "$__st2" != "0 0" ] && [ -n "$__st2" ]; then
-    say "ОШИБКА: $CONTAINER в рестарт-цикле через 10 с (RestartCount/ExitCode=[$__st2])" >&2
+  __r2="$(awk 'NF==2{print $1; exit}' <<< "$__st2" 2>/dev/null || echo x)"
+  __e2="$(awk 'NF==2{print $2; exit}' <<< "$__st2" 2>/dev/null || echo x)"
+  if [ "${__r2:-x}" != "x" ] && { [ "${__e2:-1}" != "0" ] || [ "${__r2:-0}" -gt "${__r_prev:-0}" ]; }; then
+    say "ОШИБКА: $CONTAINER рестарты растут/wrong exit через 10 с (RestartCount/ExitCode=[$__st2], было [$__st])" >&2
     exit 1
   fi
   sleep 20
   __st3="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
-  if [ "$__st3" != "0 0" ] && [ -n "$__st3" ]; then
-    say "ОШИБКА: $CONTAINER в рестарт-цикле через 30 с (RestartCount/ExitCode=[$__st3])" >&2
+  __r3="$(awk 'NF==2{print $1; exit}' <<< "$__st3" 2>/dev/null || echo x)"
+  __e3="$(awk 'NF==2{print $2; exit}' <<< "$__st3" 2>/dev/null || echo x)"
+  if [ "${__r3:-x}" != "x" ] && { [ "${__e3:-1}" != "0" ] || [ "${__r3:-0}" -gt "${__r2:-0}" ]; }; then
+    say "ОШИБКА: $CONTAINER рестарты растут/wrong exit через 30 с (RestartCount/ExitCode=[$__st3], было [$__st2])" >&2
     exit 1
   fi
   say "  OK: $CONTAINER пересоздан (стабилен 30 с)"
