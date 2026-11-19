@@ -229,8 +229,15 @@ ADD_HOSTS="$(gen_expected)"
 
 { echo 'set -u'; echo 'NET=xdiary'
   echo 'LBL="--label io.containers.autoupdate=registry"'
+  # DO-145 (@AR 2026-11-19 15:40): ТИХИЙ fallback на `single` запрещён. Симптом на проде:
+  # `xdiary-api-gateway` создан из образа `:single` (чужой Id), хотя в lock `single-48ca55f`
+  # и образ по lock на хосте есть. Если `tag_of` вернул пусто (нет строки, другой LOCK_FILE,
+  # ошибка awk), лучше остановиться с внятной причиной, чем молча поднять контейнер на `:single`.
   lock_tag="$(tag_of "$SVC" 2>/dev/null || true)"
-  [ -n "$lock_tag" ] || lock_tag="single"
+  if [ -z "$lock_tag" ]; then
+    echo "recreate-service: нет тега для $SVC в $LOCK_FILE — не пересоздаю (тихий :single запрещён)" >&2
+    exit 4
+  fi
   echo "TAG=$lock_tag"
   cat "$BODY"; } > "$RUNNER"
 
