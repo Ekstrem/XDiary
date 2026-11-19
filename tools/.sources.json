@@ -191,7 +191,7 @@
       "upstream": "tools/check_readstore_mapping.py"
     },
     "check_rule_docs.py": {
-      "sha256": "cee2c6d86e0d098bf857ad3bb8c0eaeaf9506df765da215c2def6be96b833c63",
+      "sha256": "caf069879fbc41ac164a1768831f3ea6dbf7f5e6918cd7aadaa9b5138c5d016b",
       "synced_at": "2026-11-19",
       "upstream": "tools/check_rule_docs.py"
     },
