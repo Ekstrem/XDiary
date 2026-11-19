@@ -1,0 +1,15 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index b63924af3..251f0825f 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -706,6 +706,10 @@ jobs:
+           host: ${{ secrets.PROD_SSH_HOST }}
+           username: ${{ secrets.PROD_SSH_USER }}
+           key: ${{ secrets.PROD_SSH_KEY }}
++          # TL 2026-11-19: прод пересоздаёт 12 сервисов (pull + recreate + стабилизация 30 с каждый)
++          # и упирается в дефолтный таймаут ssh-action 10 мин — прогон 44507166256 умер на `client`
++          # («Run Command Timeout»). Для dev это уже сделано (#2945), для прода забыли.
++          command_timeout: 30m
+           envs: TAG,CODE_TS,LOCK_B64,UPDATE_B64,RECREATE_B64,LEGACY_B64,GENHOSTS_B64,ALLOW_PROD_REPAIR,SCHEMACHECK_B64,APIMTARGET_B64,FIXMIG_B64,REIMPORT_APIM,APIM_TEARDOWN,APIM_DIAG,APIM_FIX_ROUTES,APIM_REBUILD,APIM_ENSURE,APIM_MONGO,APIM_TARGET,FIX_MIGRATIONS
+           script: |
+             if [ "${ALLOW_PROD_REPAIR:-false}" = "true" ]; then
