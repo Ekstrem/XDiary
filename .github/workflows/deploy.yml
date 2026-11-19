@@ -214,10 +214,18 @@ jobs:
             echo "$LOCK_B64" | base64 -d > images.lock
             echo "$UPDATE_B64" | base64 -d > update.sh
             echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            # DO-145 (@DO 2026-11-19 21:05): докладываем `deploy.sh` В ТОТ КАТАЛОГ, откуда его читает
+            # `recreate-service.sh` (`$(dirname $0)/deploy.sh`, т.е. `/opt/xdiary/7-deploy/deploy.sh`),
+            # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
+            # (748 Б) и затирал наш файл. Факт с прода: `/home/deploy/deploy.sh` mtime 20:21 size **748**
+            # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
             if [ -n "${DEPLOY_B64:-}" ]; then
-              echo "$DEPLOY_B64" | base64 -d > deploy.sh
-              chmod +x deploy.sh
-              echo "  deploy.sh доставлен ($(wc -c < deploy.sh) Б)"
+              echo "$DEPLOY_B64" | base64 -d > /opt/xdiary/7-deploy/deploy.sh
+              chmod +x /opt/xdiary/7-deploy/deploy.sh
+              echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true))"
+              echo "$DEPLOY_B64" | base64 -d > "$HOME/deploy.sh.real"
+              chmod +x "$HOME/deploy.sh.real"
+              echo "  deploy.sh → $HOME/deploy.sh.real (копия для update.sh)"
             else
               echo "::warning::DEPLOY_B64 не передан — на хосте останется прежняя копия deploy.sh"
             fi
@@ -845,10 +853,18 @@ jobs:
             echo "$LOCK_B64" | base64 -d > images.lock
             echo "$UPDATE_B64" | base64 -d > update.sh
             echo "$RECREATE_B64" | base64 -d > recreate-service.sh
+            # DO-145 (@DO 2026-11-19 21:05): докладываем `deploy.sh` В ТОТ КАТАЛОГ, откуда его читает
+            # `recreate-service.sh` (`$(dirname $0)/deploy.sh`, т.е. `/opt/xdiary/7-deploy/deploy.sh`),
+            # И в `$HOME` — но ПОСЛЕ шимов: `legacy-shims.sh` создаёт `/home/deploy/deploy.sh` заново
+            # (748 Б) и затирал наш файл. Факт с прода: `/home/deploy/deploy.sh` mtime 20:21 size **748**
+            # (шим), `/opt/xdiary/7-deploy/deploy.sh` — 17 Nov, `--replace` = 0 ⇒ recreate читал старьё.
             if [ -n "${DEPLOY_B64:-}" ]; then
-              echo "$DEPLOY_B64" | base64 -d > deploy.sh
-              chmod +x deploy.sh
-              echo "  deploy.sh доставлен ($(wc -c < deploy.sh) Б)"
+              echo "$DEPLOY_B64" | base64 -d > /opt/xdiary/7-deploy/deploy.sh
+              chmod +x /opt/xdiary/7-deploy/deploy.sh
+              echo "  deploy.sh → /opt/xdiary/7-deploy/deploy.sh ($(wc -c < /opt/xdiary/7-deploy/deploy.sh) Б, --replace=$(grep -c -- '--replace' /opt/xdiary/7-deploy/deploy.sh || true))"
+              echo "$DEPLOY_B64" | base64 -d > "$HOME/deploy.sh.real"
+              chmod +x "$HOME/deploy.sh.real"
+              echo "  deploy.sh → $HOME/deploy.sh.real (копия для update.sh)"
             else
               echo "::warning::DEPLOY_B64 не передан — на хосте останется прежняя копия deploy.sh"
             fi
