@@ -7,16 +7,16 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-a4b08e1     6-msa/BC-Journal  commit=a4b08e1  digest=sha256:6f3a991b46f9e26dc05ac1f350398760af4b670af0bd17269b0c159fb4fd5166
-partners             single-a4b08e1     6-msa/BC-Partners  commit=a4b08e1  digest=sha256:d2e5f19ab9406d00b722d39d7a3aaa8dc84b6735d41c3e10dc8c6e1f6646a962
-catalog              single-a4b08e1     6-msa/BC-Catalog  commit=a4b08e1  digest=sha256:8c4ff4473843f0bfeadc2016e2809c85039a907d040f1a7ae07bb74f74e36f69
-somatic-series       single-a4b08e1     6-msa/BC-SomaticSeries  commit=a4b08e1  digest=sha256:dd2f2c2b151f564d69ebdae15692632f43754db5753f52f30823ae3f7ea24782
-daily-metrics        single-a4b08e1     6-msa/BC-DailyMetrics  commit=a4b08e1  digest=sha256:32c2e507556014cd3115652b809cc8d141ebf2fa913619b95dd05dbdf61e3c99
-garmin-gateway       single-a4b08e1     6-msa/BC-GarminGateway  commit=a4b08e1  digest=sha256:a7b5510bb99fd9ceea501d4abe72af7d84bfa96f66df61782973df1205087a7d
-apple-health-gateway single-a4b08e1     6-msa/BC-AppleHealthGateway  commit=a4b08e1  digest=sha256:94935e20d7eb3a8f77e26bb73fa30a9f7dff0f3654f3144d3873d983b8581f1b
-analytics            single-a4b08e1     6-msa/BC-Analytics  commit=a4b08e1  digest=sha256:004a8bea8f6ef61c03c05cd10daa48e8f1f0d5fe041d4de1f0e08ba2b9014d87
-privacy              single-a4b08e1     6-msa/BC-Privacy  commit=a4b08e1  digest=sha256:898de31c7293f152d7aa639e2e198f0fe2894cf7d89f0d8c39604253bc005b0b
-portability          single-a4b08e1     6-msa/BC-Portability  commit=a4b08e1  digest=sha256:de74a287353d4ed6f1e78864a6b3383c742f6681772df4e568cabe487a8c7fdb
-client               single-a4b08e1     6-msa/BC-Client  commit=a4b08e1  digest=sha256:484006061bf8b8e5cf52683d42ac01a0d56c98b9d64f6be47ed4af3cbd8edba9
-api-gateway          single-a4b08e1     6-msa/ApiGateway  commit=a4b08e1  digest=sha256:0d36d3558a0bae6df252bc459a1aa402c006cb0906f703b92a6a24bb92aaf9ad
-front                single-3a9c857     8-front  commit=3a9c857  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
+journal                single-a35be60  6-msa/BC-Journal  commit=a35be60  digest=sha256:385f4dec6b3f5bb1d512f8201914fe3bb8a92405ba39208d66f40ea30ef5182c
+partners               single-a35be60  6-msa/BC-Partners  commit=a35be60  digest=sha256:8bc939764e91038cc9f1f649789d54292c1dfc975b1a0290501e08104c69296c
+catalog                single-a35be60  6-msa/BC-Catalog  commit=a35be60  digest=sha256:919d7020cf46784b55fb6b5c6d6e23b94c41439dfd037e37d723a86747bef167
+somatic-series         single-a35be60  6-msa/BC-SomaticSeries  commit=a35be60  digest=sha256:1fdeeb5fe684237d1af125732a525033f9e1c37cc2b6d95655a38e7a0cae7b8c
+daily-metrics          single-a35be60  6-msa/BC-DailyMetrics  commit=a35be60  digest=sha256:e306245b7e265edbb36170fa9587a87f8afafd7695fbf89f2b566f526b2a4fb5
+garmin-gateway         single-a35be60  6-msa/BC-GarminGateway  commit=a35be60  digest=sha256:35c72a215f55037f757062893e7adb4ad043079544c1aa5eb1670c5654abc14e
+apple-health-gateway   single-a35be60  6-msa/BC-AppleHealthGateway  commit=a35be60  digest=sha256:fc973f1991abd187a3d3ff8b82409ff6a5d896c1622709d716b6f7ccd41e8628
+analytics              single-a35be60  6-msa/BC-Analytics  commit=a35be60  digest=sha256:9dbf37ab9a43727505b06c9e31a6d83a8bbf6793b67e99f38ddad628ec250e33
+privacy                single-a35be60  6-msa/BC-Privacy  commit=a35be60  digest=sha256:d71837a108be9568b60ec4c2e7cf97daa02a912d5eda9af825997346e70b6326
+portability            single-a35be60  6-msa/BC-Portability  commit=a35be60  digest=sha256:728bb9c2a41a5c48607939da207ff6c7d2e9f911a737f5b6b369f37add098c3f
+client                 single-a35be60  6-msa/BC-Client  commit=a35be60  digest=sha256:603b9219bec6f3f6e470066c3e3b4f031e611bfcaa5e31ae4160462d79e2588b
+api-gateway            single-a35be60  6-msa/ApiGateway  commit=a35be60  digest=sha256:5a373104b94c0d6b998483a11259a688f83619b30633788a7836270cd00f819f
+front                  single-a35be60  8-front  commit=a35be60  digest=-
