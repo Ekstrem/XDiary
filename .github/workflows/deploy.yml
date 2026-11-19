@@ -908,6 +908,21 @@ jobs:
             grep -qi 'x-gravitee' /tmp/pub_hdr.txt || { echo "::error::публичный вход без x-gravitee — трафик идёт МИМО APIM"; exit 1; }
             echo APIM_IN_PATH_OK
 
+      # AR 05:30 + TL 09:07/10:59: prod-канон `(ii-a)` — КВИТАНЦИЯ РЕЛИЗА, отдельным шагом
+      # ПОСЛЕ выкатки. На деве `(ii-a)` не засчитывается (ADR-030: YARP в пути), поэтому
+      # раньше гейт был красным «по построению»; теперь он снимается по ПРОДУ, где APIM
+      # действительно в пути. Квитанция 0/1/2 не маскируется: rc!=0 → шаг красный.
+      - name: Канон входа (ii-a) по ПРОДУ — квитанция релиза
+        if: success()
+        env:
+          PROD_BASE: https://xdiary-vps1.taile0b6ee.ts.net
+        run: |
+          set -uo pipefail
+          python 9-tests/scripts/check_apim_auth.py --all --base "$PROD_BASE" --retry-unknown 3
+          rc=$?
+          echo "канон (ii-a) по проду: rc=$rc"
+          exit $rc
+
   # DO-106 (2026-11-06): CORS на ПРОД-входе — отдельный джоб, потому что этот класс дефекта
   # не виден ни одному прежнему гейту: они проверяют коды без `Origin` и не делают preflight.
   # Симптом был: `OPTIONS` → 401, в ответах нет `Access-Control-Allow-Origin`, а фронт
