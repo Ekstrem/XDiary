@@ -89,12 +89,23 @@ async function main() {
   const one = await j(await fetch(BASE + '/api/v1/journal/records/' + rid, { headers: H }));
   receipt.startedAt = one.data && one.data.startedAt;
   receipt.status = one.data && one.data.status;
+  // @TL 2026-11-19 09:37: печатаем СОСТАВ записи до вывода про проекцию — иначе «recent пуст»
+  // можно спутать с «партнёр не привязался к записи».
+  receipt.recordPartners = (one.data && Array.isArray(one.data.partners))
+    ? one.data.partners.map((x) => (x && (x.id || x.partnerId)) || String(x))
+    : null;
+  receipt.recordPlace = one.data ? (one.data.place || null) : null;
   const recent = await j(await fetch(BASE + '/api/v1/journal/recent', { headers: H }));
   receipt.recent = recent.data ? {
     lastPartner: recent.data.lastPartner || null,
     lastPlace: recent.data.lastPlace || null,
   } : null;
 
+  const linkedNone = Array.isArray(receipt.recordPartners) && receipt.recordPartners.length === 0;
+  if (linkedNone) {
+    console.log('ВНИМАНИЕ: в записи нет партнёров (partners=[]) ⇒ `recent.lastPartner` пуст по этой ' +
+      'причине, а не из-за проекции; проверь тело POST …/partners {partnerId}');
+  }
   const zeroStart = !receipt.startedAt || String(receipt.startedAt).indexOf('0001-01-01') === 0;
   const hasPartner = !!(receipt.recent && receipt.recent.lastPartner);
   const hasPlace = !!(receipt.recent && recent.data && recent.data.lastPlace);
@@ -105,6 +116,8 @@ async function main() {
       'квитанция: base ' + BASE,
       '  шаги: ' + JSON.stringify(receipt.steps),
       '  GET /journal/records/<id>: startedAt=' + receipt.startedAt + ' status=' + receipt.status,
+      '    состав записи: partners=' + JSON.stringify(receipt.recordPartners) +
+        ' place=' + JSON.stringify(receipt.recordPlace),
       '  GET /journal/recent: lastPartner=' + JSON.stringify(receipt.recent && receipt.recent.lastPartner) +
         ' lastPlace=' + JSON.stringify(receipt.recent && receipt.recent.lastPlace),
       ok
