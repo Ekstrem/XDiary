@@ -1,0 +1,13 @@
+# DO-148: таймер остаётся, но с `Persistent=false` — не догоняем пропущенные
+# запуски после простоя (иначе серия «догоняющих» heal-циклов ложится на сеть).
+[Unit]
+Description=Periodic heal of rootless podman network for XDiary (DO-010, DO-148)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=false
+Unit=heal-network.service
+
+[Install]
+WantedBy=timers.target
