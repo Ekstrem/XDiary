@@ -17,6 +17,12 @@ on:
       - 'tools/gen_images_lock.py'
   workflow_dispatch:
 
+  # @TL 22:55: lock-sync должен стартовать ПОСЛЕ Release — иначе он видит старые digest,
+  # говорит «lock актуален» и завершается, а lock остаётся старым до ручного rerun.
+  workflow_run:
+    workflows: ["Release (все сервисы с одного коммита)"]
+    types: [completed]
+
 permissions:
   contents: write
   pull-requests: write   # PR для lock (main защищён — GH006)
@@ -27,10 +33,6 @@ permissions:
 # После завершения Release его НИЧТО не перезапускает ⇒ lock остался `single-6d243df`, и `deploy-prod`
 # упал на страже свежести («образы старше кода»). Лечилось ручным `gh run rerun`.
 # Теперь lock-sync запускается и по завершении Release — источник правды «образы собраны».
-  workflow_run:
-    workflows: ["Release (все сервисы с одного коммита)"]
-    types: [completed]
-
 concurrency:
   group: lock-sync
   cancel-in-progress: false
