@@ -7,16 +7,16 @@
 #
 # Формат: <service> <tag> <путь>  commit=<sha>
 # Проверка: python tools/gen_images_lock.py --verify-registry
-journal              single-a35be60     6-msa/BC-Journal  commit=a35be60  digest=sha256:385f4dec6b3f5bb1d512f8201914fe3bb8a92405ba39208d66f40ea30ef5182c
-partners             single-a35be60     6-msa/BC-Partners  commit=a35be60  digest=sha256:8bc939764e91038cc9f1f649789d54292c1dfc975b1a0290501e08104c69296c
-catalog              single-a35be60     6-msa/BC-Catalog  commit=a35be60  digest=sha256:919d7020cf46784b55fb6b5c6d6e23b94c41439dfd037e37d723a86747bef167
-somatic-series       single-a35be60     6-msa/BC-SomaticSeries  commit=a35be60  digest=sha256:1fdeeb5fe684237d1af125732a525033f9e1c37cc2b6d95655a38e7a0cae7b8c
-daily-metrics        single-858a203     6-msa/BC-DailyMetrics  commit=858a203  digest=sha256:3452b23317a73713e6f479b4e271665572c5024e779e45a344069016357513a8
-garmin-gateway       single-48ca55f     6-msa/BC-GarminGateway  commit=48ca55f  digest=sha256:84e72cdaaff697b37b44b78e3e2090435c771e8e8f63d448f116ea92812b50a8
-apple-health-gateway single-48ca55f     6-msa/BC-AppleHealthGateway  commit=48ca55f  digest=sha256:a1005ae31a2920d92fd016af6d964d5578c619c9cbd80f5921f7b00ee996cce8
-analytics            single-858a203     6-msa/BC-Analytics  commit=858a203  digest=sha256:d8d891f8546e725f4a69a88cc8d36f3e70dcb8634a4f63d6617668be9b05a3fe
-privacy              single-858a203     6-msa/BC-Privacy  commit=858a203  digest=sha256:63fcc5562d00810eb6d7619a59a8f484d7b5a3a34ed31fd83801cccaacea17ce
-portability          single-858a203     6-msa/BC-Portability  commit=858a203  digest=sha256:925e1b0c4bb9255e1f30b4c50e31a2c0eb8296b445ddf77e3bdb99fca24ec1bd
-client               single-858a203     6-msa/BC-Client  commit=858a203  digest=sha256:ef72e10b740bf7f682dc0f2d56e48a64187c15023d917649d721f2e0074d8bf2
-api-gateway          single-858a203     6-msa/ApiGateway  commit=858a203  digest=sha256:92916a52e4dedee2bb08b084e377cc63ee719de9eed3cb7e1fabd40897d4461c
-front                single-09dbbf5     8-front  commit=09dbbf5  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
+journal              single-48ca55f       6-msa/BC-Journal                         commit=48ca55f  digest=sha256:5c6e7aa663f7632e91e2b4c806d94664a1f2a1090f9e80c3e1be6c9f49405bf0
+partners             single-48ca55f       6-msa/BC-Partners                        commit=48ca55f  digest=sha256:d6050fa234f9fe8d6e744f6930f0c1fa735434fd708ed7043e2f713de35117d2
+catalog              single-48ca55f       6-msa/BC-Catalog                         commit=48ca55f  digest=sha256:6071b6043a664adc2d814bf41233e9b30c0a9884b4f55fa8c587da877e934e9c
+somatic-series       single-48ca55f       6-msa/BC-SomaticSeries                   commit=48ca55f  digest=sha256:0d1671cf1437216a885692e471eb6fcdaf1d1cfa385598e7fcdcdb734516b89a
+daily-metrics        single-48ca55f       6-msa/BC-DailyMetrics                    commit=48ca55f  digest=sha256:69fd213a81661a4a33a697e1e3d0b7d889eacf02b9a83c1cc891b709b51cbf91
+garmin-gateway       single-48ca55f       6-msa/BC-GarminGateway                   commit=48ca55f  digest=sha256:0827bb2d5c74c3bdbf957210f34131519d455edb38d2f0ea7f975508b6841227
+apple-health-gateway single-48ca55f       6-msa/BC-AppleHealthGateway              commit=48ca55f  digest=sha256:939252300e417dabd11d8a0650383af5251af8023ed7de87a5f9ded1a01b796e
+analytics            single-48ca55f       6-msa/BC-Analytics                       commit=48ca55f  digest=sha256:ddfa8ac35f87b8cbf6a9846a11bd2720c1a1244ba017635940725eb7157715be
+privacy              single-48ca55f       6-msa/BC-Privacy                         commit=48ca55f  digest=sha256:6ffbbc5664103d31e315df7bda57d173acb14b81ffa3bedabe814814a97056d6
+portability          single-48ca55f       6-msa/BC-Portability                     commit=48ca55f  digest=sha256:5c299fcf8326dc5e131c1103513c999dce8870fd93791aa0eca72610f8e7738c
+client               single-48ca55f       6-msa/BC-Client                          commit=48ca55f  digest=sha256:954af0673bed11cd7bad86c55de86a59bba40e772ba91d43b0a55c50c17b30ac
+api-gateway          single-48ca55f       6-msa/ApiGateway                         commit=48ca55f  digest=sha256:348aa0ae0c18d3d1e2a7e049fa67f41663537208214efac7d39afed65b6f487c
+front                single-3a9c857     8-front  commit=3a9c857  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
