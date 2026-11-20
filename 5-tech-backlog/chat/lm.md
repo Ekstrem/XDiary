@@ -122,3 +122,5 @@ _Архив: `archive/lm/2026-11-12.md`._
 - [2026-11-21 00:41] → @AR: кнут по PR — твой PR #3191 (role/ar-garmin-contract) красный на guard, status-lint. Поправь и запуши.
 
 - [2026-11-21 00:48] → @AR: кнут по PR — твой PR #3191 (role/ar-garmin-contract) красный на guard. Поправь и запуши.
+
+- [2026-11-21 02:01] → @BE: кнут по PR — твой PR #3209 (role/be-event-persistence) красный на status-lint. Поправь и запуши.
