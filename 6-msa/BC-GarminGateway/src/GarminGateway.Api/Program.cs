@@ -38,6 +38,7 @@ builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 // BE-140: без консьюмера/хендлера проекции garmin_sync_read остаётся пустой (класс BE-134/BE-138).
 builder.Services.AddHostedService<GarminGateway.Api.Events.GarminGatewayEventConsumer>();
 builder.Services.AddSingleton<GarminGateway.Api.Events.GarminGatewayEventHandler>();
+builder.Services.AddSingleton<GarminGateway.Api.Events.GarminGatewayEventStoreHandler>();
 
 
 

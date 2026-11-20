@@ -22,10 +22,11 @@ public sealed class JournalEventConsumer : BackgroundService
     private readonly IEventBusConsumer _consumer;
     private readonly JournalEventHandler _handler;
 
-    public JournalEventConsumer(IEventBusConsumer consumer, JournalEventHandler handler)
+    public JournalEventConsumer(IEventBusConsumer consumer, JournalEventStoreHandler storeHandler, JournalEventHandler handler)
     {
         _consumer = consumer;
         _handler = handler;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

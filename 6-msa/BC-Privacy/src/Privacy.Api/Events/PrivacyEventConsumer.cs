@@ -17,9 +17,10 @@ public sealed class PrivacyEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public PrivacyEventConsumer(IEventBusConsumer consumer, PrivacyEventHandler handler)
+    public PrivacyEventConsumer(IEventBusConsumer consumer, PrivacyEventStoreHandler storeHandler, PrivacyEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

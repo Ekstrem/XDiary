@@ -17,9 +17,10 @@ public sealed class PortabilityEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public PortabilityEventConsumer(IEventBusConsumer consumer, PortabilityEventHandler handler)
+    public PortabilityEventConsumer(IEventBusConsumer consumer, PortabilityEventStoreHandler storeHandler, PortabilityEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

@@ -17,9 +17,10 @@ public sealed class GarminGatewayEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public GarminGatewayEventConsumer(IEventBusConsumer consumer, GarminGatewayEventHandler handler)
+    public GarminGatewayEventConsumer(IEventBusConsumer consumer, GarminGatewayEventStoreHandler storeHandler, GarminGatewayEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

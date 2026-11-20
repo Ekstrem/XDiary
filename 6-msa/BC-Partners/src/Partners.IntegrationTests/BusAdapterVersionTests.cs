@@ -1,3 +1,4 @@
+using Partners.Api.Events;
 using XDiary.Contracts;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
@@ -10,7 +11,7 @@ using Partners.DomainServices;
 using Xunit;
 
 /// <summary>
-/// BE-130 (23505 PK_DomainEvents): BusAdapter обязан присваивать событиям МОНОТОННО
+/// BE-130 (23505 PK_DomainEvents): EventStoreHandler обязан присваивать событиям МОНОТОННО
 /// растущие версии из хранилища (GetEventCountAsync + 1), а не result.Event.Version
 /// (которое Clone копирует без инкремента). Иначе вторая команда даёт тот же (Id, Version),
 /// что и первая, и PostgreSQL падает по PK.
@@ -18,22 +19,20 @@ using Xunit;
 public class BusAdapterVersionTests
 {
     [Fact]
-    public void TwoCommands_ProduceDistinctVersions()
+    public async Task TwoCommands_WhenSavedTwice_ShouldProduceDistinctVersions()
     {
         var clientId = Guid.NewGuid();
         var reg = Aggregate.CreateInstance(new AnemicModel()).Register("Алиса", clientId);
         var linked = Aggregate.CreateInstance(reg.Model()).LinkClient(clientId);
 
-        var sc = new ServiceCollection();
-        sc.AddLogging();
-        sc.AddEventBusInMemory();
-        using var sp = sc.BuildServiceProvider();
-
         var store = new CountingStore();
-        var adapter = new BusAdapter(store, sp.GetRequiredService<DigiTFactory.Libraries.SeedWorks.Events.IEventBus>());
+        var sc = new ServiceCollection();
+        sc.AddSingleton<IEventStoreRepository<IPartners, IPartnerAnemicModel>>(store);
+        using var sp = sc.BuildServiceProvider();
+        var handler = new PartnerEventStoreHandler(sp.GetRequiredService<IServiceScopeFactory>());
 
-        adapter.OnNext(reg);     // Version = 0 + 1 = 1
-        adapter.OnNext(linked);  // Version = 1 + 1 = 2
+        await handler.HandleAsync(reg.Event);
+        await handler.HandleAsync(linked.Event);
 
         Assert.Equal(2, store.Saved.Count);
         Assert.Equal(1, store.Saved[0].Version);

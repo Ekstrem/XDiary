@@ -39,6 +39,7 @@ builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 // BE-140: без консьюмера/хендлера проекции pin_credential_read остаётся пустой (класс BE-134/BE-138).
 builder.Services.AddHostedService<Privacy.Api.Events.PrivacyEventConsumer>();
 builder.Services.AddSingleton<Privacy.Api.Events.PrivacyEventHandler>();
+builder.Services.AddSingleton<Privacy.Api.Events.PrivacyEventStoreHandler>();
 
 
 
