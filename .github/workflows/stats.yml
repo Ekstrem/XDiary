@@ -55,6 +55,8 @@ jobs:
 
       - name: Закоммитить README, если изменился
         if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
         run: |
           set -euo pipefail
           if git diff --quiet -- README.md; then
@@ -65,7 +67,13 @@ jobs:
           git config user.email "xdiary-bot@users.noreply.github.com"
           git add README.md
           git commit -m "bot: README = задачи (автообновление)"
-          git push
+          branch="stats-$(date +%s)"
+          git checkout -b "$branch"
+          git push origin "HEAD:$branch"
+          gh pr create --base main --head "$branch" \
+            --title "bot: README = задачи (автообновление)" \
+            --body "Авто-PR статистики. Мержится merge-сервисом после required-чеков." \
+            || echo "PR create rc=$?"
 
       - name: Контроль после правки (должно быть rc=0)
         run: python tools/stats.py --check
