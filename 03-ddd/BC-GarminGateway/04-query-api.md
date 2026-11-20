@@ -1,6 +1,7 @@
 # Query API: Шлюз Garmin (GarminGateway)
 
 > Read-сторона (CEQRS).
+> **Единый UI-контракт Connect/Sync/State, коды и истечение:** `06-connect-contract.md` (AR-163).
 
 ## Запросы (чтение)
 | Запрос | Эндпоинт | Response | Источник |
