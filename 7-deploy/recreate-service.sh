@@ -160,32 +160,21 @@ check_hosts() {
   fi
   # DO-145 (@FE 02:32): recreate идёт в root-store (update.sh: `$PODMAN_SUDO bash RECREATE`),
   # поэтому смотреть надо ОБА store — иначе «контейнера нет» при живом (прогон 44420713858).
-  __cs="rootless"
-  if ! podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
-    if command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
-      __cs="root"
-    else
-      say "  check-hosts $svc: контейнера нет (ни rootless, ни root)" >&2
-      return 1
-    fi
+  # DO-152: один путь через выбранный режим (а не «оба store» — после DO-152 run идёт
+  # строго в него, и вторая ветка давала бы ложное «контейнера нет»).
+  __cs="${PODMAN_SUDO:-rootless}"
+  if ! $PODMAN_SUDO podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "xdiary-$svc"; then
+    say "  check-hosts $svc: контейнера нет (режим: $__cs)" >&2
+    return 1
   fi
-  if [ "$__cs" = "root" ]; then
-    actual="$(sudo -n podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
-  else
-    actual="$(podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
-  fi
+  actual="$($PODMAN_SUDO podman inspect "xdiary-$svc" --format '{{len .HostConfig.ExtraHosts}}' 2>/dev/null || echo 0)"
   if [ "${actual:-0}" -lt "$expected" ]; then
     say "ОШИБКА: $svc ExtraHosts=$actual, ожидалось $expected — флаги попали НЕ в podman" >&2
     return 1
   fi
   if [ "$svc" = "api-gateway" ]; then
-    if [ "$__cs" = "root" ]; then
-      sudo -n podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
-        || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
-    else
-    podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
+    $PODMAN_SUDO podman exec "xdiary-$svc" grep -q ' clients$' /etc/hosts 2>/dev/null \
       || { say "ОШИБКА: у шлюза нет псевдонима clients в /etc/hosts (вход ляжет в 502)" >&2; return 1; }
-    fi
   fi
   say "  check-hosts $svc: ExtraHosts=$actual (ожидалось $expected), clients есть — ok ($__cs)"
   return 0
@@ -412,6 +401,7 @@ fi
 # выглядело как «сервис не поднялся» (portability: 3 попытки в одну секунду) и
 # откатывало весь набор. Даём сети освободить адрес перед запуском.
 sleep 2
+say "  запуск $SVC в режиме: ${PODMAN_SUDO:-rootless (без sudo)}"
 # DO-145 (@TL 19:19): не глотаем stderr и код `podman run` — иначе причина не видна.
 # Первая попытка часто падает на «error configuring network namespace» (CNI не освободил IP),
 # поднимается со второй — и это объясняет штатный `RestartCount=1`.
@@ -462,8 +452,7 @@ while [ "$(date +%s)" -lt "$__deadline" ]; do
   if [ -n "$__st" ]; then
     # DO-145 (@FE 02:34): readiness ОБЯЗАН сверять образ с lock — иначе старый образ
     # проходит как «пересоздан» (deploy-dev зелёный при client, рестартующем 36 раз).
-    __img="$(podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null \
-             || sudo -n podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null || echo '')"
+    __img="$($PODMAN_SUDO podman inspect "$CONTAINER" --format '{{.ImageName}}' 2>/dev/null || echo '')"
     # DO-145 (@TL 01:38): в скрипте нет `$TAG` (тег = `$lock_tag`, строка 216) — при set -u это fatal.
     __want="ghcr.io/ekstrem/xdiary-$SVC:${lock_tag:-}"
     if [ "$__img" != "$__want" ]; then
