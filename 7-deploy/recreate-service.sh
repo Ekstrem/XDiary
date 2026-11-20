@@ -52,6 +52,22 @@ if command -v sudo >/dev/null 2>&1 && ! sudo -n true 2>/dev/null; then
   echo "recreate-service: ПРЕДУПРЕЖДЕНИЕ: sudo доступен, но sudo -n true не проходит — root-пространство не чистим" >&2
 fi
 
+# DO-152 (P1, инцидент 2026-11-20 00:37): run и проверка обязаны быть в ОДНОМ store.
+# deploy.sh в репо — rootful (`sudo -n podman run`), а прод-стек — rootless ⇒ recreate
+# извлекал строку из deploy.sh и создавал контейнер в root-store, которого шлюз (rootless)
+# не видит (прод отвечал 500 на журнале, хотя контейнер был Up в root-store).
+# Режим выбираем той же логикой, что update.sh:50-57 (источник правды там), а префикс
+# `sudo -n` в извлечённой строке подменяем выбранным.
+PODMAN_SUDO=""
+if [ "$(id -u)" -ne 0 ]; then
+  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'xdiary-pg'; then
+    PODMAN_SUDO=""          # контейнеры наши (rootless) — sudo не нужен
+  else
+    PODMAN_SUDO="sudo -n"   # rootless пусто — среда root
+  fi
+  say "podman-режим: ${PODMAN_SUDO:-rootless (без sudo)}"
+fi
+
 [ -f "$DEPLOY_SH" ] || die "нет $DEPLOY_SH"
 
 if [ "${1:-}" = "--list" ]; then
@@ -229,6 +245,11 @@ PY
 
 [ -s "$BODY" ] || die "в $DEPLOY_SH нет команды для $SVC — контейнер не трогаю"
 
+# DO-152: убираем жёсткий rootful-префикс из строки, извлечённой из deploy.sh (она всегда
+# содержит `sudo -n podman run`), и подставляем выбранный режим при сборке RUNNER ниже.
+# Иначе run всегда идёт в root-store независимо от стека стенда.
+sed -i 's/^sudo -n //' "$BODY"
+
 # подмена образа для отката: последний аргумент строки — ghcr.io/...:<tag>
 if [ -n "$IMAGE_OVERRIDE" ]; then
   python3 - "$BODY" "$IMAGE_OVERRIDE" <<'PY'
@@ -286,7 +307,10 @@ ADD_HOSTS="$(gen_expected)"
     exit 4
   fi
   echo "TAG=$lock_tag"
-  cat "$BODY"; } > "$RUNNER"
+  # DO-152: префикс команды — из выбранного режима, а не из deploy.sh (см. strip выше).
+  # rootless → `podman run`, rootful → `sudo -n podman run` — один store с readiness.
+  sed "s|^podman run|${PODMAN_SUDO:+${PODMAN_SUDO} }podman run|" "$BODY"
+  } > "$RUNNER"
 
 if [ -n "$ADD_HOSTS" ] && ! grep -q -- '--add-host' "$RUNNER"; then
   # вставляем --add-host ... перед образом (последний аргумент строки)
@@ -323,9 +347,9 @@ run_cnt="$(grep -cE '^[[:space:]]*(sudo -n )?podman run' "$RUNNER" || true)"
 # Теперь: нет образа локально → `podman pull`; не удалось → выход без удаления старого.
 if [ -n "${lock_tag:-}" ]; then
   img="ghcr.io/ekstrem/xdiary-$SVC:$lock_tag"
-  if ! sudo -n podman image inspect "$img" >/dev/null 2>&1; then
+  if ! $PODMAN_SUDO podman image inspect "$img" >/dev/null 2>&1; then
     echo "  образа $img нет локально — pull"
-    if ! sudo -n podman pull -q "$img" >/dev/null 2>&1; then
+    if ! $PODMAN_SUDO podman pull -q "$img" >/dev/null 2>&1; then
       echo "  ОШИБКА: не удалось скачать $img — контейнер НЕ трогаю" >&2
       exit 3
     fi
@@ -347,7 +371,7 @@ if ! podman network exists xdiary >/dev/null 2>&1; then
   # ОБРАТНЫЙ: сначала rootless (тот же пользователь, что запускает контейнеры), sudo — только
   # как запасной путь.
   podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || \
-    sudo -n podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || true
+    $PODMAN_SUDO podman network create --subnet 10.89.9.0/24 xdiary >/dev/null 2>&1 || true
   if ! podman network exists xdiary >/dev/null 2>&1; then
     echo "  ОШИБКА: сети xdiary нет и создать не удалось — контейнер НЕ трогаю" >&2
     exit 4
@@ -444,10 +468,10 @@ __rt="${READINESS_TIMEOUT:-120}"   # DO-145 (@FE 00:20): 30 с было мень
 __deadline=$(( $(date +%s) + __rt ))
 while [ "$(date +%s)" -lt "$__deadline" ]; do
   __st=""
-  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
-    __st="$(podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
-  elif command -v sudo >/dev/null 2>&1 && sudo -n podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
-    __st="$(sudo -n podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
+  # DO-152: проверяем в том же store, что и run (иначе root-store контейнер «не виден»,
+  # и recreate объявляет «не поднялся» при живом — прод без journal, 500).
+  if $PODMAN_SUDO podman ps --format '{{.Names}}' 2>/dev/null | grep -qx "$CONTAINER"; then
+    __st="$($PODMAN_SUDO podman inspect "$CONTAINER" --format '{{.RestartCount}} {{.State.ExitCode}}' 2>/dev/null || echo "x x")"
   fi
   if [ -n "$__st" ]; then
     # DO-145 (@FE 02:34): readiness ОБЯЗАН сверять образ с lock — иначе старый образ
