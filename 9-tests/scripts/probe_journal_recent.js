@@ -28,6 +28,8 @@ const argv = {};
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--base') argv.base = args[++i];
   else if (args[i] === '--json') argv.json = true;
+  else if (args[i] === '--check-class-only') argv.checkClassOnly = true;
+  else if (args[i] === '--selftest') argv.selftest = true;
 }
 const BASE = argv.base || process.env.XDIARY_API_BASE || 'https://xdiary-vps2.taile0b6ee.ts.net';
 const OTP = process.env.XDIARY_E2E_TEST_OTP || '000000';
@@ -36,6 +38,55 @@ const PLACE = 'TE-probe-place';
 
 const j = async (r) => ({ status: r.status, data: await r.json().catch(() => null) });
 const out = (o) => { if (argv.json) console.log(JSON.stringify(o)); else console.log(o.text); };
+
+// TE-111: «прод здоров» ≠ «/health 200» — шлюз жив, когда ядро лежит (2026-11-19/20,
+// три инцидента: journal/recent = 500 при /health 200). Режим --check-class-only
+// делает ОДИН GET /api/v1/journal/recent БЕЗ регистрации (на проду нет тестового OTP)
+// и судит по классу ответа:
+//   200/401/403  → OK (защищён и жив), rc=0;
+//   500/502/503  → DOWN (ядерный сервис не обслуживается), rc=1;
+//   сеть/таймаут → «не измерено», rc=2 (не красное — это не дефект).
+function classifyJournal(code) {
+  if (code === 200 || code === 401 || code === 403) return { rc: 0, text: 'жив (защищён, шлюз+сервис отвечают)' };
+  if (code >= 500 && code <= 599) return { rc: 1, text: 'DOWN (ядро не обслуживается)' };
+  return { rc: 2, text: 'необычный класс (не решаю)' };
+}
+
+function selftest() {
+  const cases = [
+    [200, 0], [401, 0], [403, 0], [500, 1], [502, 1], [503, 1], [404, 2], [429, 2],
+  ];
+  let bad = 0;
+  for (const [code, want] of cases) {
+    const got = classifyJournal(code).rc;
+    const mark = got === want ? '[OK] ' : '[FAIL]';
+    if (got !== want) bad++;
+    console.log(`${mark} classify(${code}) -> rc=${got} (ждали ${want})`);
+  }
+  console.log(bad === 0 ? 'selftest: OK 8/8' : `selftest: FAIL ${bad}`);
+  process.exitCode = bad === 0 ? 0 : 1;
+}
+
+async function checkClassOnly() {
+  const url = BASE + '/api/v1/journal/recent';
+  let code = 0;
+  try {
+    const r = await fetch(url, { method: 'GET' });
+    code = r.status;
+  } catch (e) {
+    out({ text: `journal/recent → сетевой отказ (${String((e && e.message) || e).slice(0, 120)}) — НЕ ИЗМЕРЕНО`, code: null });
+    process.exitCode = 2;
+    return;
+  }
+  const v = classifyJournal(code);
+  out({
+    text: `journal/recent → ${code} (${v.text}) — ` +
+      (v.rc === 0 ? 'прод-ядро OK' : v.rc === 1 ? 'прод-ядро ЛЕЖИТ' : 'не измерено'),
+    code,
+    verdict: v.rc,
+  });
+  process.exitCode = v.rc;
+}
 
 async function main() {
   const receipt = { base: BASE, steps: {}, startedAt: null, status: null, recent: null };
@@ -135,7 +186,12 @@ async function main() {
   console.log('cleanup partner:', p.data.id, '->', rem.status);
 }
 
-main().catch((e) => {
+if (argv.selftest) selftest();
+else if (argv.checkClassOnly) checkClassOnly().catch((e) => {
+  console.log('НЕ ИЗМЕРЕНО:', String((e && e.message) || e).slice(0, 200));
+  process.exitCode = 2;
+});
+else main().catch((e) => {
   console.log('НЕ ИЗМЕРЕНО:', String((e && e.message) || e).slice(0, 200));
   process.exitCode = 2;
 });
