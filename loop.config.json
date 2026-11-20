@@ -279,8 +279,10 @@
       "dr"
     ],
     "from_chat": "5-tech-backlog/chat/lm.md",
-    "to": "@TL",
-    "idle_minutes": 15
+    "to": "@TL + @EX",
+    "idle_minutes": 30,
+    "backoff_minutes": 30,
+    "streak_window_hours": 6
   },
   "escalation": {
     "silent_minutes": 15,
