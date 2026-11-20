@@ -22,7 +22,7 @@ jobs:
         run: python tools/whip.py --config loop.config.json
       - name: Закоммитить пинг (если 80% простаивают)
         env:
-          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          GH_TOKEN: ${{ secrets.PROJECT_PAT_ISSUE }}
         run: |
           if git diff --quiet -- 5-tech-backlog/chat/lm.md; then
             echo "пинга нет"
