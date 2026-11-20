@@ -1,0 +1,5 @@
+# BE-143 / @DR 2026-11-21: BusAdapter только публикует событие; сохранение — отдельный подписчик шины.
+# Analyzers.DomainServices 0.5.2 содержит устаревший QG-104 (save+publish в BusAdapter).
+# Подавление локальное для DomainServices и снимается после обновления анализатора @DR.
+[*.cs]
+dotnet_diagnostic.QG104.severity = none

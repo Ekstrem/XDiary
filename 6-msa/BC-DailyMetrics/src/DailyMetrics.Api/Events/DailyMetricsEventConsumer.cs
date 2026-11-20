@@ -17,9 +17,10 @@ public sealed class DailyMetricsEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public DailyMetricsEventConsumer(IEventBusConsumer consumer, DailyMetricsEventHandler handler)
+    public DailyMetricsEventConsumer(IEventBusConsumer consumer, DailyMetricsEventStoreHandler storeHandler, DailyMetricsEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

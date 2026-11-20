@@ -18,9 +18,10 @@ public sealed class ClientEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public ClientEventConsumer(IEventBusConsumer consumer, ClientEventHandler handler)
+    public ClientEventConsumer(IEventBusConsumer consumer, ClientEventStoreHandler storeHandler, ClientEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

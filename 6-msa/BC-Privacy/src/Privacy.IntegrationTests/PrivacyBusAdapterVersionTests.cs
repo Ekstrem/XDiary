@@ -1,3 +1,4 @@
+using Privacy.Api.Events;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
@@ -11,22 +12,20 @@ using Xunit;
 public class PrivacyBusAdapterVersionTests
 {
     [Fact]
-    public void TwoCommands_ProduceDistinctVersions()
+    public async Task TwoCommands_WhenSavedTwice_ShouldProduceDistinctVersions()
     {
         var id = Guid.NewGuid();
         var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).SetPin(Guid.NewGuid(), "salt", "hash", 100000);
         var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).SetPin(Guid.NewGuid(), "salt", "hash", 100000);
 
-        var sc = new ServiceCollection();
-        sc.AddLogging();
-        sc.AddEventBusInMemory();
-        using var sp = sc.BuildServiceProvider();
-
         var store = new CountingStore();
-        var adapter = new BusAdapter(store, sp.GetRequiredService<DigiTFactory.Libraries.SeedWorks.Events.IEventBus>());
+        var sc = new ServiceCollection();
+        sc.AddSingleton<IEventStoreRepository<IPrivacy, IPinCredentialAnemicModel>>(store);
+        using var sp = sc.BuildServiceProvider();
+        var handler = new PrivacyEventStoreHandler(sp.GetRequiredService<IServiceScopeFactory>());
 
-        adapter.OnNext(r1);
-        adapter.OnNext(r2);
+        await handler.HandleAsync(r1.Event);
+        await handler.HandleAsync(r2.Event);
 
         Assert.Equal(2, store.Saved.Count);
         Assert.Equal(1, store.Saved[0].Version);
