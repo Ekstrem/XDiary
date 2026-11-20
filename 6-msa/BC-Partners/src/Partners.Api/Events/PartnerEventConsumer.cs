@@ -20,9 +20,10 @@ public sealed class PartnerEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public PartnerEventConsumer(IEventBusConsumer consumer, PartnerEventHandler handler)
+    public PartnerEventConsumer(IEventBusConsumer consumer, PartnerEventStoreHandler storeHandler, PartnerEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }
@@ -54,9 +55,8 @@ public sealed class PartnerEventHandler : IDomainEventHandler<IPartners>, IObser
 
     public async Task HandleAsync(IDomainEvent<IPartners> domainEvent)
     {
-        // BE-128: событие УЖЕ сохранено BusAdapter'ом (SaveEventAsync до PublishAsync).
-        // Повторный SaveEventAsync здесь был дублем (тот же Id) и падал в отброшенную задачу
-        // (_ = HandleAsync(e)), из-за чего проекция не доходила до UpsertAsync.
+        // BE-143: событие сохраняет отдельный PartnerEventStoreHandler — подписчик шины.
+        // Здесь только read-проекция; повторное сохранение запрещено (класс BE-128).
         var read = PartnerProjection.Project(domainEvent);
         if (read is not null)
         {

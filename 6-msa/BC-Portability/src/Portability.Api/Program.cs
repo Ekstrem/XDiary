@@ -37,6 +37,7 @@ builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp
 // BE-140: без консьюмера/хендлера проекции csv_document_read остаётся пустой (класс BE-134/BE-138).
 builder.Services.AddHostedService<Portability.Api.Events.PortabilityEventConsumer>();
 builder.Services.AddSingleton<Portability.Api.Events.PortabilityEventHandler>();
+builder.Services.AddSingleton<Portability.Api.Events.PortabilityEventStoreHandler>();
 
 
 

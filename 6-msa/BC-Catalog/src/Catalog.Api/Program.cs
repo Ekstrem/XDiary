@@ -40,6 +40,7 @@ builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 // BE-138: без консьюмера/хендлера catalog_read остаётся пустой (POST /catalog 200, GET /catalog []).
 builder.Services.AddHostedService<Catalog.Api.Events.CatalogEventConsumer>();
 builder.Services.AddSingleton<Catalog.Api.Events.CatalogEventHandler>();
+builder.Services.AddSingleton<Catalog.Api.Events.CatalogEventStoreHandler>();
 builder.Services.AddHealthChecks().AddCheck<DbHealthCheck>("postgres");
 var app = builder.Build();
 

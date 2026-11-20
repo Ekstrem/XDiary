@@ -41,6 +41,7 @@ builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 // BE-140: без консьюмера/хендлера проекции daily_metrics_read остаётся пустой (класс BE-134/BE-138).
 builder.Services.AddHostedService<DailyMetrics.Api.Events.DailyMetricsEventConsumer>();
 builder.Services.AddSingleton<DailyMetrics.Api.Events.DailyMetricsEventHandler>();
+builder.Services.AddSingleton<DailyMetrics.Api.Events.DailyMetricsEventStoreHandler>();
 
 
 

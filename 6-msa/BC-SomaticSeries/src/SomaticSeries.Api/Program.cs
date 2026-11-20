@@ -41,6 +41,7 @@ builder.Services.AddScoped<IActorProvider, HttpActorProvider>();
 // BE-140: без консьюмера/хендлера проекции somatic_read остаётся пустой (класс BE-134/BE-138).
 builder.Services.AddHostedService<SomaticSeries.Api.Events.SomaticSeriesEventConsumer>();
 builder.Services.AddSingleton<SomaticSeries.Api.Events.SomaticSeriesEventHandler>();
+builder.Services.AddSingleton<SomaticSeries.Api.Events.SomaticSeriesEventStoreHandler>();
 
 
 

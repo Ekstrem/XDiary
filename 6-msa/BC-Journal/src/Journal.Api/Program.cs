@@ -52,6 +52,7 @@ builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, Read
 builder.Services.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddHostedService<Journal.Api.Events.JournalEventConsumer>();
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>();
+builder.Services.AddSingleton<Journal.Api.Events.JournalEventStoreHandler>();
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
 builder.Services.AddHttpClient();

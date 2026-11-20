@@ -17,9 +17,10 @@ public sealed class SomaticSeriesEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public SomaticSeriesEventConsumer(IEventBusConsumer consumer, SomaticSeriesEventHandler handler)
+    public SomaticSeriesEventConsumer(IEventBusConsumer consumer, SomaticSeriesEventStoreHandler storeHandler, SomaticSeriesEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }

@@ -51,6 +51,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<Partners.InternalContracts.IPartnerEventPublisher, Partners.Api.Events.PartnerEventPublisher>();
 builder.Services.AddHostedService<Partners.Api.Events.PartnerEventConsumer>();
 builder.Services.AddSingleton<Partners.Api.Events.PartnerEventHandler>();
+builder.Services.AddSingleton<Partners.Api.Events.PartnerEventStoreHandler>();
 builder.Services.AddHostedService<Partners.Api.Events.OutboxDispatcher>();
 builder.Services.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddDbContext<OutboxDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("CommandDb"), o => o.EnableRetryOnFailure()));

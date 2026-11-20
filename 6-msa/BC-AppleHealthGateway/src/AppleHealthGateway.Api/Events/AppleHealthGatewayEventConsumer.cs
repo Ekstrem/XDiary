@@ -17,9 +17,10 @@ public sealed class AppleHealthGatewayEventConsumer : BackgroundService
 {
     private readonly IEventBusConsumer _consumer;
 
-    public AppleHealthGatewayEventConsumer(IEventBusConsumer consumer, AppleHealthGatewayEventHandler handler)
+    public AppleHealthGatewayEventConsumer(IEventBusConsumer consumer, AppleHealthGatewayEventStoreHandler storeHandler, AppleHealthGatewayEventHandler handler)
     {
         _consumer = consumer;
+        _consumer.Subscribe(storeHandler);
         _consumer.Subscribe(handler);
         Console.WriteLine("[consumer] subscribed");
     }
