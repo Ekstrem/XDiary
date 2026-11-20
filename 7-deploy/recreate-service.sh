@@ -60,10 +60,24 @@ fi
 # `sudo -n` в извлечённой строке подменяем выбранным.
 PODMAN_SUDO=""
 if [ "$(id -u)" -ne 0 ]; then
-  if podman ps --format '{{.Names}}' 2>/dev/null | grep -qx 'xdiary-pg'; then
-    PODMAN_SUDO=""          # контейнеры наши (rootless) — sudo не нужен
+  # DO-153 (инцидент 2026-11-20): `podman ps` от deploy может УПАСТЬ под нагрузкой (сокет
+  # rootless-system-service занят, пока создаются 12 контейнеров) — тогда grep не находит
+  # `xdiary-pg`, и ветка «иначе rootful» тихо создаёт контейнер в НЕПРАВИЛЬНОМ store
+  # (apple-health-gateway и analytics ушли в root-store, прогон failure).
+  # Ошибка `podman ps` ≠ «контейнера нет»: различаем по rc. Ошибка — отказ, а не rootful вслепую.
+  __ps_out="$(podman ps -a --format '{{.Names}}' 2>&1)"
+  __ps_rc=$?
+  if [ "$__ps_rc" != "0" ]; then
+    die "не могу определить podman-режим: podman ps вернул rc=$__ps_rc (${__ps_out:0:120}) — не выбираю store вслепую"
+  fi
+  # @TE 08:58 + @TL 08:59: `xdiary-pg` может быть ЖИВ, но Exited в момент рестарта БД — и тогда
+  # `podman ps` (без -a) его не покажет, и мы тихо уйдём в rootful НА ПРОДЕ. Надёжнее: ЛЮБОЙ
+  # xdiary-контейнер в rootless-store (в любом состоянии) = rootless-среда. На rootful-dev
+  # rootless-store пуст по определению.
+  if printf '%s\n' "$__ps_out" | grep -q '^xdiary-'; then
+    PODMAN_SUDO=""          # есть xdiary-контейнер(ы) в rootless — sudo не нужен
   else
-    PODMAN_SUDO="sudo -n"   # rootless пусто — среда root
+    PODMAN_SUDO="sudo -n"   # rootless пусто (проверено, не ошибка) — среда root
   fi
   say "podman-режим: ${PODMAN_SUDO:-rootless (без sudo)}"
 fi
