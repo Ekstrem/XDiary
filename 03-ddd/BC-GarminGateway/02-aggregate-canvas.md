@@ -10,7 +10,7 @@
 ## 2. Description (Описание)
 Агрегат владеет конфигурацией и состоянием синка с Garmin.
 
-> **Функциональное ограничение (backlog G-01/G-06):** PWA не вызывает Garmin API напрямую (нет CORS/OAuth из браузера). Данные — **локальный CSV-экспорт** из Garmin Connect ИЛИ **серверный прокси** (GarminGateway = ACL). `Connect` = выбор источника + импорт CSV/прокси, **не OAuth-UI**.
+> **Подключение (backlog G-01/G-06; владелец 2026-11-20):** в настройках есть диалог **«Подключить Garmin»**, в который пользователь вставляет полученные вне PWA `apiKey`/`oauthToken` и при наличии `tokenExpiry`. PWA **не выполняет** OAuth-redirect и не вызывает Garmin API напрямую: после `Connect` синхронизацию выполняет **серверный прокси** (GarminGateway = ACL). Локальный CSV-импорт остаётся **запасным путём**, а не заменой подключения по токену. Контракт: `06-connect-contract.md`.
 
 **Идентификатор агрегата (DF):**
 - Составной ключ `<guid, long>` — технический, для **быстрого поиска**. НЕ входит в сущность.
@@ -54,18 +54,20 @@
 ```
 (нет) → [Connect] → Configured
 Configured → [Sync] → Configured (обновляет LastSync)
+Configured → [истёк токен / отказ Garmin auth] → RequiresReauth
+RequiresReauth → [Connect с новыми credentials] → Configured
 ```
 
 ## 4. Enforced Invariants
 | Инвариант | Описание |
 |---|---|
 | SingleSourcePerClient | один экземпляр на (клиент, источник) — у каждого клиента свой Garmin-токен |
-| TokenTtl | токен кэшируется ≤ 23 ч |
+| TokenTtl | `tokenExpiry` проверяется на каждом Sync/FetchActivities; истёкший токен не используется, авто-refresh нет |
 
 ## 5. Corrective Policies
 | Политика | Триггер | Действие |
 |---|---|---|
-| ReauthOnExpiry | токен истёк | перевыпустить OAuth-токен |
+| ReauthOnExpiry | токен истёк или Garmin отклонил credentials | `requiresReauth=true`; Sync/FetchActivities → `400 token_expired`; UI просит новый токен и повторяет Connect |
 
 ## 6. Handled Commands (именованные методы)
 | Метод | Входные VO |
