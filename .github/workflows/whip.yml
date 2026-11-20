@@ -21,6 +21,8 @@ jobs:
       - name: Кнут — детектор простоя
         run: python tools/whip.py --config loop.config.json
       - name: Закоммитить пинг (если 80% простаивают)
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
         run: |
           if git diff --quiet -- 5-tech-backlog/chat/lm.md; then
             echo "пинга нет"
@@ -29,5 +31,13 @@ jobs:
             git config user.email "whip@loopmaker"
             git add 5-tech-backlog/chat/lm.md
             git commit -m "chat(lm): whip - ping @TL (80% roley prostaivaet)"
-            git push
+            # enforce_admins блокирует прямой push в main — пушим веткой и открываем PR,
+            # его вливает merge-сервис после required-чеков (PROJECT_PAT даёт чеки на PR).
+            branch="whip-ping-$(date +%s)"
+            git checkout -b "$branch"
+            git push origin "HEAD:$branch"
+            gh pr create --base main --head "$branch" \
+              --title "chat(lm): whip — ping @TL (80% ролей простаивают)" \
+              --body "Авто-пинг кнута (простой). Мержится merge-сервисом после required-чеков." \
+              || echo "PR create rc=$?"
           fi

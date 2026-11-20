@@ -37,6 +37,8 @@ jobs:
       - name: В summary прогона
         run: cat HEALTH.md >> "$GITHUB_STEP_SUMMARY"
       - name: Закоммитить, если изменилось
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
         run: |
           set -euo pipefail
           git config user.name "loopmaker-bot"
@@ -47,4 +49,10 @@ jobs:
             exit 0
           fi
           git commit -m "bot: дашборд здоровья петли $(date -u +%F)"
-          git push
+          branch="health-$(date +%s)"
+          git checkout -b "$branch"
+          git push origin "HEAD:$branch"
+          gh pr create --base main --head "$branch" \
+            --title "bot: дашборд здоровья петли" \
+            --body "Авто-PR дашборда здоровья. Мержится merge-сервисом после required-чеков." \
+            || echo "PR create rc=$?"
