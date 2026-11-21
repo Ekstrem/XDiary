@@ -136,6 +136,11 @@ def collect(root):
     if not base.is_dir():
         return None, None, "нет папки 6-msa — не измерено"
     legacy, src1 = tracked_or_walk(root, "6-msa/**/*CommandRepository.cs")
+    # bb2b4b275: старое имя удалено, новое — *EventSourcingRepository.cs (совет @DO 15:31):
+    # если когда-либо вернётся чтение read-модели через GetByIdAsync без fallback — ловим и там.
+    legacy2, src1b = tracked_or_walk(root, "6-msa/**/*EventSourcingRepository.cs")
+    legacy = list(legacy) + [p for p in legacy2 if p not in set(legacy)]
+    src1 = f"{src1}+{src1b}"
     all_cs, src2 = tracked_or_walk(root, "6-msa/**/*.cs")
     global FILES_SOURCE
     FILES_SOURCE = f"{src1}+{src2}"
