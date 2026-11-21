@@ -41,6 +41,7 @@ public class GarminSyncAggregateTest
     public void Connect_WhenTokenExpired_ShouldReturnTokenExpired()
     {
         var r = Aggregate.CreateInstance(new AnemicModel()).Connect(Guid.NewGuid(), Credentials.CreateInstance("key", "token", PastExpiry));
+        Assert.Equal(DomainOperationResultEnum.Exception, r.Result); // доменный результат, а не выброшенное исключение
         Assert.Equal("token_expired", r.ErrorMessage());
     }
 
