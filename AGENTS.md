@@ -16,7 +16,7 @@
 | Роль | Ядро (пишет только сюда) | Служебные файлы |
 |---|---|---|
 | **PO** | `01-user-stories/`, `02-cjm/` | `5-tech-backlog/chat/po.md` |
-| **Architect** | `03-ddd/`, `04-architecture/` | `5-tech-backlog/arch/`, `chat/ar.md` |
+| **Architect** | `03-ddd/`, `04-architecture/`, `openapi/` | `5-tech-backlog/arch/`, `chat/ar.md` |
 | **BackEnd** | `6-msa/` | `0-df-issue/`, `5-tech-backlog/back-end/`, `chat/be.md` |
 | **FrontEnd** | `8-front/` | `5-tech-backlog/front-end/`, `chat/fe.md` |
 | **DevOps** | `7-deploy/` | `tools/`, `.github/`, `5-tech-backlog/devops/`, `chat/do.md` |
