@@ -53,7 +53,9 @@ public class JournalAggregateCompletionTests
         var bus = new ControllableBus();
         var adapter = new BusAdapter(bus, completion);
         var task = completion.NewTask();
-        var failed = Aggregate.CreateInstance(new AnemicModel()).Complete(); // нет startedAt — бизнес-результат неуспешен
+        var created = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
+        var deleted = Aggregate.CreateInstance(created.Model()).Delete();
+        var failed = Aggregate.CreateInstance(deleted.Model()).Delete(); // повторное удаление — корректный failed-result
 
         adapter.OnNext(failed);
 
