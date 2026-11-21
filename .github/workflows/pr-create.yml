@@ -34,10 +34,29 @@ jobs:
             echo "идти на КАЖДЫЙ пуш, иначе новый SHA остаётся без чеков)"
             echo "created=false" >> "$GITHUB_OUTPUT"
           else
-            gh pr create --base main --head "$GITHUB_REF_NAME" \
+            # TOCTOU-дедуп (красный `pr` на #3223, @TL 16:10): два пуша подряд стартуют два
+            # прогона; `gh pr view` у второго отвечает ДО создания PR первым, и `gh pr create`
+            # падает "already exists" → exit 1 → красный шум на валидном состоянии.
+            # Ловим ТОЛЬКО этот текст: существующий PR = дедуп (exit 0), любая другая
+            # ошибка — по-прежнему failure (не маскируем: свой класс «подавил = неверная ветка»).
+            set +e
+            out=$(gh pr create --base main --head "$GITHUB_REF_NAME" \
               --title "$GITHUB_REF_NAME: $(git log -1 --pretty=%s)" \
-              --body "Авто-PR из ветки \`$GITHUB_REF_NAME\` (PDR-047)."
-            echo "created=true" >> "$GITHUB_OUTPUT"
+              --body "Авто-PR из ветки \`$GITHUB_REF_NAME\` (PDR-047)." 2>&1)
+            rc=$?
+            set -e
+            if [ "$rc" != "0" ]; then
+              if printf '%s' "$out" | grep -qi 'already exists'; then
+                echo "::notice::PR создан параллельным прогоном — дедуп, не ошибка"
+                echo "created=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "$out"
+                exit "$rc"
+              fi
+            else
+              echo "$out"
+              echo "created=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
       # Событие от `GITHUB_TOKEN` не порождает прогонов — запускаем чеки сами.
       - name: Dispatch checks (иначе у авто-PR нет чеков)
