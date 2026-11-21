@@ -5,15 +5,23 @@ using Partners.Domain;
 using Partners.Domain.Abstraction;
 using Partners.Domain.Implementation;
 
-/// <summary>
-/// QG-101/102/109: провайдер агрегата. Инжектит библиотечный IAnemicModelRepository (QG-109),
-/// при промахе собирает агрегат из DefaultAnemicModel.Create (QG-102) и декорирует его Notifier'ом (QG-101).
-/// </summary>
-public sealed class AggregateProvider : IAggregateProvider<IPartners, IPartnerAggregate>
+/// <summary>BE-145: provider с сохранением старого контракта и completion-TCS для durable-publish.</summary>
+public sealed class AggregateProvider : IAggregateProvider<IPartners, IPartnerAggregate>, IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>
 {
     private readonly IAnemicModelRepository<IPartners, IPartnerAnemicModel> _repository;
+    private readonly AggregateCompletion _completion;
 
-    public AggregateProvider(IAnemicModelRepository<IPartners, IPartnerAnemicModel> repository) => _repository = repository;
+    public AggregateProvider(IAnemicModelRepository<IPartners, IPartnerAnemicModel> repository, AggregateCompletion completion)
+    {
+        _repository = repository;
+        _completion = completion;
+    }
+
+    public async Task<(IPartnerAggregate Aggregate, Task Completion)> GetAggregateWithCompletionAsync(Guid id, CancellationToken cancellationToken)
+        => (await GetAggregateAsync(id, cancellationToken), _completion.NewTask());
+
+    public async Task<(IPartnerAggregate Aggregate, Task Completion)> GetAggregateWithCompletionAsync(Guid id, long version, CancellationToken cancellationToken)
+        => (await GetAggregateAsync(id, version, cancellationToken), _completion.NewTask());
 
     public async Task<IPartnerAggregate> GetAggregateAsync(Guid id, CancellationToken cancellationToken = default)
     {

@@ -23,13 +23,15 @@ public sealed class SetPinHandler : IRequestHandler<SetPinCommand, AggregateResu
         var v = new PinFormatSpecification(); if (!v.IsSatisfiedBy(r.Pin)) return PrivacyResults.Fail(v.Reason);
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "pin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPrivacy, IPinCredentialAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is not null && !string.IsNullOrEmpty(aggregate.Root.Hash))
             if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, aggregate.Root.Salt, aggregate.Root.Hash, aggregate.Root.Iterations))
                 return PrivacyResults.Fail("Текущий PIN неверен");
         var (salt, hash, iter) = PinHasher.Hash(r.Pin);
-        return aggregate.SetPin(_actor.ClientId, salt, hash, iter);
+        var result = aggregate.SetPin(_actor.ClientId, salt, hash, iter);
+        await completion;
+        return result;
     }
 }
 public sealed class ChangePinHandler : IRequestHandler<ChangePinCommand, AggregateResult<IPrivacy, IPinCredentialAnemicModel>>, ICommandHandler
@@ -44,13 +46,15 @@ public sealed class ChangePinHandler : IRequestHandler<ChangePinCommand, Aggrega
         var v = new PinFormatSpecification(); if (!v.IsSatisfiedBy(r.Pin)) return PrivacyResults.Fail(v.Reason);
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "pin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPrivacy, IPinCredentialAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is not null && !string.IsNullOrEmpty(aggregate.Root.Hash))
             if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, aggregate.Root.Salt, aggregate.Root.Hash, aggregate.Root.Iterations))
                 return PrivacyResults.Fail("Текущий PIN неверен");
         var (salt, hash, iter) = PinHasher.Hash(r.Pin);
-        return aggregate.ChangePin(salt, hash, iter);
+        var result = aggregate.ChangePin(salt, hash, iter);
+        await completion;
+        return result;
     }
 }
 public sealed class RemovePinHandler : IRequestHandler<RemovePinCommand, AggregateResult<IPrivacy, IPinCredentialAnemicModel>>, ICommandHandler
@@ -64,12 +68,14 @@ public sealed class RemovePinHandler : IRequestHandler<RemovePinCommand, Aggrega
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "pin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPrivacy, IPinCredentialAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is not null && !string.IsNullOrEmpty(aggregate.Root.Hash))
             if (string.IsNullOrWhiteSpace(r.CurrentPin) || !PinHasher.Verify(r.CurrentPin, aggregate.Root.Salt, aggregate.Root.Hash, aggregate.Root.Iterations))
                 return PrivacyResults.Fail("Текущий PIN неверен");
-        return aggregate.Remove();
+        var result = aggregate.Remove();
+        await completion;
+        return result;
     }
 }
 public sealed class LockPinHandler : IRequestHandler<LockPinCommand, AggregateResult<IPrivacy, IPinCredentialAnemicModel>>, ICommandHandler
@@ -83,9 +89,11 @@ public sealed class LockPinHandler : IRequestHandler<LockPinCommand, AggregateRe
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "pin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPrivacy, IPinCredentialAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.Lock();
+        var result = aggregate.Lock();
+        await completion;
+        return result;
     }
 }
 public sealed class UnlockPinHandler : IRequestHandler<UnlockPinCommand, AggregateResult<IPrivacy, IPinCredentialAnemicModel>>, ICommandHandler
@@ -99,8 +107,10 @@ public sealed class UnlockPinHandler : IRequestHandler<UnlockPinCommand, Aggrega
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "pin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPrivacy, IPinCredentialAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.Unlock();
+        var result = aggregate.Unlock();
+        await completion;
+        return result;
     }
 }

@@ -14,7 +14,7 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.2.1" />
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.6.0" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.7.0" />
     <PackageReference Include="DigiTFactory.Libraries.Analyzers.Storage" Version="0.1.1" PrivateAssets="all" />
         <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
