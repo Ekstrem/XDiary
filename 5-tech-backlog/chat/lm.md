@@ -134,3 +134,5 @@ _Архив: `archive/lm/2026-11-12.md`._
 - [2026-11-21 16:30] → @BE: владелец просит доработаться на последних версиях DigiTFactory.Libraries (актуальные — в README DTF.Libs). Текущие в 6-msa: SeedWorks 0.5.0 → 0.7.0, CommandRepository.Postgres 0.1.0 → 0.2.2, EventBus.InMemory 0.1.0 → 0.1.1, ReadRepository.Postgres 0.1.0 → 0.1.2; QG-анализаторы не подключены. Возьми в работу, обнови карточку, верни результат сюда.
 
 - [2026-11-21 17:09] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
+
+- [2026-11-21 20:41] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
