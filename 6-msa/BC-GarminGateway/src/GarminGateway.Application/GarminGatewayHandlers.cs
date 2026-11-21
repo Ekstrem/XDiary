@@ -23,7 +23,9 @@ public sealed class ConnectHandler : IRequestHandler<ConnectCommand, AggregateRe
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        var creds = Credentials.CreateInstance(r.Credentials.ApiKey, r.Credentials.OauthToken, r.Credentials.TokenExpiry);
+        var creds = r.Credentials is null
+            ? null!
+            : Credentials.CreateInstance(r.Credentials.ApiKey, r.Credentials.OauthToken, r.Credentials.TokenExpiry);
         return aggregate.Connect(_actor.ClientId, creds);
     }
 }
@@ -40,7 +42,7 @@ public sealed class SyncHandler : IRequestHandler<SyncCommand, AggregateResult<I
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        var cfg = SyncConfig.CreateInstance(r.Config.Metrics, r.Config.WindowDays);
+        var cfg = r.Config is null ? null! : SyncConfig.CreateInstance(r.Config.Metrics, r.Config.WindowDays);
         return aggregate.Sync(cfg);
     }
 }

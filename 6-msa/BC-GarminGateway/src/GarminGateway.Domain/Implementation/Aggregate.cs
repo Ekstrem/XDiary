@@ -1,4 +1,5 @@
 namespace GarminGateway.Domain.Implementation;
+using System.Globalization;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -35,18 +36,40 @@ internal sealed class Aggregate : IGarminGatewayAggregate
 
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials)
     {
+        if (credentials is null) return Fail("validation_error");
         var v = new CredentialsSpecification();
-        if (!v.IsSatisfiedBy(credentials)) return Fail(v.Reason);
+        if (!v.IsSatisfiedBy(credentials)) return Fail("validation_error");
+        if (!IsValidExpiry(credentials.TokenExpiry)) return Fail("validation_error");
+        if (IsExpired(credentials.TokenExpiry)) return Fail("token_expired");
         var s = new SingleSourcePerClientSpecification();
-        if (!s.IsSatisfiedBy(clientId, Model)) return Fail(s.Reason);
+        if (!s.IsSatisfiedBy(clientId, Model)) return Fail("validation_error");
         return Success(Clone() with { Root = GarminSyncRoot.CreateInstance(clientId, "garmin"), Credentials = credentials });
     }
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config)
     {
+        if (!IsConnected()) return Fail("not_connected");
+        if (config is null || config.WindowDays <= 0) return Fail("validation_error");
+        if (IsExpired(Model.Credentials.TokenExpiry)) return Fail("token_expired");
         return Success(Clone() with { SyncConfig = config, LastSync = DateTimeOffset.UtcNow.ToString("o") });
     }
     public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities()
     {
+        if (!IsConnected()) return Fail("not_connected");
+        if (IsExpired(Model.Credentials.TokenExpiry)) return Fail("token_expired");
         return Success(Clone() with { LastSync = DateTimeOffset.UtcNow.ToString("o") });
     }
+
+    private bool IsConnected()
+        => Model.Root is not null
+           && !string.IsNullOrWhiteSpace(Model.Credentials.ApiKey)
+           && !string.IsNullOrWhiteSpace(Model.Credentials.OauthToken);
+
+    private static bool IsValidExpiry(string? value)
+        => string.IsNullOrWhiteSpace(value)
+           || DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out _);
+
+    private static bool IsExpired(string? value)
+        => !string.IsNullOrWhiteSpace(value)
+           && DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expiry)
+           && expiry <= DateTimeOffset.UtcNow;
 }
