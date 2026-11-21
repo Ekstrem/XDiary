@@ -6,13 +6,8 @@
 не существует» (ровно этот класс зафиксирован в `DO-099`: часть тестовых гейтов не была в CI).
 
 Скрипт запускает каждый гейт с `--selftest`, затем без флагов (прогон на репозитории), и печатает
-одну сводку. Коды: `0` — нет красных (даже если есть «не измерено»); `1` — есть красные (rc=1).
-
-Владелец 2026-11-21 (вариант «в», класс «гейт меряет то, чего больше нет»): `rc=2` «не измерено»
-— НЕ дефект PR и НЕ failure. Это сигнал «гейт требует правки» владельцу зоны: гейт ищет
-переименованный файл (например `*CommandRepository.cs` после рефактора BE в `bb2b4b275`)
-или среды нет (node). Красить невинный PR устаревшим измерителем нельзя — реальные нарушения
-ловит только красный (rc=1). Список «не измерено» печатается отдельной строкой с адресатом.
+одну сводку. Коды: `0` — все зелёные; `1` — есть красные (rc=1); `2` — есть «не измерено» (rc=2)
+при отсутствии красных.
 
     python 9-tests/scripts/check_e2e_all.py            # все гейты
     python 9-tests/scripts/check_e2e_all.py --list     # только перечень и что каждый проверяет
@@ -112,14 +107,8 @@ def run_gate(path: pathlib.Path, extra=()):
 
 
 def summarize(results):
-    """results — [(имя, selftest_rc, run_rc, last_line)]. Возвращает (lines, rc).
-
-    Владелец 2026-11-21 (вариант «в»): «не измерено» (rc=2 гейта) — НЕ failure для PR.
-    Это отдельный сигнал «гейт устарел / нет среды» владельцу зоны (список ниже).
-    Failure — только красные (rc=1): реальные нарушения в коде.
-    """
+    """results — [(имя, selftest_rc, run_rc, last_line)]. Возвращает (lines, rc)."""
     lines, red, unmeasured = [], 0, 0
-    stale = []
     for name, st_rc, run_rc, last in results:
         if st_rc != 0:
             state, red = "КРАСНЫЙ (selftest)", red + 1
@@ -127,15 +116,18 @@ def summarize(results):
             state = "зелёный"
         elif run_rc == 2:
             state, unmeasured = "не измерено", unmeasured + 1
-            stale.append(name)
         else:
             state, red = "КРАСНЫЙ", red + 1
         lines.append(f"  {name:<32} {state:<18} {last[:78]}")
-    if stale:
-        lines.append("не измерено → владельцу зоны (НЕ блокер PR): " + ", ".join(stale))
+    if red:
+        rc = 1
+    elif unmeasured:
+        rc = 2
+    else:
+        rc = 0
     lines.append(f"сводка front-e2e: гейтов {len(results)} | зелёных {len(results) - red - unmeasured} | "
                  f"красных {red} | не измерено {unmeasured}")
-    return lines, (1 if red else 0)
+    return lines, rc
 
 
 def main(argv=None):
@@ -336,10 +328,9 @@ def selftest():
          [("a.py", 1, 0, "ок")],
          1, ["КРАСНЫЙ (selftest)"])
 
-    # владелец 2026-11-21 (вариант «в»): «не измерено» — rc=0 (сигнал, не блокер), список адресован
-    case("не измерено — не failure",
+    case("не измерено",
          [("a.py", 0, 2, "нет входа"), ("b.py", 0, 0, "ок")],
-         0, ["не измерено 1", "зелёных 1", "НЕ блокер PR", "a.py"])
+         2, ["не измерено 1", "зелёных 1"])
 
     case("красный важнее не измеренного",
          [("a.py", 0, 2, "нет входа"), ("b.py", 0, 1, "нарушено")],
@@ -357,7 +348,7 @@ def selftest():
     ok, total = ok + w_ok + m_ok, total + w_total + m_total
 
     print(f"check_e2e_all --selftest: {ok}/{total} "
-          f"(сводка: красный = rc=1, \u00abне измерено\u00bb = rc=0 — сигнал зоне, не блокер PR; "
+          f"(сводка: красный = rc=1, только \u00abне измерено\u00bb = rc=2; "
           f"связь с файлами: {w_ok}/{w_total}; мутации: {m_ok}/{m_total} — "
           f"дефект краснеет, норма зеленеет)")
     return 0 if ok == total else 1
