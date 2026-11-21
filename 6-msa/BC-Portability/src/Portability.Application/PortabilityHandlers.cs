@@ -15,9 +15,11 @@ public sealed class ExportRecordsHandler : IRequestHandler<ExportRecordsCommand,
     public ExportRecordsHandler(IAggregateProvider<IPortability, ICsvDocumentAggregate> provider, IObserver<AggregateResult<IPortability, ICsvDocumentAnemicModel>> observer, IActorProvider actor) { _provider = provider; _observer = observer; _actor = actor; }
     public async Task<AggregateResult<IPortability, ICsvDocumentAnemicModel>> Handle(ExportRecordsCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPortability, ICsvDocumentAggregate>)_provider).GetAggregateWithCompletionAsync(Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.ExportRecords(r.Rows, _actor.ClientId);
+        var result = aggregate.ExportRecords(r.Rows, _actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class ImportRecordsHandler : IRequestHandler<ImportRecordsCommand, AggregateResult<IPortability, ICsvDocumentAnemicModel>>, ICommandHandler
@@ -29,9 +31,11 @@ public sealed class ImportRecordsHandler : IRequestHandler<ImportRecordsCommand,
     public async Task<AggregateResult<IPortability, ICsvDocumentAnemicModel>> Handle(ImportRecordsCommand r, CancellationToken ct)
     {
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
-        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPortability, ICsvDocumentAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.ImportRecords(r.Rows, _actor.ClientId);
+        var result = aggregate.ImportRecords(r.Rows, _actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class ImportSomaticHandler : IRequestHandler<ImportSomaticCommand, AggregateResult<IPortability, ICsvDocumentAnemicModel>>, ICommandHandler
@@ -43,8 +47,10 @@ public sealed class ImportSomaticHandler : IRequestHandler<ImportSomaticCommand,
     public async Task<AggregateResult<IPortability, ICsvDocumentAnemicModel>> Handle(ImportSomaticCommand r, CancellationToken ct)
     {
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
-        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPortability, ICsvDocumentAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.ImportSomatic(r.Rows, _actor.ClientId);
+        var result = aggregate.ImportSomatic(r.Rows, _actor.ClientId);
+        await completion;
+        return result;
     }
 }

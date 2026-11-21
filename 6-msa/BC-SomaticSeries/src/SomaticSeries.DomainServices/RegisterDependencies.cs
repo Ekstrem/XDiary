@@ -11,7 +11,11 @@ public sealed class RegisterDependencies : Module
 {
     protected override void Load(ContainerBuilder builder)
     {
-        builder.RegisterType<AggregateProvider>().As<IAggregateProvider<ISomaticSeries, ISomaticSeriesAggregate>>().InstancePerLifetimeScope();
+        builder.RegisterType<AggregateCompletion>().InstancePerLifetimeScope();
+        builder.RegisterType<AggregateProvider>()
+            .As<IAggregateProvider<ISomaticSeries, ISomaticSeriesAggregate>>()
+            .As<IAggregateProviderWithCompletion<ISomaticSeries, ISomaticSeriesAggregate>>()
+            .InstancePerLifetimeScope();
         builder.RegisterType<BusAdapter>().As<IObserver>().InstancePerLifetimeScope();
     }
 }
