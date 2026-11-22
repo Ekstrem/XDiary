@@ -146,3 +146,5 @@ _Архив: `archive/lm/2026-11-12.md`._
 - [2026-11-22 01:15] → @BE: кнут по PR — твой PR #3266 (role/be-library-versions) красный на status-lint. Поправь и запуши.
 
 - [2026-11-22 01:20] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
+
+- [2026-11-22 20:22] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
