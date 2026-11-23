@@ -32,8 +32,8 @@ ok("Поле одного токена есть и скрыто", /<input type="
 ok("Второго поля токена нет (apiKey)", !has(html, 'id="garmin-api-key"'));
 ok("Второго поля токена нет (oauthToken)", !has(html, 'id="garmin-oauth-token"'));
 ok("Поле срока действия есть", has(html, 'id="garmin-token-expiry"'));
-ok("Payload — только oauthToken", has(app, "var credentials = { oauthToken: garminToken };"));
-ok("apiKey в payload отсутствует", !has(app, "apiKey: apiKey") && !has(app, "credentials.apiKey"));
+ok("Payload — только apiKey (Personal API Key)", has(app, "var credentials = { apiKey: garminToken };"));
+ok("oauthToken в payload отсутствует (его сервер получает сам)", !has(app, "oauthToken: garminToken") && !has(app, "credentials.oauthToken"));
 ok("tokenExpiry добавляется только когда заполнен", has(app, "if (tokenExpiry) credentials.tokenExpiry = tokenExpiry;"));
 ok("Секреты не сохраняются в localStorage Garmin", !has(app, 'localStorage.setItem("xdiary.garmin') && !has(app, 'localStorage.setItem("garmin'));
 ok("Токен не пишется в console", !has(app, "console.log(garminToken") && !has(app, "console.log(oauthToken"));
@@ -70,7 +70,7 @@ const noReauth = app.replace(/requiresReauth/g, "reauth_REMOVED");
 ok("Негативный контроль: без requiresReauth проверка бы упала", !has(noReauth, "requiresReauth"));
 const noJournalSync = app.replace('startGarminSync("journal")', 'openImport()');
 ok("Негативный контроль: без server sync журнал бы не прошёл", !has(noJournalSync, 'startGarminSync("journal")'));
-const twoTokens = app.replace("var credentials = { oauthToken: garminToken };", "var credentials = { oauthToken: garminToken, apiKey: garminToken };");
-ok("Негативный контроль: второй токен в payload был бы замечен", !has(twoTokens, "var credentials = { oauthToken: garminToken };"));
+const twoTokens = app.replace("var credentials = { apiKey: garminToken };", "var credentials = { apiKey: garminToken, oauthToken: garminToken };");
+ok("Негативный контроль: второй токен в payload был бы замечен", !has(twoTokens, "var credentials = { apiKey: garminToken };"));
 
 console.log("FE-057 structural tests:", passed + "/" + passed, "OK");

@@ -2275,8 +2275,10 @@
       garminShowError("Срок действия: ISO-8601 с часовым поясом, например 2027-01-31T00:00:00Z");
       return;
     }
-    // Владелец 2026-11-23: у пользователя ОДИН токен (долгоживущий refresh), apiKey — серверный app key.
-    var credentials = { oauthToken: garminToken };
+    // Владелец 2026-11-23 + README §Garmin Personal API: у пользователя ОДИН «Personal API Key»
+    // (GARMIN_API_KEY, префикс GCDC_); сервер обменивает его на короткоживущий OAuth2-токен (кэш 23 ч).
+    // Поэтому в Connect пользователь передаёт только apiKey; oauthToken сервер получает сам.
+    var credentials = { apiKey: garminToken };
     if (tokenExpiry) credentials.tokenExpiry = tokenExpiry;
     var btn = $("btn-garmin-connect");
     btn.disabled = true;
