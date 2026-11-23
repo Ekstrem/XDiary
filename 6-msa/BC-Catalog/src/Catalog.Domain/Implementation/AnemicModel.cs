@@ -20,6 +20,7 @@ internal sealed record AnemicModel : ICatalogAnemicModel
     public string Notes { get; init; } = string.Empty;
     public string Brand { get; init; } = string.Empty;
     public bool Archived { get; init; }
+    public DateTime? DeletedAt { get; init; }
     public string FantasyPartner { get; init; } = string.Empty;
     public Guid? ClientId { get; init; }
 
@@ -33,6 +34,7 @@ internal sealed record AnemicModel : ICatalogAnemicModel
         ["Notes"] = new StringValueObject(Notes),
         ["Brand"] = new StringValueObject(Brand),
         ["Archived"] = new BoolValueObject(Archived),
+        ["DeletedAt"] = new DeletedAtValueObject(DeletedAt),
         ["FantasyPartner"] = new StringValueObject(FantasyPartner),
     };
 }

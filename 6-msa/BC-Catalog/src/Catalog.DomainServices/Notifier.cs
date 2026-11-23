@@ -27,6 +27,7 @@ public sealed class Notifier : DomainEventNotifier<ICatalog, ICatalogAggregate>,
     public string Notes => Aggregate.Notes;
     public string Brand => Aggregate.Brand;
     public bool Archived => Aggregate.Archived;
+    public DateTime? DeletedAt => Aggregate.DeletedAt;
     public string FantasyPartner => Aggregate.FantasyPartner;
     public Guid? ClientId => Aggregate.ClientId;
 

@@ -38,6 +38,9 @@ namespace Catalog.Storage.Migrations.ReadStore
                     b.Property<Guid?>("ClientId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("FantasyPartner")
                         .IsRequired()
                         .HasColumnType("text");
