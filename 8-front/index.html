@@ -189,7 +189,13 @@
         <p class="muted">Переносит локальные данные (журнал/партнёры/каталог) в бэкенд. Повторный запуск пропускает дубли.</p>
 
         <h2>Соматика (Garmin)</h2>
-        <button class="btn full" id="btn-import-open">Импорт данных Garmin…</button>
+        <p id="garmin-status" class="muted">Состояние подключения: проверяю…</p>
+        <p id="garmin-sync-status" class="muted"></p>
+        <div class="btn-row">
+          <button class="btn primary" id="btn-garmin-open">Подключить Garmin</button>
+          <button class="btn" id="btn-garmin-sync-now">Синхронизировать</button>
+        </div>
+        <button class="btn full" id="btn-import-open">Импорт CSV Garmin…</button>
         <p class="muted">Распознаёт отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип определяется автоматически.</p>
 
         <h2>Опасная зона</h2>
@@ -379,6 +385,30 @@
         <button class="btn primary" id="btn-pin-set">Сохранить</button>
       </div>
       <button class="btn danger full hidden" id="btn-pin-remove" style="margin-top:10px">Удалить PIN</button>
+    </div>
+  </div>
+
+  <div id="garmin-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2 class="sync-title">Подключение Garmin</h2>
+      <p id="garmin-modal-state" class="muted">Токен отправляется только на сервер XDiary; в браузере он не сохраняется.</p>
+      <div class="field">
+        <label for="garmin-api-key">API key</label>
+        <input type="password" id="garmin-api-key" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="garmin-oauth-token">OAuth token</label>
+        <input type="password" id="garmin-oauth-token" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="garmin-token-expiry">Срок действия (ISO-8601, необязательно)</label>
+        <input type="text" id="garmin-token-expiry" placeholder="2027-01-31T00:00:00Z" autocomplete="off">
+      </div>
+      <p id="garmin-error" class="muted hidden" role="alert"></p>
+      <div class="modal-actions">
+        <button class="btn" id="garmin-cancel">Отмена</button>
+        <button class="btn primary" id="btn-garmin-connect">Сохранить</button>
+      </div>
     </div>
   </div>
 

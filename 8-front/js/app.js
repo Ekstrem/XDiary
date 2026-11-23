@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.123"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.124"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -2201,6 +2201,133 @@
     });
   }
 
+  // FE-057: второй путь Garmin — серверный Connect/State/Sync; CSV остаётся запасным.
+  function garminErrorCode(e) {
+    var d = e && e.data, code = d && typeof d === "object" ? (d.code || "") : "";
+    if (!code && typeof d === "string") {
+      var m = d.match(/validation_error|not_connected|token_expired|upstream_unavailable/);
+      if (m) code = m[0];
+    }
+    if (!code && e && e.message) {
+      var m2 = String(e.message).match(/validation_error|not_connected|token_expired|upstream_unavailable/);
+      if (m2) code = m2[0];
+    }
+    return code;
+  }
+  function garminErrorText(e) {
+    var code = garminErrorCode(e);
+    if (code === "validation_error") return "Проверьте API key, OAuth token и срок действия (ISO-8601 с часовым поясом).";
+    if (code === "not_connected") return "Сначала подключите Garmin в Настройках.";
+    if (code === "token_expired") return "Срок действия токена Garmin истёк. Вставьте новый токен.";
+    if (code === "upstream_unavailable") return "Garmin или сеть временно недоступны. Повторите позже.";
+    if (e && e.status === 401) return "Сессия истекла — войдите заново.";
+    return apiErrorText(e, "Не удалось выполнить запрос Garmin");
+  }
+  function garminShowError(text) {
+    var el = $("garmin-error");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.toggle("hidden", !text);
+  }
+  function renderGarminStatus() {
+    var status = $("garmin-status"), sync = $("garmin-sync-status");
+    if (!status) return Promise.resolve(null);
+    if (!Api.config.token()) {
+      status.textContent = "Состояние подключения: войдите, чтобы подключить Garmin";
+      if (sync) sync.textContent = "";
+      return Promise.resolve(null);
+    }
+    status.textContent = "Состояние подключения: проверяю…";
+    return Api.garmin.state().then(function (s) {
+      if (s && s.requiresReauth) {
+        status.textContent = "Подключён, но срок действия токена истёк — вставьте новый токен";
+      } else {
+        status.textContent = "Подключён" + (s && s.tokenExpiry ? " · срок действия: " + s.tokenExpiry : "");
+      }
+      if (sync) {
+        var metrics = s && s.metrics && s.metrics.length ? s.metrics.join(", ") : "не выбраны";
+        var days = s && s.windowDays ? s.windowDays : 30;
+        sync.textContent = "Метрики: " + metrics + " · окно: " + days + " дн. · последняя синхронизация: " + ((s && s.lastSync) || "ещё не было");
+      }
+      return s;
+    }, function (e) {
+      if (e && e.status === 404) {
+        status.textContent = "Не подключён — вставьте API key и OAuth token, чтобы синхронизировать данные";
+        if (sync) sync.textContent = "";
+        return null;
+      }
+      status.textContent = garminErrorText(e);
+      return null;
+    });
+  }
+  function openGarminConnect(message) {
+    $("garmin-api-key").value = "";
+    $("garmin-oauth-token").value = "";
+    $("garmin-token-expiry").value = "";
+    $("garmin-modal-state").textContent = message || "Токен отправляется только на сервер XDiary; в браузере он не сохраняется.";
+    garminShowError(message && message.indexOf("истёк") !== -1 ? message : "");
+    $("garmin-modal").classList.remove("hidden");
+  }
+  function connectGarmin() {
+    var apiKey = $("garmin-api-key").value.trim();
+    var oauthToken = $("garmin-oauth-token").value.trim();
+    var tokenExpiry = $("garmin-token-expiry").value.trim();
+    if (!apiKey || !oauthToken) { garminShowError("Заполните API key и OAuth token."); return; }
+    if (tokenExpiry && (!Date.parse(tokenExpiry) || !/(?:Z|[+-]\d\d:?\d\d)$/i.test(tokenExpiry))) {
+      garminShowError("Срок действия: ISO-8601 с часовым поясом, например 2027-01-31T00:00:00Z");
+      return;
+    }
+    var credentials = { apiKey: apiKey, oauthToken: oauthToken };
+    if (tokenExpiry) credentials.tokenExpiry = tokenExpiry;
+    var btn = $("btn-garmin-connect");
+    btn.disabled = true;
+    garminShowError("");
+    Api.garmin.connect(credentials).then(function (s) {
+      $("garmin-api-key").value = "";
+      $("garmin-oauth-token").value = "";
+      $("garmin-token-expiry").value = "";
+      $("garmin-modal").classList.add("hidden");
+      btn.disabled = false;
+      toast("Garmin подключён");
+      renderGarminStatus();
+      return s;
+    }, function (e) {
+      btn.disabled = false;
+      garminShowError(garminErrorText(e));
+    });
+  }
+  function startGarminSync(origin) {
+    if (!Api.config.token()) { toast("Войдите, чтобы синхронизировать Garmin"); return Promise.resolve(null); }
+    return Api.garmin.state().then(function (s) {
+      if (s && s.requiresReauth) {
+        openGarminConnect("Срок действия токена Garmin истёк. Вставьте новый токен.");
+        return null;
+      }
+      var cfg = {
+        metrics: s && s.metrics && s.metrics.length ? s.metrics : ["hr", "steps"],
+        windowDays: s && s.windowDays ? s.windowDays : 30
+      };
+      return busyRun("Синхронизация Garmin", function () {
+        return Api.garmin.sync(cfg).then(function () { return Api.garmin.fetchActivities(); });
+      }, function () { startGarminSync(origin); }).then(function () {
+        toast("Синхронизация Garmin завершена");
+        renderGarminStatus();
+        if (origin === "journal") { showView("journal"); renderJournal(); }
+      });
+    }, function (e) {
+      if (e && e.status === 404) {
+        openGarminConnect("Сначала подключите Garmin: вставьте API key и OAuth token.");
+        return null;
+      }
+      if (garminErrorCode(e) === "token_expired") {
+        openGarminConnect("Срок действия токена Garmin истёк. Вставьте новый токен.");
+        return null;
+      }
+      toast(garminErrorText(e));
+      return null;
+    });
+  }
+
   function openImport() {
     pendingImport = null;
     $("import-result").classList.add("hidden");
@@ -2753,16 +2880,16 @@
     $("pin-input").addEventListener("keydown", function (e) { if (e.key === "Enter") unlock(); });
 
     $("btn-new").addEventListener("click", function () { openWizard(null); });
-  // FE-037 (вариант B): «Из Garmin» на журнале — тот же сценарий, что из настроек (openImport)
+  // FE-057: «Из Garmin» — серверный sync; CSV остаётся отдельной кнопкой в Настройках.
   if ($("btn-journal-garmin")) {
-    $("btn-journal-garmin").addEventListener("click", function () { openImport(); });
+    $("btn-journal-garmin").addEventListener("click", function () { startGarminSync("journal"); });
   }
 
     $("tab-journal").addEventListener("click", function () { showView("journal"); });
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });
     $("tab-catalog").addEventListener("click", function () { renderCatalog(); showView("catalog"); });
     $("tab-trends").addEventListener("click", function () { openTrends(); });
-    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderSelfStatus(); renderIdentStatus(); showView("settings"); });
+    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderSelfStatus(); renderIdentStatus(); renderGarminStatus(); showView("settings"); });
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
     $("btn-partner-edit-back").addEventListener("click", function () {
@@ -2856,6 +2983,10 @@
     // 0.88 (FE-038/E7): отдельной «привязки я» больше нет — кнопка ведёт в шаг профиля
     if ($("btn-self-clear")) $("btn-self-clear").addEventListener("click", function () { showProfileStep(); });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
+    $("btn-garmin-open").addEventListener("click", function () { openGarminConnect(); });
+    $("btn-garmin-sync-now").addEventListener("click", function () { startGarminSync("settings"); });
+    $("btn-garmin-connect").addEventListener("click", connectGarmin);
+    $("garmin-cancel").addEventListener("click", function () { $("garmin-modal").classList.add("hidden"); garminShowError(""); });
     $("btn-import-open").addEventListener("click", openImport);
     $("btn-import-back").addEventListener("click", function () { showView("settings"); });
     $("btn-import-pick").addEventListener("click", function () { $("import-any-file").click(); });
