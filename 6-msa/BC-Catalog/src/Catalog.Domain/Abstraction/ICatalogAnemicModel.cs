@@ -7,6 +7,7 @@ public interface ICatalogAnemicModel : IAnemicModel<ICatalog>
     string Notes { get; }
     string Brand { get; }
     bool Archived { get; }
+    DateTime? DeletedAt { get; }
     string FantasyPartner { get; }
     Guid? ClientId { get; }
 }
