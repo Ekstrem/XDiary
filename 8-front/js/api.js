@@ -143,6 +143,14 @@
       series: function (fromDate, toDate) { return get("/api/v1/daily-metrics/series?fromDate=" + encodeURIComponent(fromDate) + "&toDate=" + encodeURIComponent(toDate)); }
     },
 
+    // FE-057: подключение Garmin по токену; секреты только в Connect, State их не возвращает.
+    garmin: {
+      connect: function (credentials) { return post("/api/v1/garmin/connect", { credentials: credentials }); },
+      state: function () { return get("/api/v1/garmin/state"); },
+      sync: function (config) { return post("/api/v1/garmin/sync", { config: config }); },
+      fetchActivities: function () { return post("/api/v1/garmin/fetch-activities"); }
+    },
+
     // Журнал: цепочка команд (StartManualEntry → Specify* → Complete)
     journal: {
       list: function () { return get("/api/v1/journal/records"); },
