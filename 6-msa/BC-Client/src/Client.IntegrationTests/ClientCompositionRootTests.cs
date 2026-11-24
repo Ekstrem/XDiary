@@ -17,6 +17,8 @@ public class ClientCompositionRootTests
         sc.AddEventStorePostgres<IClients, IClientAnemicModel>("Host=localhost;Database=es", null);
         sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<ClientEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IClients, IClientAnemicModel>, ClientEventRehydrator>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
         using var sp = sc.BuildServiceProvider();
         var repo = sp.GetRequiredService<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IClients, IClientAnemicModel>>();

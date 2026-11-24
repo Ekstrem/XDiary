@@ -45,6 +45,8 @@ builder.Services.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>
 // DefaultAnemicModel (Version=0) и вторая команда коллизирует по (Id,Version) с первой.
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
 builder.Services.AddScoped<PartnersEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<IPartners, IPartnerAnemicModel>, PartnersEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 // BE-082: связь Partners → Journal (partners_directory).
 builder.Services.AddHttpClient();

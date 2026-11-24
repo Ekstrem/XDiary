@@ -31,7 +31,7 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
     {
         var channel = _config["Otp:Channel"] ?? "log";
         var phoneCheck = new PhoneRequiredSpecification();
-        if (!phoneCheck.IsSatisfiedBy(new AnemicModel { Root = ClientRoot.CreateInstance(r.Phone) }))
+        if (!PhoneRequiredSpecification.IsSatisfiedByPhone(r.Phone))
             return new RegisterClientResult(ClientResults.Fail(phoneCheck.Reason), false, null, channel, false);
         var phone = PhoneFormatSpecification.Normalize(r.Phone);
         if (!PhoneFormatSpecification.IsValid(phone))

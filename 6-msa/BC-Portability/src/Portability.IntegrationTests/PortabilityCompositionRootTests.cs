@@ -17,6 +17,8 @@ public class PortabilityCompositionRootTests
         sc.AddEventStorePostgres<IPortability, ICsvDocumentAnemicModel>("Host=localhost;Database=es", null);
         sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<PortabilityEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IPortability, ICsvDocumentAnemicModel>, PortabilityEventRehydrator>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();
         using var sp = sc.BuildServiceProvider();
         var repo = sp.GetRequiredService<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPortability, ICsvDocumentAnemicModel>>();

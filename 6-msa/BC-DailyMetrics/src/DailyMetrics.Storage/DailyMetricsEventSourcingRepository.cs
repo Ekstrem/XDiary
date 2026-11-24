@@ -13,8 +13,9 @@ public sealed class DailyMetricsEventSourcingRepository : FullEventSourcingRepos
     public DailyMetricsEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IDailyMetrics, IDailyMetricsAnemicModel>> logger,
-        DailyMetricsEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        DailyMetricsEventReplay replay,
+        IEventStreamRehydrator<IDailyMetrics, IDailyMetricsAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<IDailyMetricsAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {
