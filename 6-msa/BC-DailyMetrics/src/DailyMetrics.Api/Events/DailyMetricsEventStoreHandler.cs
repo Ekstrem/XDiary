@@ -9,18 +9,12 @@ using DailyMetrics.Domain.Abstraction;
 using Microsoft.Extensions.DependencyInjection;
 using XDiary.Contracts;
 
-/// <summary>BE-143: подписчик шины, сохраняющий доменное событие в event store. Read-проекция — отдельный подписчик.</summary>
-public sealed class DailyMetricsEventStoreHandler : IDomainEventHandler<IDailyMetrics>, IObserver<IDomainEvent<IDailyMetrics>>
+/// <summary>BE-148: durable-подписчик (IAsyncDomainEventHandler): шина await-ит HandleAsync до завершения PublishAsync, событие доступно replay сразу после команды. MV-проекции — отдельные асинхронные подписчики.</summary>
+public sealed class DailyMetricsEventStoreHandler : IAsyncDomainEventHandler<IDailyMetrics>
 {
     private readonly IServiceScopeFactory _scopeFactory;
     public DailyMetricsEventStoreHandler(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
-    public void OnNext(IDomainEvent<IDailyMetrics> e) => _ = HandleAsync(e).ContinueWith(t =>
-    {
-        if (t.IsFaulted) Console.Error.WriteLine($"[event-store] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
-    }, TaskScheduler.Default);
-    public void OnError(Exception error) { }
-    public void OnCompleted() { }
 
     public async Task HandleAsync(IDomainEvent<IDailyMetrics> domainEvent)
     {
