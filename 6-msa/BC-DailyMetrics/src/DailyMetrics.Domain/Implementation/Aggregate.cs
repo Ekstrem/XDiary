@@ -30,36 +30,36 @@ internal sealed class Aggregate : IDailyMetricsAggregate
     public int Hrv => Model.Hrv;
     public ISleep Sleep => Model.Sleep;
     public Guid? ClientId => Model.ClientId;
-    private AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    private AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> Success(AnemicModel m, CommandToAggregate? command = null, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
-        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        command ??= CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
         m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
         var d = BusinessOperationData<IDailyMetrics, IDailyMetricsAnemicModel>.Commit<IDailyMetrics, IDailyMetricsAnemicModel>(Model, m); return new AggregateResultSuccess<IDailyMetrics, IDailyMetricsAnemicModel>(d); }
     private AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> Fail(string e)
     { var d = BusinessOperationData<IDailyMetrics, IDailyMetricsAnemicModel>.Commit<IDailyMetrics, IDailyMetricsAnemicModel>(Model, Model); return new AggregateResultException<IDailyMetrics, IDailyMetricsAnemicModel>(d, new FailedSpecification<IDailyMetrics, IDailyMetricsAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Stress = Model.Stress, RestingHr = Model.RestingHr, Hrv = Model.Hrv, Sleep = Model.Sleep, ClientId = Model.ClientId };
 
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId)
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId, CommandToAggregate? command = null)
     {
         var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         var nv = new NonNegativeSpecification(); if (!nv.IsSatisfiedBy(stress)) return Fail(nv.Reason);
-        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Stress = stress, ClientId = clientId });
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Stress = stress, ClientId = clientId }, command);
     }
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId)
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId, CommandToAggregate? command = null)
     {
         var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         var nv = new NonNegativeSpecification(); if (!nv.IsSatisfiedBy(restingHr)) return Fail(nv.Reason);
-        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), RestingHr = restingHr, ClientId = clientId });
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), RestingHr = restingHr, ClientId = clientId }, command);
     }
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId)
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId, CommandToAggregate? command = null)
     {
         var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
         var nv = new NonNegativeSpecification(); if (!nv.IsSatisfiedBy(hrv)) return Fail(nv.Reason);
-        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Hrv = hrv, ClientId = clientId });
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Hrv = hrv, ClientId = clientId }, command);
     }
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId)
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId, CommandToAggregate? command = null)
     {
         var dv = new DateFormatSpecification(); if (!dv.IsSatisfiedBy(date)) return Fail(dv.Reason);
-        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Sleep = sleep, ClientId = clientId });
+        return Success(Clone() with { Root = DailyMetricsRoot.CreateInstance(date), Sleep = sleep, ClientId = clientId }, command);
     }
 }

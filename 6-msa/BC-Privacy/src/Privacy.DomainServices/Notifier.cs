@@ -24,11 +24,11 @@ public sealed class Notifier : DomainEventNotifier<IPrivacy, IPinCredentialAggre
 
     public IPinCredentialRoot Root => Aggregate.Root;
     public bool Locked => Aggregate.Locked;
-    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> SetPin(Guid clientId, string salt, string hash, int iterations) => Observe(Aggregate.SetPin(clientId, salt, hash, iterations));
-    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> ChangePin(string salt, string hash, int iterations) => Observe(Aggregate.ChangePin(salt, hash, iterations));
-    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Remove() => Observe(Aggregate.Remove());
-    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Lock() => Observe(Aggregate.Lock());
-    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Unlock() => Observe(Aggregate.Unlock());
+    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> SetPin(Guid clientId, string salt, string hash, int iterations, CommandToAggregate? command = null) => Observe(Aggregate.SetPin(clientId, salt, hash, iterations, command));
+    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> ChangePin(string salt, string hash, int iterations, CommandToAggregate? command = null) => Observe(Aggregate.ChangePin(salt, hash, iterations, command));
+    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Remove(CommandToAggregate? command = null) => Observe(Aggregate.Remove(command));
+    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Lock(CommandToAggregate? command = null) => Observe(Aggregate.Lock(command));
+    public AggregateResult<IPrivacy, IPinCredentialAnemicModel> Unlock(CommandToAggregate? command = null) => Observe(Aggregate.Unlock(command));
 
     IDisposable IObservable<AggregateResult<IPrivacy, IPinCredentialAnemicModel>>.Subscribe(IObserver<AggregateResult<IPrivacy, IPinCredentialAnemicModel>> observer)
     {

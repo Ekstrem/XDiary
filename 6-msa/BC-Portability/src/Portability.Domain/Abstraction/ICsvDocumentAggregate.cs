@@ -1,5 +1,6 @@
 namespace Portability.Domain.Abstraction;
 
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Portability.Domain;
@@ -11,7 +12,7 @@ public interface ICsvDocumentAggregate : IAggregate<IPortability>, ICsvDocumentA
     IReadOnlyList<string> Rows { get; }
     string Kind { get; }
     Guid? ClientId { get; }
-    AggregateResult<IPortability, ICsvDocumentAnemicModel> ExportRecords(IReadOnlyList<string> rows, Guid clientId);
-    AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportRecords(IReadOnlyList<string> rows, Guid clientId);
-    AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportSomatic(IReadOnlyList<string> rows, Guid clientId);
+    AggregateResult<IPortability, ICsvDocumentAnemicModel> ExportRecords(IReadOnlyList<string> rows, Guid clientId, CommandToAggregate? command = null);
+    AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportRecords(IReadOnlyList<string> rows, Guid clientId, CommandToAggregate? command = null);
+    AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportSomatic(IReadOnlyList<string> rows, Guid clientId, CommandToAggregate? command = null);
 }

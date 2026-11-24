@@ -28,10 +28,10 @@ public sealed class Notifier : DomainEventNotifier<IDailyMetrics, IDailyMetricsA
     public int Hrv => Aggregate.Hrv;
     public ISleep Sleep => Aggregate.Sleep;
     public Guid? ClientId => Aggregate.ClientId;
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId) => Observe(Aggregate.RecordStress(date, stress, clientId));
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId) => Observe(Aggregate.RecordRestingHr(date, restingHr, clientId));
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId) => Observe(Aggregate.RecordHrv(date, hrv, clientId));
-    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId) => Observe(Aggregate.RecordSleep(date, sleep, clientId));
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.RecordStress(date, stress, clientId, command));
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.RecordRestingHr(date, restingHr, clientId, command));
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.RecordHrv(date, hrv, clientId, command));
+    public AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.RecordSleep(date, sleep, clientId, command));
 
     IDisposable IObservable<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>.Subscribe(IObserver<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>> observer)
     {

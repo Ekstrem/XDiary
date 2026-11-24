@@ -18,7 +18,7 @@ public sealed class RecordPointHandler : IRequestHandler<RecordPointCommand, Agg
     {
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ISomaticSeries, ISomaticSeriesAggregate>)_provider).GetAggregateWithCompletionAsync(Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>>)aggregate).Subscribe(_observer);
-        var res = aggregate.RecordPoint(r.T, r.Hr, r.BodyBattery, _actor.ClientId);
+        var res = aggregate.RecordPoint(r.T, r.Hr, r.BodyBattery, _actor.ClientId, AggregateCommandFactory.Create("RecordPoint"));
         await completion;
         if (res.IsSuccess()) { _ = _publisher.PublishPointAsync(r.T, r.Hr, r.BodyBattery, CancellationToken.None); }
         return res;
