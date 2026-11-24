@@ -1,4 +1,5 @@
 namespace Partners.Domain.Implementation;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -28,9 +29,10 @@ internal sealed class Aggregate : IPartnerAggregate
     public Guid? ClientId => Model.ClientId;
     public DateTime? DeletedAt => Model.DeletedAt;
 
-    private AggregateResult<IPartners, IPartnerAnemicModel> Success(AnemicModel m)
+    private AggregateResult<IPartners, IPartnerAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
-        m = m with { Version = Model.Version + 1 }; // BE-130: событие должно нести следующую версию (иначе PK (Id,Version) коллизирует)
+        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
         var data = BusinessOperationData<IPartners, IPartnerAnemicModel>.Commit<IPartners, IPartnerAnemicModel>(Model, m);
         return new AggregateResultSuccess<IPartners, IPartnerAnemicModel>(data);
     }

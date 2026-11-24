@@ -1,4 +1,5 @@
 namespace GarminGateway.Domain.Implementation;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -27,8 +28,11 @@ internal sealed class Aggregate : IGarminGatewayAggregate
     public ICredentials Credentials => Model.Credentials;
     public ISyncConfig SyncConfig => Model.SyncConfig;
     public string LastSync => Model.LastSync;
-    private AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Success(AnemicModel m)
-    { var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, m); return new AggregateResultSuccess<IGarminGateway, IGarminGatewayAnemicModel>(d); }
+    private AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    {
+        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
+        var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, m); return new AggregateResultSuccess<IGarminGateway, IGarminGatewayAnemicModel>(d); }
     private AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Fail(string e)
     { var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, Model); return new AggregateResultException<IGarminGateway, IGarminGatewayAnemicModel>(d, new FailedSpecification<IGarminGateway, IGarminGatewayAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Credentials = Model.Credentials, SyncConfig = Model.SyncConfig, LastSync = Model.LastSync };

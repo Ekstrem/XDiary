@@ -25,7 +25,7 @@ public sealed class PartnerEventStoreHandler : IAsyncDomainEventHandler<IPartner
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
-            Version = await store.GetEventCountAsync(domainEvent.Id) + 1,
+            Version = domainEvent.Command.Version, // BE-150: Command.Version = новая версия агрегата
             CorrelationToken = domainEvent.CorrelationToken,
             BoundedContext = domainEvent.ContextName,
             CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,

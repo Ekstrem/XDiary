@@ -19,6 +19,9 @@ namespace Journal.IntegrationTests;
 /// <summary>BE-148: после await completion событие уже записано в event store — replay следующей команды его видит.</summary>
 public class JournalEventStoreDurableTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public async Task Completion_WhenDurableSavePending_ShouldWaitAndExposeEventToReplay()
     {
@@ -34,7 +37,7 @@ public class JournalEventStoreDurableTests
         var (aggregate, completionTask) = await provider.GetAggregateWithCompletionAsync(Guid.NewGuid(), default);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(new BusAdapter(bus, completion));
 
-        var result = aggregate.StartManualEntry(Guid.NewGuid());
+        var result = aggregate.StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
 
         Assert.True(result.Result == DomainOperationResultEnum.Success);
         Assert.False(completionTask.IsCompleted);           // durable-запись ещё не завершена
@@ -46,7 +49,8 @@ public class JournalEventStoreDurableTests
 
         Assert.True(completionTask.IsCompletedSuccessfully);
         Assert.Single(store.Saved);                         // событие доступно replay сразу после команды
-        Assert.Equal(1, store.Saved[0].Version);
+        Assert.Equal(result.Event.Command.Version, store.Saved[0].Version);
+        Assert.True(store.Saved[0].Version > 0);
     }
 
     [Fact]
@@ -64,7 +68,7 @@ public class JournalEventStoreDurableTests
         var (aggregate, completionTask) = await provider.GetAggregateWithCompletionAsync(Guid.NewGuid(), default);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(new BusAdapter(bus, completion));
 
-        var result = aggregate.StartManualEntry(Guid.NewGuid());
+        var result = aggregate.StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
 
         Assert.True(result.Result == DomainOperationResultEnum.Success);
         await Assert.ThrowsAsync<InvalidOperationException>(() => completionTask); // ошибка durable пробрасывается

@@ -1,6 +1,7 @@
 using Journal.Api.Events;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -10,13 +11,16 @@ using Xunit;
 /// <summary>BE-143: event-store-подписчик присваивает событиям монотонные версии из хранилища.</summary>
 public class JournalEventStoreHandlerTests
 {
+    private static CommandToAggregate Cmd(string name, long? version = null)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", version ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public async Task TwoCommands_WhenSavedTwice_ShouldProduceDistinctVersions()
     {
         var id = Guid.NewGuid();
         var clientId = Guid.NewGuid();
-        var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(clientId);
-        var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(clientId);
+        var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(clientId, Cmd("StartManualEntry", 1000));
+        var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(clientId, Cmd("StartManualEntry", 1001));
 
         var store = new CountingStore();
         var sc = new ServiceCollection();
@@ -28,8 +32,9 @@ public class JournalEventStoreHandlerTests
         await handler.HandleAsync(r2.Event);
 
         Assert.Equal(2, store.Saved.Count);
-        Assert.Equal(1, store.Saved[0].Version);
-        Assert.Equal(2, store.Saved[1].Version);
+        Assert.Equal(r1.Event.Command.Version, store.Saved[0].Version);
+        Assert.Equal(r2.Event.Command.Version, store.Saved[1].Version);
+        Assert.True(store.Saved[1].Version > store.Saved[0].Version);
     }
 
     private sealed class CountingStore : IEventStoreRepository<IJournal, IJournalAnemicModel>
