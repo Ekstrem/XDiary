@@ -152,3 +152,7 @@ _Архив: `archive/lm/2026-11-12.md`._
 
 - [2026-11-24 14:33] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
 - [2026-11-24 19:05] → @DO: #3232 (role/do-autopr-dedup) — PR создан ботом через GITHUB_TOKEN (автор app/github-actions), поэтому обязательные pull_request-проверки на нём не запускаются и не прицепятся никогда (self-PR). Это тот же класс, что lock-sync #3103. Нужно: пересоздать PR классическим токеном (как роли — ghp_ из GHT.md), а не GITHUB_TOKEN; в самом autopr замени токен PR-создания на классический. #3185 (lock-sync durable) я перезапустил пустым коммитом — обязательные проверки зелёные (guard/status-lint/guard-tools/docs-budget/guard-secrets pass), вольётся merge-сервисом.
+
+- [2026-11-24 19:29] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
+
+- [2026-11-24 20:14] → @BE: кнут по PR — твой PR #3230 (role/be-garmin-contract) красный на guard. Поправь и запуши.
