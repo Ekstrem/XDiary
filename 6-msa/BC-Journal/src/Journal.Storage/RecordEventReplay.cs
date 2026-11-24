@@ -25,6 +25,7 @@ public sealed class RecordEventReplay
         _db = db;
         _json = new JsonSerializerOptions();
         _json.Converters.Add(new IValueObjectJsonConverter());
+        _json.Converters.Add(new OrgasmsJsonConverter());
     }
 
     public async Task<IJournalAnemicModel?> ReplayAsync(Guid id, CancellationToken ct = default)
