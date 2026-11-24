@@ -1,4 +1,5 @@
 namespace AppleHealthGateway.Domain.Implementation;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -27,8 +28,11 @@ internal sealed class Aggregate : IAppleHealthGatewayAggregate
     public IImportConfig ImportConfig => Model.ImportConfig;
     public string LastImport => Model.LastImport;
     public IReadOnlyList<string> ProcessedFiles => Model.ProcessedFiles;
-    private AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Success(AnemicModel m)
-    { var d = BusinessOperationData<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>.Commit<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(Model, m); return new AggregateResultSuccess<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(d); }
+    private AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    {
+        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
+        var d = BusinessOperationData<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>.Commit<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(Model, m); return new AggregateResultSuccess<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(d); }
     private AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Fail(string e)
     { var d = BusinessOperationData<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>.Commit<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(Model, Model); return new AggregateResultException<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(d, new FailedSpecification<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, ImportConfig = Model.ImportConfig, LastImport = Model.LastImport, ProcessedFiles = Model.ProcessedFiles };

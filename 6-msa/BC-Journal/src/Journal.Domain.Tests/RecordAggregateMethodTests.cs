@@ -1,4 +1,5 @@
 using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -9,6 +10,9 @@ using Xunit;
 // (happy-path + кейс инварианта). Дополняет RecordAggregateTest и RecordInvariantTests.
 public class RecordAggregateMethodTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     private static IJournalAnemicModel Step(
         IJournalAnemicModel model,
         Func<Aggregate, AggregateResult<IJournal, IJournalAnemicModel>> command)
@@ -19,17 +23,17 @@ public class RecordAggregateMethodTests
     }
 
     private static IJournalAnemicModel StartManual()
-        => Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid()).Model();
+        => Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry")).Model();
 
     private static IJournalAnemicModel Recorded()
-        => Step(Step(StartManual(), a => a.SpecifyWhen("2026-10-29T21:00")), a => a.Complete());
+        => Step(Step(StartManual(), a => a.SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen"))), a => a.Complete(Cmd("Complete")));
 
     // ---- StartFromGarmin ----
     [Fact]
     public void StartFromGarmin_ValidIso_PersistsOrigin()
     {
         var result = Aggregate.CreateInstance(new AnemicModel())
-            .StartFromGarmin("2026-10-19T20:02:00Z", 18, "garmin-1", Guid.NewGuid());
+            .StartFromGarmin("2026-10-19T20:02:00Z", 18, "garmin-1", Guid.NewGuid(), Cmd("StartFromGarmin"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         var m = result.Model();
         Assert.True(m.Garmin);
@@ -42,7 +46,7 @@ public class RecordAggregateMethodTests
     public void StartFromGarmin_InvalidIso_Fails()
     {
         var result = Aggregate.CreateInstance(new AnemicModel())
-            .StartFromGarmin("не дата", 18, "garmin-1", Guid.NewGuid());
+            .StartFromGarmin("не дата", 18, "garmin-1", Guid.NewGuid(), Cmd("StartFromGarmin"));
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
@@ -50,7 +54,7 @@ public class RecordAggregateMethodTests
     [Fact]
     public void AddPartner_AddsPartner()
     {
-        var result = Aggregate.CreateInstance(StartManual()).AddPartner("partner-1");
+        var result = Aggregate.CreateInstance(StartManual()).AddPartner("partner-1", Cmd("AddPartner"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         Assert.Contains("partner-1", result.Model().Root.Partners);
     }
@@ -58,8 +62,8 @@ public class RecordAggregateMethodTests
     [Fact]
     public void AddPartner_Duplicate_DoesNotDuplicate()
     {
-        var m = Step(StartManual(), a => a.AddPartner("partner-1"));
-        var again = Aggregate.CreateInstance(m).AddPartner("partner-1");
+        var m = Step(StartManual(), a => a.AddPartner("partner-1", Cmd("AddPartner")));
+        var again = Aggregate.CreateInstance(m).AddPartner("partner-1", Cmd("AddPartner"));
         Assert.Equal(DomainOperationResultEnum.Success, again.Result);
         Assert.Single(again.Model().Root.Partners);
     }
@@ -68,8 +72,8 @@ public class RecordAggregateMethodTests
     [Fact]
     public void RemovePartner_RemovesExisting()
     {
-        var m = Step(Step(StartManual(), a => a.AddPartner("partner-1")), a => a.AddPartner("partner-2"));
-        var result = Aggregate.CreateInstance(m).RemovePartner("partner-1");
+        var m = Step(Step(StartManual(), a => a.AddPartner("partner-1", Cmd("AddPartner"))), a => a.AddPartner("partner-2", Cmd("AddPartner")));
+        var result = Aggregate.CreateInstance(m).RemovePartner("partner-1", Cmd("RemovePartner"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         Assert.DoesNotContain("partner-1", result.Model().Root.Partners);
         Assert.Contains("partner-2", result.Model().Root.Partners);
@@ -79,7 +83,7 @@ public class RecordAggregateMethodTests
     [Fact]
     public void SpecifyPlace_SetsPlace()
     {
-        var result = Aggregate.CreateInstance(StartManual()).SpecifyPlace("дома");
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyPlace("дома", Cmd("SpecifyPlace"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         Assert.Equal("дома", result.Model().Place);
     }
@@ -89,7 +93,7 @@ public class RecordAggregateMethodTests
     public void AddPositions_SetsPositions()
     {
         var result = Aggregate.CreateInstance(StartManual())
-            .AddPositions(new[] { "Миссионерская", "Догги (сзади)" });
+            .AddPositions(new[] { "Миссионерская", "Догги (сзади)" }, Cmd("AddPositions"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         Assert.Equal(new[] { "Миссионерская", "Догги (сзади)" }, result.Model().Positions);
     }
@@ -99,7 +103,7 @@ public class RecordAggregateMethodTests
     public void AddAccessories_SetsAllFour()
     {
         var result = Aggregate.CreateInstance(StartManual())
-            .AddAccessories(new[] { "костюм" }, new[] { "вибратор" }, new[] { "ролевая" }, new[] { "романтика" });
+            .AddAccessories(new[] { "костюм" }, new[] { "вибратор" }, new[] { "ролевая" }, new[] { "романтика" }, Cmd("AddAccessories"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         var m = result.Model();
         Assert.Equal(new[] { "костюм" }, m.Costumes);
@@ -113,7 +117,7 @@ public class RecordAggregateMethodTests
     public void RecordContraception_SetsContraceptivesAndCount()
     {
         var result = Aggregate.CreateInstance(StartManual())
-            .RecordContraception(new[] { "презерватив" }, 2);
+            .RecordContraception(new[] { "презерватив" }, 2, Cmd("RecordContraception"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         var m = result.Model();
         Assert.Equal(new[] { "презерватив" }, m.Contraceptives);
@@ -124,7 +128,7 @@ public class RecordAggregateMethodTests
     [Fact]
     public void Delete_OnRecorded_Succeeds()
     {
-        var result = Aggregate.CreateInstance(Recorded()).Delete();
+        var result = Aggregate.CreateInstance(Recorded()).Delete(Cmd("Delete"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         Assert.True(result.Model().Deleted);
     }
@@ -132,15 +136,15 @@ public class RecordAggregateMethodTests
     [Fact]
     public void Delete_OnDraft_Fails()
     {
-        var result = Aggregate.CreateInstance(StartManual()).Delete();
+        var result = Aggregate.CreateInstance(StartManual()).Delete(Cmd("Delete"));
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
     public void Delete_AlreadyDeleted_Fails()
     {
-        var deleted = Aggregate.CreateInstance(Recorded()).Delete().Model();
-        var again = Aggregate.CreateInstance(deleted).Delete();
+        var deleted = Aggregate.CreateInstance(Recorded()).Delete(Cmd("Delete")).Model();
+        var again = Aggregate.CreateInstance(deleted).Delete(Cmd("Delete"));
         Assert.NotEqual(DomainOperationResultEnum.Success, again.Result);
     }
 
@@ -148,7 +152,7 @@ public class RecordAggregateMethodTests
     [Fact]
     public void SpecifyPlace_AfterComplete_Fails()
     {
-        var result = Aggregate.CreateInstance(Recorded()).SpecifyPlace("дома");
+        var result = Aggregate.CreateInstance(Recorded()).SpecifyPlace("дома", Cmd("SpecifyPlace"));
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 }

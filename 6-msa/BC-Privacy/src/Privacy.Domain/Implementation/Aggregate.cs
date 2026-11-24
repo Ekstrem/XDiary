@@ -1,4 +1,5 @@
 namespace Privacy.Domain.Implementation;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -25,8 +26,11 @@ internal sealed class Aggregate : IPinCredentialAggregate
     // IPrivacyAnemicModel:
     public IPinCredentialRoot Root => Model.Root;
     public bool Locked => Model.Locked;
-    private AggregateResult<IPrivacy, IPinCredentialAnemicModel> Success(AnemicModel m)
-    { var d = BusinessOperationData<IPrivacy, IPinCredentialAnemicModel>.Commit<IPrivacy, IPinCredentialAnemicModel>(Model, m); return new AggregateResultSuccess<IPrivacy, IPinCredentialAnemicModel>(d); }
+    private AggregateResult<IPrivacy, IPinCredentialAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    {
+        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
+        var d = BusinessOperationData<IPrivacy, IPinCredentialAnemicModel>.Commit<IPrivacy, IPinCredentialAnemicModel>(Model, m); return new AggregateResultSuccess<IPrivacy, IPinCredentialAnemicModel>(d); }
     private AggregateResult<IPrivacy, IPinCredentialAnemicModel> Fail(string e)
     { var d = BusinessOperationData<IPrivacy, IPinCredentialAnemicModel>.Commit<IPrivacy, IPinCredentialAnemicModel>(Model, Model); return new AggregateResultException<IPrivacy, IPinCredentialAnemicModel>(d, new FailedSpecification<IPrivacy, IPinCredentialAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Locked = Model.Locked };

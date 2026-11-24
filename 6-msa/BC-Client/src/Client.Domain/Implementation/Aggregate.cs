@@ -1,4 +1,5 @@
 namespace Client.Domain.Implementation;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -31,8 +32,10 @@ internal sealed class Aggregate : IClientAggregate
     public int OtpAttempts => Model.OtpAttempts;
     public bool Verified => Model.Verified;
 
-    private AggregateResult<IClients, IClientAnemicModel> Success(AnemicModel m)
+    private AggregateResult<IClients, IClientAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
+        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
         var data = BusinessOperationData<IClients, IClientAnemicModel>.Commit<IClients, IClientAnemicModel>(Model, m);
         return new AggregateResultSuccess<IClients, IClientAnemicModel>(data);
     }

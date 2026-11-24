@@ -1,4 +1,5 @@
 namespace Journal.Application.Commands;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository;
@@ -21,7 +22,8 @@ public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCo
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.StartManualEntry(_actor.ClientId);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.StartManualEntry), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.StartManualEntry(_actor.ClientId, command);
         await completion;
         return result;
     }
@@ -41,7 +43,8 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
         var id = existing?.Id ?? Guid.NewGuid();
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, _actor.ClientId);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.StartFromGarmin), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, _actor.ClientId, command);
         await completion;
         return result;
     }
@@ -56,7 +59,8 @@ public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, Agg
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.SpecifyWhen(r.StartedAt);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.SpecifyWhen), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.SpecifyWhen(r.StartedAt, command);
         await completion;
         return result;
     }
@@ -71,7 +75,8 @@ public sealed class AddPartnerHandler : IRequestHandler<AddPartnerCommand, Aggre
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.AddPartner(r.PartnerId);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.AddPartner), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.AddPartner(r.PartnerId, command);
         await completion;
         return result;
     }
@@ -86,7 +91,8 @@ public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand,
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.RemovePartner(r.PartnerId);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.RemovePartner), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.RemovePartner(r.PartnerId, command);
         await completion;
         return result;
     }
@@ -101,7 +107,8 @@ public sealed class SpecifyPlaceHandler : IRequestHandler<SpecifyPlaceCommand, A
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.SpecifyPlace(r.Place);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.SpecifyPlace), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.SpecifyPlace(r.Place, command);
         await completion;
         return result;
     }
@@ -116,7 +123,8 @@ public sealed class AddPositionsHandler : IRequestHandler<AddPositionsCommand, A
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.AddPositions(r.Positions);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.AddPositions), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.AddPositions(r.Positions, command);
         await completion;
         return result;
     }
@@ -131,7 +139,8 @@ public sealed class AddAccessoriesHandler : IRequestHandler<AddAccessoriesComman
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.AddAccessories(r.Costumes, r.Toys, r.Fantasies, r.Tags);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.AddAccessories), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.AddAccessories(r.Costumes, r.Toys, r.Fantasies, r.Tags, command);
         await completion;
         return result;
     }
@@ -146,7 +155,8 @@ public sealed class RecordContraceptionHandler : IRequestHandler<RecordContracep
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.RecordContraception(r.Contraceptives, r.ContraceptiveCount);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.RecordContraception), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.RecordContraception(r.Contraceptives, r.ContraceptiveCount, command);
         await completion;
         return result;
     }
@@ -161,7 +171,8 @@ public sealed class SpecifyDurationHandler : IRequestHandler<SpecifyDurationComm
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.SpecifyDuration(r.DurationMin);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.SpecifyDuration), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.SpecifyDuration(r.DurationMin, command);
         await completion;
         return result;
     }
@@ -177,7 +188,8 @@ public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand,
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         var orgasms = r.Orgasms.Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList();
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.RecordOrgasms(orgasms);
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.RecordOrgasms), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.RecordOrgasms(orgasms, command);
         await completion;
         return result;
     }
@@ -193,7 +205,8 @@ public sealed class CompleteHandler : IRequestHandler<CompleteCommand, Aggregate
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.Complete();
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.Complete), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.Complete(command);
         await completion;
         if (result.IsSuccess()) await _publisher.PublishRecordCompletedAsync(result.Model(), ct);
         return result;
@@ -210,7 +223,8 @@ public sealed class DeleteRecordHandler : IRequestHandler<DeleteRecordCommand, A
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.Delete();
+        var command = CommandToAggregate.Commit(Guid.NewGuid(), nameof(IRecordAggregate.Delete), "Journal", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        var result = aggregate.Delete(command);
         await completion;
         if (result.IsSuccess()) await _publisher.PublishRecordDeletedAsync(result.Model(), ct);
         return result;

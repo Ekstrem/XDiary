@@ -1,4 +1,5 @@
 using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -13,6 +14,9 @@ namespace XDiary.Tests.Journal;
 /// <summary>TE-001: полный жизненный цикл Record (Command → Query → Assert).</summary>
 public class RecordLifecycleTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     private static IJournalAnemicModel Step(IJournalAnemicModel model, Func<Aggregate, AggregateResult<IJournal, IJournalAnemicModel>> command)
     {
         var result = command(Aggregate.CreateInstance(model));
@@ -21,7 +25,7 @@ public class RecordLifecycleTests
     }
 
     private static IJournalAnemicModel StartManual()
-        => Step(new AnemicModel(), a => a.StartManualEntry(Guid.NewGuid()));
+        => Step(new AnemicModel(), a => a.StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry")));
 
     private static JournalReadModel ToReadModel(IJournalAnemicModel model)
         => JournalReadModelBuilder.ToReadModel(model);
@@ -30,20 +34,20 @@ public class RecordLifecycleTests
     public void Full_Lifecycle_Command_Then_Query_ReturnsAllFields()
     {
         var model = StartManual();
-        model = Step(model, a => a.SpecifyWhen("2026-10-29T21:00"));
-        model = Step(model, a => a.AddPartner("partner-1"));
-        model = Step(model, a => a.SpecifyPlace("дома"));
-        model = Step(model, a => a.AddPositions(new[] { "Миссионерская", "Догги (сзади)" }));
+        model = Step(model, a => a.SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen")));
+        model = Step(model, a => a.AddPartner("partner-1", Cmd("AddPartner")));
+        model = Step(model, a => a.SpecifyPlace("дома", Cmd("SpecifyPlace")));
+        model = Step(model, a => a.AddPositions(new[] { "Миссионерская", "Догги (сзади)" }, Cmd("AddPositions")));
         model = Step(model, a => a.AddAccessories(
-            new[] { "костюм медсестры" }, new[] { "вибратор" }, new[] { "ролевая игра" }, new[] { "романтика" }));
-        model = Step(model, a => a.RecordContraception(new[] { "презерватив" }, 2));
-        model = Step(model, a => a.SpecifyDuration(25));
+            new[] { "костюм медсестры" }, new[] { "вибратор" }, new[] { "ролевая игра" }, new[] { "романтика" }, Cmd("AddAccessories")));
+        model = Step(model, a => a.RecordContraception(new[] { "презерватив" }, 2, Cmd("RecordContraception")));
+        model = Step(model, a => a.SpecifyDuration(25, Cmd("SpecifyDuration")));
         model = Step(model, a => a.RecordOrgasms(new[]
         {
             Orgasms.CreateInstance("me", 1, new[] { "обычный" }, 5),
             Orgasms.CreateInstance("partner-1", 2, new[] { "клиторальный", "вагинальный" }, 4)
-        }));
-        model = Step(model, a => a.Complete());
+        }, Cmd("RecordOrgasms")));
+        model = Step(model, a => a.Complete(Cmd("Complete")));
 
         var read = ToReadModel(model);
 
@@ -69,10 +73,10 @@ public class RecordLifecycleTests
     [Fact]
     public void StartFromGarmin_Then_Complete_PreservesOrigin()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin("2026-10-19T20:02", 18, "garmin-24790291519", Guid.NewGuid());
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartFromGarmin("2026-10-19T20:02", 18, "garmin-24790291519", Guid.NewGuid(), Cmd("StartFromGarmin"));
         Assert.Equal(DomainOperationResultEnum.Success, start.Result);
-        var model = Step(start.Model(), a => a.AddPartner("partner-1"));
-        model = Step(model, a => a.Complete());
+        var model = Step(start.Model(), a => a.AddPartner("partner-1", Cmd("AddPartner")));
+        model = Step(model, a => a.Complete(Cmd("Complete")));
 
         var read = ToReadModel(model);
         Assert.True(read.Garmin);
@@ -86,8 +90,8 @@ public class RecordLifecycleTests
     {
         // Query читает Read Store (entity → read model), а не Event Store.
         var model = StartManual();
-        model = Step(model, a => a.SpecifyWhen("2026-10-29T21:00"));
-        model = Step(model, a => a.AddPositions(new[] { "Ложки" }));
+        model = Step(model, a => a.SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen")));
+        model = Step(model, a => a.AddPositions(new[] { "Ложки" }, Cmd("AddPositions")));
 
         var read = JournalReadModelBuilder.ToReadModel(model);
 
