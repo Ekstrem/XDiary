@@ -27,7 +27,14 @@ jobs:
       - name: Create PR (если ещё нет)
         id: create
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # PAT не годится: у него нет scope на PR
+          # @LM 2026-11-24 19:05: PR от GITHUB_TOKEN (автор app/github-actions) — «self-PR»:
+          # на нём НЕ срабатывает pull_request-событие, чеки не постят commit statuses,
+          # и ветка с legacy-contexts защиты + enforce_admins висит `blocked` навсегда
+          # (проверено фактом: 12 check-runs зелёные, combined status = 0 statuses, merge 405).
+          # Классический PAT (PROJECT_PAT, fine-grained pull_requests:write — секрет заводит
+          # владелец) делает PR user-authored: pull_request-чеки приходят штатно.
+          GH_TOKEN: ${{ secrets.PROJECT_PAT || secrets.GITHUB_TOKEN }}
+          HAS_PROJECT_PAT: ${{ secrets.PROJECT_PAT != '' }}
         run: |
           if gh pr view "$GITHUB_REF_NAME" --json number >/dev/null 2>&1; then
             echo "PR уже есть — чеки всё равно перезапускаем (@AR 03:43: dispatch обязан"
@@ -40,8 +47,10 @@ jobs:
             echo "created=true" >> "$GITHUB_OUTPUT"
           fi
       # Событие от `GITHUB_TOKEN` не порождает прогонов — запускаем чеки сами.
-      - name: Dispatch checks (иначе у авто-PR нет чеков)
-        if: steps.create.outputs.created == 'true'
+      # Но если PR создан PROJECT_PAT (user-authored), pull_request-чеки придут сами,
+      # и dispatch их дублирует — поэтому он только для бот-токена.
+      - name: Dispatch checks (только если PR создан GITHUB_TOKEN, а не PAT)
+        if: steps.create.outputs.created == 'true' && env.HAS_PROJECT_PAT == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
