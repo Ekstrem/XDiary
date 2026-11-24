@@ -28,21 +28,21 @@ internal sealed class Aggregate : ISomaticSeriesAggregate
     public int Hr => Model.Hr;
     public int BodyBattery => Model.BodyBattery;
     public Guid? ClientId => Model.ClientId;
-    private AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    private AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> Success(AnemicModel m, CommandToAggregate? command = null, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
-        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        command ??= CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
         m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
         var d = BusinessOperationData<ISomaticSeries, ISomaticSeriesAnemicModel>.Commit<ISomaticSeries, ISomaticSeriesAnemicModel>(Model, m); return new AggregateResultSuccess<ISomaticSeries, ISomaticSeriesAnemicModel>(d); }
     private AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> Fail(string e)
     { var d = BusinessOperationData<ISomaticSeries, ISomaticSeriesAnemicModel>.Commit<ISomaticSeries, ISomaticSeriesAnemicModel>(Model, Model); return new AggregateResultException<ISomaticSeries, ISomaticSeriesAnemicModel>(d, new FailedSpecification<ISomaticSeries, ISomaticSeriesAnemicModel>(e)); }
 
-    public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId)
+    public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId, CommandToAggregate? command = null)
     {
         var mv = new MinuteGranularitySpecification();
         if (!mv.IsSatisfiedBy(t)) return Fail(mv.Reason);
         var nv = new NonNegativeSpecification();
         if (!nv.IsSatisfiedBy(hr, bodyBattery)) return Fail(nv.Reason);
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = SomaticPointRoot.CreateInstance(t), Hr = hr, BodyBattery = bodyBattery, ClientId = clientId };
-        return Success(m);
+        return Success(m, command);
     }
 }

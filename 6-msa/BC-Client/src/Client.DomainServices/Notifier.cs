@@ -31,11 +31,11 @@ public sealed class Notifier : DomainEventNotifier<IClients, IClientAggregate>, 
     public int OtpAttempts => Aggregate.OtpAttempts;
     public bool Verified => Aggregate.Verified;
 
-    public AggregateResult<IClients, IClientAnemicModel> Register(string phone, string otp) => Observe(Aggregate.Register(phone, otp));
-    public AggregateResult<IClients, IClientAnemicModel> VerifyOtp(string code) => Observe(Aggregate.VerifyOtp(code));
-    public AggregateResult<IClients, IClientAnemicModel> RecordFailedAttempt() => Observe(Aggregate.RecordFailedAttempt());
-    public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl) => Observe(Aggregate.UpdateProfile(displayName, gender, photoUrl));
-    public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp) => Observe(Aggregate.ReissueOtp(otp));
+    public AggregateResult<IClients, IClientAnemicModel> Register(string phone, string otp, CommandToAggregate? command = null) => Observe(Aggregate.Register(phone, otp, command));
+    public AggregateResult<IClients, IClientAnemicModel> VerifyOtp(string code, CommandToAggregate? command = null) => Observe(Aggregate.VerifyOtp(code, command));
+    public AggregateResult<IClients, IClientAnemicModel> RecordFailedAttempt(CommandToAggregate? command = null) => Observe(Aggregate.RecordFailedAttempt(command));
+    public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl, CommandToAggregate? command = null) => Observe(Aggregate.UpdateProfile(displayName, gender, photoUrl, command));
+    public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp, CommandToAggregate? command = null) => Observe(Aggregate.ReissueOtp(otp, command));
 
     IDisposable IObservable<AggregateResult<IClients, IClientAnemicModel>>.Subscribe(IObserver<AggregateResult<IClients, IClientAnemicModel>> observer)
     {

@@ -24,7 +24,7 @@ public sealed class ConnectHandler : IRequestHandler<ConnectCommand, AggregateRe
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
         var creds = Credentials.CreateInstance(r.Credentials.ApiKey, r.Credentials.OauthToken, r.Credentials.TokenExpiry);
-        var result = aggregate.Connect(_actor.ClientId, creds);
+        var result = aggregate.Connect(_actor.ClientId, creds, AggregateCommandFactory.Create("Connect"));
         await completion;
         return result;
     }
@@ -43,7 +43,7 @@ public sealed class SyncHandler : IRequestHandler<SyncCommand, AggregateResult<I
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
         var cfg = SyncConfig.CreateInstance(r.Config.Metrics, r.Config.WindowDays);
-        var result = aggregate.Sync(cfg);
+        var result = aggregate.Sync(cfg, AggregateCommandFactory.Create("Sync"));
         await completion;
         return result;
     }
@@ -61,7 +61,7 @@ public sealed class FetchActivitiesHandler : IRequestHandler<FetchActivitiesComm
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.FetchActivities();
+        var result = aggregate.FetchActivities(AggregateCommandFactory.Create("FetchActivities"));
         await completion;
         return result;
     }

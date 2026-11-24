@@ -1,5 +1,6 @@
 namespace SomaticSeries.Domain.Abstraction;
 
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using SomaticSeries.Domain;
@@ -11,5 +12,5 @@ public interface ISomaticSeriesAggregate : IAggregate<ISomaticSeries>, ISomaticS
     int Hr { get; }
     int BodyBattery { get; }
     Guid? ClientId { get; }
-    AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId);
+    AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId, CommandToAggregate? command = null);
 }

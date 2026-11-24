@@ -32,9 +32,9 @@ internal sealed class Aggregate : IClientAggregate
     public int OtpAttempts => Model.OtpAttempts;
     public bool Verified => Model.Verified;
 
-    private AggregateResult<IClients, IClientAnemicModel> Success(AnemicModel m, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    private AggregateResult<IClients, IClientAnemicModel> Success(AnemicModel m, CommandToAggregate? command = null, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
-        var command = CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        command ??= CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
         m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
         var data = BusinessOperationData<IClients, IClientAnemicModel>.Commit<IClients, IClientAnemicModel>(Model, m);
         return new AggregateResultSuccess<IClients, IClientAnemicModel>(data);
@@ -48,36 +48,36 @@ internal sealed class Aggregate : IClientAggregate
     private const int MaxOtpAttempts = 5;
     private const int OtpTtlMinutes = 5;
 
-    public AggregateResult<IClients, IClientAnemicModel> Register(string phone, string otp)
+    public AggregateResult<IClients, IClientAnemicModel> Register(string phone, string otp, CommandToAggregate? command = null)
     {
         var v = new PhoneRequiredSpecification();
         var probe = new AnemicModel { Id = Model.Id, Root = ClientRoot.CreateInstance(phone) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = ClientRoot.CreateInstance(phone), OtpCode = otp, OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes) };
-        return Success(m);
+        return Success(m, command);
     }
-    public AggregateResult<IClients, IClientAnemicModel> VerifyOtp(string code)
+    public AggregateResult<IClients, IClientAnemicModel> VerifyOtp(string code, CommandToAggregate? command = null)
     {
         if (Model.OtpCode == string.Empty) return Fail("Код уже использован.");
         if (Model.OtpExpiresAt is null || Model.OtpExpiresAt.Value < DateTime.UtcNow) return Fail("Код истёк.");
         if (Model.OtpAttempts >= MaxOtpAttempts) return Fail("Слишком много попыток, попробуйте позже.");
         if (Model.OtpCode != code) return Fail("Неверный код.");
-        return Success(Clone() with { Verified = true, OtpCode = string.Empty, OtpExpiresAt = null, OtpAttempts = 0 });
+        return Success(Clone() with { Verified = true, OtpCode = string.Empty, OtpExpiresAt = null, OtpAttempts = 0 }, command);
     }
-    public AggregateResult<IClients, IClientAnemicModel> RecordFailedAttempt()
+    public AggregateResult<IClients, IClientAnemicModel> RecordFailedAttempt(CommandToAggregate? command = null)
     {
-        return Success(Clone() with { OtpAttempts = Model.OtpAttempts + 1 });
+        return Success(Clone() with { OtpAttempts = Model.OtpAttempts + 1 }, command);
     }
-    public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl)
+    public AggregateResult<IClients, IClientAnemicModel> UpdateProfile(string displayName, string gender, string? photoUrl, CommandToAggregate? command = null)
     {
         if (string.IsNullOrWhiteSpace(displayName)) return Fail("displayName обязателен.");
         var g = (gender ?? "").Trim().ToLowerInvariant();
         if (g is not ("male" or "female")) return Fail("gender: допустимо male или female.");
-        return Success(Clone() with { DisplayName = displayName, Gender = g, PhotoUrl = photoUrl });
+        return Success(Clone() with { DisplayName = displayName, Gender = g, PhotoUrl = photoUrl }, command);
     }
-    public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp)
+    public AggregateResult<IClients, IClientAnemicModel> ReissueOtp(string otp, CommandToAggregate? command = null)
     {
-        return Success(Clone() with { OtpCode = otp, OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes), OtpAttempts = 0 });
+        return Success(Clone() with { OtpCode = otp, OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpTtlMinutes), OtpAttempts = 0 }, command);
     }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, OtpCode = Model.OtpCode, OtpExpiresAt = Model.OtpExpiresAt, OtpAttempts = Model.OtpAttempts, DisplayName = Model.DisplayName, Gender = Model.Gender, PhotoUrl = Model.PhotoUrl, Verified = Model.Verified };
 }
