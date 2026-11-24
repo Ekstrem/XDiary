@@ -22,6 +22,7 @@ public sealed class JournalEventStoreHandler : IAsyncDomainEventHandler<IJournal
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IJournal, IJournalAnemicModel>>();
         var jsonOptions = new JsonSerializerOptions();
         jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+        jsonOptions.Converters.Add(new Journal.Domain.Implementation.OrgasmsJsonConverter());
         var cmdName = domainEvent.ChangedValueObjects is not null
             && domainEvent.ChangedValueObjects.TryGetValue("CommandName", out var cn)
             && cn is Journal.Domain.Implementation.StringValueObject cns

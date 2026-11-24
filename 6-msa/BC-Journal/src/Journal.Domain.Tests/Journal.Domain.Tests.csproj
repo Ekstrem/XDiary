@@ -17,6 +17,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Journal.Domain\Journal.Domain.csproj" />
+    <ProjectReference Include="..\Journal.Application\Journal.Application.csproj" />
+    <ProjectReference Include="..\Journal.InternalContracts\Journal.InternalContracts.csproj" />
+    <ProjectReference Include="..\Journal.Api\Journal.Api.csproj" />
         <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -22,6 +22,7 @@ public sealed class RecordEventRehydrator : IEventStreamRehydrator<IJournal, IJo
     {
         var options = new JsonSerializerOptions();
         options.Converters.Add(new IValueObjectJsonConverter());
+        options.Converters.Add(new OrgasmsJsonConverter());
         return options;
     }
 

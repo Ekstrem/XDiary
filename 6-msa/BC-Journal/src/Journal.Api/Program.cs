@@ -16,6 +16,12 @@ using DigiTFactory.Libraries.EventBus.InMemory.Extensions;
 using DigiTFactory.Libraries.ReadRepository.Postgres.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+// BE-151: self-hosted integration tests не пишут в Windows EventLog (песочница запрещает).
+if (Environment.GetEnvironmentVariable("JOURNAL_TESTS") == "true")
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.None);
+}
 builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
 builder.Host.ConfigureContainer<ContainerBuilder>(c => c.RegisterModule<RegisterDependencies>());
 System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
@@ -51,11 +57,13 @@ builder.Services.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>
 builder.Services.AddReadStorePostgres<IJournal, PartnersDirectoryReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 builder.Services.AddHostedService<Journal.Api.Events.JournalEventConsumer>();
-builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>();
+builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>(sp => new Journal.Api.Events.JournalEventHandler(sp.GetRequiredService<IServiceScopeFactory>()));
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventStoreHandler>();
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
 // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
 builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IJournal, IJournalAnemicModel>, Journal.Storage.RecordEventRehydrator>();
+// BE-151: rebuild read-моделей из Event Store (IRebuildService).
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository.IRebuildService<IJournal>, Journal.Api.Events.JournalRebuildService>();
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();
