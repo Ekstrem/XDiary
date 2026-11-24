@@ -24,11 +24,19 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Копии совпадают с манифестом
         run: python tools/sync_tools.py --check
+      - name: PR не делает гейты устаревшими (вариант «а», владелец 2026-11-21)
+        # Переименовал/удалил файлы — обнови гейт, который ищет их паттерн, В ТОМ ЖЕ PR.
+        # Красит только НОВУЮ сталость от этого PR; прежняя (например от bb2b4b275) — warning.
+        run: |
+          python tools/check_gate_freshness.py --selftest
+          python tools/check_gate_freshness.py --base origin/main
       # Владелец 2026-11-24 (BE-148, @LM): `#pragma warning disable` — обход гейта
       # качества (QG-612 sync-over-async подавляли директивой вместо устранения причины).
       # Инструмент LM (#3314) в main; подключение в CI — зона @DO. Ставлю в guard-tools,
