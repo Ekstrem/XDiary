@@ -429,6 +429,11 @@
       "sha256": "6c8a2a96de67e74aad9ae478e655d5812ef16151c9e209e037ba6eb96213a64e",
       "synced_at": "2026-11-19",
       "upstream": "tools/wip.py"
+    },
+    "check_pragma_disable.py": {
+      "sha256": "9963cd32723a23ae5222f518fbfc64f065fe80aa68f597b9b21f7b4250d88e84",
+      "synced_at": "2026-11-24",
+      "upstream": "tools/check_pragma_disable.py"
     }
   },
   "upstream": "Ekstrem/LoopMaker"
