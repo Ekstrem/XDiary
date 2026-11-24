@@ -27,21 +27,49 @@ jobs:
       - name: Create PR (если ещё нет)
         id: create
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # PAT не годится: у него нет scope на PR
+          # @LM 2026-11-24 19:05: PR от GITHUB_TOKEN (автор app/github-actions) — «self-PR»:
+          # на нём НЕ срабатывает pull_request-событие, чеки не постят commit statuses,
+          # и ветка с legacy-contexts защиты + enforce_admins висит `blocked` навсегда
+          # (проверено фактом: 12 check-runs зелёные, combined status = 0 statuses, merge 405).
+          # Классический PAT (PROJECT_PAT, fine-grained pull_requests:write — секрет заводит
+          # владелец) делает PR user-authored: pull_request-чеки приходят штатно.
+          GH_TOKEN: ${{ secrets.PROJECT_PAT || secrets.GITHUB_TOKEN }}
+          HAS_PROJECT_PAT: ${{ secrets.PROJECT_PAT != '' }}
         run: |
           if gh pr view "$GITHUB_REF_NAME" --json number >/dev/null 2>&1; then
             echo "PR уже есть — чеки всё равно перезапускаем (@AR 03:43: dispatch обязан"
             echo "идти на КАЖДЫЙ пуш, иначе новый SHA остаётся без чеков)"
             echo "created=false" >> "$GITHUB_OUTPUT"
           else
-            gh pr create --base main --head "$GITHUB_REF_NAME" \
+            # TOCTOU-дедуп (красный `pr` на #3223, @TL 16:10): два пуша подряд стартуют два
+            # прогона; `gh pr view` у второго отвечает ДО создания PR первым, и `gh pr create`
+            # падает "already exists" → exit 1 → красный шум на валидном состоянии.
+            # Ловим ТОЛЬКО этот текст: существующий PR = дедуп (exit 0), любая другая
+            # ошибка — по-прежнему failure (не маскируем: свой класс «подавил = неверная ветка»).
+            set +e
+            out=$(gh pr create --base main --head "$GITHUB_REF_NAME" \
               --title "$GITHUB_REF_NAME: $(git log -1 --pretty=%s)" \
-              --body "Авто-PR из ветки \`$GITHUB_REF_NAME\` (PDR-047)."
-            echo "created=true" >> "$GITHUB_OUTPUT"
+              --body "Авто-PR из ветки \`$GITHUB_REF_NAME\` (PDR-047)." 2>&1)
+            rc=$?
+            set -e
+            if [ "$rc" != "0" ]; then
+              if printf '%s' "$out" | grep -qi 'already exists'; then
+                echo "::notice::PR создан параллельным прогоном — дедуп, не ошибка"
+                echo "created=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "$out"
+                exit "$rc"
+              fi
+            else
+              echo "$out"
+              echo "created=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
       # Событие от `GITHUB_TOKEN` не порождает прогонов — запускаем чеки сами.
-      - name: Dispatch checks (иначе у авто-PR нет чеков)
-        if: steps.create.outputs.created == 'true'
+      # Но если PR создан PROJECT_PAT (user-authored), pull_request-чеки придут сами,
+      # и dispatch их дублирует — поэтому он только для бот-токена.
+      - name: Dispatch checks (только если PR создан GITHUB_TOKEN, а не PAT)
+        if: steps.create.outputs.created == 'true' && env.HAS_PROJECT_PAT == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
