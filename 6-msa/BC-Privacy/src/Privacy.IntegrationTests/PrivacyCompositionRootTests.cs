@@ -17,6 +17,8 @@ public class PrivacyCompositionRootTests
         sc.AddEventStorePostgres<IPrivacy, IPinCredentialAnemicModel>("Host=localhost;Database=es", null);
         sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<PrivacyEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IPrivacy, IPinCredentialAnemicModel>, PrivacyEventRehydrator>();
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPrivacy, IPinCredentialAnemicModel>, PrivacyEventSourcingRepository>();
         using var sp = sc.BuildServiceProvider();
         var repo = sp.GetRequiredService<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPrivacy, IPinCredentialAnemicModel>>();

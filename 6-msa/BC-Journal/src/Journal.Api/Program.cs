@@ -54,6 +54,8 @@ builder.Services.AddHostedService<Journal.Api.Events.JournalEventConsumer>();
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventHandler>();
 builder.Services.AddSingleton<Journal.Api.Events.JournalEventStoreHandler>();
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IJournal, IJournalAnemicModel>, Journal.Storage.RecordEventRehydrator>();
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();

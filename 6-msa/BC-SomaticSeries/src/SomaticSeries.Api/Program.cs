@@ -32,6 +32,8 @@ builder.Services.AddEventStorePostgres<ISomaticSeries, ISomaticSeriesAnemicModel
 builder.Services.AddScoped<IEventStoreRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesEventSourcingRepository>();
 builder.Services.AddScoped<SomaticSeriesEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<ISomaticSeries, ISomaticSeriesAnemicModel>, SomaticSeriesEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<ISomaticSeries, SomaticSeriesReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-133: DbContextOptions ПОСЛЕ store-регистраций (порядок как в Journal) — иначе Autofac падает.

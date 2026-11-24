@@ -30,6 +30,8 @@ builder.Services.AddEventStorePostgres<IPrivacy, IPinCredentialAnemicModel>(buil
 builder.Services.AddScoped<IEventStoreRepository<IPrivacy, IPinCredentialAnemicModel>, PrivacyEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPrivacy, IPinCredentialAnemicModel>, PrivacyEventSourcingRepository>();
 builder.Services.AddScoped<PrivacyEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<IPrivacy, IPinCredentialAnemicModel>, PrivacyEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IPrivacy, PinCredentialReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-125/BE-133: не-generic DbContextOptions для библиотечного EventStoreDbContext (иначе Autofac падает).

@@ -18,8 +18,9 @@ public sealed class JournalEventSourcingRepository : FullEventSourcingRepository
     public JournalEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IJournal, IJournalAnemicModel>> logger,
-        RecordEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        RecordEventReplay replay,
+        IEventStreamRehydrator<IJournal, IJournalAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<IJournalAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

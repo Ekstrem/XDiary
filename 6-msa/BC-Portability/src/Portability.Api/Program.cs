@@ -30,6 +30,8 @@ builder.Services.AddEventStorePostgres<IPortability, ICsvDocumentAnemicModel>(bu
 builder.Services.AddScoped<IEventStoreRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IPortability, ICsvDocumentAnemicModel>, PortabilityEventSourcingRepository>();
 builder.Services.AddScoped<PortabilityEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<IPortability, ICsvDocumentAnemicModel>, PortabilityEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IPortability, CsvDocumentReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-125/BE-133: не-generic DbContextOptions для библиотечного EventStoreDbContext (иначе Autofac падает).

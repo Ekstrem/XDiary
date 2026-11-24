@@ -13,8 +13,9 @@ public sealed class PrivacyEventSourcingRepository : FullEventSourcingRepository
     public PrivacyEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IPrivacy, IPinCredentialAnemicModel>> logger,
-        PrivacyEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        PrivacyEventReplay replay,
+        IEventStreamRehydrator<IPrivacy, IPinCredentialAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<IPinCredentialAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

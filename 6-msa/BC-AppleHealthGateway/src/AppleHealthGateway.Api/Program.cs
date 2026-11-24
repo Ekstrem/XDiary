@@ -29,6 +29,8 @@ builder.Services.AddEventStorePostgres<IAppleHealthGateway, IAppleHealthGatewayA
 builder.Services.AddScoped<IEventStoreRepository<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>, AppleHealthGatewayEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>, AppleHealthGatewayEventSourcingRepository>();
 builder.Services.AddScoped<AppleHealthGatewayEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>, AppleHealthGatewayEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IAppleHealthGateway, AppleImportReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-133: DbContextOptions ПОСЛЕ store-регистраций (порядок как в Journal) — иначе Autofac падает.

@@ -168,19 +168,23 @@ jobs:
           git config user.name "loopmaker-bot"
           git config user.email "loopmaker-bot@users.noreply.github.com"
           git add 7-deploy/images.lock
-          # `[skip ci]` — второй предохранитель: бот не должен каскадом будить другие
-          # workflow, даже если фильтры путей когда-нибудь изменятся (@TL 09:41).
-          git commit -m "bot: images.lock синхронизирован с git (lock-sync) [skip ci]"
-          # main защищён (GH006: Protected branch update failed) — бот не пушит в main.
-          # Вариант (б): ветка lock-sync/<sha> + PR (TL 15:50). Protection не трогаем.
-          BR="lock-sync/$(git rev-parse --short HEAD)"
+          # DO-145 (@LM D-23, вариант 3 как норма): `[skip ci]` убран — именно он и блокировал
+          # все bot-PR навсегда (`mergeable_state=blocked`, 0 check-runs, API-мерж 405
+          # «5 of 5 required status checks are expected», `enforce_admins=true` — обойти нельзя).
+          # Цена: каждый рефреш lock гоняет полный CI (12 required) — но это дешевле, чем
+          # ручной перенос lock ролью каждый раз (три раза за сутки: #3021, #3122, #3169).
+          # Проверено в бою: роль-ветка `role/do-lock-9b2d910` — 12 check-runs, мерж штатный.
+          git commit -m "do: images.lock синхронизирован (lock-sync)"
+          # main защищён (GH006) — бот не пушит в main. Вариант 3: ветка role/do-lock-<sha>,
+          # PR от неё с обычным сообщением — чеки запускаются, мерж штатный.
+          BR="role/do-lock-$(git rev-parse --short HEAD)"
           git checkout -B "$BR"
           git push origin "HEAD:refs/heads/$BR"
           # PR создаём один раз (если для ветки уже есть открытый — не дублируем)
           if ! gh pr list --head "$BR" --state open --json number --jq '.[].number' | grep -q .; then
             gh pr create --base main --head "$BR" \
-              --title "bot: images.lock синхронизирован (lock-sync)" \
-              --body "Автоматический lock-sync: обновлён 7-deploy/images.lock (digest из реестра). Мерж — по обычному порядку."
+              --title "do: images.lock синхронизирован (lock-sync)" \
+              --body "Автоматический lock-sync (вариант 3, @LM D-23): обновлён 7-deploy/images.lock (digest из реестра). Ветка `role/do-lock-<sha>` — поэтому required-чеки запускаются, и мерж штатный (без [skip ci])."
           fi
           echo "lock-sync: ветка $BR запушена, PR открыт/существует"
           exit 0

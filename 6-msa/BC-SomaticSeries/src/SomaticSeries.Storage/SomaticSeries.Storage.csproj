@@ -9,8 +9,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.7.0" />
-    <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.2.2" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.8.0" />
+    <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.3.0" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
       <PackageReference Include="DigiTFactory.Libraries.Analyzers.Storage" Version="0.1.2" PrivateAssets="all" />
 </ItemGroup>

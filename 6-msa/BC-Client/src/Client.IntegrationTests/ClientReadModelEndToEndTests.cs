@@ -58,6 +58,8 @@ public class ClientReadModelEndToEndTests
         sc.AddScoped<IEventStoreRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
         sc.AddScoped<ClientEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IClients, IClientAnemicModel>, ClientEventRehydrator>();
         sc.AddReadStorePostgres<IClients, ClientReadModel, ReadDbContext>(cs, null);
         sc.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
         sc.AddScoped<IAggregateProvider<IClients, IClientAggregate>, AggregateProvider>();
