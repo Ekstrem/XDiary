@@ -23,8 +23,8 @@
 |---|---|---|---|---|---|---|
 | `state` | enum `Draft` \| `Recorded` \| `Deleted` | 1 | да | фабрики → `Complete()` → `Delete()` | см. §3 (переходы) | — |
 | `clientId` | uuid | 1 (новые) | да | из JWT `sub`, **не из тела** | RecordOwnedByClient, AuthorFromToken | ADR-024 |
-| `partners[]` | uuid[] | 0..N | нет (0 = соло) | `AddPartner` / `RemovePartner` | PartnersCardinality, PartnersAreParticipants | US-02 |
-| `startedAt` | datetime (`YYYY-MM-DDTHH:mm`) | 1 | да (до `Complete`) | `SpecifyWhen` / `StartFromGarmin` | WhenRequired | US-01 |
+| `partners[]` | uuid[] (в транспорте — строка; см. §2.6.1) | 0..N | нет (0 = соло) | `AddPartner` / `RemovePartner` | PartnersCardinality, PartnersAreParticipants | US-02 |
+| `startedAt` | datetime (`YYYY-MM-DDTHH:mm`) — в транспорте строка ISO, в проекции/DTO строка (см. §2.6.1) | 1 | да (до `Complete`) | `SpecifyWhen` / `StartFromGarmin` | WhenRequired | US-01 |
 | `durationMin` | int | 1 | да (до `Complete`) | `SpecifyDuration` | DurationPositive (≥ 1) | US-06 |
 | `place` | string? | 0..1 | нет | `SpecifyPlace` | — | US-03 |
 | `positions[]` | string[] | 0..N | нет | `AddPositions` | — | US-04 |
@@ -71,6 +71,26 @@
 (каждый — иммутабельный, фабрика `Create`):
 `Duration(durationMin)` · `Place(place)` · `Positions(positions[])` · `Accessories(costumes[], toys[], fantasies[], tags[])` ·
 `Contraception(contraceptives[], contraceptiveCount)` · `Orgasms(orgasms[])` · `When(startedAt)` · `Origin(garmin, garminId)`.
+
+**2.6.1. Контрактный эталон первой генерации Journal (AR-163-эталон, @AR 2026-11-24, по запросу @DR QG-704/705).**
+Единый источник для verified reference и поведенческих QG — **рабочий `BC-Journal` в `origin/main`**:
+
+1. **`partnerId` — строка в транспорте.** `AddPartnerCommand(Guid AggregateId, string PartnerId)` и
+   `RemovePartnerCommand(..., string PartnerId)` (`JournalCommands.cs:12-13`); маршрут
+   `records/{id}/partners/{partnerId}` принимает `string`. Домен и хранение считают её непрозрачным
+   идентификатором партнёра: формата Guid API не требует, и **не должен требовать** — источник идентичности
+   партнёра — BC-Partners. Эталон QG: тип параметра — `string`.
+2. **`startedAt` — строка ISO в команде и в read-модели.** Команда принимает `string` (`SpecifyWhen`,
+   `StartFromGarmin`), `JournalReadModel.StartedAt` — `string`. Формат — `YYYY-MM-DDTHH:mm` (локальное
+   время, см. `01-context-canvas.md` §7). DateTimeOffset как тип API **не используется** — сериализация
+   остаётся за строкой, а часовой пояс не входит в контракт. Эталон QG: тип — `string`, формат ISO.
+3. **`Journal.List` по умолчанию — все неудалённые, без фильтра по state.**
+   `ListRecordsHandler`: `x.ClientId == r.ClientId && !x.Deleted` — то есть и `Draft`, и `Recorded`;
+   `Deleted` всегда исключён (`JournalQueries.cs`, BE-094). Фильтр «только Recorded» — отдельная
+   операция, не режим по умолчанию. Эталон QG: предикат списка = владелец И не Deleted.
+
+Расхождение эталона с кодом — дефект кода (BE), расхождение кода с эталоном на уровне типов —
+дефект эталона (этот файл меняет @AR). Проверка: `git show origin/main:<файл>` по ссылкам выше.
 
 **2.4. Что НЕ хранится в агрегате (и почему):**
 - **Имя/пол партнёра** — живут в `Partner` (иначе одно имя в двух местах и расходится, ADR-024);
