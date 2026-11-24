@@ -20,7 +20,7 @@ public class JournalEventStoreHandlerTests
         var id = Guid.NewGuid();
         var clientId = Guid.NewGuid();
         var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(clientId, Cmd("StartManualEntry", 1000));
-        var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(clientId, Cmd("StartManualEntry", 1001));
+        var r2 = Aggregate.CreateInstance(r1.Model()).StartManualEntry(clientId, Cmd("StartManualEntry", 1001));
 
         var store = new CountingStore();
         var sc = new ServiceCollection();
