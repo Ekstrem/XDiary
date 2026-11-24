@@ -48,14 +48,14 @@ jobs:
         set -uo pipefail
         fail=0
         found=0
-        for p in src/*Tests*/*.csproj; do
+        for p in src/*Tests*/*.csproj src/*Tests*/*/*.csproj; do
           [ -e "$p" ] || continue
           found=1
           echo "=== $p ==="
           dotnet test "$p" --configuration Release --verbosity normal || fail=1
         done
         if [ "$found" -eq 0 ]; then
-          echo "::error title=[tests] в BC-SomaticSeries нет тестовых проектов::ждали src/*Tests*/*.csproj"
+          echo "::error title=[tests] в BC-SomaticSeries нет тестовых проектов::ждали src/*Tests*/*.csproj (и вложенные src/*Tests*/*/*.csproj)"
           exit 1
         fi
         if [ "$fail" -ne 0 ]; then

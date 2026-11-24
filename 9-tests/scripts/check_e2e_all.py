@@ -6,8 +6,9 @@
 не существует» (ровно этот класс зафиксирован в `DO-099`: часть тестовых гейтов не была в CI).
 
 Скрипт запускает каждый гейт с `--selftest`, затем без флагов (прогон на репозитории), и печатает
-одну сводку. Коды: `0` — все зелёные; `1` — есть красные (rc=1); `2` — есть «не измерено» (rc=2)
-при отсутствии красных.
+одну сводку. Коды: `0` — нет красных (даже при «не измерено»); `1` — есть красные (rc=1).
+«Не измерено» (rc=2 отдельных гейтов) — это сигнал **владельцу зоны**, а не блокер PR
+(выбор владельца 2026-11-21, вариант (в): прежняя сталость не должна краснить чужие PR).
 
     python 9-tests/scripts/check_e2e_all.py            # все гейты
     python 9-tests/scripts/check_e2e_all.py --list     # только перечень и что каждый проверяет
@@ -107,8 +108,13 @@ def run_gate(path: pathlib.Path, extra=()):
 
 
 def summarize(results):
-    """results — [(имя, selftest_rc, run_rc, last_line)]. Возвращает (lines, rc)."""
-    lines, red, unmeasured = [], 0, 0
+    """results — [(имя, selftest_rc, run_rc, last_line)]. Возвращает (lines, rc).
+
+    rc: 1 — есть красные; 0 — иначе (даже при «не измерено»). «Не измерено» перечисляется
+    отдельной строкой-списком для владельца зоны и не влияет на код возврата (вариант (в),
+    владелец 2026-11-21).
+    """
+    lines, red, unmeasured, un_names = [], 0, 0, []
     for name, st_rc, run_rc, last in results:
         if st_rc != 0:
             state, red = "КРАСНЫЙ (selftest)", red + 1
@@ -116,18 +122,15 @@ def summarize(results):
             state = "зелёный"
         elif run_rc == 2:
             state, unmeasured = "не измерено", unmeasured + 1
+            un_names.append(name)
         else:
             state, red = "КРАСНЫЙ", red + 1
         lines.append(f"  {name:<32} {state:<18} {last[:78]}")
-    if red:
-        rc = 1
-    elif unmeasured:
-        rc = 2
-    else:
-        rc = 0
+    if un_names:
+        lines.append(f"  не измерено → владельцу зоны (НЕ блокер PR): {', '.join(un_names)}")
     lines.append(f"сводка front-e2e: гейтов {len(results)} | зелёных {len(results) - red - unmeasured} | "
                  f"красных {red} | не измерено {unmeasured}")
-    return lines, rc
+    return lines, (1 if red else 0)
 
 
 def main(argv=None):
@@ -328,9 +331,9 @@ def selftest():
          [("a.py", 1, 0, "ок")],
          1, ["КРАСНЫЙ (selftest)"])
 
-    case("не измерено",
+    case("не измерено — НЕ блокер PR (вариант (в), владелец 2026-11-21)",
          [("a.py", 0, 2, "нет входа"), ("b.py", 0, 0, "ок")],
-         2, ["не измерено 1", "зелёных 1"])
+         0, ["не измерено 1", "зелёных 1", "НЕ блокер PR", "a.py"])
 
     case("красный важнее не измеренного",
          [("a.py", 0, 2, "нет входа"), ("b.py", 0, 1, "нарушено")],
@@ -348,7 +351,7 @@ def selftest():
     ok, total = ok + w_ok + m_ok, total + w_total + m_total
 
     print(f"check_e2e_all --selftest: {ok}/{total} "
-          f"(сводка: красный = rc=1, только \u00abне измерено\u00bb = rc=2; "
+          f"(сводка: красный = rc=1, \u00abне измерено\u00bb = rc=0 + строка-список владельцу зоны; "
           f"связь с файлами: {w_ok}/{w_total}; мутации: {m_ok}/{m_total} — "
           f"дефект краснеет, норма зеленеет)")
     return 0 if ok == total else 1

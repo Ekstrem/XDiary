@@ -28,6 +28,7 @@ internal sealed class Aggregate : ICatalogAggregate
     public string Notes => Model.Notes;
     public string Brand => Model.Brand;
     public bool Archived => Model.Archived;
+    public DateTime? DeletedAt => Model.DeletedAt;
     public string FantasyPartner => Model.FantasyPartner;
     public Guid? ClientId => Model.ClientId;
 
@@ -35,7 +36,7 @@ internal sealed class Aggregate : ICatalogAggregate
     { var d = BusinessOperationData<ICatalog, ICatalogAnemicModel>.Commit<ICatalog, ICatalogAnemicModel>(Model, m); return new AggregateResultSuccess<ICatalog, ICatalogAnemicModel>(d); }
     private AggregateResult<ICatalog, ICatalogAnemicModel> Fail(string e)
     { var d = BusinessOperationData<ICatalog, ICatalogAnemicModel>.Commit<ICatalog, ICatalogAnemicModel>(Model, Model); return new AggregateResultException<ICatalog, ICatalogAnemicModel>(d, new FailedSpecification<ICatalog, ICatalogAnemicModel>(e)); }
-    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Notes = Model.Notes, Brand = Model.Brand, Archived = Model.Archived, FantasyPartner = Model.FantasyPartner, ClientId = Model.ClientId };
+    private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Notes = Model.Notes, Brand = Model.Brand, Archived = Model.Archived, DeletedAt = Model.DeletedAt, FantasyPartner = Model.FantasyPartner, ClientId = Model.ClientId };
 
     public AggregateResult<ICatalog, ICatalogAnemicModel> AddItem(string kind, string name, Guid clientId)
     {
@@ -68,5 +69,8 @@ internal sealed class Aggregate : ICatalogAggregate
         if (!new ArchiveToyOnlySpecification().IsSatisfiedBy(Model)) return Fail("Restore применяется только для toy.");
         var m = Clone() with { Archived = false }; return Success(m);
     }
-    public AggregateResult<ICatalog, ICatalogAnemicModel> Remove() => Success(Clone());
+    public AggregateResult<ICatalog, ICatalogAnemicModel> Remove()
+        => Model.DeletedAt is not null
+            ? Success(Clone()) // идемпотентно: повторный Remove не меняет DeletedAt
+            : Success(Clone() with { DeletedAt = DateTime.UtcNow });
 }

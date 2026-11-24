@@ -20,9 +20,11 @@ public sealed class ConfigureHandler : IRequestHandler<ConfigureCommand, Aggrega
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "apple");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IAppleHealthGateway, IAppleHealthGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.Configure(_actor.ClientId, r.Metrics);
+        var result = aggregate.Configure(_actor.ClientId, r.Metrics);
+        await completion;
+        return result;
     }
 }
 public sealed class ImportFileHandler : IRequestHandler<ImportFileCommand, AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>>, ICommandHandler
@@ -36,8 +38,10 @@ public sealed class ImportFileHandler : IRequestHandler<ImportFileCommand, Aggre
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "apple");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IAppleHealthGateway, IAppleHealthGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.ImportFile(r.FileName);
+        var result = aggregate.ImportFile(r.FileName);
+        await completion;
+        return result;
     }
 }

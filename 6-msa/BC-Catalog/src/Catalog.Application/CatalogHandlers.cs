@@ -15,9 +15,11 @@ public sealed class AddCatalogItemHandler : IRequestHandler<AddCatalogItemComman
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(AddCatalogItemCommand r, CancellationToken ct)
     {
         var id = r.Id ?? Guid.NewGuid();
-        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ICatalog, ICatalogAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.AddItem(r.Kind, r.Name, _actor.ClientId);
+        var result = aggregate.AddItem(r.Kind, r.Name, _actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class RenameCatalogItemHandler : IRequestHandler<RenameCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
@@ -27,10 +29,12 @@ public sealed class RenameCatalogItemHandler : IRequestHandler<RenameCatalogItem
     public RenameCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(RenameCatalogItemCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ICatalog, ICatalogAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
-        return aggregate.Rename(r.Name);
+        var result = aggregate.Rename(r.Name);
+        await completion;
+        return result;
     }
 }
 public sealed class UpdateCatalogItemDetailsHandler : IRequestHandler<UpdateCatalogItemDetailsCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
@@ -40,10 +44,12 @@ public sealed class UpdateCatalogItemDetailsHandler : IRequestHandler<UpdateCata
     public UpdateCatalogItemDetailsHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(UpdateCatalogItemDetailsCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ICatalog, ICatalogAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
-        return aggregate.UpdateDetails(r.Photo, r.Notes, r.Brand, r.FantasyPartner);
+        var result = aggregate.UpdateDetails(r.Photo, r.Notes, r.Brand, r.FantasyPartner);
+        await completion;
+        return result;
     }
 }
 public sealed class ArchiveCatalogItemHandler : IRequestHandler<ArchiveCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
@@ -53,10 +59,12 @@ public sealed class ArchiveCatalogItemHandler : IRequestHandler<ArchiveCatalogIt
     public ArchiveCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(ArchiveCatalogItemCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ICatalog, ICatalogAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
-        return aggregate.Archive();
+        var result = aggregate.Archive();
+        await completion;
+        return result;
     }
 }
 public sealed class RestoreCatalogItemHandler : IRequestHandler<RestoreCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
@@ -66,10 +74,12 @@ public sealed class RestoreCatalogItemHandler : IRequestHandler<RestoreCatalogIt
     public RestoreCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(RestoreCatalogItemCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ICatalog, ICatalogAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
-        return aggregate.Restore();
+        var result = aggregate.Restore();
+        await completion;
+        return result;
     }
 }
 public sealed class RemoveCatalogItemHandler : IRequestHandler<RemoveCatalogItemCommand, AggregateResult<ICatalog, ICatalogAnemicModel>>, ICommandHandler
@@ -79,9 +89,11 @@ public sealed class RemoveCatalogItemHandler : IRequestHandler<RemoveCatalogItem
     public RemoveCatalogItemHandler(IAggregateProvider<ICatalog, ICatalogAggregate> provider, IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<ICatalog, ICatalogAnemicModel>> Handle(RemoveCatalogItemCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ICatalog, ICatalogAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return CatalogResults.Fail("Catalog item not found.");
-        return aggregate.Remove();
+        var result = aggregate.Remove();
+        await completion;
+        return result;
     }
 }

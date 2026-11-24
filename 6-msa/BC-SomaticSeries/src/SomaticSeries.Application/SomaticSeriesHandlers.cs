@@ -16,9 +16,10 @@ public sealed class RecordPointHandler : IRequestHandler<RecordPointCommand, Agg
     public RecordPointHandler(IAggregateProvider<ISomaticSeries, ISomaticSeriesAggregate> provider, IObserver<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> observer, IActorProvider actor, ISomaticSeriesEventPublisher publisher) { _provider = provider; _observer = observer; _actor = actor; _publisher = publisher; }
     public async Task<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> Handle(RecordPointCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<ISomaticSeries, ISomaticSeriesAggregate>)_provider).GetAggregateWithCompletionAsync(Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>>)aggregate).Subscribe(_observer);
         var res = aggregate.RecordPoint(r.T, r.Hr, r.BodyBattery, _actor.ClientId);
+        await completion;
         if (res.IsSuccess()) { _ = _publisher.PublishPointAsync(r.T, r.Hr, r.BodyBattery, CancellationToken.None); }
         return res;
     }

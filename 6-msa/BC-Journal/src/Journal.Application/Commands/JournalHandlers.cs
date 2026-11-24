@@ -19,9 +19,11 @@ public sealed class StartManualEntryHandler : IRequestHandler<StartManualEntryCo
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(StartManualEntryCommand r, CancellationToken ct)
     {
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
-        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.StartManualEntry(_actor.ClientId);
+        var result = aggregate.StartManualEntry(_actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -37,9 +39,11 @@ public sealed class StartFromGarminHandler : IRequestHandler<StartFromGarminComm
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.GarminId == r.GarminId);
         var id = existing?.Id ?? Guid.NewGuid();
-        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, _actor.ClientId);
+        var result = aggregate.StartFromGarmin(r.StartedAt, r.DurationMin, r.GarminId, _actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -49,10 +53,12 @@ public sealed class SpecifyWhenHandler : IRequestHandler<SpecifyWhenCommand, Agg
     public SpecifyWhenHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(SpecifyWhenCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.SpecifyWhen(r.StartedAt);
+        var result = aggregate.SpecifyWhen(r.StartedAt);
+        await completion;
+        return result;
     }
 }
 public sealed class AddPartnerHandler : IRequestHandler<AddPartnerCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -62,10 +68,12 @@ public sealed class AddPartnerHandler : IRequestHandler<AddPartnerCommand, Aggre
     public AddPartnerHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(AddPartnerCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.AddPartner(r.PartnerId);
+        var result = aggregate.AddPartner(r.PartnerId);
+        await completion;
+        return result;
     }
 }
 public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -75,10 +83,12 @@ public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand,
     public RemovePartnerHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(RemovePartnerCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.RemovePartner(r.PartnerId);
+        var result = aggregate.RemovePartner(r.PartnerId);
+        await completion;
+        return result;
     }
 }
 public sealed class SpecifyPlaceHandler : IRequestHandler<SpecifyPlaceCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -88,10 +98,12 @@ public sealed class SpecifyPlaceHandler : IRequestHandler<SpecifyPlaceCommand, A
     public SpecifyPlaceHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(SpecifyPlaceCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.SpecifyPlace(r.Place);
+        var result = aggregate.SpecifyPlace(r.Place);
+        await completion;
+        return result;
     }
 }
 public sealed class AddPositionsHandler : IRequestHandler<AddPositionsCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -101,10 +113,12 @@ public sealed class AddPositionsHandler : IRequestHandler<AddPositionsCommand, A
     public AddPositionsHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(AddPositionsCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.AddPositions(r.Positions);
+        var result = aggregate.AddPositions(r.Positions);
+        await completion;
+        return result;
     }
 }
 public sealed class AddAccessoriesHandler : IRequestHandler<AddAccessoriesCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -114,10 +128,12 @@ public sealed class AddAccessoriesHandler : IRequestHandler<AddAccessoriesComman
     public AddAccessoriesHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(AddAccessoriesCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.AddAccessories(r.Costumes, r.Toys, r.Fantasies, r.Tags);
+        var result = aggregate.AddAccessories(r.Costumes, r.Toys, r.Fantasies, r.Tags);
+        await completion;
+        return result;
     }
 }
 public sealed class RecordContraceptionHandler : IRequestHandler<RecordContraceptionCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -127,10 +143,12 @@ public sealed class RecordContraceptionHandler : IRequestHandler<RecordContracep
     public RecordContraceptionHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(RecordContraceptionCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.RecordContraception(r.Contraceptives, r.ContraceptiveCount);
+        var result = aggregate.RecordContraception(r.Contraceptives, r.ContraceptiveCount);
+        await completion;
+        return result;
     }
 }
 public sealed class SpecifyDurationHandler : IRequestHandler<SpecifyDurationCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -140,10 +158,12 @@ public sealed class SpecifyDurationHandler : IRequestHandler<SpecifyDurationComm
     public SpecifyDurationHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(SpecifyDurationCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.SpecifyDuration(r.DurationMin);
+        var result = aggregate.SpecifyDuration(r.DurationMin);
+        await completion;
+        return result;
     }
 }
 public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -153,11 +173,13 @@ public sealed class RecordOrgasmsHandler : IRequestHandler<RecordOrgasmsCommand,
     public RecordOrgasmsHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(RecordOrgasmsCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         var orgasms = r.Orgasms.Select(o => Orgasms.CreateInstance(o.Participant, o.Count, o.Types, o.Rating)).ToList();
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.RecordOrgasms(orgasms);
+        var result = aggregate.RecordOrgasms(orgasms);
+        await completion;
+        return result;
     }
 }
 public sealed class CompleteHandler : IRequestHandler<CompleteCommand, AggregateResult<IJournal, IJournalAnemicModel>>, ICommandHandler
@@ -168,10 +190,11 @@ public sealed class CompleteHandler : IRequestHandler<CompleteCommand, Aggregate
     public CompleteHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IJournalEventPublisher publisher) { _provider = provider; _observer = observer; _publisher = publisher; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(CompleteCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
         var result = aggregate.Complete();
+        await completion;
         if (result.IsSuccess()) await _publisher.PublishRecordCompletedAsync(result.Model(), ct);
         return result;
     }
@@ -184,10 +207,11 @@ public sealed class DeleteRecordHandler : IRequestHandler<DeleteRecordCommand, A
     public DeleteRecordHandler(IAggregateProvider<IJournal, IRecordAggregate> provider, IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer, IJournalEventPublisher publisher) { _provider = provider; _observer = observer; _publisher = publisher; }
     public async Task<AggregateResult<IJournal, IJournalAnemicModel>> Handle(DeleteRecordCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IJournal, IRecordAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         if (aggregate.Root is null) return JournalResults.Fail("Record not found.");
         ((IObservable<AggregateResult<IJournal, IJournalAnemicModel>>)aggregate).Subscribe(_observer);
         var result = aggregate.Delete();
+        await completion;
         if (result.IsSuccess()) await _publisher.PublishRecordDeletedAsync(result.Model(), ct);
         return result;
     }

@@ -21,12 +21,14 @@ public sealed class ConnectHandler : IRequestHandler<ConnectCommand, AggregateRe
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
         var creds = r.Credentials is null
             ? null!
             : Credentials.CreateInstance(r.Credentials.ApiKey, r.Credentials.OauthToken, r.Credentials.TokenExpiry);
-        return aggregate.Connect(_actor.ClientId, creds);
+        var result = aggregate.Connect(_actor.ClientId, creds);
+        await completion;
+        return result;
     }
 }
 public sealed class SyncHandler : IRequestHandler<SyncCommand, AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>, ICommandHandler
@@ -40,10 +42,12 @@ public sealed class SyncHandler : IRequestHandler<SyncCommand, AggregateResult<I
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
         var cfg = r.Config is null ? null! : SyncConfig.CreateInstance(r.Config.Metrics, r.Config.WindowDays);
-        return aggregate.Sync(cfg);
+        var result = aggregate.Sync(cfg);
+        await completion;
+        return result;
     }
 }
 public sealed class FetchActivitiesHandler : IRequestHandler<FetchActivitiesCommand, AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>, ICommandHandler
@@ -57,8 +61,10 @@ public sealed class FetchActivitiesHandler : IRequestHandler<FetchActivitiesComm
     {
         var all = await _read.GetAllAsync(new Paging(1, int.MaxValue), ct);
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
-        var aggregate = await _provider.GetAggregateAsync(existing?.Id ?? Guid.NewGuid(), ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.FetchActivities();
+        var result = aggregate.FetchActivities();
+        await completion;
+        return result;
     }
 }

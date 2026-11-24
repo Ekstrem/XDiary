@@ -12,8 +12,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-      <PackageReference Include="DigiTFactory.Libraries.Analyzers.Testing" Version="0.1.0" PrivateAssets="all" />
-    <PackageReference Include="DigiTFactory.Libraries.Testing" Version="0.1.0" />
+      <PackageReference Include="DigiTFactory.Libraries.Analyzers.Testing" Version="0.1.1" PrivateAssets="all" />
+    <PackageReference Include="DigiTFactory.Libraries.Testing" Version="0.2.1" />
 </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DailyMetrics.Domain\DailyMetrics.Domain.csproj" />

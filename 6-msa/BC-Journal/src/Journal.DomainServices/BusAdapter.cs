@@ -10,12 +10,33 @@ using XDiary.Contracts;
 public sealed class BusAdapter : IObserver<AggregateResult<IJournal, IJournalAnemicModel>>
 {
     private readonly IEventBus _bus;
-    public BusAdapter(IEventBus bus) => _bus = bus;
+    private readonly AggregateCompletion _completion;
+    public BusAdapter(IEventBus bus, AggregateCompletion completion)
+    {
+        _bus = bus;
+        _completion = completion;
+    }
 
     public void OnNext(AggregateResult<IJournal, IJournalAnemicModel> result)
     {
-        if (result.IsSuccess()) _bus.PublishAsync(result.Event);
+        if (!result.IsSuccess())
+        {
+            _completion.Succeed(); // события нет — команда не должна зависнуть
+            return;
+        }
+        try
+        {
+            _ = _bus.PublishAsync(result.Event).ContinueWith(t =>
+            {
+                if (t.IsFaulted) _completion.Fail(t.Exception!.GetBaseException());
+                else _completion.Succeed();
+            }, TaskContinuationOptions.ExecuteSynchronously);
+        }
+        catch (Exception error)
+        {
+            _completion.Fail(error);
+        }
     }
-    public void OnError(Exception error) { }
+    public void OnError(Exception error) => _completion.Fail(error);
     public void OnCompleted() { }
 }

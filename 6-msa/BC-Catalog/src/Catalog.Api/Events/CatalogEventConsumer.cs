@@ -60,6 +60,12 @@ public sealed class CatalogEventHandler : IDomainEventHandler<ICatalog>, IObserv
         // existing.Version (ms) >= domainEvent.Version (малый) навсегда отбрасывает события.
         const long LegacyTimestampFloor = 1_000_000_000_000L;
         if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor) return;
+        // BE-147: Remove несёт DeletedAt — удаляем строку из read-store, а не делаем Upsert.
+        if (vos.TryGetValue("DeletedAt", out var d) && d is DeletedAtValueObject { Value: not null })
+        {
+            await readStore.DeleteAsync(domainEvent.Id, default);
+            return;
+        }
         CatalogProjection.ApplyVos(existing, vos);
         existing.Version = domainEvent.Version;
         await readStore.UpsertAsync(existing);

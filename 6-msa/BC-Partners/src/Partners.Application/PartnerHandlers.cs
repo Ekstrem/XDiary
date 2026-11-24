@@ -15,9 +15,11 @@ public sealed class RegisterPartnerHandler : IRequestHandler<RegisterPartnerComm
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(RegisterPartnerCommand r, CancellationToken ct)
     {
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
-        var aggregate = await _provider.GetAggregateAsync(id, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>)aggregate).Subscribe(_observer);
-        return aggregate.Register(r.Name, _actor.ClientId);
+        var result = aggregate.Register(r.Name, _actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class RenamePartnerHandler : IRequestHandler<RenamePartnerCommand, AggregateResult<IPartners, IPartnerAnemicModel>>, ICommandHandler
@@ -27,10 +29,12 @@ public sealed class RenamePartnerHandler : IRequestHandler<RenamePartnerCommand,
     public RenamePartnerHandler(IAggregateProvider<IPartners, IPartnerAggregate> provider, IObserver<AggregateResult<IPartners, IPartnerAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(RenamePartnerCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return PartnersResults.Fail("Partner not found.");
-        return aggregate.Rename(r.Name);
+        var result = aggregate.Rename(r.Name);
+        await completion;
+        return result;
     }
 }
 public sealed class UpdatePartnerProfileHandler : IRequestHandler<UpdatePartnerProfileCommand, AggregateResult<IPartners, IPartnerAnemicModel>>, ICommandHandler
@@ -40,10 +44,12 @@ public sealed class UpdatePartnerProfileHandler : IRequestHandler<UpdatePartnerP
     public UpdatePartnerProfileHandler(IAggregateProvider<IPartners, IPartnerAggregate> provider, IObserver<AggregateResult<IPartners, IPartnerAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(UpdatePartnerProfileCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return PartnersResults.Fail("Partner not found.");
-        return aggregate.UpdateProfile(r.Photo, r.Gender, r.Notes);
+        var result = aggregate.UpdateProfile(r.Photo, r.Gender, r.Notes);
+        await completion;
+        return result;
     }
 }
 public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand, AggregateResult<IPartners, IPartnerAnemicModel>>, ICommandHandler
@@ -53,10 +59,12 @@ public sealed class RemovePartnerHandler : IRequestHandler<RemovePartnerCommand,
     public RemovePartnerHandler(IAggregateProvider<IPartners, IPartnerAggregate> provider, IObserver<AggregateResult<IPartners, IPartnerAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(RemovePartnerCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return PartnersResults.Fail("Partner not found.");
-        return aggregate.Remove();
+        var result = aggregate.Remove();
+        await completion;
+        return result;
     }
 }
 public sealed class LinkPartnerClientHandler : IRequestHandler<LinkPartnerClientCommand, AggregateResult<IPartners, IPartnerAnemicModel>>, ICommandHandler
@@ -67,10 +75,12 @@ public sealed class LinkPartnerClientHandler : IRequestHandler<LinkPartnerClient
     public LinkPartnerClientHandler(IAggregateProvider<IPartners, IPartnerAggregate> provider, IObserver<AggregateResult<IPartners, IPartnerAnemicModel>> observer, IActorProvider actor) { _provider = provider; _observer = observer; _actor = actor; }
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(LinkPartnerClientCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return PartnersResults.Fail("Partner not found.");
-        return aggregate.LinkClient(_actor.ClientId);
+        var result = aggregate.LinkClient(_actor.ClientId);
+        await completion;
+        return result;
     }
 }
 public sealed class UnlinkPartnerClientHandler : IRequestHandler<UnlinkPartnerClientCommand, AggregateResult<IPartners, IPartnerAnemicModel>>, ICommandHandler
@@ -80,9 +90,11 @@ public sealed class UnlinkPartnerClientHandler : IRequestHandler<UnlinkPartnerCl
     public UnlinkPartnerClientHandler(IAggregateProvider<IPartners, IPartnerAggregate> provider, IObserver<AggregateResult<IPartners, IPartnerAnemicModel>> observer) { _provider = provider; _observer = observer; }
     public async Task<AggregateResult<IPartners, IPartnerAnemicModel>> Handle(UnlinkPartnerClientCommand r, CancellationToken ct)
     {
-        var aggregate = await _provider.GetAggregateAsync(r.AggregateId, ct);
+        var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPartners, IPartnerAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return PartnersResults.Fail("Partner not found.");
-        return aggregate.UnlinkClient();
+        var result = aggregate.UnlinkClient();
+        await completion;
+        return result;
     }
 }
