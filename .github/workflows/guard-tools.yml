@@ -29,3 +29,9 @@ jobs:
           python-version: "3.12"
       - name: Копии совпадают с манифестом
         run: python tools/sync_tools.py --check
+      - name: Каждый тест-проект покрыт workflow (DO-156, advisory → strict позже)
+        # Класс «написали тест, но не включили в CI». Сейчас ::warning с именами
+        # (переходный период по карточке); после стабилизации — --strict.
+        run: |
+          python tools/check_test_coverage_ci.py --selftest
+          python tools/check_test_coverage_ci.py

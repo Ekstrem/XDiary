@@ -47,7 +47,7 @@ jobs:
         set -uo pipefail
         fail=0
         found=0
-        for p in src/*Tests*/*.csproj; do
+        for p in src/*Tests*/*.csproj src/*Tests*/*/*.csproj; do
           [ -e "$p" ] || continue
           found=1
           echo "=== $p ==="
