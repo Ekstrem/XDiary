@@ -29,6 +29,8 @@ builder.Services.AddEventStorePostgres<IGarminGateway, IGarminGatewayAnemicModel
 builder.Services.AddScoped<IEventStoreRepository<IGarminGateway, IGarminGatewayAnemicModel>, GarminGatewayEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IGarminGateway, IGarminGatewayAnemicModel>, GarminGatewayEventSourcingRepository>();
 builder.Services.AddScoped<GarminGatewayEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<IGarminGateway, IGarminGatewayAnemicModel>, GarminGatewayEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IGarminGateway, GarminSyncReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-133: DbContextOptions ПОСЛЕ store-регистраций (порядок как в Journal) — иначе Autofac падает.

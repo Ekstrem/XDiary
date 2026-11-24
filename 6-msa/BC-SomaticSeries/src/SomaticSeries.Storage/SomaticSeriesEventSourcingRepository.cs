@@ -13,8 +13,9 @@ public sealed class SomaticSeriesEventSourcingRepository : FullEventSourcingRepo
     public SomaticSeriesEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<ISomaticSeries, ISomaticSeriesAnemicModel>> logger,
-        SomaticSeriesEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        SomaticSeriesEventReplay replay,
+        IEventStreamRehydrator<ISomaticSeries, ISomaticSeriesAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<ISomaticSeriesAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

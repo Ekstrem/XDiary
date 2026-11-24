@@ -13,8 +13,9 @@ public sealed class CatalogEventSourcingRepository : FullEventSourcingRepository
     public CatalogEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<ICatalog, ICatalogAnemicModel>> logger,
-        CatalogEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        CatalogEventReplay replay,
+        IEventStreamRehydrator<ICatalog, ICatalogAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<ICatalogAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

@@ -54,6 +54,8 @@ public class PartnersReadModelEndToEndTests
         sc.AddScoped<IEventStoreRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<IPartners, IPartnerAnemicModel>, PartnersEventSourcingRepository>();
         sc.AddScoped<PartnersEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IPartners, IPartnerAnemicModel>, PartnersEventRehydrator>();
         sc.AddReadStorePostgres<IPartners, PartnersReadModel, ReadDbContext>(cs, null);
         sc.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
         sc.AddScoped<IAggregateProvider<IPartners, IPartnerAggregate>, AggregateProvider>();
