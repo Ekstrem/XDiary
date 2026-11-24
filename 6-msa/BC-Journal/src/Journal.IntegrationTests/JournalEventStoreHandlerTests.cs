@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
+using XDiary.Contracts;
 using Xunit;
 
 /// <summary>BE-143: event-store-подписчик присваивает событиям монотонные версии из хранилища.</summary>
