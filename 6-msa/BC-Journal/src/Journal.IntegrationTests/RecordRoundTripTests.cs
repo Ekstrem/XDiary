@@ -24,7 +24,7 @@ public class RecordRoundTripTests
         var vos = result.Event!.ChangedValueObjects!;
         Assert.NotEmpty(vos);
 
-        var serializer = ValueObjectSerializerProvider.Create();
+        var serializer = ValueObjectSerializerFactory.CreateDefault();
 
         var json = serializer.Serialize(vos as IReadOnlyDictionary<string, IValueObject>);
         var back = serializer.Deserialize(json)!;

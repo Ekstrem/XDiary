@@ -22,7 +22,7 @@ public sealed class ClientEventStoreHandler : IAsyncDomainEventHandler<IClients>
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IClients, IClientAnemicModel>>();
-        var serializer = ValueObjectSerializerProvider.Create();
+        var serializer = ValueObjectSerializerFactory.CreateDefault();
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,

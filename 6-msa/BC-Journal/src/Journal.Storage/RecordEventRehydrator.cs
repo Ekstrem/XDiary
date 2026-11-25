@@ -17,7 +17,7 @@ using XDiary.Contracts;
 /// </summary>
 public sealed class RecordEventRehydrator : IEventStreamRehydrator<IJournal, IJournalAnemicModel>
 {
-    private static readonly IValueObjectSerializer Serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new OrgasmsJsonConverter()));
+    private static readonly IValueObjectSerializer Serializer = new JsonEnvelopeValueObjectSerializer(new ValueObjectTypeRegistry(), new System.Text.Json.JsonSerializerOptions { Converters = { new OrgasmsJsonConverter() } });
 
     public IReadOnlyList<IJournalAnemicModel> Rehydrate(IReadOnlyList<DomainEventEntry> events)
     {
@@ -30,7 +30,7 @@ public sealed class RecordEventRehydrator : IEventStreamRehydrator<IJournal, IJo
         var model = new AnemicModel { Id = events[0].Id };
         foreach (var e in events.OrderBy(e => e.Version))
         {
-            var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(Serializer, e.ChangedValueObjectsJson);
+            var vos = Serializer.DeserializeWithLegacy(e.ChangedValueObjectsJson, options => options.Converters.Add(new OrgasmsJsonConverter()));
             if (vos is null || vos.Count == 0)
             {
                 continue;

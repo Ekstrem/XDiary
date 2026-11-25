@@ -22,7 +22,7 @@ public sealed class PortabilityEventStoreHandler : IAsyncDomainEventHandler<IPor
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IPortability, ICsvDocumentAnemicModel>>();
-        var serializer = ValueObjectSerializerProvider.Create();
+        var serializer = ValueObjectSerializerFactory.CreateDefault();
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
