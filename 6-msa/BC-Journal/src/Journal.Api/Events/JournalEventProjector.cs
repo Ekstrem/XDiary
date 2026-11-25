@@ -23,12 +23,12 @@ public sealed class JournalEventProjector : IEventProjector
     public JournalEventProjector(IServiceScopeFactory scopeFactory)
     {
         _scopeFactory = scopeFactory;
-        _serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new OrgasmsJsonConverter()));
+        _serializer = new JsonEnvelopeValueObjectSerializer(new ValueObjectTypeRegistry(), new System.Text.Json.JsonSerializerOptions { Converters = { new OrgasmsJsonConverter() } });
     }
 
     public async Task ProjectAsync(DomainEventEntry entry, CancellationToken ct = default)
     {
-        var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(_serializer, entry.ChangedValueObjectsJson);
+        var vos = _serializer.DeserializeWithLegacy(entry.ChangedValueObjectsJson, options => options.Converters.Add(new OrgasmsJsonConverter()));
         if (vos is null || vos.Count == 0) return;
 
         using var scope = _scopeFactory.CreateScope();

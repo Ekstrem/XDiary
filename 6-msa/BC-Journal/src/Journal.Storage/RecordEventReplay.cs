@@ -24,7 +24,7 @@ public sealed class RecordEventReplay
     public RecordEventReplay(EventStoreDbContext db)
     {
         _db = db;
-        _serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new OrgasmsJsonConverter()));
+        _serializer = new JsonEnvelopeValueObjectSerializer(new ValueObjectTypeRegistry(), new System.Text.Json.JsonSerializerOptions { Converters = { new OrgasmsJsonConverter() } });
     }
 
     public async Task<IJournalAnemicModel?> ReplayAsync(Guid id, CancellationToken ct = default)
@@ -42,7 +42,7 @@ public sealed class RecordEventReplay
         {
             try
             {
-                var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(_serializer, e.ChangedValueObjectsJson);
+                var vos = _serializer.DeserializeWithLegacy(e.ChangedValueObjectsJson, options => options.Converters.Add(new OrgasmsJsonConverter()));
                 if (vos is null || vos.Count == 0) continue;
                 model = Apply(model, vos, e);
             }

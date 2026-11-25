@@ -22,7 +22,7 @@ public sealed class JournalEventStoreHandler : IAsyncDomainEventHandler<IJournal
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IJournal, IJournalAnemicModel>>();
-        var serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new Journal.Domain.Implementation.OrgasmsJsonConverter()));
+        var serializer = new JsonEnvelopeValueObjectSerializer(new ValueObjectTypeRegistry(), new System.Text.Json.JsonSerializerOptions { Converters = { new Journal.Domain.Implementation.OrgasmsJsonConverter() } });
         var cmdName = domainEvent.ChangedValueObjects is not null
             && domainEvent.ChangedValueObjects.TryGetValue("CommandName", out var cn)
             && cn is Journal.Domain.Implementation.StringValueObject cns

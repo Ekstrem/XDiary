@@ -1,8 +1,9 @@
-﻿namespace Partners.Api.Events;
+namespace Partners.Api.Events;
 using System.Text.Json;
 using DigiTFactory.Libraries.SeedWorks.Definition;
 using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Microsoft.EntityFrameworkCore;
 using Partners.Domain;
@@ -29,8 +30,7 @@ public sealed class OutboxDispatcher : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<OutboxDbContext>();
                 var bus = scope.ServiceProvider.GetRequiredService<IEventBusProducer>();
-                var jsonOptions = new JsonSerializerOptions();
-                jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+                var serializer = ValueObjectSerializerFactory.CreateDefault();
 
                 var pending = await db.Outbox
                     .Where(x => x.ProcessedAt == null)
@@ -39,14 +39,14 @@ public sealed class OutboxDispatcher : BackgroundService
 
                 foreach (var msg in pending)
                 {
-                    var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(msg.Payload, jsonOptions);
+                    var vos = serializer.DeserializeWithLegacy(msg.Payload);
                     // BE-059 (@AR 08:14): re-delivery РѕР±СЏР·Р°РЅР° РЅРµСЃС‚Рё id РђР“Р Р•Р“РђРўРђ, Р° РЅРµ PK СЃС‚СЂРѕРєРё outbox.
                     var aggregateId = msg.AggregateId ?? msg.Id;
                     var domainEvent = new DomainEvent<IPartners>(
                         aggregateId,
                         0,
                         null,
-                        vos!,
+                        vos!.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
                         new BoundedContextDescription<IPartners>("Partners", 0),
                         DomainOperationResultEnum.Success,
                         null);

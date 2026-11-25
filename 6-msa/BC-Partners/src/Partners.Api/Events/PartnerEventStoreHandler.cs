@@ -22,7 +22,7 @@ public sealed class PartnerEventStoreHandler : IAsyncDomainEventHandler<IPartner
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IPartners, IPartnerAnemicModel>>();
-        var serializer = ValueObjectSerializerProvider.Create();
+        var serializer = ValueObjectSerializerFactory.CreateDefault();
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,

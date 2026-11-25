@@ -17,7 +17,7 @@ using XDiary.Contracts;
 /// </summary>
 public sealed class CatalogEventRehydrator : IEventStreamRehydrator<ICatalog, ICatalogAnemicModel>
 {
-    private static readonly IValueObjectSerializer Serializer = ValueObjectSerializerProvider.Create();
+    private static readonly IValueObjectSerializer Serializer = ValueObjectSerializerFactory.CreateDefault();
 
     public IReadOnlyList<ICatalogAnemicModel> Rehydrate(IReadOnlyList<DomainEventEntry> events)
     {
@@ -30,7 +30,7 @@ public sealed class CatalogEventRehydrator : IEventStreamRehydrator<ICatalog, IC
         var model = new AnemicModel { Id = events[0].Id };
         foreach (var e in events.OrderBy(e => e.Version))
         {
-            var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(Serializer, e.ChangedValueObjectsJson);
+            var vos = Serializer.DeserializeWithLegacy(e.ChangedValueObjectsJson);
             if (vos is null || vos.Count == 0)
             {
                 continue;

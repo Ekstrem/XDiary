@@ -19,7 +19,7 @@ public sealed class DailyMetricsEventReplay
     public DailyMetricsEventReplay(EventStoreDbContext db)
     {
         _db = db;
-        _serializer = ValueObjectSerializerProvider.Create();
+        _serializer = ValueObjectSerializerFactory.CreateDefault();
     }
 
     public async Task<IDailyMetricsAnemicModel?> ReplayAsync(Guid id, CancellationToken ct = default)
@@ -29,7 +29,7 @@ public sealed class DailyMetricsEventReplay
         var model = new AnemicModel { Id = id };
         foreach (var e in events)
         {
-            var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(_serializer, e.ChangedValueObjectsJson);
+            var vos = _serializer.DeserializeWithLegacy(e.ChangedValueObjectsJson);
             if (vos is null || vos.Count == 0) continue;
             model = Apply(model, vos, e);
         }

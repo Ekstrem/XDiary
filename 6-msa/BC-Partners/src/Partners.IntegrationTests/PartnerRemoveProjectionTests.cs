@@ -37,7 +37,7 @@ public class PartnerRemoveProjectionTests
         var removed = Aggregate.CreateInstance(reg.Model()).Remove();
         var vos = removed.Event!.ChangedValueObjects!;
 
-        var serializer = ValueObjectSerializerProvider.Create();
+        var serializer = ValueObjectSerializerFactory.CreateDefault();
         var json = serializer.Serialize(vos as IReadOnlyDictionary<string, IValueObject>);
         var back = serializer.Deserialize(json)!;
 

@@ -20,7 +20,7 @@ public sealed class PartnersEventReplay
     public PartnersEventReplay(EventStoreDbContext db)
     {
         _db = db;
-        _serializer = ValueObjectSerializerProvider.Create();
+        _serializer = ValueObjectSerializerFactory.CreateDefault();
     }
 
     public async Task<IPartnerAnemicModel?> ReplayAsync(Guid id, CancellationToken ct = default)
@@ -38,7 +38,7 @@ public sealed class PartnersEventReplay
         {
             try
             {
-                var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(_serializer, e.ChangedValueObjectsJson);
+                var vos = _serializer.DeserializeWithLegacy(e.ChangedValueObjectsJson);
                 if (vos is null || vos.Count == 0) continue;
                 model = Apply(model, vos, e);
             }

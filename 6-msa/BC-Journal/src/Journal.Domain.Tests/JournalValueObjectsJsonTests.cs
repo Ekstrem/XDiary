@@ -7,7 +7,7 @@ using Xunit;
 // BE-151 (DS JournalValueObjectsJsonTests): полиморфная сериализация VO для event store.
 public class JournalValueObjectsJsonTests
 {
-    private static readonly IValueObjectSerializer Serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new OrgasmsJsonConverter()));
+    private static readonly IValueObjectSerializer Serializer = new JsonEnvelopeValueObjectSerializer(new ValueObjectTypeRegistry(), new System.Text.Json.JsonSerializerOptions { Converters = { new OrgasmsJsonConverter() } });
 
     private static T RoundTrip<T>(T value) where T : IValueObject
     {
@@ -63,10 +63,10 @@ public class JournalValueObjectsJsonTests
     public void LegacyPayload_When_OldFormat_Should_DeserializeThroughFallback()
     {
         var legacyOptions = new System.Text.Json.JsonSerializerOptions();
-        legacyOptions.Converters.Add(new IValueObjectJsonConverter());
+        legacyOptions.Converters.Add(new LegacyValueObjectJsonConverter());
         var payload = System.Text.Json.JsonSerializer.Serialize<IValueObject>(PlaceValue.Create("legacy"), legacyOptions);
         var envelope = $"{{\"Place\":{payload}}}";
-        var restored = ValueObjectSerializerProvider.DeserializeWithLegacy(Serializer, envelope);
+        var restored = Serializer.DeserializeWithLegacy(envelope, options => options.Converters.Add(new OrgasmsJsonConverter()));
         Assert.IsType<PlaceValue>(restored["Place"]);
         Assert.Equal("legacy", ((PlaceValue)restored["Place"]).Value);
     }
