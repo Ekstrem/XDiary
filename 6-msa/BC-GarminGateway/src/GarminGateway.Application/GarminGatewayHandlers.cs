@@ -23,9 +23,13 @@ public sealed class ConnectHandler : IRequestHandler<ConnectCommand, AggregateRe
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
+        // BE-142 follow-up (@TL 20:18): в DTO только apiKey — oauthToken сервер
+        // добывает сам по Personal API Key (POST /personalapitoken-service/…/token,
+        // Authorization: ApiKey <ключ>, README:96-119). До реального вызова Garmin API
+        // кладём служебный заглушечный маркер; персональных данных пользователя в нём нет.
         var creds = r.Credentials is null
             ? null!
-            : Credentials.CreateInstance(r.Credentials.ApiKey, r.Credentials.OauthToken, r.Credentials.TokenExpiry);
+            : Credentials.CreateInstance(r.Credentials.ApiKey, "server-acquired", r.Credentials.TokenExpiry);
         var result = aggregate.Connect(_actor.ClientId, creds, AggregateCommandFactory.Create("Connect"));
         await completion;
         return result;

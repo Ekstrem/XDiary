@@ -3,7 +3,7 @@ using DigiTFactory.Libraries.SeedWorks.Result;
 using MediatR;
 using GarminGateway.Domain;
 using GarminGateway.Domain.Abstraction;
-public sealed record CredentialsDto(string ApiKey, string OauthToken, string TokenExpiry);
+public sealed record CredentialsDto(string ApiKey, string TokenExpiry);
 public sealed record SyncConfigDto(IReadOnlyList<string> Metrics, int WindowDays);
 public sealed record ConnectCommand(CredentialsDto Credentials) : IRequest<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>;
 public sealed record SyncCommand(SyncConfigDto Config) : IRequest<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>;
