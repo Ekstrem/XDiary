@@ -13,8 +13,9 @@ public sealed class AppleHealthGatewayEventSourcingRepository : FullEventSourcin
     public AppleHealthGatewayEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>> logger,
-        AppleHealthGatewayEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        AppleHealthGatewayEventReplay replay,
+        IEventStreamRehydrator<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<IAppleHealthGatewayAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

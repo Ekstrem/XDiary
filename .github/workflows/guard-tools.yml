@@ -29,3 +29,18 @@ jobs:
           python-version: "3.12"
       - name: Копии совпадают с манифестом
         run: python tools/sync_tools.py --check
+      # Владелец 2026-11-24 (BE-148, @LM): `#pragma warning disable` — обход гейта
+      # качества (QG-612 sync-over-async подавляли директивой вместо устранения причины).
+      # Инструмент LM (#3314) в main; подключение в CI — зона @DO. Ставлю в guard-tools,
+      # а не в ci-guards: `check-chat` там не required, а guard-tools — required,
+      # и по эффекту это ровно то, что просил @LM («шаг, required»).
+      - name: "Запрет #pragma warning disable (BE-148)"
+        run: |
+          python tools/check_pragma_disable.py --selftest
+          python tools/check_pragma_disable.py
+      - name: Каждый тест-проект покрыт workflow (DO-156, advisory → strict позже)
+        # Класс «написали тест, но не включили в CI». Сейчас ::warning с именами
+        # (переходный период по карточке); после стабилизации — --strict.
+        run: |
+          python tools/check_test_coverage_ci.py --selftest
+          python tools/check_test_coverage_ci.py

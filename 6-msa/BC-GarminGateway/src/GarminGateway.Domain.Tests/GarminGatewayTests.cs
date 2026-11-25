@@ -1,4 +1,4 @@
-﻿using XDiary.Contracts;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using GarminGateway.Domain;
 using GarminGateway.Domain.Abstraction;
@@ -11,14 +11,14 @@ namespace XDiary.Tests.Gateways;
 public class GarminGatewayTests
 {
     [Fact]
-    public void Connect_ValidCredentials_Succeeds()
+    public void Connect_WhenServerAcquiredToken_Succeeds()
     {
+        // BE-142 follow-up: в API только apiKey; oauthToken сервер получает сам.
         var r = Aggregate.CreateInstance(new AnemicModel())
-            .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2026-11-01T00:00"));
+            .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "server-acquired", "2999-01-01T00:00:00+00:00"));
 
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal("GCDC_x", r.Model().Credentials.ApiKey);
-        Assert.Equal("token-1", r.Model().Credentials.OauthToken);
     }
 
     [Theory]

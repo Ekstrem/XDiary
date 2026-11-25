@@ -31,7 +31,7 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
     {
         var channel = _config["Otp:Channel"] ?? "log";
         var phoneCheck = new PhoneRequiredSpecification();
-        if (!phoneCheck.IsSatisfiedBy(new AnemicModel { Root = ClientRoot.CreateInstance(r.Phone) }))
+        if (!PhoneRequiredSpecification.IsSatisfiedByPhone(r.Phone))
             return new RegisterClientResult(ClientResults.Fail(phoneCheck.Reason), false, null, channel, false);
         var phone = PhoneFormatSpecification.Normalize(r.Phone);
         if (!PhoneFormatSpecification.IsValid(phone))
@@ -54,14 +54,14 @@ public sealed class RegisterClientHandler : IRequestHandler<RegisterClientComman
         {
             var (agg, aggCompletion) = await ((IAggregateProviderWithCompletion<IClients, IClientAggregate>)_provider).GetAggregateWithCompletionAsync(existing.Id, ct);
             ((IObservable<AggregateResult<IClients, IClientAnemicModel>>)agg).Subscribe(_observer);
-            var rr = agg.ReissueOtp(otp);
+            var rr = agg.ReissueOtp(otp, AggregateCommandFactory.Create("ReissueOtp"));
             await aggCompletion;
             return new RegisterClientResult(rr, true, deliveryOk, channel, false);
         }
 
         var (newAgg, newAggCompletion) = await ((IAggregateProviderWithCompletion<IClients, IClientAggregate>)_provider).GetAggregateWithCompletionAsync(Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IClients, IClientAnemicModel>>)newAgg).Subscribe(_observer);
-        var res = newAgg.Register(phone!, otp);
+        var res = newAgg.Register(phone!, otp, AggregateCommandFactory.Create("Register"));
         await newAggCompletion;
         return new RegisterClientResult(res, false, deliveryOk, channel, false);
     }
@@ -78,8 +78,8 @@ public sealed class VerifyClientOtpHandler : IRequestHandler<VerifyClientOtpComm
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IClients, IClientAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IClients, IClientAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return ClientResults.Fail("Client not found.");
-        var res = aggregate.VerifyOtp(r.Code);
-        if (!res.IsSuccess()) { aggregate.RecordFailedAttempt(); await completion; return res; }
+        var res = aggregate.VerifyOtp(r.Code, AggregateCommandFactory.Create("VerifyOtp"));
+        if (!res.IsSuccess()) { aggregate.RecordFailedAttempt(AggregateCommandFactory.Create("RecordFailedAttempt")); await completion; return res; }
         // BE-134 follow-up (@FE 05:52): diff библиотеки кладёт в ChangedValueObjects только одно изменение
         // (не Verified) — явно проставляем Verified в read-модель, иначе /me даёт verified=false.
         var existing = await _read.GetByIdAsync(r.AggregateId, ct);
@@ -98,7 +98,7 @@ public sealed class UpdateProfileHandler : IRequestHandler<UpdateProfileCommand,
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IClients, IClientAggregate>)_provider).GetAggregateWithCompletionAsync(r.AggregateId, ct);
         ((IObservable<AggregateResult<IClients, IClientAnemicModel>>)aggregate).Subscribe(_observer);
         if (aggregate.Root is null) return ClientResults.Fail("Client not found.");
-        var result = aggregate.UpdateProfile(r.DisplayName, r.Gender, r.PhotoUrl);
+        var result = aggregate.UpdateProfile(r.DisplayName, r.Gender, r.PhotoUrl, AggregateCommandFactory.Create("UpdateProfile"));
         await completion;
         return result;
     }

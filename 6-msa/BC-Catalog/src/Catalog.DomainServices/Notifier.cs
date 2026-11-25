@@ -27,15 +27,16 @@ public sealed class Notifier : DomainEventNotifier<ICatalog, ICatalogAggregate>,
     public string Notes => Aggregate.Notes;
     public string Brand => Aggregate.Brand;
     public bool Archived => Aggregate.Archived;
+    public DateTime? DeletedAt => Aggregate.DeletedAt;
     public string FantasyPartner => Aggregate.FantasyPartner;
     public Guid? ClientId => Aggregate.ClientId;
 
-    public AggregateResult<ICatalog, ICatalogAnemicModel> AddItem(string kind, string name, Guid clientId) => Observe(Aggregate.AddItem(kind, name, clientId));
-    public AggregateResult<ICatalog, ICatalogAnemicModel> Rename(string name) => Observe(Aggregate.Rename(name));
-    public AggregateResult<ICatalog, ICatalogAnemicModel> UpdateDetails(string photo, string notes, string brand, string fantasyPartner) => Observe(Aggregate.UpdateDetails(photo, notes, brand, fantasyPartner));
-    public AggregateResult<ICatalog, ICatalogAnemicModel> Archive() => Observe(Aggregate.Archive());
-    public AggregateResult<ICatalog, ICatalogAnemicModel> Restore() => Observe(Aggregate.Restore());
-    public AggregateResult<ICatalog, ICatalogAnemicModel> Remove() => Observe(Aggregate.Remove());
+    public AggregateResult<ICatalog, ICatalogAnemicModel> AddItem(string kind, string name, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.AddItem(kind, name, clientId, command));
+    public AggregateResult<ICatalog, ICatalogAnemicModel> Rename(string name, CommandToAggregate? command = null) => Observe(Aggregate.Rename(name, command));
+    public AggregateResult<ICatalog, ICatalogAnemicModel> UpdateDetails(string photo, string notes, string brand, string fantasyPartner, CommandToAggregate? command = null) => Observe(Aggregate.UpdateDetails(photo, notes, brand, fantasyPartner, command));
+    public AggregateResult<ICatalog, ICatalogAnemicModel> Archive(CommandToAggregate? command = null) => Observe(Aggregate.Archive(command));
+    public AggregateResult<ICatalog, ICatalogAnemicModel> Restore(CommandToAggregate? command = null) => Observe(Aggregate.Restore(command));
+    public AggregateResult<ICatalog, ICatalogAnemicModel> Remove(CommandToAggregate? command = null) => Observe(Aggregate.Remove(command));
 
     IDisposable IObservable<AggregateResult<ICatalog, ICatalogAnemicModel>>.Subscribe(IObserver<AggregateResult<ICatalog, ICatalogAnemicModel>> observer)
     {

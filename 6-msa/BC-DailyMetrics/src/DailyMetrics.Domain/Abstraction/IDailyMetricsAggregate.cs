@@ -1,5 +1,6 @@
 namespace DailyMetrics.Domain.Abstraction;
 
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using DailyMetrics.Domain;
@@ -13,8 +14,8 @@ public interface IDailyMetricsAggregate : IAggregate<IDailyMetrics>, IDailyMetri
     int Hrv { get; }
     ISleep Sleep { get; }
     Guid? ClientId { get; }
-    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId);
-    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId);
-    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId);
-    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId);
+    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordStress(string date, int stress, Guid clientId, CommandToAggregate? command = null);
+    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordRestingHr(string date, int restingHr, Guid clientId, CommandToAggregate? command = null);
+    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordHrv(string date, int hrv, Guid clientId, CommandToAggregate? command = null);
+    AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel> RecordSleep(string date, ISleep sleep, Guid clientId, CommandToAggregate? command = null);
 }

@@ -3,6 +3,7 @@ namespace Catalog.Storage;
 using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Microsoft.EntityFrameworkCore;
 using Catalog.Domain;
@@ -14,12 +15,11 @@ using XDiary.Contracts;
 public sealed class CatalogEventReplay
 {
     private readonly EventStoreDbContext _db;
-    private readonly JsonSerializerOptions _json;
+    private readonly IValueObjectSerializer _serializer;
     public CatalogEventReplay(EventStoreDbContext db)
     {
         _db = db;
-        _json = new JsonSerializerOptions();
-        _json.Converters.Add(new IValueObjectJsonConverter());
+        _serializer = ValueObjectSerializerProvider.Create();
     }
 
     public async Task<ICatalogAnemicModel?> ReplayAsync(Guid id, CancellationToken ct = default)
@@ -29,14 +29,14 @@ public sealed class CatalogEventReplay
         var model = new AnemicModel { Id = id };
         foreach (var e in events)
         {
-            var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(e.ChangedValueObjectsJson, _json);
+            var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(_serializer, e.ChangedValueObjectsJson);
             if (vos is null || vos.Count == 0) continue;
             model = Apply(model, vos, e);
         }
         return model;
     }
 
-    internal static AnemicModel Apply(AnemicModel m, IDictionary<string, IValueObject> vos, DomainEventEntry e)
+    internal static AnemicModel Apply(AnemicModel m, IReadOnlyDictionary<string, IValueObject> vos, DomainEventEntry e)
     {
         if (vos.TryGetValue("Root", out var r) && r is ICatalogItemRoot root) m = m with { Root = root };
         if (vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv) m = m with { ClientId = cv.Value };

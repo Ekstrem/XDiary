@@ -23,8 +23,14 @@ public sealed class ConnectHandler : IRequestHandler<ConnectCommand, AggregateRe
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        var creds = Credentials.CreateInstance(r.Credentials.ApiKey, r.Credentials.OauthToken, r.Credentials.TokenExpiry);
-        var result = aggregate.Connect(_actor.ClientId, creds);
+        // BE-142 follow-up (@TL 20:18): в DTO только apiKey — oauthToken сервер
+        // добывает сам по Personal API Key (POST /personalapitoken-service/…/token,
+        // Authorization: ApiKey <ключ>, README:96-119). До реального вызова Garmin API
+        // кладём служебный заглушечный маркер; персональных данных пользователя в нём нет.
+        var creds = r.Credentials is null
+            ? null!
+            : Credentials.CreateInstance(r.Credentials.ApiKey, "server-acquired", r.Credentials.TokenExpiry);
+        var result = aggregate.Connect(_actor.ClientId, creds, AggregateCommandFactory.Create("Connect"));
         await completion;
         return result;
     }
@@ -42,8 +48,8 @@ public sealed class SyncHandler : IRequestHandler<SyncCommand, AggregateResult<I
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        var cfg = SyncConfig.CreateInstance(r.Config.Metrics, r.Config.WindowDays);
-        var result = aggregate.Sync(cfg);
+        var cfg = r.Config is null ? null! : SyncConfig.CreateInstance(r.Config.Metrics, r.Config.WindowDays);
+        var result = aggregate.Sync(cfg, AggregateCommandFactory.Create("Sync"));
         await completion;
         return result;
     }
@@ -61,7 +67,7 @@ public sealed class FetchActivitiesHandler : IRequestHandler<FetchActivitiesComm
         var existing = all.FirstOrDefault(x => x.ClientId == _actor.ClientId && x.SourceId == "garmin");
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IGarminGateway, IGarminGatewayAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.FetchActivities();
+        var result = aggregate.FetchActivities(AggregateCommandFactory.Create("FetchActivities"));
         await completion;
         return result;
     }

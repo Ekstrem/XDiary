@@ -1,4 +1,5 @@
 using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain.Implementation;
 using Xunit;
@@ -9,11 +10,14 @@ using Xunit;
 /// </summary>
 public class JournalIdempotencyTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public void StartManualEntry_PreservesProvidedId()
     {
         var id = Guid.NewGuid();
-        var r = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid());
+        var r = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
         Assert.Equal(id, r.Model().Id);
     }
 
@@ -21,8 +25,8 @@ public class JournalIdempotencyTests
     public void StartManualEntry_TwoSameIds_ShareAggregateIdentity()
     {
         var id = Guid.NewGuid();
-        var a = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid());
-        var b = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid());
+        var a = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
+        var b = Aggregate.CreateInstance(new AnemicModel { Id = id }).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
         Assert.Equal(a.Model().Id, b.Model().Id);
     }
 
@@ -31,7 +35,7 @@ public class JournalIdempotencyTests
     {
         var id = Guid.NewGuid();
         var r = Aggregate.CreateInstance(new AnemicModel { Id = id })
-            .StartFromGarmin("2026-01-01T00:00:00Z", 10, "garmin-1", Guid.NewGuid());
+            .StartFromGarmin("2026-01-01T00:00:00Z", 10, "garmin-1", Guid.NewGuid(), Cmd("StartFromGarmin"));
         Assert.Equal(id, r.Model().Id);
         Assert.Equal("garmin-1", r.Model().GarminId);
     }

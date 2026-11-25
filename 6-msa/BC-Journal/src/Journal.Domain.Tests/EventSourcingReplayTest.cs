@@ -1,4 +1,5 @@
 using Xunit;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
@@ -11,10 +12,13 @@ using Journal.Domain.Implementation;
 /// </summary>
 public class EventSourcingReplayTest
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public void StartManualEntry_TracksClientId_InValueObjects()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
+        var r = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
 
         var vos = r.BusinessOperationData.Model.GetValueObjects();
@@ -26,8 +30,8 @@ public class EventSourcingReplayTest
     public void Complete_TracksUpdatedAt_AndKeepsClientId()
     {
         var clientId = Guid.NewGuid();
-        var started = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId).BusinessOperationData.Model;
-        var completed = Aggregate.CreateInstance(started).Complete().BusinessOperationData.Model;
+        var started = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId, Cmd("StartManualEntry")).BusinessOperationData.Model;
+        var completed = Aggregate.CreateInstance(started).Complete(Cmd("Complete")).BusinessOperationData.Model;
 
         Assert.Equal(clientId, completed.ClientId);
         Assert.NotNull(completed.GetValueObjects()["ClientId"]);

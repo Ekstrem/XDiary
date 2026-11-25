@@ -37,18 +37,18 @@ public sealed class Notifier : DomainEventNotifier<IPartners, IPartnerAggregate>
     public DateTime? DeletedAt => Aggregate.DeletedAt;
 
     // Бизнес-операции (6): каждая пробрасывает результат наблюдателям.
-    public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name, Guid clientId)
-        => Observe(Aggregate.Register(name, clientId));
-    public AggregateResult<IPartners, IPartnerAnemicModel> Rename(string name)
-        => Observe(Aggregate.Rename(name));
-    public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes)
-        => Observe(Aggregate.UpdateProfile(photo, gender, notes));
-    public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId)
-        => Observe(Aggregate.LinkClient(clientId));
-    public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient()
-        => Observe(Aggregate.UnlinkClient());
-    public AggregateResult<IPartners, IPartnerAnemicModel> Remove()
-        => Observe(Aggregate.Remove());
+    public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name, Guid clientId, CommandToAggregate? command = null)
+        => Observe(Aggregate.Register(name, clientId, command));
+    public AggregateResult<IPartners, IPartnerAnemicModel> Rename(string name, CommandToAggregate? command = null)
+        => Observe(Aggregate.Rename(name, command));
+    public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes, CommandToAggregate? command = null)
+        => Observe(Aggregate.UpdateProfile(photo, gender, notes, command));
+    public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId, CommandToAggregate? command = null)
+        => Observe(Aggregate.LinkClient(clientId, command));
+    public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient(CommandToAggregate? command = null)
+        => Observe(Aggregate.UnlinkClient(command));
+    public AggregateResult<IPartners, IPartnerAnemicModel> Remove(CommandToAggregate? command = null)
+        => Observe(Aggregate.Remove(command));
 
     // Явная реализация IObservable (QG-007 не трогает контракт IObservable).
     IDisposable IObservable<AggregateResult<IPartners, IPartnerAnemicModel>>.Subscribe(IObserver<AggregateResult<IPartners, IPartnerAnemicModel>> observer)

@@ -17,7 +17,7 @@ public sealed class ExportRecordsHandler : IRequestHandler<ExportRecordsCommand,
     {
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPortability, ICsvDocumentAggregate>)_provider).GetAggregateWithCompletionAsync(Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.ExportRecords(r.Rows, _actor.ClientId);
+        var result = aggregate.ExportRecords(r.Rows, _actor.ClientId, AggregateCommandFactory.Create("ExportRecords"));
         await completion;
         return result;
     }
@@ -33,7 +33,7 @@ public sealed class ImportRecordsHandler : IRequestHandler<ImportRecordsCommand,
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPortability, ICsvDocumentAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.ImportRecords(r.Rows, _actor.ClientId);
+        var result = aggregate.ImportRecords(r.Rows, _actor.ClientId, AggregateCommandFactory.Create("ImportRecords"));
         await completion;
         return result;
     }
@@ -49,7 +49,7 @@ public sealed class ImportSomaticHandler : IRequestHandler<ImportSomaticCommand,
         var id = r.Id == Guid.Empty ? Guid.NewGuid() : r.Id;
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IPortability, ICsvDocumentAggregate>)_provider).GetAggregateWithCompletionAsync(id, ct);
         ((IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.ImportSomatic(r.Rows, _actor.ClientId);
+        var result = aggregate.ImportSomatic(r.Rows, _actor.ClientId, AggregateCommandFactory.Create("ImportSomatic"));
         await completion;
         return result;
     }

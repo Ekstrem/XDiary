@@ -1,5 +1,6 @@
 namespace GarminGateway.Domain.Abstraction;
 
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using GarminGateway.Domain;
@@ -11,7 +12,7 @@ public interface IGarminGatewayAggregate : IAggregate<IGarminGateway>, IGarminGa
     ICredentials Credentials { get; }
     ISyncConfig SyncConfig { get; }
     string LastSync { get; }
-    AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials);
-    AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config);
-    AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities();
+    AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials, CommandToAggregate? command = null);
+    AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config, CommandToAggregate? command = null);
+    AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities(CommandToAggregate? command = null);
 }

@@ -54,10 +54,13 @@ public class JournalReadModelEndToEndTests
         sc.AddScoped<IEventStoreRepository<IJournal, IJournalAnemicModel>, JournalEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<IJournal, IJournalAnemicModel>, JournalEventSourcingRepository>();
         sc.AddScoped<RecordEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IJournal, IJournalAnemicModel>, RecordEventRehydrator>();
         sc.AddReadStorePostgres<IJournal, JournalReadModel, ReadDbContext>(cs, null);
         sc.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(cs, null);
         sc.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
         sc.AddScoped<IAggregateProvider<IJournal, IRecordAggregate>, AggregateProvider>();
+        sc.AddScoped<Journal.DomainServices.AggregateCompletion>();
         sc.AddScoped<IObserver<AggregateResult<IJournal, IJournalAnemicModel>>, BusAdapter>();
 
         var actor = new StubActor { ClientId = Guid.NewGuid() };

@@ -4,30 +4,25 @@ using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Microsoft.Extensions.DependencyInjection;
 using XDiary.Contracts;
 
-/// <summary>BE-143: подписчик шины, сохраняющий доменное событие в event store. Read-проекция — отдельный подписчик.</summary>
-public sealed class JournalEventStoreHandler : IDomainEventHandler<IJournal>, IObserver<IDomainEvent<IJournal>>
+/// <summary>BE-148: durable-подписчик (IAsyncDomainEventHandler): шина await-ит HandleAsync до завершения PublishAsync, событие доступно replay сразу после команды. MV-проекции — отдельные асинхронные подписчики.</summary>
+public sealed class JournalEventStoreHandler : IAsyncDomainEventHandler<IJournal>
 {
     private readonly IServiceScopeFactory _scopeFactory;
     public JournalEventStoreHandler(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
-    public void OnNext(IDomainEvent<IJournal> e) => _ = HandleAsync(e).ContinueWith(t =>
-    {
-        if (t.IsFaulted) Console.Error.WriteLine($"[event-store] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
-    }, TaskScheduler.Default);
-    public void OnError(Exception error) { }
-    public void OnCompleted() { }
 
     public async Task HandleAsync(IDomainEvent<IJournal> domainEvent)
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IJournal, IJournalAnemicModel>>();
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+        var serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new Journal.Domain.Implementation.OrgasmsJsonConverter()));
         var cmdName = domainEvent.ChangedValueObjects is not null
             && domainEvent.ChangedValueObjects.TryGetValue("CommandName", out var cn)
             && cn is Journal.Domain.Implementation.StringValueObject cns
@@ -35,12 +30,12 @@ public sealed class JournalEventStoreHandler : IDomainEventHandler<IJournal>, IO
             : (domainEvent.Command?.GetType().Name ?? string.Empty);        var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
-            Version = await store.GetEventCountAsync(domainEvent.Id) + 1,
+            Version = domainEvent.Command.Version, // BE-150: Command.Version = новая версия агрегата
             CorrelationToken = domainEvent.CorrelationToken,
             BoundedContext = domainEvent.ContextName,
             CommandName = cmdName,
             SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
+            ChangedValueObjectsJson = serializer.Serialize(domainEvent.ChangedValueObjects as IReadOnlyDictionary<string, IValueObject>),
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };

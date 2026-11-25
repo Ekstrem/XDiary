@@ -54,6 +54,8 @@ public class CatalogReadModelEndToEndTests
         sc.AddScoped<IEventStoreRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
         sc.AddScoped<IAnemicModelRepository<ICatalog, ICatalogAnemicModel>, CatalogEventSourcingRepository>();
         sc.AddScoped<CatalogEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<ICatalog, ICatalogAnemicModel>, CatalogEventRehydrator>();
         sc.AddReadStorePostgres<ICatalog, CatalogReadModel, ReadDbContext>(cs, null);
         sc.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
         sc.AddScoped<IAggregateProvider<ICatalog, ICatalogAggregate>, AggregateProvider>();

@@ -13,8 +13,9 @@ public sealed class GarminGatewayEventSourcingRepository : FullEventSourcingRepo
     public GarminGatewayEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IGarminGateway, IGarminGatewayAnemicModel>> logger,
-        GarminGatewayEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        GarminGatewayEventReplay replay,
+        IEventStreamRehydrator<IGarminGateway, IGarminGatewayAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<IGarminGatewayAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

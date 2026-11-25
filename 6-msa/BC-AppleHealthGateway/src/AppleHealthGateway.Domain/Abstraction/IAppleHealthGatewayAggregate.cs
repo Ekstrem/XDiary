@@ -1,5 +1,6 @@
 namespace AppleHealthGateway.Domain.Abstraction;
 
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using AppleHealthGateway.Domain;
@@ -11,6 +12,6 @@ public interface IAppleHealthGatewayAggregate : IAggregate<IAppleHealthGateway>,
     IImportConfig ImportConfig { get; }
     string LastImport { get; }
     IReadOnlyList<string> ProcessedFiles { get; }
-    AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics);
-    AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName);
+    AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics, CommandToAggregate? command = null);
+    AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName, CommandToAggregate? command = null);
 }

@@ -442,10 +442,18 @@ operations:
     request:
       required: [credentials]
       types: {credentials: CredentialsDto}
-      note: "ConnectCommand (из токена/route: clientId)"
+      fields:
+        apiKey: {type: string, required: true, note: "непустой, серверный секрет"}
+        oauthToken: {type: string, required: true, note: "непустой, серверный секрет"}
+        tokenExpiry: {type: "string|null", format: date-time, required: false, note: "ISO-8601 с часовым поясом"}
+      note: "ConnectCommand (clientId только из JWT, тела clientId нет)"
+    response:
+      type: GarminConnectionState
+      always: [connected, sourceId, tokenExpiry, metrics, windowDays, lastSync, requiresReauth]
+      note: "200 — GarminConnectionState; 400/502 — GarminApiError {code,message}; секретов в ответе нет"
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: derived
+    codes: {200: "ok — GarminConnectionState", 400: "validation_error — GarminApiError", 401: "no-token — edm-canon §25", 502: "upstream_unavailable — GarminApiError"}
+    codes_status: target (AR-163, реализация BE-142)
   - bc: GarminGateway
     method: POST
     path: "/api/v1/garmin/fetch-activities"
@@ -453,16 +461,24 @@ operations:
     request:
       required: []
       note: "тела нет"
+    response:
+      type: GarminConnectionState
+      always: [connected, sourceId, tokenExpiry, metrics, windowDays, lastSync, requiresReauth]
+      note: "400 — not_connected | token_expired; 502 — upstream_unavailable; тело ошибки GarminApiError"
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: derived
+    codes: {200: "ok — GarminConnectionState", 400: "not_connected | token_expired — GarminApiError", 401: "no-token — edm-canon §25", 502: "upstream_unavailable — GarminApiError"}
+    codes_status: target (AR-163, реализация BE-142)
   - bc: GarminGateway
     method: GET
     path: "/api/v1/garmin/state"
     operationId: GarminGateway.State
+    response:
+      type: GarminConnectionState
+      always: [connected, sourceId, tokenExpiry, metrics, windowDays, lastSync, requiresReauth]
+      note: "200 также при истёкшем токене: connected=true, requiresReauth=true; 404 — подключения ещё нет"
     auth: jwt
-    codes: {200: "ok", 401: "no-token", 404: "нет состояния синхронизации для клиента"}
-    codes_status: derived
+    codes: {200: "ok — GarminConnectionState", 401: "no-token — edm-canon §25", 404: "нет состояния синхронизации для клиента"}
+    codes_status: target (AR-163, реализация BE-142)
   - bc: GarminGateway
     method: POST
     path: "/api/v1/garmin/sync"
@@ -470,10 +486,17 @@ operations:
     request:
       required: [config]
       types: {config: SyncConfigDto}
-      note: "SyncCommand (из токена/route: clientId)"
+      fields:
+        metrics: {type: "string[]", required: true}
+        windowDays: {type: integer, format: int32, required: true, minimum: 1}
+      note: "SyncCommand (clientId только из JWT); до Connect — 400 not_connected, истёкший токен — 400 token_expired"
+    response:
+      type: GarminConnectionState
+      always: [connected, sourceId, tokenExpiry, metrics, windowDays, lastSync, requiresReauth]
+      note: "200 — GarminConnectionState; 400/502 — GarminApiError; секретов в ответе нет"
     auth: jwt
-    codes: {200: "ok", 400: "validation", 401: "no-token"}
-    codes_status: derived
+    codes: {200: "ok — GarminConnectionState", 400: "validation_error | not_connected | token_expired — GarminApiError", 401: "no-token — edm-canon §25", 502: "upstream_unavailable — GarminApiError"}
+    codes_status: target (AR-163, реализация BE-142)
   - bc: Journal
     method: GET
     path: "/api/v1/journal/fantasies"

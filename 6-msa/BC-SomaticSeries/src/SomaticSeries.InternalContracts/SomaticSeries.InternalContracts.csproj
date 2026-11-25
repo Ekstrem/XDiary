@@ -7,13 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.7.0" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.9.4" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
-  </ItemGroup>
+    <PackageReference Include="MessagePack" Version="2.5.307" />
+</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SomaticSeries.Domain\SomaticSeries.Domain.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
-  </ItemGroup>
+    <PackageReference Include="MessagePack" Version="2.5.307" />
+</ItemGroup>
 
 </Project>

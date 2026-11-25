@@ -4,39 +4,34 @@ using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Privacy.Domain;
 using Privacy.Domain.Abstraction;
 using Microsoft.Extensions.DependencyInjection;
 using XDiary.Contracts;
 
-/// <summary>BE-143: подписчик шины, сохраняющий доменное событие в event store. Read-проекция — отдельный подписчик.</summary>
-public sealed class PrivacyEventStoreHandler : IDomainEventHandler<IPrivacy>, IObserver<IDomainEvent<IPrivacy>>
+/// <summary>BE-148: durable-подписчик (IAsyncDomainEventHandler): шина await-ит HandleAsync до завершения PublishAsync, событие доступно replay сразу после команды. MV-проекции — отдельные асинхронные подписчики.</summary>
+public sealed class PrivacyEventStoreHandler : IAsyncDomainEventHandler<IPrivacy>
 {
     private readonly IServiceScopeFactory _scopeFactory;
     public PrivacyEventStoreHandler(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
-    public void OnNext(IDomainEvent<IPrivacy> e) => _ = HandleAsync(e).ContinueWith(t =>
-    {
-        if (t.IsFaulted) Console.Error.WriteLine($"[event-store] {e.Id} failed: {t.Exception?.GetBaseException().Message}");
-    }, TaskScheduler.Default);
-    public void OnError(Exception error) { }
-    public void OnCompleted() { }
 
     public async Task HandleAsync(IDomainEvent<IPrivacy> domainEvent)
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IPrivacy, IPinCredentialAnemicModel>>();
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+        var serializer = ValueObjectSerializerProvider.Create();
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
-            Version = await store.GetEventCountAsync(domainEvent.Id) + 1,
+            Version = domainEvent.Command.Version, // BE-150: Command.Version = новая версия агрегата
             CorrelationToken = domainEvent.CorrelationToken,
             BoundedContext = domainEvent.ContextName,
             CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
             SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
+            ChangedValueObjectsJson = serializer.Serialize(domainEvent.ChangedValueObjects as IReadOnlyDictionary<string, IValueObject>),
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };

@@ -22,6 +22,8 @@ public class JournalCompositionRootTests
         sc.AddEventStorePostgres<IJournal, IJournalAnemicModel>("Host=localhost;Database=es", null);
         sc.AddDbContext<EventStoreDbContext>(o => o.UseNpgsql("Host=localhost;Database=es", o => o.EnableRetryOnFailure()));
         sc.AddScoped<RecordEventReplay>();
+        // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES.
+        sc.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IJournal, IJournalAnemicModel>, RecordEventRehydrator>();
         // BE-129: реальный реплей как IAnemicModelRepository (иначе библиотечная заглушка).
         sc.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IJournal, IJournalAnemicModel>, JournalEventSourcingRepository>();
 

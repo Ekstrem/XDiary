@@ -1,4 +1,4 @@
-using System.Text.Json;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Partners.Api.Events;
 using Partners.Domain.Implementation;
@@ -37,10 +37,9 @@ public class PartnerRemoveProjectionTests
         var removed = Aggregate.CreateInstance(reg.Model()).Remove();
         var vos = removed.Event!.ChangedValueObjects!;
 
-        var opts = new JsonSerializerOptions();
-        opts.Converters.Add(new IValueObjectJsonConverter());
-        var json = JsonSerializer.Serialize(vos, opts);
-        var back = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(json, opts)!;
+        var serializer = ValueObjectSerializerProvider.Create();
+        var json = serializer.Serialize(vos as IReadOnlyDictionary<string, IValueObject>);
+        var back = serializer.Deserialize(json)!;
 
         Assert.True(back.TryGetValue("DeletedAt", out var d), "DeletedAt потерян при round-trip");
         var dv = Assert.IsType<DeletedAtValueObject>(d);

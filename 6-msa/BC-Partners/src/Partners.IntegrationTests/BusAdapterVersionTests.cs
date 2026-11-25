@@ -35,8 +35,9 @@ public class BusAdapterVersionTests
         await handler.HandleAsync(linked.Event);
 
         Assert.Equal(2, store.Saved.Count);
-        Assert.Equal(1, store.Saved[0].Version);
-        Assert.Equal(2, store.Saved[1].Version);
+        Assert.Equal(reg.Event.Command.Version, store.Saved[0].Version);
+        Assert.Equal(linked.Event.Command.Version, store.Saved[1].Version);
+        Assert.True(store.Saved[1].Version > store.Saved[0].Version);
         Assert.Equal(store.Saved[0].Id, store.Saved[1].Id); // тот же агрегат
     }
 
