@@ -1035,6 +1035,31 @@ jobs:
   # Симптом был: `OPTIONS` → 401, в ответах нет `Access-Control-Allow-Origin`, а фронт
   # (другой origin) читал это как «Нет связи с сервером». `if: always()` — мерим даже когда
   # `deploy-prod` пропущен: прод всё равно публичный, и CORS должен быть в порядке.
+  # TE-111 (владелец/TE 2026-11-25 20:16, чат @DO 15:2x): «прод здоров = /health 200
+  # И journal/recent в {200, 401}» — голый /health маскирует лежащее ядро (трижды за сутки
+  # 21-22.11 шлюз был жив, а journal отдавал 500). Job = один GET через публичный вход,
+  # вердикт по классу ответа. Вне needs (прод уже задеплоен), advisory-режим rc=2 «не измерено»
+  # не красит (правило (в): сигнал, не блокер).
+  smoke-prod-journal:
+    needs: [deploy-prod]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Самопроверка пробника (TE-111)
+        run: node 9-tests/scripts/probe_journal_recent.js --selftest
+      - name: Прод-ядро жив (journal/recent по классу, не только /health)
+        env:
+          PROD_BASE: https://xdiary-vps1.taile0b6ee.ts.net
+        run: |
+          set -uo pipefail
+          out=$(node 9-tests/scripts/probe_journal_recent.js --check-class-only --base "$PROD_BASE" 2>&1)
+          rc=$?
+          echo "$out"
+          echo "probe_journal_recent --check-class-only rc=$rc (0=OK/401, 1=DOWN/5xx, 2=не измерено)"
+          exit $rc
+
   smoke-prod-cors:
     needs: [deploy-prod]
     if: always()
