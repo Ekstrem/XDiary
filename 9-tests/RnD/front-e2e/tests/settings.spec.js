@@ -1,14 +1,15 @@
 // E2E (настоящий) — TE-021/2: настройки.
-// В приложении из «настроек» реально есть только **пол** (myGender) + адрес API;
-// темы/единиц измерения в UI нет — это отмечено в TE-021.
+// В приложении из «настроек» реально есть только **пол** (myGender); темы/единиц
+// измерения в UI нет — это отмечено в TE-021. Блок «Сервер» и «Это я» сняты
+// по требованию владельца 2026-11-23 (PR #3302, FE-057).
 // Проверяем: пол переключается и сохраняется после перезагрузки, состояние кнопки активное.
 const { test, expect } = require('@playwright/test');
 const { loginWithPin, unlockIfLocked, reportStep } = require('./api');
 
 test('E2E: настройки — пол сохраняется после перезагрузки', async ({ page }) => {
   test.setTimeout(180_000);
-  // TE-070: бюджет 150 -> 180 с: возврат на настройки перед «Снять я» добавляет reload и три
-  // ожидания по 20 с; сумма объявленных ожиданий выросла, лимит приведён к ней.
+  // TE-070: бюджет 150 -> 180 с (возвраты на настройки + reload). Шаг «Снять я» снят
+  // (владелец 2026-11-23: кнопки «Это я» удалены), бюджет оставлен с запасом.
   // TE-062: бюджет = сумма объявленных ожиданий (общий лимит теста 90 с не менялся).
   // Лимит поднят ТОЛЬКО для этой спеки; общий 90 с в конфиге не менялся.
   await test.step('login по PIN', async () => {
@@ -88,7 +89,7 @@ test('E2E: настройки — пол сохраняется после пе�
     expect(seen).toBe(true);
   });
 
-  await test.step('смена «я» и вход в идентификацию открывают онбординг', async () => {
+  await test.step('вход в идентификацию открывает онбординг', async () => {
   // TE-067: уборка («вернуть Мужской») должна идти, пока НАСТРОЙКИ показаны. Раньше она шла после
   // шага «вход в идентификацию», который уводит приложение в онбординг: клик по `#my-gender-male`
   // (контрол экрана настроек) ждал появления до лимита — в прогоне #770 `Test timeout of 150000ms
@@ -100,37 +101,11 @@ test('E2E: настройки — пол сохраняется после пе�
   } else {
     console.log('::warning::settings: уборка «Мужской» пропущена — экран настроек не показан');
   }
-    // `#btn-self-change` и `#btn-ident-start` не проверялись: оба обязаны привести к экрану
-    // онбординга (профиль «я» / идентификация), не ломая текущую сессию.
-    await page.click('#btn-self-change');
-    await expect(page.locator('#view-onboarding'), 'смена «я» открывает онбординг').toBeVisible({ timeout: 10000 });
-    await page.reload();
-    await unlockIfLocked(page);
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
-    await page.click('#tab-settings');
-    await expect(page.locator('#view-settings')).toBeVisible();
-
-    await page.click('#btn-ident-start');
+  // `#btn-self-change` удалён из Настроек (владелец 2026-11-23: блок «Это я» снят) —
+  // проверки «Сменить я»/«Снять я» убраны вместе с кнопками.
+  // `#btn-ident-start` обязан привести к экрану онбординга, не ломая текущую сессию.
+  await page.click('#btn-ident-start');
     await expect(page.locator('#view-onboarding'), 'вход в идентификацию открывает онбординг').toBeVisible({ timeout: 20000 });
   });
 
-  await test.step('«Снять „я“» открывает шаг профиля и не ломает сессию', async () => {
-    // `#btn-self-clear` не проверялся: открывает шаг профиля онбординга (`showProfileStep`).
-    // После проверки возвращаемся reload'ом — сессия обязана остаться рабочей.
-    // TE-070: перед «Снять я» возвращаемся НА НАСТРОЙКИ. Предыдущий шаг («вход в идентификацию»)
-    // оставил приложение на онбординге, а `#btn-self-clear` — контрол настроек: клик по нему
-    // ждал появления до лимита (в прогоне #775 `settings` упал на 150 с именно на этом шаге).
-    await page.reload();
-    await unlockIfLocked(page);
-    await expect(page.locator('#view-journal')).toBeVisible({ timeout: 20000 });
-    await page.click('#tab-settings');
-    await expect(page.locator('#view-settings')).toBeVisible({ timeout: 20000 });
-    await page.click('#btn-self-clear');
-    await expect(page.locator('#view-onboarding'), '«Снять я» открывает онбординг')
-      .toBeVisible({ timeout: 20000 });
-    await expect(page.locator('#onb-profile'), 'виден шаг профиля «Кто вы?»').toBeVisible({ timeout: 20000 });
-    await page.reload();
-    await unlockIfLocked(page);
-    await expect(page.locator('#view-journal'), 'после возврата журнал открывается').toBeVisible({ timeout: 20000 });
-  });
 });
