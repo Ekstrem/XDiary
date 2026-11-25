@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.124"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.125"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -2216,7 +2216,7 @@
   }
   function garminErrorText(e) {
     var code = garminErrorCode(e);
-    if (code === "validation_error") return "Проверьте API key, OAuth token и срок действия (ISO-8601 с часовым поясом).";
+    if (code === "validation_error") return "Проверьте токен Garmin и срок действия (ISO-8601 с часовым поясом).";
     if (code === "not_connected") return "Сначала подключите Garmin в Настройках.";
     if (code === "token_expired") return "Срок действия токена Garmin истёк. Вставьте новый токен.";
     if (code === "upstream_unavailable") return "Garmin или сеть временно недоступны. Повторите позже.";
@@ -2252,7 +2252,7 @@
       return s;
     }, function (e) {
       if (e && e.status === 404) {
-        status.textContent = "Не подключён — вставьте API key и OAuth token, чтобы синхронизировать данные";
+        status.textContent = "Не подключён — вставьте токен Garmin, чтобы синхронизировать данные";
         if (sync) sync.textContent = "";
         return null;
       }
@@ -2261,30 +2261,30 @@
     });
   }
   function openGarminConnect(message) {
-    $("garmin-api-key").value = "";
-    $("garmin-oauth-token").value = "";
+    $("garmin-token").value = "";
     $("garmin-token-expiry").value = "";
-    $("garmin-modal-state").textContent = message || "Токен отправляется только на сервер XDiary; в браузере он не сохраняется.";
+    $("garmin-modal-state").textContent = message || "Один токен Garmin: сервис сам обменяет его на короткоживущий токен. В браузере токен не сохраняется.";
     garminShowError(message && message.indexOf("истёк") !== -1 ? message : "");
     $("garmin-modal").classList.remove("hidden");
   }
   function connectGarmin() {
-    var apiKey = $("garmin-api-key").value.trim();
-    var oauthToken = $("garmin-oauth-token").value.trim();
+    var garminToken = $("garmin-token").value.trim();
     var tokenExpiry = $("garmin-token-expiry").value.trim();
-    if (!apiKey || !oauthToken) { garminShowError("Заполните API key и OAuth token."); return; }
+    if (!garminToken) { garminShowError("Вставьте токен Garmin."); return; }
     if (tokenExpiry && (!Date.parse(tokenExpiry) || !/(?:Z|[+-]\d\d:?\d\d)$/i.test(tokenExpiry))) {
       garminShowError("Срок действия: ISO-8601 с часовым поясом, например 2027-01-31T00:00:00Z");
       return;
     }
-    var credentials = { apiKey: apiKey, oauthToken: oauthToken };
+    // Владелец 2026-11-23 + README §Garmin Personal API: у пользователя ОДИН «Personal API Key»
+    // (GARMIN_API_KEY, префикс GCDC_); сервер обменивает его на короткоживущий OAuth2-токен (кэш 23 ч).
+    // Поэтому в Connect пользователь передаёт только apiKey; oauthToken сервер получает сам.
+    var credentials = { apiKey: garminToken };
     if (tokenExpiry) credentials.tokenExpiry = tokenExpiry;
     var btn = $("btn-garmin-connect");
     btn.disabled = true;
     garminShowError("");
     Api.garmin.connect(credentials).then(function (s) {
-      $("garmin-api-key").value = "";
-      $("garmin-oauth-token").value = "";
+      $("garmin-token").value = "";
       $("garmin-token-expiry").value = "";
       $("garmin-modal").classList.add("hidden");
       btn.disabled = false;
@@ -2316,7 +2316,7 @@
       });
     }, function (e) {
       if (e && e.status === 404) {
-        openGarminConnect("Сначала подключите Garmin: вставьте API key и OAuth token.");
+        openGarminConnect("Сначала подключите Garmin: вставьте токен Garmin.");
         return null;
       }
       if (garminErrorCode(e) === "token_expired") {
@@ -2889,7 +2889,7 @@
     $("tab-partners").addEventListener("click", function () { renderPartners(); showView("partners"); });
     $("tab-catalog").addEventListener("click", function () { renderCatalog(); showView("catalog"); });
     $("tab-trends").addEventListener("click", function () { openTrends(); });
-    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderSelfStatus(); renderIdentStatus(); renderGarminStatus(); showView("settings"); });
+    $("tab-settings").addEventListener("click", function () { refreshPinStatus(); renderIdentStatus(); renderGarminStatus(); showView("settings"); });
 
     $("btn-partner-add").addEventListener("click", function () { partnerEditReturn = "partners"; openPartnerEdit(null); });
     $("btn-partner-edit-back").addEventListener("click", function () {
@@ -2954,10 +2954,6 @@
     $("btn-onb-resend").addEventListener("click", submitOnbPhone);
     $("onb-phone-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbPhone(); });
     $("onb-otp-input").addEventListener("keydown", function (e) { if (e.key === "Enter") submitOnbOtp(); });
-    // FE-026 (вариант A): «Пропустить» убран — онбординг обязателен, иначе журнал без токена
-    $("btn-self-change").addEventListener("click", function () {
-      Api.clients.me().then(function (c) { onbClientId = (c && c.id) || ""; showProfileStep(); }, function () { openOnboarding(); });
-    });
     // FE-023: вход в идентификацию из Настроек + сброс устройства (данные на сервере не трогаем)
     $("btn-ident-start").addEventListener("click", function () { openOnboarding(); });
     $("btn-ident-logout").addEventListener("click", function () {
@@ -2980,22 +2976,11 @@
         function done() { toast("Устройство сброшено"); openOnboarding(); }
       });
     });
-    // 0.88 (FE-038/E7): отдельной «привязки я» больше нет — кнопка ведёт в шаг профиля
-    if ($("btn-self-clear")) $("btn-self-clear").addEventListener("click", function () { showProfileStep(); });
     $("btn-detail-edit").addEventListener("click", function () { if (detailRecordId) openWizard(detailRecordId); });
     $("btn-garmin-open").addEventListener("click", function () { openGarminConnect(); });
     $("btn-garmin-sync-now").addEventListener("click", function () { startGarminSync("settings"); });
     $("btn-garmin-connect").addEventListener("click", connectGarmin);
     $("garmin-cancel").addEventListener("click", function () { $("garmin-modal").classList.add("hidden"); garminShowError(""); });
-    $("btn-import-open").addEventListener("click", openImport);
-    $("btn-import-back").addEventListener("click", function () { showView("settings"); });
-    $("btn-import-pick").addEventListener("click", function () { $("import-any-file").click(); });
-    $("import-any-file").addEventListener("change", function (e) {
-      var f = e.target.files && e.target.files[0];
-      if (f) handleImportAnyFile(f);
-      e.target.value = "";
-    });
-    $("btn-import-apply").addEventListener("click", applyImport);
 
     $("btn-wizard-close").addEventListener("click", function () { showView("journal"); });
 
@@ -3008,14 +2993,7 @@
     $("pe-gender-male").addEventListener("click", function () { partnerEditGender = "male"; renderPartnerGender(); });
     $("pe-gender-female").addEventListener("click", function () { partnerEditGender = "female"; renderPartnerGender(); });
     DB.getMeta("myGender").then(function (r) { myGender = (r && r.value) || "male"; renderMyGender(); });
-    $("btn-export").addEventListener("click", downloadCsv);
-    $("btn-import").addEventListener("click", function () { $("import-file").click(); });
-    $("btn-migrate").addEventListener("click", migrateData);
-    $("import-file").addEventListener("change", function (e) {
-      var f = e.target.files && e.target.files[0];
-      if (f) importCsvFile(f);
-      e.target.value = "";
-    });
+    if ($("btn-migrate")) $("btn-migrate").addEventListener("click", migrateData);
     $("btn-wipe").addEventListener("click", wipeAll);
 
     $("trend-tabs").querySelectorAll("button").forEach(function (b) {

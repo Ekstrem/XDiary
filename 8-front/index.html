@@ -166,23 +166,7 @@
           <button type="button" class="btn" id="btn-ident-logout">Выйти (сбросить устройство)</button>
         </div>
 
-        <h2>Это я</h2>
-        <p id="self-status" class="muted">…</p>
-        <div class="btn-row">
-          <button class="btn" id="btn-self-change">Сменить «я»</button>
-          <button class="btn" id="btn-self-clear">Снять «я»</button>
-        </div>
-
-        <h2>Сервер</h2>
-        <p id="api-server" class="muted">…</p>
-        <p class="muted">Фронт всегда работает с прод-сервером; смена адреса из UI недоступна.</p>
-
         <h2>Данные</h2>
-        <div class="btn-row">
-          <button class="btn" id="btn-export">Экспорт CSV</button>
-          <button class="btn" id="btn-import">Импорт CSV</button>
-        </div>
-        <p class="muted">Экспорт сохраняет все записи в CSV-файл (открывается в Excel/Sheets). Импорт объединяет записи по id.</p>
         <div class="btn-row">
           <button class="btn primary" id="btn-migrate">Миграция в бэкенд</button>
         </div>
@@ -195,8 +179,7 @@
           <button class="btn primary" id="btn-garmin-open">Подключить Garmin</button>
           <button class="btn" id="btn-garmin-sync-now">Синхронизировать</button>
         </div>
-        <button class="btn full" id="btn-import-open">Импорт CSV Garmin…</button>
-        <p class="muted">Распознаёт отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип определяется автоматически.</p>
+        <p class="muted">Один токен Garmin: сервис обменивает его на короткоживущий токен и синхронизирует данные. Токен хранится только на сервере.</p>
 
         <h2>Опасная зона</h2>
         <p class="muted">Стирает все данные (записи, соматику, сон, тренды) и PIN-код. Необратимо.</p>
@@ -305,25 +288,6 @@
     </main>
   </section>
 
-  <!-- Импорт данных Garmin -->
-  <section id="view-import" class="view hidden">
-    <header class="appbar">
-      <button id="btn-import-back" class="icon-btn" aria-label="Назад">←</button>
-      <h1>Импорт Garmin</h1>
-    </header>
-    <main class="content">
-      <div class="settings">
-        <button class="btn full" id="btn-import-pick">Выбрать CSV-файл</button>
-        <div id="import-result" class="hidden">
-          <div class="import-type" id="import-type"></div>
-          <pre class="import-preview" id="import-preview"></pre>
-          <button class="btn primary full" id="btn-import-apply">Импортировать</button>
-        </div>
-        <p class="muted">Поддерживаются отчёты Garmin Connect (стресс, пульс покоя, сон) и CSV соматики/сна. Тип распознаётся автоматически.</p>
-      </div>
-    </main>
-  </section>
-
   <!-- Тренды / Корреляции -->
   <section id="view-trends" class="view hidden">
     <header class="appbar">
@@ -393,12 +357,8 @@
       <h2 class="sync-title">Подключение Garmin</h2>
       <p id="garmin-modal-state" class="muted">Токен отправляется только на сервер XDiary; в браузере он не сохраняется.</p>
       <div class="field">
-        <label for="garmin-api-key">API key</label>
-        <input type="password" id="garmin-api-key" autocomplete="off">
-      </div>
-      <div class="field">
-        <label for="garmin-oauth-token">OAuth token</label>
-        <input type="password" id="garmin-oauth-token" autocomplete="off">
+        <label for="garmin-token">Токен Garmin</label>
+        <input type="password" id="garmin-token" autocomplete="off">
       </div>
       <div class="field">
         <label for="garmin-token-expiry">Срок действия (ISO-8601, необязательно)</label>
@@ -413,8 +373,6 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
-  <input type="file" id="import-file" accept=".csv,text/csv" class="hidden">
-  <input type="file" id="import-any-file" accept=".csv,text/csv" class="hidden">
 
   <datalist id="partner-suggest"></datalist>
   <datalist id="place-suggest"></datalist>
