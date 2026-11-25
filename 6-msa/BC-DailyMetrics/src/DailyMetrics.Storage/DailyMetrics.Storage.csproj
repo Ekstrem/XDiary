@@ -9,11 +9,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.9.2" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.9.4" />
     <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.4.0" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
       <PackageReference Include="DigiTFactory.Libraries.Analyzers.Storage" Version="0.2.0" PrivateAssets="all" />
-  <PackageReference Include="MessagePack" Version="2.5.303" />
+  <PackageReference Include="MessagePack" Version="2.5.307" />
 </ItemGroup>
 
   <ItemGroup>
@@ -21,7 +21,7 @@
     <ProjectReference Include="..\DailyMetrics.DomainServices\DailyMetrics.DomainServices.csproj" />
     <ProjectReference Include="..\DailyMetrics.InternalContracts\DailyMetrics.InternalContracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
-    <PackageReference Include="MessagePack" Version="2.5.303" />
+    <PackageReference Include="MessagePack" Version="2.5.307" />
 </ItemGroup>
 
 </Project>
