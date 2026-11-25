@@ -21,6 +21,7 @@
 </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Journal.Domain\Journal.Domain.csproj" />
+    <ProjectReference Include="..\Journal.DomainServices\Journal.DomainServices.csproj" />
     <ProjectReference Include="..\Journal.Storage\Journal.Storage.csproj" />
     <ProjectReference Include="..\Journal.InternalContracts\Journal.InternalContracts.csproj" />
     <ProjectReference Include="..\Journal.Api\Journal.Api.csproj" />

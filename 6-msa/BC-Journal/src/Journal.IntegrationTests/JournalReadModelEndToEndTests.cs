@@ -60,6 +60,7 @@ public class JournalReadModelEndToEndTests
         sc.AddReadStorePostgres<IJournal, JournalDefaultsReadModel, ReadDbContext>(cs, null);
         sc.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());
         sc.AddScoped<IAggregateProvider<IJournal, IRecordAggregate>, AggregateProvider>();
+        sc.AddScoped<Journal.DomainServices.AggregateCompletion>();
         sc.AddScoped<IObserver<AggregateResult<IJournal, IJournalAnemicModel>>, BusAdapter>();
 
         var actor = new StubActor { ClientId = Guid.NewGuid() };
