@@ -62,7 +62,7 @@
   var RU_MONTHS = { "янв": 1, "фев": 2, "мар": 3, "апр": 4, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10, "ноя": 11, "дек": 12 };
   var pendingImport = null;
 
-  var APP_VERSION = "0.125"; // синхронизировать с CACHE в sw.js
+  var APP_VERSION = "0.126"; // синхронизировать с CACHE в sw.js
 
   // ---- утилиты ----
   function pad(n) { return String(n).padStart(2, "0"); }
@@ -131,7 +131,7 @@
     });
   }
 
-  var VIEWS = ["splash", "lock", "onboarding", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "import", "detail"];
+  var VIEWS = ["splash", "lock", "onboarding", "journal", "partners", "catalog", "trends", "settings", "wizard", "partner-edit", "catalog-edit", "detail"];
   var TAB_VIEWS = ["journal", "partners", "catalog", "trends", "settings"];
   var bootSettled = false; // FE-046: сторож сплэша работает только до первого настоящего экрана
   function showView(name) {
@@ -2328,11 +2328,8 @@
     });
   }
 
-  function openImport() {
-    pendingImport = null;
-    $("import-result").classList.add("hidden");
-    showView("import");
-  }
+  // FE-057 (владелец 2026-11-23): CSV-путь удалён — экран импорта и его вызовы сняты;
+  // разбор CSV остаётся недостижимым мёртвым кодом до отдельной чистки.
 
   // FE-030: результат импорта виден всегда — и успех, и ошибка
   function showImportMessage(text, isError) {

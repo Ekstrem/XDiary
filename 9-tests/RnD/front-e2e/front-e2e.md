@@ -46,7 +46,6 @@ Playwright (ANSI, CRLF, путь без `tests/`, ретраи) и печата�
 `#view-catalog`, `#tab-catalog` | `catalog.spec.js`, `catalog-archive.spec.js` | каталог: добавление по `kind`, архив игрушек |
 `#view-catalog-edit` | `catalog.spec.js` | правка позиции каталога |
 `#view-trends`, `#tab-trends` | `trends.spec.js` | графики/агрегаты |
-`#view-import` | `csv.spec.js` | импорт CSV, разбор ошибок |
 `#view-settings`, `#tab-settings` | `settings.spec.js` | настройки: PIN, профиль, приватность |
 `#tab-trends` | `busy-indicator.spec.js` | индикатор «Считаем тренды»: на 1000 мс появляется, на 100 мс — нет, после завершения исчезает; > 3 с текст «дольше обычного» + «Повторить»; включается `XDIARY_BUSY=1`
 `#view-journal` | `stale-note.spec.js` | read-paths §5 п.2: пометка «данные могли устареть» есть на устаревшем кэше и отсутствует на свежих данных; включается `XDIARY_STALENOTE=1`
