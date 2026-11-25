@@ -32,7 +32,8 @@ public class GarminGatewayProjectionTests
 
         Assert.Equal(clientId, read.ClientId);
         Assert.Equal("key-1", read.ApiKey);
-        Assert.Equal("token-1", read.OauthToken);
+        // BE-142 (один токен): OauthToken в read-модели больше не хранится.
+        Assert.Null(read.OauthToken);
         Assert.Equal("2026-12-31", read.TokenExpiry);
         Assert.Equal(new[] { "hr", "steps" }, read.Metrics);
         Assert.Equal(7, read.WindowDays);

@@ -65,8 +65,7 @@ internal sealed class Aggregate : IGarminGatewayAggregate
 
     private bool IsConnected()
         => Model.Root is not null
-           && !string.IsNullOrWhiteSpace(Model.Credentials.ApiKey)
-           && !string.IsNullOrWhiteSpace(Model.Credentials.OauthToken);
+           && !string.IsNullOrWhiteSpace(Model.Credentials.ApiKey);
 
     private static bool IsValidExpiry(string? value)
         => string.IsNullOrWhiteSpace(value)

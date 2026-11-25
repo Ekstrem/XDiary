@@ -44,7 +44,6 @@ namespace GarminGateway.Storage.Migrations.ReadStore
                         .HasColumnType("text");
 
                     b.Property<string>("OauthToken")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("SourceId")

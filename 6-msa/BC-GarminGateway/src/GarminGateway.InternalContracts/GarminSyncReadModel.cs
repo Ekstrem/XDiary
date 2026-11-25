@@ -9,7 +9,9 @@ public sealed class GarminSyncReadModel : IReadModel<GarminGateway.Domain.IGarmi
     public Guid ClientId { get; set; }
     public string SourceId { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
-    public string OauthToken { get; set; } = string.Empty;
+    // BE-142 (один токен): oauth_token убран из read-модели (миграция DropOauthTokenFromGarminSyncRead);
+    // серверный маркер живёт только в Credentials агрегата до реального Garmin API.
+    public string? OauthToken => null;
     public string TokenExpiry { get; set; } = string.Empty;
     public IReadOnlyList<string> Metrics { get; set; } = new List<string>();
     public int WindowDays { get; set; }

@@ -24,9 +24,10 @@ public class GarminSyncAggregateTest
     }
 
     [Fact]
-    public void Connect_WhenTokenMissing_ShouldReturnValidationError()
+    public void Connect_WhenApiKeyMissing_ShouldReturnValidationError()
     {
-        var r = Aggregate.CreateInstance(new AnemicModel()).Connect(Guid.NewGuid(), Credentials.CreateInstance("key", "", ""));
+        // BE-142 (один токен): обязателен только apiKey; пустой oauthToken — норма.
+        var r = Aggregate.CreateInstance(new AnemicModel()).Connect(Guid.NewGuid(), Credentials.CreateInstance("", "token", ""));
         Assert.Equal("validation_error", r.ErrorMessage());
     }
 

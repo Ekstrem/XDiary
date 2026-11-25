@@ -20,7 +20,7 @@ public sealed record GarminConnectionState
         var credentials = model.Credentials;
         return new GarminConnectionState
         {
-            Connected = HasCredentials(credentials.ApiKey, credentials.OauthToken),
+            Connected = HasCredentials(credentials.ApiKey),
             SourceId = model.Root?.SourceId ?? "garmin",
             TokenExpiry = NullIfEmpty(credentials.TokenExpiry),
             Metrics = model.SyncConfig?.Metrics ?? Array.Empty<string>(),
@@ -33,7 +33,7 @@ public sealed record GarminConnectionState
     public static GarminConnectionState FromReadModel(GarminSyncReadModel model)
         => new()
         {
-            Connected = HasCredentials(model.ApiKey, model.OauthToken),
+            Connected = HasCredentials(model.ApiKey),
             SourceId = model.SourceId,
             TokenExpiry = NullIfEmpty(model.TokenExpiry),
             Metrics = model.Metrics,
@@ -42,8 +42,8 @@ public sealed record GarminConnectionState
             RequiresReauth = IsExpired(model.TokenExpiry),
         };
 
-    private static bool HasCredentials(string apiKey, string oauthToken)
-        => !string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(oauthToken);
+    private static bool HasCredentials(string apiKey)
+        => !string.IsNullOrWhiteSpace(apiKey);
 
     private static string? NullIfEmpty(string value)
         => string.IsNullOrWhiteSpace(value) ? null : value;

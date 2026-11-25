@@ -36,7 +36,6 @@ public class GarminConnectionStateTests
             ClientId = Guid.NewGuid(),
             SourceId = "garmin",
             ApiKey = "secret-key",
-            OauthToken = "secret-token",
             TokenExpiry = "2000-01-01T00:00:00+00:00",
             Metrics = new[] { "hr" },
             WindowDays = 30,

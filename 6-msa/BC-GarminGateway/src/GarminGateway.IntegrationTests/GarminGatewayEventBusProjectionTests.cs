@@ -58,6 +58,7 @@ public class GarminGatewayEventBusProjectionTests
         var stored = await repo.GetByIdAsync(ev.Id, default);
         Assert.NotNull(stored);
         Assert.Equal("key-1", stored!.ApiKey);
-        Assert.Equal("token-1", stored.OauthToken);
+        // BE-142 (один токен): OauthToken в read-модели больше не хранится.
+        Assert.Null(stored.OauthToken);
     }
 }

@@ -70,7 +70,6 @@ public static class GarminGatewayProjection
         if (vos.TryGetValue("Credentials", out var cr) && cr is ICredentials creds)
         {
             m.ApiKey = creds.ApiKey;
-            m.OauthToken = creds.OauthToken;
             m.TokenExpiry = creds.TokenExpiry;
         }
         if (vos.TryGetValue("SyncConfig", out var sc) && sc is ISyncConfig cfg) { m.Metrics = cfg.Metrics; m.WindowDays = cfg.WindowDays; }

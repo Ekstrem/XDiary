@@ -13,7 +13,7 @@ public class GarminGatewayTests
     [Fact]
     public void Connect_WhenServerAcquiredToken_Succeeds()
     {
-        // BE-142 follow-up: в API только apiKey; oauthToken сервер получает сам.
+        // BE-142 (один токен): в API только apiKey; oauthToken сервер получает сам.
         var r = Aggregate.CreateInstance(new AnemicModel())
             .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "server-acquired", "2999-01-01T00:00:00+00:00"));
 
@@ -21,12 +21,23 @@ public class GarminGatewayTests
         Assert.Equal("GCDC_x", r.Model().Credentials.ApiKey);
     }
 
+    [Fact]
+    public void Connect_WhenOauthTokenNull_Succeeds()
+    {
+        // BE-142 (@AR 21:32): домен не требует OauthToken — серверный маркер опционален.
+        var r = Aggregate.CreateInstance(new AnemicModel())
+            .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", null, "2999-01-01T00:00:00+00:00"));
+
+        Assert.Equal(DomainOperationResultEnum.Success, r.Result);
+    }
+
     [Theory]
     [InlineData("", "token")]
-    [InlineData("key", "")]
     [InlineData("   ", "token")]
     public void Connect_InvalidCredentials_Fails(string key, string token)
     {
+        // BE-142 (один токен): невалиден только пустой/пробельный apiKey
+        // (пустой oauthToken — норма, сервер получает его сам).
         var r = Aggregate.CreateInstance(new AnemicModel())
             .Connect(Guid.NewGuid(), Credentials.CreateInstance(key, token, ""));
         Assert.NotEqual(DomainOperationResultEnum.Success, r.Result);
