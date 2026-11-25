@@ -7,10 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.9.2" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.9.4" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
       <PackageReference Include="DigiTFactory.Libraries.Analyzers.Domain" Version="0.6.2" PrivateAssets="all" />
-  <PackageReference Include="MessagePack" Version="2.5.303" />
+  <PackageReference Include="MessagePack" Version="2.5.307" />
 </ItemGroup>
 
 </Project>
