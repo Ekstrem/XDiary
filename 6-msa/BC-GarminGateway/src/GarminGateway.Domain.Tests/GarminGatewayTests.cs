@@ -1,4 +1,4 @@
-﻿using XDiary.Contracts;
+using XDiary.Contracts;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using GarminGateway.Domain;
 using GarminGateway.Domain.Abstraction;
@@ -14,7 +14,7 @@ public class GarminGatewayTests
     public void Connect_ValidCredentials_Succeeds()
     {
         var r = Aggregate.CreateInstance(new AnemicModel())
-            .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2026-11-01T00:00"));
+            .Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2999-01-01T00:00:00+00:00"));
 
         Assert.Equal(DomainOperationResultEnum.Success, r.Result);
         Assert.Equal("GCDC_x", r.Model().Credentials.ApiKey);
