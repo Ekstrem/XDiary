@@ -62,8 +62,9 @@ builder.Services.AddSingleton<Journal.Api.Events.JournalEventStoreHandler>();
 builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.DbContextOptions>(sp => sp.GetRequiredService<Microsoft.EntityFrameworkCore.DbContextOptions<DigiTFactory.Libraries.CommandRepository.Postgres.EventStoreDbContext>>());builder.Services.AddScoped<Journal.Storage.RecordEventReplay>();
 // BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
 builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventStreamRehydrator<IJournal, IJournalAnemicModel>, Journal.Storage.RecordEventRehydrator>();
-// BE-151: rebuild read-моделей из Event Store (IRebuildService).
-builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository.IRebuildService<IJournal>, Journal.Api.Events.JournalRebuildService>();
+// BE-152: библиотечный EventStoreRebuildService + доменный IEventProjector.
+builder.Services.AddScoped<DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.IEventProjector, Journal.Api.Events.JournalEventProjector>();
+builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.Repository.IRebuildService<IJournal>, DigiTFactory.Libraries.CommandRepository.Postgres.Repositories.EventStoreRebuildService<IJournal>>();
 builder.Services.AddScoped<Journal.Storage.RecordAggregateProvider>();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpContextAccessor();

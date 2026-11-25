@@ -1,4 +1,4 @@
-using System.Text.Json;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain.Implementation;
 using XDiary.Contracts;
@@ -7,20 +7,12 @@ using Xunit;
 // BE-151 (DS JournalValueObjectsJsonTests): полиморфная сериализация VO для event store.
 public class JournalValueObjectsJsonTests
 {
-    private static readonly JsonSerializerOptions Options = CreateOptions();
-
-    private static JsonSerializerOptions CreateOptions()
-    {
-        var options = new JsonSerializerOptions();
-        options.Converters.Add(new IValueObjectJsonConverter());
-        options.Converters.Add(new OrgasmsJsonConverter());
-        return options;
-    }
+    private static readonly IValueObjectSerializer Serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new OrgasmsJsonConverter()));
 
     private static T RoundTrip<T>(T value) where T : IValueObject
     {
-        var json = JsonSerializer.Serialize<IValueObject>(value, Options);
-        return (T)JsonSerializer.Deserialize<IValueObject>(json, Options)!;
+        var json = Serializer.Serialize(new Dictionary<string, IValueObject> { ["value"] = value });
+        return (T)Serializer.Deserialize(json)["value"];
     }
 
     [Fact]
@@ -68,6 +60,18 @@ public class JournalValueObjectsJsonTests
     }
 
     [Fact]
+    public void LegacyPayload_When_OldFormat_Should_DeserializeThroughFallback()
+    {
+        var legacyOptions = new System.Text.Json.JsonSerializerOptions();
+        legacyOptions.Converters.Add(new IValueObjectJsonConverter());
+        var payload = System.Text.Json.JsonSerializer.Serialize<IValueObject>(PlaceValue.Create("legacy"), legacyOptions);
+        var envelope = $"{{\"Place\":{payload}}}";
+        var restored = ValueObjectSerializerProvider.DeserializeWithLegacy(Serializer, envelope);
+        Assert.IsType<PlaceValue>(restored["Place"]);
+        Assert.Equal("legacy", ((PlaceValue)restored["Place"]).Value);
+    }
+
+    [Fact]
     public void RecordRoot_When_RoundTripped_Should_PreservePartnersAndStartedAt()
     {
         var started = DateTimeOffset.Parse("2026-10-29T21:00+03:00");
@@ -92,8 +96,8 @@ public class JournalValueObjectsJsonTests
             ["Place"] = PlaceValue.Create("отель"),
             ["Duration"] = DurationValue.Create(45)
         };
-        var json = JsonSerializer.Serialize(source, Options);
-        var restored = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(json, Options)!;
+        var json = Serializer.Serialize(source);
+        var restored = Serializer.Deserialize(json);
         Assert.IsType<PlaceValue>(restored["Place"]);
         Assert.IsType<DurationValue>(restored["Duration"]);
         Assert.Equal("отель", ((PlaceValue)restored["Place"]).Value);

@@ -4,6 +4,8 @@ using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,9 +22,7 @@ public sealed class JournalEventStoreHandler : IAsyncDomainEventHandler<IJournal
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IJournal, IJournalAnemicModel>>();
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
-        jsonOptions.Converters.Add(new Journal.Domain.Implementation.OrgasmsJsonConverter());
+        var serializer = ValueObjectSerializerProvider.Create(options => options.Converters.Add(new Journal.Domain.Implementation.OrgasmsJsonConverter()));
         var cmdName = domainEvent.ChangedValueObjects is not null
             && domainEvent.ChangedValueObjects.TryGetValue("CommandName", out var cn)
             && cn is Journal.Domain.Implementation.StringValueObject cns
@@ -35,7 +35,7 @@ public sealed class JournalEventStoreHandler : IAsyncDomainEventHandler<IJournal
             BoundedContext = domainEvent.ContextName,
             CommandName = cmdName,
             SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
+            ChangedValueObjectsJson = serializer.Serialize(domainEvent.ChangedValueObjects as IReadOnlyDictionary<string, IValueObject>),
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };
