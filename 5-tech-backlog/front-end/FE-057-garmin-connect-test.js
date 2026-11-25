@@ -62,8 +62,11 @@ for (const code of ["validation_error", "not_connected", "token_expired", "upstr
 ok("404 State приводит к форме Connect", has(app, "if (e && e.status === 404)"));
 
 // Версия обязана быть парой.
-ok("APP_VERSION поднята", has(app, 'APP_VERSION = "0.125"'));
-ok("CACHE соответствует версии", has(sw, 'CACHE = "xdiary-v125"'));
+ok("APP_VERSION поднята", has(app, 'APP_VERSION = "0.126"'));
+ok("CACHE соответствует версии", has(sw, 'CACHE = "xdiary-v126"'));
+// Экран-призрак: showView("import") и "import" в VIEWS сняты вместе с view-import.
+ok("Нет экрана-призрака view-import (showView)", !has(app, 'showView("import")'));
+ok("Нет «import» в списке VIEWS", !has(app, '"import", "detail"'));
 
 // Негативные контроли: тест реально умеет падать при потере критичных мест.
 const noReauth = app.replace(/requiresReauth/g, "reauth_REMOVED");
