@@ -31,13 +31,37 @@
         },
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminConnectionState"
+                }
+              }
+            }
           },
           "400": {
-            "description": "validation"
+            "description": "validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "no-token"
+          },
+          "502": {
+            "description": "upstream-unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminApiError"
+                }
+              }
+            }
           }
         },
         "operationId": "GarminGateway.Connect",
@@ -74,13 +98,37 @@
         },
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminConnectionState"
+                }
+              }
+            }
           },
           "400": {
-            "description": "validation"
+            "description": "validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "no-token"
+          },
+          "502": {
+            "description": "upstream-unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminApiError"
+                }
+              }
+            }
           }
         },
         "operationId": "GarminGateway.Sync",
@@ -98,13 +146,37 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminConnectionState"
+                }
+              }
+            }
           },
           "400": {
-            "description": "validation"
+            "description": "validation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "no-token"
+          },
+          "502": {
+            "description": "upstream-unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminApiError"
+                }
+              }
+            }
           }
         },
         "operationId": "GarminGateway.FetchActivities",
@@ -122,7 +194,14 @@
         ],
         "responses": {
           "200": {
-            "description": "ok"
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarminConnectionState"
+                }
+              }
+            }
           },
           "401": {
             "description": "no-token"
@@ -146,6 +225,129 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ConnectCommand": {
+        "type": "object",
+        "required": [
+          "credentials"
+        ],
+        "properties": {
+          "credentials": {
+            "$ref": "#/components/schemas/CredentialsDto"
+          }
+        }
+      },
+      "CredentialsDto": {
+        "type": "object",
+        "required": [
+          "apiKey",
+          "oauthToken"
+        ],
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "oauthToken": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tokenExpiry": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "SyncCommand": {
+        "type": "object",
+        "required": [
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/SyncConfigDto"
+          }
+        }
+      },
+      "SyncConfigDto": {
+        "type": "object",
+        "required": [
+          "metrics",
+          "windowDays"
+        ],
+        "properties": {
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "windowDays": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          }
+        }
+      },
+      "GarminConnectionState": {
+        "type": "object",
+        "required": [
+          "connected",
+          "sourceId",
+          "metrics",
+          "windowDays",
+          "requiresReauth"
+        ],
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "sourceId": {
+            "type": "string",
+            "default": "garmin"
+          },
+          "tokenExpiry": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "windowDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastSync": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "requiresReauth": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GarminApiError": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
       }
     }
   },
