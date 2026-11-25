@@ -16,7 +16,7 @@ public class GarminGatewayBusAdapterVersionTests
     public async Task TwoCommands_WhenSavedTwice_ShouldProduceDistinctVersions()
     {
         var id = Guid.NewGuid();
-        var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2026-11-01T00:00"));
+        var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).Connect(Guid.NewGuid(), Credentials.CreateInstance("GCDC_x", "token-1", "2027-01-01T00:00"));
         var r2 = Aggregate.CreateInstance(r1.Model()).FetchActivities();
 
         var store = new CountingStore();
