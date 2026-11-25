@@ -198,7 +198,10 @@
       "core": [],
       "service": [
         "5-tech-backlog/chat/lm.md",
-        "LoopMaker/*"
+        "LoopMaker/*",
+        "tools/*",
+        "docs/CI-RULES.md",
+        "docs/pdr/*"
       ]
     },
     "dr": {

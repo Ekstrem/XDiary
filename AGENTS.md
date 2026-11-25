@@ -23,7 +23,7 @@
 | **TestEngineer** | `9-tests/` | `5-tech-backlog/tester/`, `chat/te.md` |
 | **TechLead** | — (координатор, кода не пишет) | все папки задач `5-tech-backlog/<роль>/`, `chat/tl.md`, `README.md`, `CHANGELOG.md` |
 | **DigitalFactoryReviewer** (`@DR`) | — (ревьюер, кода не пишет) | `df-review/` (отчёты), `5-tech-backlog/df-review/`, `chat/dr.md` |
-| **LoopMaster** (`@LM`) | — (процессная роль, кода не пишет) | `AGENTS.md`, `loop.config.json`, `5-tech-backlog/chat/lm.md`; правила и шаблоны — `LoopMaker/` |
+| **LoopMaster** (`@LM`) | — (процессная роль, кода не пишет) | `AGENTS.md`, `loop.config.json`, `tools/`, `docs/CI-RULES.md`, `docs/pdr/`, `5-tech-backlog/chat/lm.md`; правила и шаблоны — `LoopMaker/` |
 
 Служебные файлы: **своя** папка задач, **свой** outbox в чате; у BackEnd — `0-df-issue/`, у DevOps — инструменты/workflows. Ничего сверх.
 
