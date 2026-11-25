@@ -4,6 +4,8 @@ using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
 using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
+using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Portability.Domain;
 using Portability.Domain.Abstraction;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,8 +22,7 @@ public sealed class PortabilityEventStoreHandler : IAsyncDomainEventHandler<IPor
     {
         using var scope = _scopeFactory.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IEventStoreRepository<IPortability, ICsvDocumentAnemicModel>>();
-        var jsonOptions = new JsonSerializerOptions();
-        jsonOptions.Converters.Add(new IValueObjectJsonConverter());
+        var serializer = ValueObjectSerializerProvider.Create();
         var entry = new DomainEventEntry
         {
             Id = domainEvent.Id,
@@ -30,7 +31,7 @@ public sealed class PortabilityEventStoreHandler : IAsyncDomainEventHandler<IPor
             BoundedContext = domainEvent.ContextName,
             CommandName = domainEvent.Command?.GetType().Name ?? string.Empty,
             SubjectName = domainEvent.ContextName,
-            ChangedValueObjectsJson = JsonSerializer.Serialize(domainEvent.ChangedValueObjects, jsonOptions),
+            ChangedValueObjectsJson = serializer.Serialize(domainEvent.ChangedValueObjects as IReadOnlyDictionary<string, IValueObject>),
             Result = domainEvent.Result.ToString(),
             CreatedAt = DateTime.UtcNow,
         };

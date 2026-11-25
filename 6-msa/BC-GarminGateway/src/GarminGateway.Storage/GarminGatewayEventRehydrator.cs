@@ -3,6 +3,7 @@ namespace GarminGateway.Storage;
 using System.Text.Json;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using GarminGateway.Domain;
 using GarminGateway.Domain.Abstraction;
@@ -16,14 +17,7 @@ using XDiary.Contracts;
 /// </summary>
 public sealed class GarminGatewayEventRehydrator : IEventStreamRehydrator<IGarminGateway, IGarminGatewayAnemicModel>
 {
-    private static readonly JsonSerializerOptions Json = CreateJson();
-
-    private static JsonSerializerOptions CreateJson()
-    {
-        var options = new JsonSerializerOptions();
-        options.Converters.Add(new IValueObjectJsonConverter());
-        return options;
-    }
+    private static readonly IValueObjectSerializer Serializer = ValueObjectSerializerProvider.Create();
 
     public IReadOnlyList<IGarminGatewayAnemicModel> Rehydrate(IReadOnlyList<DomainEventEntry> events)
     {
@@ -36,7 +30,7 @@ public sealed class GarminGatewayEventRehydrator : IEventStreamRehydrator<IGarmi
         var model = new AnemicModel { Id = events[0].Id };
         foreach (var e in events.OrderBy(e => e.Version))
         {
-            var vos = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(e.ChangedValueObjectsJson, Json);
+            var vos = ValueObjectSerializerProvider.DeserializeWithLegacy(Serializer, e.ChangedValueObjectsJson);
             if (vos is null || vos.Count == 0)
             {
                 continue;
