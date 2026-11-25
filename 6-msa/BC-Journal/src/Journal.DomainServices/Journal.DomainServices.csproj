@@ -12,11 +12,13 @@
     <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.4.0" />
     <PackageReference Include="DigiTFactory.Libraries.Analyzers.DomainServices" Version="0.6.3" PrivateAssets="all" />
         <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
-  </ItemGroup>
+    <PackageReference Include="MessagePack" Version="2.5.303" />
+</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Journal.Domain\Journal.Domain.csproj" />
     <ProjectReference Include="..\Journal.InternalContracts\Journal.InternalContracts.csproj" />
-  </ItemGroup>
+    <PackageReference Include="MessagePack" Version="2.5.303" />
+</ItemGroup>
 
 </Project>
