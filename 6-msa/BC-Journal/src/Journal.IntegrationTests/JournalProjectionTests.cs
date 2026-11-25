@@ -1,3 +1,4 @@
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Api.Events;
 using Journal.Domain.Implementation;
@@ -10,15 +11,18 @@ using XDiary.Contracts;
 /// </summary>
 public class JournalProjectionTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public void Project_FromCompletedEvent_BuildsReadModel()
     {
         var clientId = Guid.NewGuid();
         // Команда: старт → когда → партнёр → complete (полный визард).
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId);
-        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
-        var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1");
-        var complete = Aggregate.CreateInstance(partner.Model()).Complete();
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(clientId, Cmd("StartManualEntry"));
+        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen"));
+        var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1", Cmd("AddPartner"));
+        var complete = Aggregate.CreateInstance(partner.Model()).Complete(Cmd("Complete"));
         Assert.Equal(DomainOperationResultEnum.Success, complete.Result);
 
         // Проекция: событие → read model (то, что попадёт в materialized view).
@@ -55,8 +59,8 @@ public class JournalProjectionTests
     [Fact]
     public void Project_DeleteEvent_CarriesDeleted()
     {
-        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
-        var del = Aggregate.CreateInstance(start.Model()).Delete();
+        var start = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
+        var del = Aggregate.CreateInstance(start.Model()).Delete(Cmd("Delete"));
         var read = JournalProjection.Project(del.Event);
         Assert.NotNull(read);
         Assert.True(read!.Deleted);
@@ -67,13 +71,13 @@ public class JournalProjectionTests
     public void Wizard_PreservesAggregateId_AtEveryStep()
     {
         var blank = new AnemicModel();
-        var start = Aggregate.CreateInstance(blank).StartManualEntry(Guid.NewGuid());
+        var start = Aggregate.CreateInstance(blank).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
         Assert.Equal(blank.Id, start.Model().Id);
-        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00");
+        var when = Aggregate.CreateInstance(start.Model()).SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen"));
         Assert.Equal(blank.Id, when.Model().Id);
-        var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1");
+        var partner = Aggregate.CreateInstance(when.Model()).AddPartner("partner-1", Cmd("AddPartner"));
         Assert.Equal(blank.Id, partner.Model().Id);
-        var complete = Aggregate.CreateInstance(partner.Model()).Complete();
+        var complete = Aggregate.CreateInstance(partner.Model()).Complete(Cmd("Complete"));
         Assert.Equal(blank.Id, complete.Model().Id);
     }
 }

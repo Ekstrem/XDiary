@@ -1,4 +1,5 @@
 namespace Partners.Domain.Implementation;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -28,9 +29,10 @@ internal sealed class Aggregate : IPartnerAggregate
     public Guid? ClientId => Model.ClientId;
     public DateTime? DeletedAt => Model.DeletedAt;
 
-    private AggregateResult<IPartners, IPartnerAnemicModel> Success(AnemicModel m)
+    private AggregateResult<IPartners, IPartnerAnemicModel> Success(AnemicModel m, CommandToAggregate? command = null, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
     {
-        m = m with { Version = Model.Version + 1 }; // BE-130: событие должно нести следующую версию (иначе PK (Id,Version) коллизирует)
+        command ??= CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
         var data = BusinessOperationData<IPartners, IPartnerAnemicModel>.Commit<IPartners, IPartnerAnemicModel>(Model, m);
         return new AggregateResultSuccess<IPartners, IPartnerAnemicModel>(data);
     }
@@ -40,34 +42,34 @@ internal sealed class Aggregate : IPartnerAggregate
         return new AggregateResultException<IPartners, IPartnerAnemicModel>(data, new FailedSpecification<IPartners, IPartnerAnemicModel>(e));
     }
 
-    public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name, Guid clientId)
+    public AggregateResult<IPartners, IPartnerAnemicModel> Register(string name, Guid clientId, CommandToAggregate? command = null)
     {
         var v = new NameRequiredSpecification();
         var probe = new AnemicModel { Id = Model.Id, Root = PartnerRoot.CreateInstance(name) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
         var m = new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = PartnerRoot.CreateInstance(name), ClientId = clientId };
-        return Success(m);
+        return Success(m, command);
     }
-    public AggregateResult<IPartners, IPartnerAnemicModel> Rename(string name)
+    public AggregateResult<IPartners, IPartnerAnemicModel> Rename(string name, CommandToAggregate? command = null)
     {
         var v = new NameRequiredSpecification();
         var probe = new AnemicModel { Root = PartnerRoot.CreateInstance(name) };
         if (!v.IsSatisfiedBy(probe)) return Fail(v.Reason);
-        return Success(Clone() with { Root = PartnerRoot.CreateInstance(name) });
+        return Success(Clone() with { Root = PartnerRoot.CreateInstance(name) }, command);
     }
-    public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes)
+    public AggregateResult<IPartners, IPartnerAnemicModel> UpdateProfile(string photo, string gender, string notes, CommandToAggregate? command = null)
     {
         var gv = new GenderEnumSpecification();
         var g = gv.Normalize(gender);
         if (!gv.IsSatisfiedBy(g)) return Fail(gv.Reason);
-        return Success(Clone() with { Photo = photo, Gender = g, Notes = notes });
+        return Success(Clone() with { Photo = photo, Gender = g, Notes = notes }, command);
     }
-    public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId) => Success(Clone() with { ClientId = clientId });
-    public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient() => Success(Clone() with { ClientId = null });
-    public AggregateResult<IPartners, IPartnerAnemicModel> Remove()
+    public AggregateResult<IPartners, IPartnerAnemicModel> LinkClient(Guid clientId, CommandToAggregate? command = null) => Success(Clone() with { ClientId = clientId }, command);
+    public AggregateResult<IPartners, IPartnerAnemicModel> UnlinkClient(CommandToAggregate? command = null) => Success(Clone() with { ClientId = null }, command);
+    public AggregateResult<IPartners, IPartnerAnemicModel> Remove(CommandToAggregate? command = null)
     {
-        if (Model.DeletedAt is not null) return Success(Clone()); // РёРґРµРјРїРѕС‚РµРЅС‚РЅРѕ, Р±РµР· РІС‚РѕСЂРѕРіРѕ СЃРѕР±С‹С‚РёСЏ
-        return Success(Clone() with { DeletedAt = DateTime.UtcNow });
+        if (Model.DeletedAt is not null) return Success(Clone(), command); // РёРґРµРјРїРѕС‚РµРЅС‚РЅРѕ, Р±РµР· РІС‚РѕСЂРѕРіРѕ СЃРѕР±С‹С‚РёСЏ
+        return Success(Clone() with { DeletedAt = DateTime.UtcNow }, command);
     }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Photo = Model.Photo, Gender = Model.Gender, Notes = Model.Notes, ClientId = Model.ClientId, DeletedAt = Model.DeletedAt };
 }

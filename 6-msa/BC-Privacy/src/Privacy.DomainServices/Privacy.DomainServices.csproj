@@ -8,16 +8,18 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
-    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.7.0" />
-    <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.2.2" />
+    <PackageReference Include="DigiTFactory.Libraries.SeedWorks" Version="0.9.4" />
+    <PackageReference Include="DigiTFactory.Libraries.CommandRepository.Postgres" Version="0.4.0" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
-      <PackageReference Include="DigiTFactory.Libraries.Analyzers.DomainServices" Version="0.6.2" PrivateAssets="all" />
+      <PackageReference Include="DigiTFactory.Libraries.Analyzers.DomainServices" Version="0.6.3" PrivateAssets="all" />
+  <PackageReference Include="MessagePack" Version="2.5.307" />
 </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Privacy.Domain\Privacy.Domain.csproj" />
     <ProjectReference Include="..\Privacy.InternalContracts\Privacy.InternalContracts.csproj" />
     <ProjectReference Include="..\..\..\Shared\XDiary.Contracts\XDiary.Contracts.csproj" />
-  </ItemGroup>
+    <PackageReference Include="MessagePack" Version="2.5.307" />
+</ItemGroup>
 
 </Project>

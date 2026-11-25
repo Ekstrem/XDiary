@@ -13,8 +13,9 @@ public sealed class PortabilityEventSourcingRepository : FullEventSourcingReposi
     public PortabilityEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IPortability, ICsvDocumentAnemicModel>> logger,
-        PortabilityEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        PortabilityEventReplay replay,
+        IEventStreamRehydrator<IPortability, ICsvDocumentAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<ICsvDocumentAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

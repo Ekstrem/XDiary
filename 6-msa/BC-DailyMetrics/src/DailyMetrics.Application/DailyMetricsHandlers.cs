@@ -24,7 +24,7 @@ public sealed class RecordStressHandler : IRequestHandler<RecordStressCommand, A
         var existing = all.FirstOrDefault(x => x.Date == r.Date && x.ClientId == _actor.ClientId);
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IDailyMetrics, IDailyMetricsAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>)aggregate).Subscribe(_observer);
-        var res = aggregate.RecordStress(r.Date, r.Stress, _actor.ClientId);
+        var res = aggregate.RecordStress(r.Date, r.Stress, _actor.ClientId, AggregateCommandFactory.Create("RecordStress"));
         await completion;
         if (res.IsSuccess()) { await _publisher.PublishStressAsync(r.Date, r.Stress, ct); }
         return res;
@@ -43,7 +43,7 @@ public sealed class RecordRestingHrHandler : IRequestHandler<RecordRestingHrComm
         var existing = all.FirstOrDefault(x => x.Date == r.Date && x.ClientId == _actor.ClientId);
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IDailyMetrics, IDailyMetricsAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.RecordRestingHr(r.Date, r.RestingHr, _actor.ClientId);
+        var result = aggregate.RecordRestingHr(r.Date, r.RestingHr, _actor.ClientId, AggregateCommandFactory.Create("RecordRestingHr"));
         await completion;
         return result;
     }
@@ -61,7 +61,7 @@ public sealed class RecordHrvHandler : IRequestHandler<RecordHrvCommand, Aggrega
         var existing = all.FirstOrDefault(x => x.Date == r.Date && x.ClientId == _actor.ClientId);
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IDailyMetrics, IDailyMetricsAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>)aggregate).Subscribe(_observer);
-        var result = aggregate.RecordHrv(r.Date, r.Hrv, _actor.ClientId);
+        var result = aggregate.RecordHrv(r.Date, r.Hrv, _actor.ClientId, AggregateCommandFactory.Create("RecordHrv"));
         await completion;
         return result;
     }
@@ -81,7 +81,7 @@ public sealed class RecordSleepHandler : IRequestHandler<RecordSleepCommand, Agg
         var (aggregate, completion) = await ((IAggregateProviderWithCompletion<IDailyMetrics, IDailyMetricsAggregate>)_provider).GetAggregateWithCompletionAsync(existing?.Id ?? Guid.NewGuid(), ct);
         ((IObservable<AggregateResult<IDailyMetrics, IDailyMetricsAnemicModel>>)aggregate).Subscribe(_observer);
         var sleep = Sleep.CreateInstance(r.Sleep.Score, r.Sleep.DurationMin, r.Sleep.DeepMin, r.Sleep.LightMin, r.Sleep.RemMin, r.Sleep.AwakeMin);
-        var res = aggregate.RecordSleep(r.Date, sleep, _actor.ClientId);
+        var res = aggregate.RecordSleep(r.Date, sleep, _actor.ClientId, AggregateCommandFactory.Create("RecordSleep"));
         await completion;
         if (res.IsSuccess()) { await _publisher.PublishSleepAsync(r.Date, r.Sleep.Score, ct); }
         return res;

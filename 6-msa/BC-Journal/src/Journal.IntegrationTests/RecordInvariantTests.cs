@@ -1,4 +1,5 @@
 using XDiary.Contracts;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using Journal.Domain;
 using Journal.Domain.Abstraction;
@@ -10,22 +11,25 @@ namespace XDiary.Tests.Journal;
 /// <summary>TE-001: инварианты агрегата Record (WhenRequired, DurationPositive, RatingRange).</summary>
 public class RecordInvariantTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     private static IJournalAnemicModel StartManual()
-        => Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid()).Model();
+        => Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry")).Model();
 
     // ---- WhenRequired: Complete невозможен без startedAt ----
     [Fact]
     public void WhenRequired_Complete_WithoutStartedAt_Fails()
     {
-        var result = Aggregate.CreateInstance(StartManual()).Complete();
+        var result = Aggregate.CreateInstance(StartManual()).Complete(Cmd("Complete"));
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
     public void WhenRequired_Complete_WithStartedAt_Succeeds()
     {
-        var model = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00").Model();
-        var result = Aggregate.CreateInstance(model).Complete();
+        var model = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen")).Model();
+        var result = Aggregate.CreateInstance(model).Complete(Cmd("Complete"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }
 
@@ -35,7 +39,7 @@ public class RecordInvariantTests
     [InlineData("2026-11-11T10:00:00Z")]
     public void SpecifyWhen_Iso_Accepted(string startedAt)
     {
-        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen(startedAt);
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen(startedAt, Cmd("SpecifyWhen"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
     }
 
@@ -46,14 +50,14 @@ public class RecordInvariantTests
     [InlineData("   ")]
     public void SpecifyWhen_NonIso_Rejected(string startedAt)
     {
-        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen(startedAt);
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen(startedAt, Cmd("SpecifyWhen"));
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
     [Fact]
     public void SpecifyWhen_NormalizesToIso()
     {
-        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00");
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen"));
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         var stored = result.Model().Root.StartedAt;
         Assert.NotEqual(default, stored); // TE-101: startedAt задан (сильная типизация DateTimeOffset)
@@ -63,8 +67,8 @@ public class RecordInvariantTests
     public void SpecifyWhen_EqualMoments_NormalizeToOneString()
     {
         // TE-101: равные моменты (разные offset) обязаны давать ОДНУ строку (канонизация к UTC).
-        var a = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-11-07T09:00:00+03:00").Model().Root.StartedAt;
-        var b = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-11-07T06:00:00Z").Model().Root.StartedAt;
+        var a = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-11-07T09:00:00+03:00", Cmd("SpecifyWhen")).Model().Root.StartedAt;
+        var b = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-11-07T06:00:00Z", Cmd("SpecifyWhen")).Model().Root.StartedAt;
         Assert.Equal(a, b);
     }
 
@@ -76,7 +80,7 @@ public class RecordInvariantTests
     [InlineData(60, true)]
     public void DurationPositive_Validated(int durationMin, bool expectedSuccess)
     {
-        var result = Aggregate.CreateInstance(StartManual()).SpecifyDuration(durationMin);
+        var result = Aggregate.CreateInstance(StartManual()).SpecifyDuration(durationMin, Cmd("SpecifyDuration"));
         Assert.Equal(expectedSuccess, result.Result == DomainOperationResultEnum.Success);
     }
 
@@ -90,7 +94,7 @@ public class RecordInvariantTests
     public void RatingRange_ValidatedForSingleOrgasm(int rating, bool expectedSuccess)
     {
         var result = Aggregate.CreateInstance(StartManual())
-            .RecordOrgasms(new[] { Orgasms.CreateInstance("me", 1, new[] { "обычный" }, rating) });
+            .RecordOrgasms(new[] { Orgasms.CreateInstance("me", 1, new[] { "обычный" }, rating) }, Cmd("RecordOrgasms"));
         Assert.Equal(expectedSuccess, result.Result == DomainOperationResultEnum.Success);
     }
 
@@ -101,7 +105,7 @@ public class RecordInvariantTests
         {
             Orgasms.CreateInstance("me", 1, new[] { "обычный" }, 5),
             Orgasms.CreateInstance("partner-1", 1, new[] { "клиторальный" }, 9)
-        });
+        }, Cmd("RecordOrgasms"));
         Assert.NotEqual(DomainOperationResultEnum.Success, result.Result);
     }
 
@@ -109,8 +113,8 @@ public class RecordInvariantTests
     [Fact]
     public void PartnerRequired_IsNotAnInvariant_SoloRecordCompletes()
     {
-        var model = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00").Model();
-        var result = Aggregate.CreateInstance(model).Complete();
+        var model = Aggregate.CreateInstance(StartManual()).SpecifyWhen("2026-10-29T21:00", Cmd("SpecifyWhen")).Model();
+        var result = Aggregate.CreateInstance(model).Complete(Cmd("Complete"));
 
         Assert.Equal(DomainOperationResultEnum.Success, result.Result);
         Assert.Empty(result.Model().Root.Partners);

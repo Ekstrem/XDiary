@@ -26,7 +26,7 @@ public sealed class Notifier : DomainEventNotifier<ISomaticSeries, ISomaticSerie
     public int Hr => Aggregate.Hr;
     public int BodyBattery => Aggregate.BodyBattery;
     public Guid? ClientId => Aggregate.ClientId;
-    public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId) => Observe(Aggregate.RecordPoint(t, hr, bodyBattery, clientId));
+    public AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel> RecordPoint(string t, int hr, int bodyBattery, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.RecordPoint(t, hr, bodyBattery, clientId, command));
 
     IDisposable IObservable<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>>.Subscribe(IObserver<AggregateResult<ISomaticSeries, ISomaticSeriesAnemicModel>> observer)
     {

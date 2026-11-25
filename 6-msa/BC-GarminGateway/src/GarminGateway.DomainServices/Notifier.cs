@@ -26,9 +26,9 @@ public sealed class Notifier : DomainEventNotifier<IGarminGateway, IGarminGatewa
     public ICredentials Credentials => Aggregate.Credentials;
     public ISyncConfig SyncConfig => Aggregate.SyncConfig;
     public string LastSync => Aggregate.LastSync;
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials) => Observe(Aggregate.Connect(clientId, credentials));
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config) => Observe(Aggregate.Sync(config));
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities() => Observe(Aggregate.FetchActivities());
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials, CommandToAggregate? command = null) => Observe(Aggregate.Connect(clientId, credentials, command));
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config, CommandToAggregate? command = null) => Observe(Aggregate.Sync(config, command));
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities(CommandToAggregate? command = null) => Observe(Aggregate.FetchActivities(command));
 
     IDisposable IObservable<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>>.Subscribe(IObserver<AggregateResult<IGarminGateway, IGarminGatewayAnemicModel>> observer)
     {

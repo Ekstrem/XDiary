@@ -14,6 +14,9 @@ namespace Journal.IntegrationTests;
 /// <summary>BE-145: TCS-мост завершается на durable-publish, а не на проекции MV.</summary>
 public class JournalAggregateCompletionTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public async Task Completion_WhenPublishPending_ShouldWaitForDurablePublish()
     {
@@ -22,7 +25,7 @@ public class JournalAggregateCompletionTests
         var (aggregate, task) = await NewAggregate(completion);
         Subscribe(aggregate, new BusAdapter(bus, completion));
 
-        var result = aggregate.StartManualEntry(Guid.NewGuid());
+        var result = aggregate.StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
 
         Assert.True(result.IsSuccess());
         Assert.False(task.IsCompleted);
@@ -39,7 +42,7 @@ public class JournalAggregateCompletionTests
         var (aggregate, task) = await NewAggregate(completion);
         Subscribe(aggregate, new BusAdapter(bus, completion));
 
-        var result = aggregate.StartManualEntry(Guid.NewGuid());
+        var result = aggregate.StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
 
         Assert.True(result.IsSuccess());
         bus.PublishTcs.SetException(new InvalidOperationException("publish failed"));
@@ -53,9 +56,9 @@ public class JournalAggregateCompletionTests
         var bus = new ControllableBus();
         var adapter = new BusAdapter(bus, completion);
         var task = completion.NewTask();
-        var created = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid());
-        var deleted = Aggregate.CreateInstance(created.Model()).Delete();
-        var failed = Aggregate.CreateInstance(deleted.Model()).Delete(); // повторное удаление — корректный failed-result
+        var created = Aggregate.CreateInstance(new AnemicModel()).StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
+        var deleted = Aggregate.CreateInstance(created.Model()).Delete(Cmd("Delete"));
+        var failed = Aggregate.CreateInstance(deleted.Model()).Delete(Cmd("Delete")); // повторное удаление — корректный failed-result
 
         adapter.OnNext(failed);
 

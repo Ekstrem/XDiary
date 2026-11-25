@@ -13,8 +13,9 @@ public sealed class ClientEventSourcingRepository : FullEventSourcingRepository<
     public ClientEventSourcingRepository(
         EventStoreDbContext db,
         ILogger<FullEventSourcingRepository<IClients, IClientAnemicModel>> logger,
-        ClientEventReplay replay)
-        : base(db, logger) => _replay = replay;
+        ClientEventReplay replay,
+        IEventStreamRehydrator<IClients, IClientAnemicModel> rehydrator)
+        : base(db, logger, rehydrator) => _replay = replay;
 
     public override async Task<List<IClientAnemicModel>> GetById(Guid id, CancellationToken cancellationToken)
     {

@@ -36,10 +36,14 @@ public sealed class JournalEventConsumer : BackgroundService
 
 public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserver<IDomainEvent<IJournal>>
 {
-    private readonly IReadModelStore<IJournal, JournalReadModel> _readStore;
-    private readonly IReadRepository<IJournal, JournalReadModel> _readRepo;
-    private readonly IReadModelStore<IJournal, JournalDefaultsReadModel> _defaultsStore;
-    private readonly IReadRepository<IJournal, JournalDefaultsReadModel> _defaultsRead;
+    private readonly IReadModelStore<IJournal, JournalReadModel>? _readStore;
+    private readonly IReadRepository<IJournal, JournalReadModel>? _readRepo;
+    private readonly IReadModelStore<IJournal, JournalDefaultsReadModel>? _defaultsStore;
+    private readonly IReadRepository<IJournal, JournalDefaultsReadModel>? _defaultsRead;
+    private readonly IServiceScopeFactory? _scopeFactory;
+
+    /// <summary>BE-151: per-event scope — scoped DbContext не живёт в singleton-хендлере.</summary>
+    public JournalEventHandler(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
     public JournalEventHandler(
         IReadModelStore<IJournal, JournalReadModel> readStore,
@@ -55,6 +59,29 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
 
     public async Task HandleAsync(IDomainEvent<IJournal> domainEvent)
     {
+        if (_scopeFactory is not null)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var sp = scope.ServiceProvider;
+            await HandleCoreAsync(
+                domainEvent,
+                sp.GetRequiredService<IReadModelStore<IJournal, JournalReadModel>>(),
+                sp.GetRequiredService<IReadRepository<IJournal, JournalReadModel>>(),
+                sp.GetRequiredService<IReadModelStore<IJournal, JournalDefaultsReadModel>>(),
+                sp.GetRequiredService<IReadRepository<IJournal, JournalDefaultsReadModel>>());
+            return;
+        }
+
+        await HandleCoreAsync(domainEvent, _readStore!, _readRepo!, _defaultsStore!, _defaultsRead!);
+    }
+
+    private async Task HandleCoreAsync(
+        IDomainEvent<IJournal> domainEvent,
+        IReadModelStore<IJournal, JournalReadModel> readStore,
+        IReadRepository<IJournal, JournalReadModel> readRepo,
+        IReadModelStore<IJournal, JournalDefaultsReadModel> defaultsStore,
+        IReadRepository<IJournal, JournalDefaultsReadModel> defaultsRead)
+    {
         Console.WriteLine("[handle] entered");
         // Канон §6: store пишет command-path (JournalCommandRepository.SaveAsync — BusAdapter «сохранить И опубликовать»),
         // здесь — только проекция MV (подписчик шины).
@@ -68,36 +95,41 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         }
         else
         {
-            var existing = await _readRepo.GetByIdAsync(domainEvent.Id, default) ?? new JournalReadModel { Id = domainEvent.Id };
-            // Канон §15.1/§8.4: идемпотентность по версии — событие старше/равное уже применённому пропускаем.
-            // BE-137 (@TL 2026-11-19): у legacy-строк Version — ms-таймстамп (AnemicModel.Version по умолчанию
-            // = ToUnixTimeMilliseconds()), а у события Version — 1,2,3. Тогда existing.Version >= domainEvent.Version
-            // всегда истинно → read-модель не движется. Тот же пол, что в BC-Client (#2889) и BC-Partners (BE-131).
-            const long LegacyTimestampFloor = 1_000_000_000_000L;
-            if (existing.Version >= domainEvent.Version && existing.Version < LegacyTimestampFloor)
+            var existing = await readRepo.GetByIdAsync(domainEvent.Id, default) ?? new JournalReadModel { Id = domainEvent.Id };
+            // BE-150: Command.Version — новая версия агрегата; идемпотентность проекции по ней.
+            // DomainEvent.Version — acted-on версия для оптимистичной блокировки, здесь не используется.
+            var eventVersion = domainEvent.Command.Version;
+            if (existing.Version >= eventVersion)
             {
-                Console.WriteLine("[handle] stale event (version) — skip projection");
+                Console.WriteLine("[handle] stale/duplicate event (Command.Version) — skip projection");
             }
             else
             {
                 JournalProjection.ApplyVos(existing, vos);
-                existing.Version = domainEvent.Version;
-                await _readStore.UpsertAsync(existing);
+                existing.Version = eventVersion;
+                await readStore.UpsertAsync(existing);
             }
         }
 
         // 3) pre-computed defaults (E1 §1.2) — read-modify-write per-client.
-        await MergeDefaultsAsync(domainEvent);
+        await MergeDefaultsAsync(domainEvent, readRepo, defaultsStore, defaultsRead);
     }
 
-    private async Task MergeDefaultsAsync(IDomainEvent<IJournal> domainEvent)
+    private async Task MergeDefaultsAsync(
+        IDomainEvent<IJournal> domainEvent,
+        IReadRepository<IJournal, JournalReadModel> readRepo,
+        IReadModelStore<IJournal, JournalDefaultsReadModel> defaultsStore,
+        IReadRepository<IJournal, JournalDefaultsReadModel> defaultsRead)
     {
         var vos = domainEvent.ChangedValueObjects;
         if (vos is null) return;
-        var clientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv ? cv.Value : null;
+        // BE-151: ClientId есть в diff не у каждого события — берём его из уже спроецированной записи.
+        var clientId = vos.TryGetValue("ClientId", out var c) && c is ClientIdValueObject cv
+            ? cv.Value
+            : (await readRepo.GetByIdAsync(domainEvent.Id, default))?.ClientId;
         if (clientId is null) return;
 
-        var current = await _defaultsRead.GetByIdAsync(clientId.Value, default);
+        var current = await defaultsRead.GetByIdAsync(clientId.Value, default);
         var place = vos.TryGetValue("Place", out var p) && p is PlaceValue sv ? sv.Value : string.Empty;
         var positions = vos.TryGetValue("Positions", out var pp) && pp is PositionsValue pl ? pl.Value : Array.Empty<string>();
         var accessories = vos.TryGetValue("Accessories", out var ac) && ac is AccessoriesValue av ? av : null;
@@ -113,7 +145,7 @@ public sealed class JournalEventHandler : IDomainEventHandler<IJournal>, IObserv
         defaults.Tags = (defaults.Tags ?? Array.Empty<string>()).Concat(tags).Distinct().ToList();
         defaults.Contraceptives = (defaults.Contraceptives ?? Array.Empty<string>()).Concat(contraceptives).Distinct().ToList();
 
-        await _defaultsStore.UpsertAsync(defaults);
+        await defaultsStore.UpsertAsync(defaults);
     }
 
     // DF InMemoryEventBus.Publish кастит хендлер к IObserver<IDomainEvent<T>> (Rx) — адаптер.

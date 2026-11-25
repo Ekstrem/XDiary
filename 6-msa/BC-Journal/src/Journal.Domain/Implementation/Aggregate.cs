@@ -1,5 +1,6 @@
 namespace Journal.Domain.Implementation;
 
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -46,9 +47,9 @@ internal sealed class Aggregate : IRecordAggregate
     public RecordState State => Model.State;
     public bool Deleted => Model.Deleted;
 
-    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "", params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
+    private AggregateResult<IJournal, IJournalAnemicModel> Success(AnemicModel newModel, CommandToAggregate command, params IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] specs)
     {
-        newModel = newModel with { Version = Model.Version + 1, CommandName = commandName }; // BE-129/130: следующая версия события, иначе PK (Id,Version) коллизирует
+        newModel = newModel with { Version = Math.Max(command.Version, Model.Version + 1), CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-129/130: следующая версия события, иначе PK (Id,Version) коллизирует
         return BusinessOperationData<IJournal, IJournalAnemicModel>.Commit<IJournal, IJournalAnemicModel>(Model, newModel)
             .ValidateCommand(specs);
     }
@@ -85,7 +86,7 @@ internal sealed class Aggregate : IRecordAggregate
         Deleted = Model.Deleted
     };
 
-    public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry(Guid clientId)
+    public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry(Guid clientId, CommandToAggregate command)
     {
         var now = DateTimeOffset.UtcNow.ToString("o");
         var anemic = new AnemicModel
@@ -98,10 +99,10 @@ internal sealed class Aggregate : IRecordAggregate
             CreatedAt = now,
             UpdatedAt = now
         };
-        return Success(anemic);
+        return Success(anemic, command);
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
+    public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId, CommandToAggregate command)
     {
         // TE-101: startedAt РѕР±СЏР·Р°РЅ Р±С‹С‚СЊ ISO 8601; С…СЂР°РЅРёРј РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅС‹Р№ ISO.
         var whenValidator = new WhenIsoParser();
@@ -119,82 +120,82 @@ internal sealed class Aggregate : IRecordAggregate
             CreatedAt = now,
             UpdatedAt = now
         };
-        return Success(anemic);
+        return Success(anemic, command);
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt)
+    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt, CommandToAggregate command)
     {
         // TE-101: startedAt РѕР±СЏР·Р°РЅ Р±С‹С‚СЊ ISO 8601; С…СЂР°РЅРёРј РЅРѕСЂРјР°Р»РёР·РѕРІР°РЅРЅС‹Р№ ISO (РЅРµ РґРѕСЃР»РѕРІРЅСѓСЋ СЃС‚СЂРѕРєСѓ).
         var v = new WhenIsoParser();
         if (!v.TryParse(startedAt, out var normalized)) return Fail(v.Reason);
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(Model.Root.Partners, normalized) };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> AddPartner(string partnerId)
+    public AggregateResult<IJournal, IJournalAnemicModel> AddPartner(string partnerId, CommandToAggregate command)
     {
         var partners = new List<string>(Model.Root.Partners);
         if (!partners.Contains(partnerId))
             partners.Add(partnerId);
 
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId)
+    public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId, CommandToAggregate command)
     {
         var partners = Model.Root.Partners.Where(p => p != partnerId).ToList();
         var anemic = Clone() with { Root = RecordRoot.CreateInstance(partners, Model.Root.StartedAt) };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place)
+    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place, CommandToAggregate command)
     {
         var anemic = Clone() with { Place = place };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions)
+    public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions, CommandToAggregate command)
     {
         var anemic = Clone() with { Positions = positions.ToList() };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
     public AggregateResult<IJournal, IJournalAnemicModel> AddAccessories(
-        IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags)
+        IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags, CommandToAggregate command)
     {
         var anemic = Clone() with { Costumes = costumes.ToList(), Toys = toys.ToList(), Fantasies = fantasies.ToList(), Tags = tags.ToList() };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count)
+    public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count, CommandToAggregate command)
     {
         var anemic = Clone() with { Contraceptives = contraceptives.ToList(), ContraceptiveCount = count };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyDuration(int durationMin)
+    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyDuration(int durationMin, CommandToAggregate command)
     {
         var anemic = Clone() with { DurationMin = durationMin };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new DurationPositiveValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new DurationPositiveValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> RecordOrgasms(IEnumerable<IOrgasms> orgasms)
+    public AggregateResult<IJournal, IJournalAnemicModel> RecordOrgasms(IEnumerable<IOrgasms> orgasms, CommandToAggregate command)
     {
         var list = orgasms.ToList();
         var anemic = Clone() with { Orgasms = list };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new RatingRangeValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new RatingRangeValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> Complete()
+    public AggregateResult<IJournal, IJournalAnemicModel> Complete(CommandToAggregate command)
     {
         var anemic = Clone() with { State = RecordState.Recorded, UpdatedAt = DateTimeOffset.UtcNow.ToString("o") };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new WhenRequiredValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordIsDraftValidator(), new WhenRequiredValidator() });
     }
 
-    public AggregateResult<IJournal, IJournalAnemicModel> Delete()
+    public AggregateResult<IJournal, IJournalAnemicModel> Delete(CommandToAggregate command)
     {
         var anemic = Clone() with { State = RecordState.Deleted, Deleted = true };
-        return Success(anemic, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordNotDeletedValidator(), new RecordDeletableValidator() });
+        return Success(anemic, command, specs: new IBusinessOperationSpecification<IJournal, IJournalAnemicModel>[] { new RecordNotDeletedValidator(), new RecordDeletableValidator() });
     }
 }

@@ -1,3 +1,4 @@
+using XDiary.Contracts;
 using SomaticSeries.Api.Events;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Entities;
 using DigiTFactory.Libraries.CommandRepository.Postgres.Repositories;
@@ -16,7 +17,7 @@ public class SomaticSeriesBusAdapterVersionTests
     {
         var id = Guid.NewGuid();
         var r1 = Aggregate.CreateInstance(new AnemicModel { Id = id }).RecordPoint("2026-10-29T21:03", 72, 85, Guid.NewGuid());
-        var r2 = Aggregate.CreateInstance(new AnemicModel { Id = id }).RecordPoint("2026-10-29T21:03", 72, 85, Guid.NewGuid());
+        var r2 = Aggregate.CreateInstance(r1.Model()).RecordPoint("2026-10-29T21:03", 72, 85, Guid.NewGuid());
 
         var store = new CountingStore();
         var sc = new ServiceCollection();
@@ -28,8 +29,9 @@ public class SomaticSeriesBusAdapterVersionTests
         await handler.HandleAsync(r2.Event);
 
         Assert.Equal(2, store.Saved.Count);
-        Assert.Equal(1, store.Saved[0].Version);
-        Assert.Equal(2, store.Saved[1].Version);
+        Assert.Equal(r1.Event.Command.Version, store.Saved[0].Version);
+        Assert.Equal(r2.Event.Command.Version, store.Saved[1].Version);
+        Assert.True(store.Saved[1].Version > store.Saved[0].Version);
     }
 
     private sealed class CountingStore : IEventStoreRepository<ISomaticSeries, ISomaticSeriesAnemicModel>

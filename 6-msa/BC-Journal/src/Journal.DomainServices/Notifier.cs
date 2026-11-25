@@ -50,32 +50,32 @@ public sealed class Notifier : DomainEventNotifier<IJournal, IRecordAggregate>, 
     public bool Deleted => Aggregate.Deleted;
 
     // Бизнес-операции (13): каждая пробрасывает результат наблюдателям.
-    public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry(Guid clientId)
-        => Observe(Aggregate.StartManualEntry(clientId));
-    public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId)
-        => Observe(Aggregate.StartFromGarmin(startedAt, durationMin, garminId, clientId));
-    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt)
-        => Observe(Aggregate.SpecifyWhen(startedAt));
-    public AggregateResult<IJournal, IJournalAnemicModel> AddPartner(string partnerId)
-        => Observe(Aggregate.AddPartner(partnerId));
-    public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId)
-        => Observe(Aggregate.RemovePartner(partnerId));
-    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place)
-        => Observe(Aggregate.SpecifyPlace(place));
-    public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions)
-        => Observe(Aggregate.AddPositions(positions));
-    public AggregateResult<IJournal, IJournalAnemicModel> AddAccessories(IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags)
-        => Observe(Aggregate.AddAccessories(costumes, toys, fantasies, tags));
-    public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count)
-        => Observe(Aggregate.RecordContraception(contraceptives, count));
-    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyDuration(int durationMin)
-        => Observe(Aggregate.SpecifyDuration(durationMin));
-    public AggregateResult<IJournal, IJournalAnemicModel> RecordOrgasms(IEnumerable<IOrgasms> orgasms)
-        => Observe(Aggregate.RecordOrgasms(orgasms));
-    public AggregateResult<IJournal, IJournalAnemicModel> Complete()
-        => Observe(Aggregate.Complete());
-    public AggregateResult<IJournal, IJournalAnemicModel> Delete()
-        => Observe(Aggregate.Delete());
+    public AggregateResult<IJournal, IJournalAnemicModel> StartManualEntry(Guid clientId, CommandToAggregate command)
+        => Observe(Aggregate.StartManualEntry(clientId, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> StartFromGarmin(string startedAt, int durationMin, string garminId, Guid clientId, CommandToAggregate command)
+        => Observe(Aggregate.StartFromGarmin(startedAt, durationMin, garminId, clientId, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyWhen(string startedAt, CommandToAggregate command)
+        => Observe(Aggregate.SpecifyWhen(startedAt, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> AddPartner(string partnerId, CommandToAggregate command)
+        => Observe(Aggregate.AddPartner(partnerId, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> RemovePartner(string partnerId, CommandToAggregate command)
+        => Observe(Aggregate.RemovePartner(partnerId, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyPlace(string place, CommandToAggregate command)
+        => Observe(Aggregate.SpecifyPlace(place, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> AddPositions(IEnumerable<string> positions, CommandToAggregate command)
+        => Observe(Aggregate.AddPositions(positions, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> AddAccessories(IEnumerable<string> costumes, IEnumerable<string> toys, IEnumerable<string> fantasies, IEnumerable<string> tags, CommandToAggregate command)
+        => Observe(Aggregate.AddAccessories(costumes, toys, fantasies, tags, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> RecordContraception(IEnumerable<string> contraceptives, int count, CommandToAggregate command)
+        => Observe(Aggregate.RecordContraception(contraceptives, count, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> SpecifyDuration(int durationMin, CommandToAggregate command)
+        => Observe(Aggregate.SpecifyDuration(durationMin, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> RecordOrgasms(IEnumerable<IOrgasms> orgasms, CommandToAggregate command)
+        => Observe(Aggregate.RecordOrgasms(orgasms, command));
+    public AggregateResult<IJournal, IJournalAnemicModel> Complete(CommandToAggregate command)
+        => Observe(Aggregate.Complete(command));
+    public AggregateResult<IJournal, IJournalAnemicModel> Delete(CommandToAggregate command)
+        => Observe(Aggregate.Delete(command));
 
     // Явная реализация IObservable: Subscribe — контракт IObservable, а не бизнес-метод агрегата (QG-007 его не трогает).
     IDisposable IObservable<AggregateResult<IJournal, IJournalAnemicModel>>.Subscribe(IObserver<AggregateResult<IJournal, IJournalAnemicModel>> observer)

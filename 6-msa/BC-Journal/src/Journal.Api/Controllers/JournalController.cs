@@ -26,14 +26,14 @@ public sealed class JournalController : ControllerBase
     {
         clientId = Guid.Empty;
         var sub = User.FindFirst("sub")?.Value;
-        return sub is not null && Guid.TryParse(sub, out clientId);
+        return sub is not null && Guid.TryParse(sub, out clientId) && clientId != Guid.Empty;
     }
 
     private async Task<IActionResult?> EnsureOwns(Guid id, Guid clientId)
     {
         var rec = await _mediator.Send(new GetRecordByIdQuery(id));
-        if (rec is not null) return rec.ClientId == clientId ? null : NotFound();
-        // @TE 04:32 — fallback: read-модель материализуется с лагом (404 на свежей записи).
+        if (rec is not null && rec.ClientId is not null) return rec.ClientId == clientId ? null : NotFound();
+        // BE-151: read-модель материализуется с лагом и может ещё не иметь ClientId — проверяем агрегат.
         var agg = (await _anemic.GetById(id, CancellationToken.None)).LastOrDefault();
         if (agg is null) return NotFound();
         return agg.ClientId == clientId ? null : NotFound();

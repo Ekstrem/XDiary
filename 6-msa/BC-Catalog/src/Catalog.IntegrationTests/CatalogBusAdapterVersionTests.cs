@@ -11,8 +11,7 @@ using Catalog.DomainServices;
 using Xunit;
 
 /// <summary>
-/// BE-132: EventStoreHandler обязан присваивать событиям монотонные версии из хранилища
-/// (GetEventCountAsync + 1), а не result.Event.Version (иначе 23505 PK_DomainEvents).
+/// BE-150: EventStoreHandler сохраняет Version = DomainEvent.Command.Version (новая версия агрегата, timestamp).
 /// </summary>
 public class CatalogBusAdapterVersionTests
 {
@@ -33,8 +32,9 @@ public class CatalogBusAdapterVersionTests
         await handler.HandleAsync(rename.Event);
 
         Assert.Equal(2, store.Saved.Count);
-        Assert.Equal(1, store.Saved[0].Version);
-        Assert.Equal(2, store.Saved[1].Version);
+        Assert.Equal(start.Event.Command.Version, store.Saved[0].Version);
+        Assert.Equal(rename.Event.Command.Version, store.Saved[1].Version);
+        Assert.True(store.Saved[1].Version > store.Saved[0].Version);
     }
 
     private sealed class CountingStore : IEventStoreRepository<ICatalog, ICatalogAnemicModel>

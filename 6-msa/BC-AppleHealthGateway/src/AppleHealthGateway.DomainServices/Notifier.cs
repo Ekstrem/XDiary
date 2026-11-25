@@ -26,8 +26,8 @@ public sealed class Notifier : DomainEventNotifier<IAppleHealthGateway, IAppleHe
     public IImportConfig ImportConfig => Aggregate.ImportConfig;
     public string LastImport => Aggregate.LastImport;
     public IReadOnlyList<string> ProcessedFiles => Aggregate.ProcessedFiles;
-    public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics) => Observe(Aggregate.Configure(clientId, metrics));
-    public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName) => Observe(Aggregate.ImportFile(fileName));
+    public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> Configure(Guid clientId, IEnumerable<string> metrics, CommandToAggregate? command = null) => Observe(Aggregate.Configure(clientId, metrics, command));
+    public AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel> ImportFile(string fileName, CommandToAggregate? command = null) => Observe(Aggregate.ImportFile(fileName, command));
 
     IDisposable IObservable<AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>>.Subscribe(IObserver<AggregateResult<IAppleHealthGateway, IAppleHealthGatewayAnemicModel>> observer)
     {

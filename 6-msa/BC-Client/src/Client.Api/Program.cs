@@ -30,6 +30,8 @@ builder.Services.AddEventStorePostgres<IClients, IClientAnemicModel>(builder.Con
 builder.Services.AddScoped<IEventStoreRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
 builder.Services.AddScoped<DigiTFactory.Libraries.SeedWorks.TacticalPatterns.IAnemicModelRepository<IClients, IClientAnemicModel>, ClientEventSourcingRepository>();
 builder.Services.AddScoped<ClientEventReplay>();
+// BE-149 (CommandRepository.Postgres 0.3.0): доменный rehydrator Full ES — без него DI падает явно.
+builder.Services.AddScoped<IEventStreamRehydrator<IClients, IClientAnemicModel>, ClientEventRehydrator>();
 builder.Services.AddEventBusInMemory();
 builder.Services.AddReadStorePostgres<IClients, ClientReadModel, ReadDbContext>(builder.Configuration.GetConnectionString("ReadDb") ?? "", null);
 // BE-134: проекция read-модели (иначе client_read пустая -> GET /clients/me = 404).

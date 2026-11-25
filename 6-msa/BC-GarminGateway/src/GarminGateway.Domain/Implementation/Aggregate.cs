@@ -1,5 +1,6 @@
 namespace GarminGateway.Domain.Implementation;
 using System.Globalization;
+using DigiTFactory.Libraries.SeedWorks.Events;
 using DigiTFactory.Libraries.SeedWorks.Invariants;
 using DigiTFactory.Libraries.SeedWorks.Result;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
@@ -28,13 +29,16 @@ internal sealed class Aggregate : IGarminGatewayAggregate
     public ICredentials Credentials => Model.Credentials;
     public ISyncConfig SyncConfig => Model.SyncConfig;
     public string LastSync => Model.LastSync;
-    private AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Success(AnemicModel m)
-    { var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, m); return new AggregateResultSuccess<IGarminGateway, IGarminGatewayAnemicModel>(d); }
+    private AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Success(AnemicModel m, CommandToAggregate? command = null, [System.Runtime.CompilerServices.CallerMemberName] string commandName = "")
+    {
+        command ??= CommandToAggregate.Commit(m.CorrelationToken, commandName, m.SubjectName, Math.Max(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Model.Version + 1));
+        m = m with { Version = command.Version, CommandName = command.CommandName, SubjectName = command.SubjectName }; // BE-150: Command.Version = новая версия агрегата (timestamp), acted-on Version остаётся в DomainEvent.Version
+        var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, m); return new AggregateResultSuccess<IGarminGateway, IGarminGatewayAnemicModel>(d); }
     private AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Fail(string e)
     { var d = BusinessOperationData<IGarminGateway, IGarminGatewayAnemicModel>.Commit<IGarminGateway, IGarminGatewayAnemicModel>(Model, Model); return new AggregateResultException<IGarminGateway, IGarminGatewayAnemicModel>(d, new FailedSpecification<IGarminGateway, IGarminGatewayAnemicModel>(e)); }
     private AnemicModel Clone() => new AnemicModel { Id = Model.Id, Version = Model.Version, CorrelationToken = Model.CorrelationToken, Root = Model.Root, Credentials = Model.Credentials, SyncConfig = Model.SyncConfig, LastSync = Model.LastSync };
 
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials)
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Connect(Guid clientId, ICredentials credentials, CommandToAggregate? command = null)
     {
         if (credentials is null) return Fail("validation_error");
         var v = new CredentialsSpecification();
@@ -43,20 +47,20 @@ internal sealed class Aggregate : IGarminGatewayAggregate
         if (IsExpired(credentials.TokenExpiry)) return Fail("token_expired");
         var s = new SingleSourcePerClientSpecification();
         if (!s.IsSatisfiedBy(clientId, Model)) return Fail("validation_error");
-        return Success(Clone() with { Root = GarminSyncRoot.CreateInstance(clientId, "garmin"), Credentials = credentials });
+        return Success(Clone() with { Root = GarminSyncRoot.CreateInstance(clientId, "garmin"), Credentials = credentials }, command);
     }
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config)
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> Sync(ISyncConfig config, CommandToAggregate? command = null)
     {
         if (!IsConnected()) return Fail("not_connected");
         if (config is null || config.WindowDays <= 0) return Fail("validation_error");
         if (IsExpired(Model.Credentials.TokenExpiry)) return Fail("token_expired");
-        return Success(Clone() with { SyncConfig = config, LastSync = DateTimeOffset.UtcNow.ToString("o") });
+        return Success(Clone() with { SyncConfig = config, LastSync = DateTimeOffset.UtcNow.ToString("o") }, command);
     }
-    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities()
+    public AggregateResult<IGarminGateway, IGarminGatewayAnemicModel> FetchActivities(CommandToAggregate? command = null)
     {
         if (!IsConnected()) return Fail("not_connected");
         if (IsExpired(Model.Credentials.TokenExpiry)) return Fail("token_expired");
-        return Success(Clone() with { LastSync = DateTimeOffset.UtcNow.ToString("o") });
+        return Success(Clone() with { LastSync = DateTimeOffset.UtcNow.ToString("o") }, command);
     }
 
     private bool IsConnected()

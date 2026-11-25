@@ -26,9 +26,9 @@ public sealed class Notifier : DomainEventNotifier<IPortability, ICsvDocumentAgg
     public IReadOnlyList<string> Rows => Aggregate.Rows;
     public string Kind => Aggregate.Kind;
     public Guid? ClientId => Aggregate.ClientId;
-    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ExportRecords(IReadOnlyList<string> rows, Guid clientId) => Observe(Aggregate.ExportRecords(rows, clientId));
-    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportRecords(IReadOnlyList<string> rows, Guid clientId) => Observe(Aggregate.ImportRecords(rows, clientId));
-    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportSomatic(IReadOnlyList<string> rows, Guid clientId) => Observe(Aggregate.ImportSomatic(rows, clientId));
+    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ExportRecords(IReadOnlyList<string> rows, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.ExportRecords(rows, clientId, command));
+    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportRecords(IReadOnlyList<string> rows, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.ImportRecords(rows, clientId, command));
+    public AggregateResult<IPortability, ICsvDocumentAnemicModel> ImportSomatic(IReadOnlyList<string> rows, Guid clientId, CommandToAggregate? command = null) => Observe(Aggregate.ImportSomatic(rows, clientId, command));
 
     IDisposable IObservable<AggregateResult<IPortability, ICsvDocumentAnemicModel>>.Subscribe(IObserver<AggregateResult<IPortability, ICsvDocumentAnemicModel>> observer)
     {

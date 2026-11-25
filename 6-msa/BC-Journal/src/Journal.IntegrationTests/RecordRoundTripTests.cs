@@ -1,4 +1,5 @@
-using System.Text.Json;
+using DigiTFactory.Libraries.SeedWorks.Events;
+using DigiTFactory.Libraries.SeedWorks.Serialization;
 using DigiTFactory.Libraries.SeedWorks.TacticalPatterns;
 using Journal.Domain.Abstraction;
 using Journal.Domain.Implementation;
@@ -11,20 +12,22 @@ using Xunit;
 /// </summary>
 public class RecordRoundTripTests
 {
+    private static CommandToAggregate Cmd(string name)
+        => CommandToAggregate.Commit(Guid.NewGuid(), name, "test", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
     [Fact]
     public void StartManualEntry_Diff_RoundTrips_ThroughConverter()
     {
         var aggregate = Aggregate.CreateInstance(new AnemicModel { Id = Guid.NewGuid() });
-        var result = aggregate.StartManualEntry(Guid.NewGuid());
+        var result = aggregate.StartManualEntry(Guid.NewGuid(), Cmd("StartManualEntry"));
         Assert.True(result.IsSuccess());
         var vos = result.Event!.ChangedValueObjects!;
         Assert.NotEmpty(vos);
 
-        var opts = new JsonSerializerOptions();
-        opts.Converters.Add(new IValueObjectJsonConverter());
+        var serializer = ValueObjectSerializerProvider.Create();
 
-        var json = JsonSerializer.Serialize(vos, opts);
-        var back = JsonSerializer.Deserialize<IDictionary<string, IValueObject>>(json, opts)!;
+        var json = serializer.Serialize(vos as IReadOnlyDictionary<string, IValueObject>);
+        var back = serializer.Deserialize(json)!;
 
         Assert.Equal(vos.Count, back.Count);
         foreach (var key in vos.Keys)
