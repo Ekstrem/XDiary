@@ -1,19 +1,22 @@
 # images.lock — какие образы считаются текущими (ADR-027, DO-066)
 #
-# Формат: <service> <tag> <путь> — по строке на образ. Ручной тег при деплое запрещён:
-# деплой читает только этот файл, откат = revert коммита, изменившего строку.
-# Генератор: python tools/gen_images_lock.py --write
-# Проверка:  python tools/gen_images_lock.py --check
-journal              single-622e622  6-msa/BC-Journal  digest=-
-partners             single-622e622  6-msa/BC-Partners  digest=-
-catalog              single-622e622  6-msa/BC-Catalog  digest=-
-somatic-series       single-622e622  6-msa/BC-SomaticSeries  digest=-
-daily-metrics        single-622e622  6-msa/BC-DailyMetrics  digest=-
-garmin-gateway       single-622e622  6-msa/BC-GarminGateway  digest=-
-apple-health-gateway single-622e622  6-msa/BC-AppleHealthGateway  digest=-
-analytics            single-622e622  6-msa/BC-Analytics  digest=-
-privacy              single-622e622  6-msa/BC-Privacy  digest=-
-portability          single-622e622  6-msa/BC-Portability  digest=-
-client               single-622e622  6-msa/BC-Client  digest=-
-api-gateway          single-622e622  6-msa/ApiGateway  digest=-
-front                single-622e622  8-front  digest=-
+# ВНИМАНИЕ: набор смешанный — это последние ДОСТУПНЫЕ образы, а НЕ сборка HEAD.
+# Причина: у части сервисов красные тесты, образа «последнего коммита» нет (DO-108).
+# Провенанс: `commit=<sha>` — коммит, из которого образ собран; он всегда предок HEAD.
+# Вывести этот режим после появления `release.yml` (13 сервисов на одном коммите).
+#
+# Формат: <service> <tag> <путь>  commit=<sha>
+# Проверка: python tools/gen_images_lock.py --verify-registry
+journal              single-fa93139     6-msa/BC-Journal  commit=fa93139  digest=sha256:f132fb9c036b7e26933ba3681e73b6d99e9c1f4bd93e723ccd2b3e8658602db6
+partners             single-fa93139     6-msa/BC-Partners  commit=fa93139  digest=sha256:56954f3c6af0384be060ba8ea27a0e315b471c9f3a5d7906dfd6a3876d0ba0b9
+catalog              single-fa93139     6-msa/BC-Catalog  commit=fa93139  digest=sha256:e88ccbe190240e81b4db974a7301685fe11deb6b549d9bde3abf211f0aae8e7a
+somatic-series       single-fa93139     6-msa/BC-SomaticSeries  commit=fa93139  digest=sha256:a01226acbbdd24507e2b802995dda2419b7cca3bb6c2bac9385527a823582b7b
+daily-metrics        single-fa93139     6-msa/BC-DailyMetrics  commit=fa93139  digest=sha256:7d40bc26b2c8b10eadea1c7d0eb9d6510e94c8f3a4b6ff69d71d071c6f3471f5
+garmin-gateway       single-fa93139     6-msa/BC-GarminGateway  commit=fa93139  digest=sha256:d5651b71c222ac0341facabd9440d10304c325e4aae8778286a1a052cc58f910
+apple-health-gateway single-fa93139     6-msa/BC-AppleHealthGateway  commit=fa93139  digest=sha256:705d0ce2ab0397b7a01adfbdff26cb259ce10fc4459be242801a67561297d873
+analytics            single-fa93139     6-msa/BC-Analytics  commit=fa93139  digest=sha256:76502b81f2fa5f3e6fb2e623b3b80732bad754cc4c42768ddd461d7c9e38104c
+privacy              single-fa93139     6-msa/BC-Privacy  commit=fa93139  digest=sha256:f91f1dfbcc10b7cd57f52f014cbcce7daed2ba24a00ea4a424d30d3b513d89bd
+portability          single-fa93139     6-msa/BC-Portability  commit=fa93139  digest=sha256:f512ae7f007825d1d4946fe375d17054a832a0ecc3f9655ff30a343fee4a4a9e
+client               single-fa93139     6-msa/BC-Client  commit=fa93139  digest=sha256:142fe35e06b905e1e245fc7bf82d3a8cd5ea0795cc7f811f826273a7a4966407
+api-gateway          single-fa93139     6-msa/ApiGateway  commit=fa93139  digest=sha256:a104b6c11eeb78628f2459fd35e9a26596da4f53c353a98227f31911f5c4e1e2
+front                single-d3a9faa     8-front  commit=d3a9faa  # unverified: 403 на анонимный pull-token; front деплоится через Pages, не контейнером  digest=-
