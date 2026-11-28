@@ -4,16 +4,16 @@
 # деплой читает только этот файл, откат = revert коммита, изменившего строку.
 # Генератор: python tools/gen_images_lock.py --write
 # Проверка:  python tools/gen_images_lock.py --check
-journal              single-622e622  6-msa/BC-Journal  digest=-
-partners             single-622e622  6-msa/BC-Partners  digest=-
-catalog              single-622e622  6-msa/BC-Catalog  digest=-
-somatic-series       single-622e622  6-msa/BC-SomaticSeries  digest=-
-daily-metrics        single-622e622  6-msa/BC-DailyMetrics  digest=-
-garmin-gateway       single-622e622  6-msa/BC-GarminGateway  digest=-
-apple-health-gateway single-622e622  6-msa/BC-AppleHealthGateway  digest=-
-analytics            single-622e622  6-msa/BC-Analytics  digest=-
-privacy              single-622e622  6-msa/BC-Privacy  digest=-
-portability          single-622e622  6-msa/BC-Portability  digest=-
-client               single-622e622  6-msa/BC-Client  digest=-
-api-gateway          single-622e622  6-msa/ApiGateway  digest=-
-front                single-622e622  8-front  digest=-
+journal                single-d0a31da  6-msa/BC-Journal  commit=d0a31da  digest=sha256:82668e5199fb21cc2abb18c3a5ac551f9ac76ed060d02f719b41276ddde75c6f
+partners               single-d0a31da  6-msa/BC-Partners  commit=d0a31da  digest=sha256:947cc65f5b4e0cbd713f0d71a990dd772f4746c5cfc1a18406513ba3250f4a4f
+catalog                single-d0a31da  6-msa/BC-Catalog  commit=d0a31da  digest=sha256:5818ae6b2230d152d8f23b9cf920e748857846963e42de855e367fc0351d7f52
+somatic-series         single-d0a31da  6-msa/BC-SomaticSeries  commit=d0a31da  digest=sha256:1780d1d47726066d76ee695ea1b1d47468f997b0a9c2274946bf1a701e3f173c
+daily-metrics          single-d0a31da  6-msa/BC-DailyMetrics  commit=d0a31da  digest=sha256:dba6009a72ae7a7a58eea3aab43b8c429aa2b3e4397203796cfc9b0103d1ed46
+garmin-gateway         single-d0a31da  6-msa/BC-GarminGateway  commit=d0a31da  digest=sha256:2bbd84e1150f27b8b7a15c27b952fed56655dad8ce880d3ce8d7c7e062f83583
+apple-health-gateway   single-d0a31da  6-msa/BC-AppleHealthGateway  commit=d0a31da  digest=sha256:9051d35bbac92622fba2933f112fcfc787ab50bbcc2a50411c84f6d945910b0e
+analytics              single-d0a31da  6-msa/BC-Analytics  commit=d0a31da  digest=sha256:244918a6a609bd426e6122741717037a7361ebcf685efe3ad8b0b857a4011e84
+privacy                single-d0a31da  6-msa/BC-Privacy  commit=d0a31da  digest=sha256:5007393dc820a53cd4e732bb1b1abf95ba0800169eeec0b50dfa7f52ff33a33a
+portability            single-d0a31da  6-msa/BC-Portability  commit=d0a31da  digest=sha256:c1495e9def64e205bfce6cc93f29db0a25921cb2f3992b3ddc126d58842f6c54
+client                 single-d0a31da  6-msa/BC-Client  commit=d0a31da  digest=sha256:91dfe0dabbd93074a5d2a2493cb911e30211cea4d025689e1a4befac67e16f1d
+api-gateway            single-d0a31da  6-msa/ApiGateway  commit=d0a31da  digest=sha256:e1660be73f4dcc38f03554aec8d7e1a1c06d8f2a0ee4ec35bc0cc7d0b9f2e18d
+front                  single-d0a31da  8-front  commit=d0a31da  digest=-
